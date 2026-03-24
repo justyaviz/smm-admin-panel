@@ -1,7 +1,7 @@
 import { useState } from "react";
 
 export default function App() {
-  const [open, setOpen] = useState("content");
+  const [open, setOpen] = useState("Kontent reja");
 
   const menu = [
     "Kontent reja",
@@ -12,24 +12,23 @@ export default function App() {
   ];
 
   return (
-    <div style={{ display: "flex", height: "100vh", fontFamily: "sans-serif" }}>
-      {/* Sidebar */}
-      <div style={{ width: 250, background: "#f3f4f6", padding: 20 }}>
-        <h2>E-ONE</h2>
+    <div style={{ display: "flex", minHeight: "100vh", fontFamily: "Arial, sans-serif", background: "#f5f7fb" }}>
+      <div style={{ width: 260, background: "#eef2f7", padding: 20, borderRight: "1px solid #ddd" }}>
+        <h2 style={{ marginTop: 0 }}>E-ONE</h2>
+        <p style={{ fontWeight: "bold" }}>SMM (media)</p>
 
-        <p><b>SMM (media)</b></p>
-
-        {menu.map((item, i) => (
+        {menu.map((item) => (
           <div
-            key={i}
+            key={item}
             onClick={() => setOpen(item)}
             style={{
-              padding: 10,
-              margin: "5px 0",
+              padding: 12,
+              marginBottom: 8,
               cursor: "pointer",
               background: open === item ? "#1690F5" : "#fff",
-              color: open === item ? "#fff" : "#000",
-              borderRadius: 10,
+              color: open === item ? "#fff" : "#111",
+              borderRadius: 12,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.06)"
             }}
           >
             {item}
@@ -37,16 +36,15 @@ export default function App() {
         ))}
       </div>
 
-      {/* Main */}
-      <div style={{ flex: 1, padding: 20 }}>
-        <h1>SMM Admin Panel</h1>
+      <div style={{ flex: 1, padding: 24 }}>
+        <h1 style={{ marginTop: 0 }}>SMM Admin Panel</h1>
         <h2>{open}</h2>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
-          <div style={card}>Payme nasiya — 38%</div>
-          <div style={card}>Uzum nasiya — 44%</div>
-          <div style={card}>Open — 40%</div>
-          <div style={card}>ZoodPay — 41%</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(220px, 1fr))", gap: 16 }}>
+          <div style={card}>Kontent topshiriqlari</div>
+          <div style={card}>Syomka rejasi</div>
+          <div style={card}>Ijtimoiy tarmoq statistikasi</div>
+          <div style={card}>Bonus va hisobotlar</div>
         </div>
       </div>
     </div>
@@ -55,7 +53,7 @@ export default function App() {
 
 const card = {
   background: "#fff",
+  borderRadius: 18,
   padding: 20,
-  borderRadius: 20,
-  boxShadow: "0 5px 15px rgba(0,0,0,0.1)",
+  boxShadow: "0 6px 18px rgba(0,0,0,0.08)"
 };
