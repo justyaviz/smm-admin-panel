@@ -1,347 +1,294 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { api, API_BASE } from './api';
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  Bell, Building2, CalendarDays, CheckCircle2, ClipboardList, Download, Gift,
-  Image, LayoutDashboard, LogOut, Megaphone, Menu, Moon, Network, Plus,
-  Search, Settings, SunMedium, Target, Trash2, Upload, Users, FileText, Camera, FolderKanban
-} from 'lucide-react';
+  Bell,
+  Building2,
+  CheckCircle2,
+  ClipboardList,
+  Gift,
+  Home,
+  LogOut,
+  Moon,
+  Search,
+  Settings,
+  SunMedium,
+  Upload,
+  User,
+  Users,
+  X
+} from "lucide-react";
+import { api, clearAuth, getCurrentUser } from "./api";
 
-const ENTITY_CONFIG = {
-  content: {
-    title: 'Kontent reja', icon: ClipboardList,
-    columns: [
-      ['title', 'Sarlavha'], ['platform', 'Platforma'], ['content_type', 'Turi'], ['status', 'Holat'], ['publish_date', 'Sana'], ['notes', 'Izoh']
-    ],
-    blank: { title: '', platform: 'Instagram', content_type: 'reel', status: 'draft', publish_date: '', notes: '' }
-  },
-  tasks: {
-    title: 'Vazifalar', icon: FolderKanban,
-    columns: [
-      ['title', 'Vazifa'], ['description', 'Tavsif'], ['status', 'Holat'], ['priority', 'Priority'], ['due_date', 'Deadline']
-    ],
-    blank: { title: '', description: '', status: 'todo', priority: 'medium', due_date: '' }
-  },
-  reports: {
-    title: 'Hisobotlar', icon: FileText,
-    columns: [
-      ['title', 'Nomi'], ['period_start', 'Boshlanish'], ['period_end', 'Tugash'], ['reach_count', 'Qamrov'], ['lead_count', 'Lead'], ['sales_count', 'Sotuv'], ['spend_amount', 'Spend'], ['revenue_amount', 'Revenue'], ['notes', 'Izoh']
-    ],
-    blank: { title: '', period_start: '', period_end: '', reach_count: 0, lead_count: 0, sales_count: 0, spend_amount: 0, revenue_amount: 0, notes: '' }
-  },
-  branches: {
-    title: 'Filiallar', icon: Building2,
-    columns: [['name', 'Filial'], ['city', 'Shahar'], ['manager_name', 'Manager'], ['phone', 'Telefon'], ['notes', 'Izoh']],
-    blank: { name: '', city: '', manager_name: '', phone: '', notes: '' }
-  },
-  social: {
-    title: 'Ijtimoiy tarmoqlar', icon: Network,
-    columns: [['platform', 'Platforma'], ['account_name', 'Account'], ['account_url', 'Link'], ['login_name', 'Login'], ['status', 'Status'], ['notes', 'Izoh']],
-    blank: { platform: 'Telegram', account_name: '', account_url: '', login_name: '', status: 'active', notes: '' }
-  },
-  team: {
-    title: 'Jamoa', icon: Users,
-    columns: [['full_name', 'Ism'], ['phone', 'Telefon'], ['login', 'Login'], ['role', 'Role'], ['is_active', 'Aktiv']],
-    blank: { full_name: '', phone: '', login: '', password: '', role: 'viewer', is_active: true }
-  },
-  bonus: {
-    title: 'Bonus tizimi', icon: Gift,
-    columns: [['full_name', 'Xodim'], ['month_label', 'Oy'], ['kpi_score', 'KPI'], ['task_score', 'Task'], ['report_score', 'Report'], ['total_score', 'Jami'], ['bonus_amount', 'Bonus']],
-    readonly: true,
-    blank: {}
-  },
-  uploads: {
-    title: 'Media kutubxona', icon: Image,
-    columns: [['original_name', 'Nomi'], ['mime_type', 'Tip'], ['file_size', 'Hajm'], ['file_url', 'URL']],
-    readonly: true,
-    blank: {}
-  }
-};
-
-const nav = [
-  ['dashboard', 'Dashboard', LayoutDashboard],
-  ['content', 'Kontent reja', ClipboardList],
-  ['tasks', 'Vazifalar', FolderKanban],
-  ['reports', 'Hisobotlar', FileText],
-  ['bonus', 'Bonus', Gift],
-  ['branches', 'Filiallar', Building2],
-  ['social', 'Ijtimoiy tarmoqlar', Network],
-  ['team', 'Jamoa', Users],
-  ['uploads', 'Media', Image],
-  ['settings', 'Sozlamalar', Settings],
+const MENU = [
+  { id: "dashboard", title: "Bosh sahifa", icon: Home },
+  { id: "content", title: "Kontent reja", icon: ClipboardList },
+  { id: "branches", title: "Filiallar", icon: Building2 },
+  { id: "bonus", title: "Bonus tizimi", icon: Gift },
+  { id: "users", title: "Hodimlar", icon: Users },
+  { id: "uploads", title: "Media kutubxona", icon: Upload },
+  { id: "settings", title: "Sozlamalar", icon: Settings }
 ];
 
-function Input({ value, onChange, type = 'text', placeholder = '' }) {
-  return <input className="input" type={type} value={value ?? ''} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />;
+function Toast({ toast, onClose }) {
+  useEffect(() => {
+    if (!toast) return;
+    const t = setTimeout(onClose, 2200);
+    return () => clearTimeout(t);
+  }, [toast, onClose]);
+
+  if (!toast) return null;
+
+  return (
+    <div className={`toast toast-${toast.type || "success"}`}>
+      <span>{toast.message}</span>
+      <button onClick={onClose}>
+        <X size={16} />
+      </button>
+    </div>
+  );
 }
 
-function Login({ onLogin, theme, setTheme }) {
-  const [phoneOrLogin, setPhoneOrLogin] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
+function ThemeToggle({ theme, setTheme }) {
+  return (
+    <button
+      className="theme-toggle"
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+      type="button"
+    >
+      {theme === "dark" ? <SunMedium size={16} /> : <Moon size={16} />}
+      {theme === "dark" ? "Light" : "Dark"}
+    </button>
+  );
+}
 
-  const submit = async (e) => {
+function LoginPage({ onLoggedIn }) {
+  const [phone, setPhone] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+
+  async function submit(e) {
     e.preventDefault();
     try {
       setLoading(true);
-      setError('');
-      const data = await api.login({ phoneOrLogin, password });
-      localStorage.setItem('aloo_token', data.token);
-      onLogin(data.user);
-    } catch (err) {
-      setError(err.message);
+      setErr("");
+      const data = await api.login({ phone, password });
+      onLoggedIn(data.user);
+    } catch (error) {
+      setErr(error.message || "Kirishda xatolik");
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
     <div className="login-page">
-      <div className="login-show">
-        <div className="chip">ALOO SMM SYSTEM</div>
-        <h1>Kuchli kirish oynasi bilan zamonaviy admin panel</h1>
-        <p>SMM bo‘limi uchun yagona markaz: hisobot, reja, bonus, kontent nazorati va jamoa boshqaruvi.</p>
-        <div className="hero-stats">
-          <div className="hero-card"><div>Kontent bajarilishi</div><strong>86%</strong><div className="progress"><span style={{ width: '86%' }} /></div></div>
-          <div className="hero-card"><div>Bugungi tasklar</div><strong>14</strong><small>6 tasi tayyor</small></div>
-          <div className="hero-card"><div>Bonus fondi</div><strong>18.4M</strong><small>Mart bo‘yicha</small></div>
-        </div>
+      <div className="login-left">
+        <div className="mini-badge">aloo SMM platforma</div>
+        <h1>Asalomu alaykum</h1>
+        <h2>aloo do‘konlar tarmog‘i SMM jamoasi yagona ma’lumotlar platformasiga xush kelibsiz</h2>
+        <p>Kirish uchun login va parolingizni kiriting.</p>
       </div>
-      <form className="login-box" onSubmit={submit} autoComplete="off">
-        <div className="login-head">
-          <div>
-            <div className="muted">ADMIN LOGIN</div>
-            <h2>Xush kelibsiz</h2>
-          </div>
-          <button type="button" className="theme-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-            {theme === 'dark' ? <SunMedium size={16} /> : <Moon size={16} />}
-          </button>
-        </div>
-        <label>Telefon yoki login</label>
-        <Input value={phoneOrLogin} onChange={setPhoneOrLogin} placeholder="998939000 yoki admin" />
-        <label>Parol</label>
-        <Input value={password} onChange={setPassword} type="password" placeholder="Parol" />
-        {error && <div className="error">{error}</div>}
-        <button className="btn primary" disabled={loading}>{loading ? 'Kirilmoqda...' : 'Tizimga kirish'}</button>
-        <div className="hint">Demo: 998939000 / 12345678</div>
+
+      <form className="login-card" onSubmit={submit}>
+        <div className="login-title">Tizimga kirish</div>
+
+        <label>
+          <span>Telefon raqam</span>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="998939000"
+          />
+        </label>
+
+        <label>
+          <span>Parol</span>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Parol"
+          />
+        </label>
+
+        {err ? <div className="error-box">{err}</div> : null}
+
+        <button className="primary-btn" disabled={loading} type="submit">
+          {loading ? "Kirilmoqda..." : "Kirish"}
+        </button>
       </form>
     </div>
   );
 }
 
-function TopBar({ title, user, theme, setTheme, onLogout }) {
+function StatCard({ title, value }) {
   return (
-    <div className="topbar">
-      <div>
-        <h1>{title}</h1>
-        <p>Real backend, Postgres, export va role system bilan ishlaydi</p>
-      </div>
-      <div className="top-actions">
-        <button className="icon-btn"><Bell size={16} /></button>
-        <button className="theme-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-          {theme === 'dark' ? <SunMedium size={16} /> : <Moon size={16} />}
-        </button>
-        <div className="user-chip"><strong>{user?.full_name || 'User'}</strong><span>{user?.role}</span></div>
-        <button className="btn ghost" onClick={onLogout}><LogOut size={16} /> Chiqish</button>
-      </div>
+    <div className="stat-card">
+      <div className="stat-title">{title}</div>
+      <div className="stat-value">{value ?? 0}</div>
     </div>
   );
 }
 
-function Dashboard({ summary }) {
-  const cards = [
-    ['Kontentlar', summary?.content?.count || 0],
-    ['Posted', summary?.content?.posted || 0],
-    ['Vazifalar', summary?.tasks?.count || 0],
-    ['Bajarilgan', summary?.tasks?.done || 0],
-    ['Leadlar', summary?.reports?.leads || 0],
-    ['Hodimlar', summary?.users?.count || 0],
-    ['Bonus jami', summary?.bonuses?.total || 0],
-  ];
+function DashboardPage({ summary }) {
   return (
-    <div className="stack">
-      <div className="hero-panel">
+    <div className="page-grid">
+      <div className="hero-card">
         <div>
-          <div className="chip">PREMIUM DASHBOARD</div>
-          <h2>aloo SMM boshqaruv paneli</h2>
-          <p>Hisobotlar, KPI, bonus, reja va kontent nazorati uchun premium admin panel.</p>
+          <div className="mini-badge">Boshqaruv markazi</div>
+          <h3>SMM jamoasi joriy ko‘rsatkichlari</h3>
+          <p>Bu yerda umumiy hisobot, bonus va faol jarayonlar ko‘rinadi.</p>
         </div>
       </div>
-      <div className="cards-grid">
-        {cards.map(([label, value]) => (
-          <div key={label} className="stat-card"><span>{label}</span><strong>{value}</strong></div>
-        ))}
+
+      <div className="stats-grid">
+        <StatCard title="Kontentlar" value={summary?.content_count || 0} />
+        <StatCard title="Vazifalar" value={summary?.task_count || 0} />
+        <StatCard title="Kampaniyalar" value={summary?.campaign_count || 0} />
+        <StatCard title="Hodimlar" value={summary?.user_count || 0} />
+        <StatCard title="Bugungi hisobotlar" value={summary?.today_report_count || 0} />
+        <StatCard title="Jami bonus" value={summary?.total_bonus_amount || 0} />
       </div>
     </div>
   );
 }
 
-function CrudPage({ entity, user }) {
-  const config = ENTITY_CONFIG[entity];
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState(config.blank);
-  const [editing, setEditing] = useState(null);
-  const [q, setQ] = useState('');
+function SettingsPage({ settings, onSave, theme, setTheme, saving }) {
+  const [form, setForm] = useState(settings || {});
 
-  async function load() {
-    setLoading(true);
-    try { setRows(await api.list(entity)); } finally { setLoading(false); }
-  }
-  useEffect(() => { load(); }, [entity]);
+  useEffect(() => {
+    setForm(settings || {});
+  }, [settings]);
 
-  const filtered = useMemo(() => rows.filter(r => JSON.stringify(r).toLowerCase().includes(q.toLowerCase())), [rows, q]);
-
-  const save = async () => {
-    const payload = { ...form };
-    if (entity === 'content' || entity === 'tasks' || entity === 'reports') payload.created_by = user.id;
-    if (editing) await api.update(entity, editing, payload);
-    else await api.create(entity, payload);
-    setForm(config.blank);
-    setEditing(null);
-    await load();
-  };
-
-  const startEdit = (row) => {
-    setEditing(row.id);
-    setForm({ ...config.blank, ...row });
-  };
-
-  const remove = async (id) => {
-    if (!confirm('Rostdan o‘chirasizmi?')) return;
-    await api.remove(entity, id);
-    await load();
-  };
-
-  const doExport = (kind) => api.exportFile(`/api/${entity}/export/${kind}`, `${entity}.${kind === 'excel' ? 'xlsx' : 'pdf'}`);
+  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   return (
-    <div className="stack">
-      <div className="panel-head">
-        <div><h2>{config.title}</h2><p>Jadval ko‘rinishi, qidiruv, export va CRUD</p></div>
-        <div className="row gap">
-          <div className="search"><Search size={16} /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Qidiruv" /></div>
-          {entity !== 'bonus' && entity !== 'uploads' && <button className="btn ghost" onClick={() => { setEditing(null); setForm(config.blank); }}><Plus size={16} /> Yangi</button>}
-          {(entity === 'content' || entity === 'reports' || entity === 'bonus') && <button className="btn ghost" onClick={() => doExport('excel')}><Download size={16} /> Excel</button>}
-          {(entity === 'content' || entity === 'reports') && <button className="btn ghost" onClick={() => doExport('pdf')}><Download size={16} /> PDF</button>}
+    <div className="page-grid">
+      <div className="panel-card">
+        <div className="section-title">Ko‘rinish</div>
+        <div className="row between">
+          <div>
+            <strong>Theme</strong>
+            <p className="muted">Tizim ko‘rinishini almashtirish</p>
+          </div>
+          <ThemeToggle theme={theme} setTheme={setTheme} />
         </div>
       </div>
 
-      {!config.readonly && (
-        <div className="card form-card">
-          <h3>{editing ? 'Tahrirlash' : 'Yangi yozuv'}</h3>
-          <div className="form-grid">
-            {config.columns.map(([key, label]) => (
-              <div key={key}>
-                <label>{label}</label>
-                <Input value={form[key] ?? ''} onChange={(v) => setForm({ ...form, [key]: v })} />
-              </div>
-            ))}
-            {entity === 'team' && (
-              <div>
-                <label>Parol</label>
-                <Input value={form.password ?? ''} onChange={(v) => setForm({ ...form, password: v })} />
-              </div>
-            )}
-          </div>
-          <div className="row gap"><button className="btn primary" onClick={save}>{editing ? 'Saqlash' : 'Qo‘shish'}</button></div>
-        </div>
-      )}
+      <div className="panel-card">
+        <div className="section-title">Asosiy sozlamalar</div>
 
-      <div className="table-card">
+        <div className="form-grid">
+          <label>
+            <span>Kompaniya nomi</span>
+            <input
+              value={form.company_name || ""}
+              onChange={(e) => setField("company_name", e.target.value)}
+            />
+          </label>
+
+          <label>
+            <span>Platforma nomi</span>
+            <input
+              value={form.platform_name || ""}
+              onChange={(e) => setField("platform_name", e.target.value)}
+            />
+          </label>
+
+          <label>
+            <span>Bo‘lim</span>
+            <input
+              value={form.department_name || ""}
+              onChange={(e) => setField("department_name", e.target.value)}
+            />
+          </label>
+
+          <label>
+            <span>Websayt</span>
+            <input
+              value={form.website_url || ""}
+              onChange={(e) => setField("website_url", e.target.value)}
+            />
+          </label>
+
+          <label>
+            <span>Telegram</span>
+            <input
+              value={form.telegram_url || ""}
+              onChange={(e) => setField("telegram_url", e.target.value)}
+            />
+          </label>
+
+          <label>
+            <span>Instagram</span>
+            <input
+              value={form.instagram_url || ""}
+              onChange={(e) => setField("instagram_url", e.target.value)}
+            />
+          </label>
+
+          <label>
+            <span>YouTube</span>
+            <input
+              value={form.youtube_url || ""}
+              onChange={(e) => setField("youtube_url", e.target.value)}
+            />
+          </label>
+
+          <label>
+            <span>Facebook</span>
+            <input
+              value={form.facebook_url || ""}
+              onChange={(e) => setField("facebook_url", e.target.value)}
+            />
+          </label>
+
+          <label>
+            <span>TikTok</span>
+            <input
+              value={form.tiktok_url || ""}
+              onChange={(e) => setField("tiktok_url", e.target.value)}
+            />
+          </label>
+        </div>
+
+        <button className="primary-btn mt16" onClick={() => onSave(form)} disabled={saving}>
+          {saving ? "Saqlanmoqda..." : "Saqlash"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function SimpleTablePage({ title, rows, columns }) {
+  return (
+    <div className="panel-card">
+      <div className="section-title">{title}</div>
+      <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              {config.columns.map(([key, label]) => <th key={key}>{label}</th>)}
-              {!config.readonly && <th>Amallar</th>}
+              {columns.map((c) => (
+                <th key={c.key}>{c.label}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {loading ? <tr><td colSpan={config.columns.length + 1}>Yuklanmoqda...</td></tr> : filtered.map((row) => (
-              <tr key={row.id}>
-                {config.columns.map(([key]) => <td key={key}>{String(row[key] ?? '')}</td>)}
-                {!config.readonly && (
-                  <td className="row gap">
-                    <button className="btn ghost small" onClick={() => startEdit(row)}>Tahrir</button>
-                    <button className="btn danger small" onClick={() => remove(row.id)}><Trash2 size={14} /></button>
-                  </td>
-                )}
+            {rows?.length ? (
+              rows.map((row, idx) => (
+                <tr key={row.id || idx}>
+                  {columns.map((c) => (
+                    <td key={c.key}>{row[c.key] ?? "-"}</td>
+                  ))}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={columns.length} className="empty-cell">
+                  Hozircha ma’lumot yo‘q
+                </td>
               </tr>
-            ))}
-            {!loading && filtered.length === 0 && <tr><td colSpan={config.columns.length + 1}>Ma'lumot yo‘q</td></tr>}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function SettingsPage({ settings, setSettings, theme, setTheme, changePassword }) {
-  const [local, setLocal] = useState(settings || {});
-  const [pwd, setPwd] = useState({ currentPassword: '', newPassword: '' });
-  useEffect(() => setLocal(settings || {}), [settings]);
-  const save = async () => setSettings(await api.settings.update(local));
-
-  return (
-    <div className="stack">
-      <div className="card form-card">
-        <h3>Panel va kompaniya sozlamalari</h3>
-        <div className="form-grid">
-          <div><label>Kompaniya</label><Input value={local.company_name || ''} onChange={(v) => setLocal({ ...local, company_name: v })} /></div>
-          <div><label>Bo‘lim</label><Input value={local.department_name || ''} onChange={(v) => setLocal({ ...local, department_name: v })} /></div>
-          <div><label>Theme default</label><Input value={local.theme_default || theme} onChange={(v) => setLocal({ ...local, theme_default: v })} /></div>
-          <div><label>Telegram</label><Input value={local.telegram_url || ''} onChange={(v) => setLocal({ ...local, telegram_url: v })} /></div>
-          <div><label>Instagram</label><Input value={local.instagram_url || ''} onChange={(v) => setLocal({ ...local, instagram_url: v })} /></div>
-          <div><label>YouTube</label><Input value={local.youtube_url || ''} onChange={(v) => setLocal({ ...local, youtube_url: v })} /></div>
-          <div><label>Website</label><Input value={local.website_url || ''} onChange={(v) => setLocal({ ...local, website_url: v })} /></div>
-        </div>
-        <div className="row gap wrap">
-          <button className="btn primary" onClick={save}>Saqlash</button>
-          <button className="btn ghost" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? <SunMedium size={16} /> : <Moon size={16} />} Rejim</button>
-        </div>
-      </div>
-      <div className="card form-card">
-        <h3>Parolni almashtirish</h3>
-        <div className="form-grid two">
-          <div><label>Joriy parol</label><Input type="password" value={pwd.currentPassword} onChange={(v) => setPwd({ ...pwd, currentPassword: v })} /></div>
-          <div><label>Yangi parol</label><Input type="password" value={pwd.newPassword} onChange={(v) => setPwd({ ...pwd, newPassword: v })} /></div>
-        </div>
-        <button className="btn primary" onClick={() => changePassword(pwd)}>Parolni almashtirish</button>
-      </div>
-    </div>
-  );
-}
-
-function UploadsPage() {
-  const [rows, setRows] = useState([]);
-  const [file, setFile] = useState(null);
-  const load = async () => setRows(await api.list('uploads'));
-  useEffect(() => { load(); }, []);
-  const submit = async () => {
-    if (!file) return;
-    const fd = new FormData();
-    fd.append('file', file);
-    await api.upload(fd);
-    setFile(null);
-    await load();
-  };
-  const remove = async (id) => { if (confirm('O‘chirish?')) { await api.remove('uploads', id); await load(); } };
-  return (
-    <div className="stack">
-      <div className="card form-card">
-        <h3>Fayl yuklash</h3>
-        <div className="row gap wrap">
-          <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
-          <button className="btn primary" onClick={submit}><Upload size={16} /> Yuklash</button>
-        </div>
-      </div>
-      <div className="table-card">
-        <table>
-          <thead><tr><th>Nomi</th><th>Tip</th><th>Hajm</th><th>URL</th><th /></tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}><td>{r.original_name}</td><td>{r.mime_type}</td><td>{r.file_size}</td><td><a href={r.file_url} target="_blank" rel="noreferrer">Ochish</a></td><td><button className="btn danger small" onClick={() => remove(r.id)}>O‘chirish</button></td></tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
@@ -350,57 +297,518 @@ function UploadsPage() {
 }
 
 export default function App() {
-  const [theme, setTheme] = useState(localStorage.getItem('aloo_theme') || 'dark');
-  const [user, setUser] = useState(null);
-  const [page, setPage] = useState('dashboard');
+  const [booting, setBooting] = useState(true);
+  const [user, setUser] = useState(getCurrentUser());
+  const [active, setActive] = useState("dashboard");
+  const [theme, setTheme] = useState(localStorage.getItem("aloo_theme") || "dark");
+  const [toast, setToast] = useState(null);
+  const [search, setSearch] = useState("");
+
   const [summary, setSummary] = useState(null);
   const [settings, setSettings] = useState(null);
+  const [notifications, setNotifications] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [branches, setBranches] = useState([]);
+  const [bonuses, setBonuses] = useState([]);
+  const [uploads, setUploads] = useState([]);
+  const [contentRows, setContentRows] = useState([]);
+
+  const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem('aloo_theme', theme);
+    localStorage.setItem("aloo_theme", theme);
+    document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
   useEffect(() => {
-    const token = localStorage.getItem('aloo_token');
-    if (token) {
-      api.me().then(setUser).catch(() => localStorage.removeItem('aloo_token'));
-      api.dashboard().then(setSummary).catch(() => {});
-      api.settings.get().then(setSettings).catch(() => {});
+    async function init() {
+      if (!user) {
+        setBooting(false);
+        return;
+      }
+
+      try {
+        const me = await api.me();
+        setUser(me.user);
+
+        const [
+          dashboardRes,
+          settingsRes,
+          notificationsRes,
+          usersRes,
+          branchesRes,
+          bonusRes,
+          uploadsRes,
+          contentRes
+        ] = await Promise.all([
+          api.dashboard(),
+          api.settings.get(),
+          api.list("notifications"),
+          api.list("users").catch(() => []),
+          api.list("branches").catch(() => []),
+          api.list("bonuses").catch(() => []),
+          api.list("uploads").catch(() => []),
+          api.list("content").catch(() => [])
+        ]);
+
+        setSummary(dashboardRes);
+        setSettings(settingsRes);
+        setNotifications(notificationsRes || []);
+        setUsers(usersRes || []);
+        setBranches(branchesRes || []);
+        setBonuses(bonusRes || []);
+        setUploads(uploadsRes || []);
+        setContentRows(contentRes || []);
+      } catch {
+        clearAuth();
+        setUser(null);
+      } finally {
+        setBooting(false);
+      }
     }
-  }, []);
 
-  const onLogin = async (u) => {
-    setUser(u);
-    setSummary(await api.dashboard());
-    setSettings(await api.settings.get());
-  };
-  const onLogout = () => { localStorage.removeItem('aloo_token'); setUser(null); };
-  const changePassword = async (payload) => { await api.changePassword(payload); alert('Parol yangilandi'); };
+    init();
+  }, [user?.id]);
 
-  if (!user) return <Login onLogin={onLogin} theme={theme} setTheme={setTheme} />;
+  const filteredMenu = useMemo(() => {
+    if (!search.trim()) return MENU;
+    return MENU.filter((m) =>
+      m.title.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [search]);
 
-  const CurrentIcon = nav.find(([id]) => id === page)?.[2] || LayoutDashboard;
+  function showSaved(msg = "Saqlandi ✅") {
+    setToast({ type: "success", message: msg });
+  }
+
+  function logout() {
+    clearAuth();
+    setUser(null);
+    setSummary(null);
+    setSettings(null);
+    setNotifications([]);
+    setUsers([]);
+    setBranches([]);
+    setBonuses([]);
+    setUploads([]);
+    setContentRows([]);
+    setActive("dashboard");
+  }
+
+  async function saveSettings(payload) {
+    try {
+      setSavingSettings(true);
+      const res = await api.settings.update(payload);
+      const updated = await api.settings.get();
+      setSettings(updated);
+      showSaved(res.message || "Saqlandi ✅");
+    } catch (e) {
+      setToast({ type: "error", message: e.message || "Xatolik yuz berdi" });
+    } finally {
+      setSavingSettings(false);
+    }
+  }
+
+  if (booting) {
+    return <div className="loading-screen">Yuklanmoqda...</div>;
+  }
+
+  if (!user) {
+    return (
+      <>
+        <LoginPage onLoggedIn={setUser} />
+        <Toast toast={toast} onClose={() => setToast(null)} />
+        <style>{styles}</style>
+      </>
+    );
+  }
+
+  let page = null;
+
+  if (active === "dashboard") {
+    page = <DashboardPage summary={summary} />;
+  } else if (active === "settings") {
+    page = (
+      <SettingsPage
+        settings={settings}
+        onSave={saveSettings}
+        theme={theme}
+        setTheme={setTheme}
+        saving={savingSettings}
+      />
+    );
+  } else if (active === "users") {
+    page = (
+      <SimpleTablePage
+        title="Hodimlar"
+        rows={users}
+        columns={[
+          { key: "full_name", label: "Ism" },
+          { key: "phone", label: "Telefon" },
+          { key: "login", label: "Login" },
+          { key: "role", label: "Rol" }
+        ]}
+      />
+    );
+  } else if (active === "branches") {
+    page = (
+      <SimpleTablePage
+        title="Filiallar"
+        rows={branches}
+        columns={[
+          { key: "name", label: "Filial" },
+          { key: "city", label: "Shahar" },
+          { key: "manager_name", label: "Manager" },
+          { key: "phone", label: "Telefon" }
+        ]}
+      />
+    );
+  } else if (active === "bonus") {
+    page = (
+      <SimpleTablePage
+        title="Bonuslar"
+        rows={bonuses}
+        columns={[
+          { key: "full_name", label: "Hodim" },
+          { key: "month_label", label: "Oy" },
+          { key: "total_units", label: "Soni" },
+          { key: "unit_price", label: "Birlik narx" },
+          { key: "total_amount", label: "Jami summa" }
+        ]}
+      />
+    );
+  } else if (active === "uploads") {
+    page = (
+      <SimpleTablePage
+        title="Media kutubxona"
+        rows={uploads}
+        columns={[
+          { key: "original_name", label: "Fayl" },
+          { key: "mime_type", label: "Turi" },
+          { key: "file_size", label: "Hajmi" },
+          { key: "file_url", label: "Link" }
+        ]}
+      />
+    );
+  } else if (active === "content") {
+    page = (
+      <SimpleTablePage
+        title="Kontent reja"
+        rows={contentRows}
+        columns={[
+          { key: "title", label: "Sarlavha" },
+          { key: "platform", label: "Platforma" },
+          { key: "content_type", label: "Turi" },
+          { key: "status", label: "Holat" },
+          { key: "publish_date", label: "Sana" }
+        ]}
+      />
+    );
+  }
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand"><div className="brand-logo">a</div><div><strong>{settings?.company_name || 'aloo'}</strong><span>{settings?.department_name || 'SMM department'}</span></div></div>
-        <div className="sidebar-search"><Search size={16} /><input placeholder="Menu qidirish" /></div>
-        <nav className="nav-list">
-          {nav.map(([id, label, Icon]) => (
-            <button key={id} className={`nav-item ${page === id ? 'active' : ''}`} onClick={() => setPage(id)}><Icon size={16} /> {label}</button>
-          ))}
-        </nav>
-      </aside>
-      <main className="content">
-        <TopBar title={nav.find(([id]) => id === page)?.[1] || 'Dashboard'} user={user} theme={theme} setTheme={setTheme} onLogout={onLogout} />
-        {page === 'dashboard' && <Dashboard summary={summary} />}
-        {page === 'settings' && <SettingsPage settings={settings} setSettings={setSettings} theme={theme} setTheme={setTheme} changePassword={changePassword} />}
-        {page === 'uploads' && <UploadsPage />}
-        {ENTITY_CONFIG[page] && <CrudPage entity={page} user={user} />}
-        <div className="api-note">API: {API_BASE}</div>
-      </main>
-    </div>
+    <>
+      <div className="app-shell">
+        <aside className="sidebar">
+          <div className="brand">
+            <div className="brand-logo">a</div>
+            <div>
+              <div className="brand-title">aloo</div>
+              <div className="brand-sub">SMM platforma</div>
+            </div>
+          </div>
+
+          <div className="search-box">
+            <Search size={16} />
+            <input
+              placeholder="Qidiruv..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="menu">
+            {filteredMenu.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  className={`menu-btn ${active === item.id ? "active" : ""}`}
+                  onClick={() => setActive(item.id)}
+                >
+                  <span>
+                    <Icon size={16} />
+                    {item.title}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <button className="logout-btn" onClick={logout}>
+            <LogOut size={16} />
+            Chiqish
+          </button>
+        </aside>
+
+        <main className="main">
+          <div className="topbar">
+            <div>
+              <h1>{MENU.find((m) => m.id === active)?.title || "Bosh sahifa"}</h1>
+              <p>
+                Asalomu alaykum, {user.full_name}
+              </p>
+            </div>
+
+            <div className="topbar-right">
+              <ThemeToggle theme={theme} setTheme={setTheme} />
+              <div className="notif-pill">
+                <Bell size={16} />
+                {notifications.length}
+              </div>
+              <div className="user-pill">
+                <User size={16} />
+                {user.role}
+              </div>
+            </div>
+          </div>
+
+          {page}
+        </main>
+      </div>
+
+      <Toast toast={toast} onClose={() => setToast(null)} />
+      <style>{styles}</style>
+    </>
   );
 }
+
+const styles = `
+:root{
+  --bg:#0b1220;
+  --panel:#121c2d;
+  --panel2:#182335;
+  --line:rgba(255,255,255,.08);
+  --text:#eef4ff;
+  --muted:#9cb0cb;
+  --blue:#2497ff;
+  --blue2:#6bddff;
+  --green:#1fbe73;
+  --red:#ef5a5a;
+}
+:root[data-theme='light']{
+  --bg:#eef5fb;
+  --panel:#ffffff;
+  --panel2:#f7fbff;
+  --line:#dfeaf4;
+  --text:#10243a;
+  --muted:#6f8499;
+  --blue:#2497ff;
+  --blue2:#6bddff;
+  --green:#1fbe73;
+  --red:#ef5a5a;
+}
+*{box-sizing:border-box}
+html,body,#root{margin:0;min-height:100%;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
+button,input{font:inherit}
+input{outline:none}
+.loading-screen{min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text)}
+
+.login-page{
+  min-height:100vh;
+  display:grid;
+  grid-template-columns:1.1fr .9fr;
+  gap:32px;
+  padding:40px;
+  background:linear-gradient(180deg,var(--bg),#111b2b);
+}
+.login-left{display:flex;flex-direction:column;justify-content:center}
+.login-left h1{margin:0;font-size:54px}
+.login-left h2{margin:12px 0 0;font-size:28px;line-height:1.2;max-width:760px}
+.login-left p{margin:18px 0 0;color:var(--muted);font-size:18px}
+.mini-badge{
+  display:inline-flex;
+  width:max-content;
+  padding:10px 14px;
+  border-radius:999px;
+  background:rgba(36,151,255,.14);
+  border:1px solid rgba(36,151,255,.25);
+  color:#bfe5ff;
+  margin-bottom:18px;
+}
+.login-card{
+  align-self:center;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:28px;
+  padding:28px;
+  display:grid;
+  gap:16px;
+  box-shadow:0 20px 50px rgba(0,0,0,.2);
+}
+.login-title{font-size:30px;font-weight:800}
+.login-card label{display:grid;gap:8px}
+.login-card label span{color:var(--muted);font-size:13px}
+.login-card input{
+  background:var(--panel2);
+  border:1px solid var(--line);
+  color:var(--text);
+  border-radius:16px;
+  padding:14px 16px;
+}
+.primary-btn{
+  border:0;
+  border-radius:16px;
+  padding:14px 18px;
+  cursor:pointer;
+  font-weight:800;
+  color:#fff;
+  background:linear-gradient(135deg,var(--blue),var(--blue2));
+}
+.error-box{
+  background:rgba(239,90,90,.14);
+  color:#ffb3b3;
+  border:1px solid rgba(239,90,90,.2);
+  padding:12px 14px;
+  border-radius:14px;
+}
+
+.app-shell{
+  min-height:100vh;
+  display:grid;
+  grid-template-columns:280px 1fr;
+  background:var(--bg);
+}
+.sidebar{
+  padding:18px;
+  border-right:1px solid var(--line);
+  background:var(--panel);
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+.brand{display:flex;gap:12px;align-items:center}
+.brand-logo{
+  width:48px;height:48px;border-radius:16px;
+  display:grid;place-items:center;
+  background:linear-gradient(135deg,var(--blue),var(--blue2));
+  color:#fff;font-weight:900;font-size:24px;
+}
+.brand-title{font-size:22px;font-weight:800}
+.brand-sub{font-size:12px;color:var(--muted)}
+.search-box{
+  display:flex;align-items:center;gap:10px;
+  background:var(--panel2);
+  border:1px solid var(--line);
+  border-radius:16px;padding:12px 14px;
+}
+.search-box input{
+  width:100%;
+  border:0;background:transparent;color:var(--text);
+}
+.menu{display:grid;gap:10px}
+.menu-btn{
+  border:1px solid transparent;
+  background:rgba(255,255,255,.04);
+  color:var(--text);
+  border-radius:16px;
+  padding:14px 16px;
+  cursor:pointer;
+  text-align:left;
+  font-weight:700;
+}
+.menu-btn span{display:flex;gap:10px;align-items:center}
+.menu-btn.active{
+  background:linear-gradient(135deg,rgba(36,151,255,.2),rgba(109,221,255,.12));
+  border-color:rgba(36,151,255,.2);
+}
+.logout-btn{
+  margin-top:auto;
+  border:0;
+  border-radius:16px;
+  padding:14px 16px;
+  background:linear-gradient(135deg,var(--red),#ff8e8e);
+  color:#fff;
+  cursor:pointer;
+  font-weight:700;
+  display:flex;gap:10px;align-items:center;justify-content:center;
+}
+.main{padding:24px}
+.topbar{
+  display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:24px;
+  padding:20px 22px;
+}
+.topbar h1{margin:0;font-size:34px}
+.topbar p{margin:6px 0 0;color:var(--muted)}
+.topbar-right{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.theme-toggle,.notif-pill,.user-pill{
+  border:1px solid var(--line);
+  background:var(--panel2);
+  color:var(--text);
+  border-radius:14px;
+  padding:12px 14px;
+  display:flex;gap:8px;align-items:center;
+}
+.page-grid{display:grid;gap:18px;margin-top:18px}
+.hero-card,.panel-card,.stat-card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:24px;
+  padding:20px;
+}
+.hero-card h3{margin:12px 0 8px;font-size:34px}
+.hero-card p{margin:0;color:var(--muted)}
+.stats-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:18px;
+}
+.stat-title{color:var(--muted);font-size:14px}
+.stat-value{font-size:40px;font-weight:900;margin-top:10px}
+.section-title{font-size:24px;font-weight:800;margin-bottom:16px}
+.form-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:14px;
+}
+.form-grid label{display:grid;gap:8px}
+.form-grid label span{color:var(--muted);font-size:13px}
+.form-grid input{
+  background:var(--panel2);
+  border:1px solid var(--line);
+  color:var(--text);
+  border-radius:14px;
+  padding:13px 14px;
+}
+.row.between{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}
+.muted{color:var(--muted)}
+.mt16{margin-top:16px}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:18px}
+table{width:100%;border-collapse:collapse}
+th,td{padding:12px;border-bottom:1px solid var(--line);text-align:left}
+th{color:var(--muted);background:rgba(255,255,255,.03)}
+.empty-cell{text-align:center;color:var(--muted);padding:20px}
+.toast{
+  position:fixed;
+  right:20px;bottom:20px;
+  min-width:240px;
+  display:flex;justify-content:space-between;gap:12px;align-items:center;
+  padding:14px 16px;
+  border-radius:16px;
+  color:#fff;
+  box-shadow:0 18px 40px rgba(0,0,0,.25);
+  z-index:9999;
+}
+.toast-success{background:linear-gradient(135deg,var(--green),#56e3a2)}
+.toast-error{background:linear-gradient(135deg,var(--red),#ff8e8e)}
+.toast button{background:transparent;border:0;color:#fff;cursor:pointer}
+
+@media (max-width: 1100px){
+  .login-page,.app-shell,.form-grid,.stats-grid{grid-template-columns:1fr}
+  .main{padding:14px}
+  .topbar h1{font-size:28px}
+}
+`;
