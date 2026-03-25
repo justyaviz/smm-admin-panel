@@ -627,6 +627,41 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [dailyReports, setDailyReports] = useState([]);
   const [search, setSearch] = useState("");
+  async function reloadData() {
+  try {
+    const [
+      dashboardRes,
+      settingsRes,
+      notificationsRes,
+      usersRes,
+      branchesRes,
+      bonusRes,
+      uploadsRes,
+      contentRes,
+      dailyReportsRes
+    ] = await Promise.all([
+      api.dashboard(),
+      api.settings.get(),
+      api.list("notifications").catch(() => []),
+      api.list("users").catch(() => []),
+      api.list("branches").catch(() => []),
+      api.list("bonuses").catch(() => []),
+      api.list("uploads").catch(() => []),
+      api.list("content").catch(() => []),
+      api.list("daily-reports").catch(() => [])
+    ]);
+
+    setSummary(dashboardRes);
+    setSettings(settingsRes);
+    setNotifications(notificationsRes || []);
+    setUsers(usersRes || []);
+    setBranches(branchesRes || []);
+    setBonuses(bonusRes || []);
+    setUploads(uploadsRes || []);
+    setContentRows(contentRes || []);
+    setDailyReports(dailyReportsRes || []);
+  } catch {}
+}
 
   const [summary, setSummary] = useState(null);
   const [settings, setSettings] = useState(null);
@@ -693,6 +728,7 @@ export default function App() {
         setBranches(branchesRes || []);
         setBonuses(bonusRes || []);
         setUploads(uploadsRes || []);
+        setDailyReports(dailyReportsRes || []);
         setContentRows(contentRes || []);
       } catch {
         clearAuth();
@@ -712,9 +748,9 @@ export default function App() {
     );
   }, [search]);
 
-  function showSaved(msg = "Saqlandi ✅") {
-    setToast({ type: "success", message: msg });
-  }
+  function showSaved(msg = "Saqlandi ✅", type = "success") {
+  setToast({ type, message: msg });
+}
 
   function logout() {
     clearAuth();
