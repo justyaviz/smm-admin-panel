@@ -358,7 +358,210 @@ function KpiPage({ kpiSummary, kpiEmployees, kpiBranches, kpiContentTypes }) {
   );
 }
 
-function BonusPage({ bonuses, bonusItems, users, branches, onToast, reload }) {
+function BonusPage({ bonuses, bonusItems, onToast }) {
+  const [monthFilter, setMonthFilter] = useState(getMonthLabel());
+
+  const monthOptions = [...new Set(bonusItems.map((i) => i.month_label).filter(Boolean))].sort().reverse();
+
+  const filteredItems = bonusItems.filter((item) =>
+    monthFilter ? item.month_label === monthFilter : true
+  );
+
+  const totalProposalAmount = filteredItems.reduce(
+    (sum, item) => sum + Number(item.proposal_amount || 0),
+    0
+  );
+
+  const totalApprovedAmount = filteredItems.reduce(
+    (sum, item) => sum + Number(item.approved_amount || 0),
+    0
+  );
+
+  const totalAmount = filteredItems.reduce(
+    (sum, item) => sum + Number(item.total_amount || item.amount || 0),
+    0
+  );
+
+  const employeeSummaryMap = new Map();
+
+  filteredItems.forEach((item) => {
+    const firstName = item.full_name || "Noma’lum";
+    const firstTotal = Number(item.total_amount || item.amount || 0);
+
+    if (!employeeSummaryMap.has(firstName)) {
+      employeeSummaryMap.set(firstName, {
+        name: firstName,
+        total: 0,
+        proposal: 0,
+        approved: 0
+      });
+    }
+
+    const first = employeeSummaryMap.get(firstName);
+    first.total += firstTotal;
+    first.proposal += Number(item.proposal_amount || 0);
+    first.approved += Number(item.approved_amount || 0);
+
+    if (item.second_full_name) {
+      if (!employeeSummaryMap.has(item.second_full_name)) {
+        employeeSummaryMap.set(item.second_full_name, {
+          name: item.second_full_name,
+          total: 0,
+          proposal: 0,
+          approved: 0
+        });
+      }
+
+      const second = employeeSummaryMap.get(item.second_full_name);
+      second.total += firstTotal;
+      second.proposal += Number(item.proposal_amount || 0);
+      second.approved += Number(item.approved_amount || 0);
+    }
+  });
+
+  const employeeSummary = [...employeeSummaryMap.values()].sort((a, b) => b.total - a.total);
+  const topEmployee = employeeSummary[0];
+
+  return (
+    <div className="page-grid">
+      <div className="card">
+        <SectionTitle
+          title="Bonus tizimi"
+          desc="Taklif va tasdiq asosida hisoblangan oylik bonuslar"
+          right={
+            <div className="toolbar-actions">
+              <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
+                <option value={getMonthLabel()}>{getMonthTitle(getMonthLabel())}</option>
+                {monthOptions.map((m) => (
+                  <option key={m} value={m}>
+                    {getMonthTitle(m)}
+                  </option>
+                ))}
+              </select>
+
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => api.exportFile("/api/export/bonuses.xlsx", `bonuses-${monthFilter}.xlsx`)}
+              >
+                Excel export
+              </button>
+
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => api.exportFile("/api/export/bonuses.pdf", `bonuses-${monthFilter}.pdf`)}
+              >
+                PDF export
+              </button>
+            </div>
+          }
+        />
+
+        <div className="stats-grid">
+          <StatCard
+            title="Joriy oy jami bonus"
+            value={`${totalAmount.toLocaleString()} so‘m`}
+            hint={getMonthTitle(monthFilter)}
+          />
+          <StatCard
+            title="Taklif summasi"
+            value={`${totalProposalAmount.toLocaleString()} so‘m`}
+            hint="proposal"
+          />
+          <StatCard
+            title="Tasdiq summasi"
+            value={`${totalApprovedAmount.toLocaleString()} so‘m`}
+            hint="approved"
+          />
+          <StatCard
+            title="Top hodim"
+            value={topEmployee ? topEmployee.name : "-"}
+            hint={topEmployee ? `${topEmployee.total.toLocaleString()} so‘m` : "ma’lumot yo‘q"}
+          />
+        </div>
+      </div>
+
+      <div className="card">
+        <SectionTitle title="Hodimlar bo‘yicha jami bonus" />
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Hodim</th>
+                <th>Taklif summasi</th>
+                <th>Tasdiq summasi</th>
+                <th>Jami bonus</th>
+              </tr>
+            </thead>
+            <tbody>
+              {employeeSummary.length ? (
+                employeeSummary.map((row, index) => (
+                  <tr key={`${row.name}-${index}`}>
+                    <td>{row.name}</td>
+                    <td>{row.proposal.toLocaleString()} so‘m</td>
+                    <td>{row.approved.toLocaleString()} so‘m</td>
+                    <td>{row.total.toLocaleString()} so‘m</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="4" className="empty-cell">Bu oy uchun bonus ma’lumoti yo‘q</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="card">
+        <SectionTitle title={`${getMonthTitle(monthFilter)} bonus yozuvlari`} />
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Sana</th>
+                <th>Filial</th>
+                <th>Kontent turi</th>
+                <th>Kontent nomi</th>
+                <th>1-hodim</th>
+                <th>2-hodim</th>
+                <th>Taklif soni</th>
+                <th>Taklif summasi</th>
+                <th>Tasdiq soni</th>
+                <th>Tasdiq summasi</th>
+                <th>Jami summa</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredItems.length ? (
+                filteredItems.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.work_date || "-"}</td>
+                    <td>{row.branch_name || "-"}</td>
+                    <td>{row.content_type || "-"}</td>
+                    <td>{row.content_title || "-"}</td>
+                    <td>{row.full_name || "-"}</td>
+                    <td>{row.second_full_name || "-"}</td>
+                    <td>{row.proposal_count || 0}</td>
+                    <td>{Number(row.proposal_amount || 0).toLocaleString()} so‘m</td>
+                    <td>{row.approved_count || 0}</td>
+                    <td>{Number(row.approved_amount || 0).toLocaleString()} so‘m</td>
+                    <td>{Number(row.total_amount || row.amount || 0).toLocaleString()} so‘m</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="11" className="empty-cell">Bu oy uchun bonus yozuvi yo‘q</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
   const [form, setForm] = useState({
     user_id: "",
     month_label: "",
