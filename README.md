@@ -1,70 +1,41 @@
-# aloo SMM Admin Panel — Final full-stack package
+# aloo SMM Platforma - Muse inspired starter
 
-## What is included
-- `client/` — React + Vite frontend
-- `server/` — Express + PostgreSQL backend
-- `server/sql/init.sql` — database schema
-- `server/.env.example` — environment variables example
+Bu ZIP ichida GitHub uchun tayyor frontend starter bor.
 
-## Default admin login
-- phone/login: `998939000` or `admin`
-- password: `12345678`
+## Tarkib
+- `client/` - React + Vite frontend
+- `server_stub/` - bo'sh joy, mavjud backend bilan ishlatish uchun
 
-The admin user is auto-created by the backend on first start.
+## Muhim
+Bu paket premium **frontend karkas** beradi:
+- aloo brand ranglari
+- muse-uslubiga yaqin layout
+- sidebar, topbar, widgetlar
+- login ekran
+- jadval sahifalari
+- dark/light
+- qidiruv
 
-## Railway deployment
+Lekin quyidagi funksiyalarni to'liq production holatga keltirish uchun keyingi bosqichda alohida backend/frontend CRUD ulanish kerak bo'ladi:
+- KPI formulalari
+- bonus item formasi
+- daily reports formasi
+- upload formasi
+- export pdf/xlsx
+- role-based UI guardlar
+- audit log CRUD sahifasi
+- notifications drawer
 
-### 1) PostgreSQL
-Create a Postgres service in Railway.
+## Ishga tushirish
+`client` ichida:
 
-Open the DB and run the SQL from:
-- `server/sql/init.sql`
+```bash
+npm install
+npm run dev
+```
 
-### 2) Backend service
-Create a new Railway service from the same repo.
-
-Set:
-- Root Directory: `server`
-- Build Command: `npm install`
-- Start Command: `npm start`
-
-Variables:
-- `DATABASE_URL` = value from Railway Postgres Variables tab
-- `JWT_SECRET` = any long secret string
-- `PORT` = `8080`
-- `CLIENT_URL` = frontend domain
-- `NODE_ENV` = `production`
-
-Generate a public domain.
-
-### 3) Frontend service
-Create another Railway service from the same repo.
-
-Set:
-- Root Directory: `client`
-- Build Command: `npm install && npm run build`
-- Start Command: `npm run preview`
-
-Variable:
-- `VITE_API_BASE` = backend public domain, for example `https://your-api.up.railway.app`
-
-Generate a public domain.
-
-## Main features
-- real login with JWT
-- roles: admin/manager/editor/viewer
-- PostgreSQL storage across devices
-- settings saved to DB
-- CRUD for content, tasks, reports, branches, social accounts, team
-- uploads API and media table
-- bonus auto-recalculation from real data
-- Excel export for content/reports/bonus
-- PDF export for content/reports
-- dark/light mode
-- password change
-- audit log API
-
-## Notes
-- frontend uses the backend API, so data is shared across devices
-- uploads are stored in `server/uploads`; on production use a persistent volume
-- this package is production-oriented, but you should still review security and backups before heavy use
+## Railway
+- Root directory: `client`
+- Build command: `npm install && npm run build`
+- Start command: `npm run preview`
+- Variable: `VITE_API_BASE=https://smm-admin-panel-back-production.up.railway.app`
