@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Bell,
-  Building2,
   FileBarChart2,
   FolderKanban,
   Gift,
@@ -16,14 +15,11 @@ import {
   Settings,
   SunMedium,
   User,
-  Users,
+  Users as UsersIcon,
   ShieldCheck,
   X
 } from "lucide-react";
 import { api, clearAuth, getCurrentUser } from "./api";
-import KPI from "./pages/KPI";
-import Bonus from "./pages/Bonus";
-import Users from "./pages/Users";
 
 const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: Home },
@@ -33,7 +29,7 @@ const MENU = [
   { id: "campaigns", title: "Reklama kampaniyalari", icon: Megaphone },
   { id: "bonus", title: "Bonus tizimi", icon: Gift },
   { id: "uploads", title: "Media kutubxona", icon: Image },
-  { id: "users", title: "Hodimlar", icon: Users },
+  { id: "users", title: "Hodimlar", icon: UsersIcon },
   { id: "tasks", title: "Vazifalar", icon: FolderKanban },
   { id: "audit", title: "Audit log", icon: ShieldCheck },
   { id: "settings", title: "Sozlamalar", icon: Settings }
@@ -60,7 +56,11 @@ function Toast({ toast, onClose }) {
 
 function ThemeToggle({ theme, setTheme }) {
   return (
-    <button className="theme-toggle" type="button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+    <button
+      className="theme-toggle"
+      type="button"
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+    >
       {theme === "dark" ? <SunMedium size={16} /> : <Moon size={16} />}
     </button>
   );
@@ -76,22 +76,28 @@ function NotificationsDrawer({ open, onClose, notifications, onRead, onReadAll }
             <div className="small-label">Bildirishnomalar</div>
             <h3>So‘nggi yangiliklar</h3>
           </div>
-          <button type="button" className="btn secondary" onClick={onReadAll}>Hammasini o‘qildi</button>
+          <button type="button" className="btn secondary" onClick={onReadAll}>
+            Hammasini o‘qildi
+          </button>
         </div>
 
         <div className="drawer-list">
-          {notifications.length ? notifications.map((item) => (
-            <div key={item.id} className={`notif-card ${item.is_read ? "read" : ""}`}>
-              <div className="notif-title">{item.title}</div>
-              <div className="notif-body">{item.body}</div>
-              <div className="notif-footer">
-                <span>{item.type}</span>
-                {!item.is_read ? (
-                  <button type="button" className="link-btn" onClick={() => onRead(item.id)}>O‘qildi</button>
-                ) : null}
+          {notifications.length ? (
+            notifications.map((item) => (
+              <div key={item.id} className={`notif-card ${item.is_read ? "read" : ""}`}>
+                <div className="notif-title">{item.title}</div>
+                <div className="notif-body">{item.body}</div>
+                <div className="notif-footer">
+                  <span>{item.type}</span>
+                  {!item.is_read ? (
+                    <button type="button" className="link-btn" onClick={() => onRead(item.id)}>
+                      O‘qildi
+                    </button>
+                  ) : null}
+                </div>
               </div>
-            </div>
-          )) : (
+            ))
+          ) : (
             <div className="empty-block">Hozircha bildirishnoma yo‘q</div>
           )}
         </div>
@@ -157,12 +163,21 @@ function LoginPage({ onLoggedIn }) {
 
         <label>
           <span>Telefon raqam yoki login</span>
-          <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="998939000 yoki admin" />
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="998939000 yoki admin"
+          />
         </label>
 
         <label>
           <span>Parol</span>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Parol" />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Parol"
+          />
         </label>
 
         {error ? <div className="error-box">{error}</div> : null}
@@ -187,10 +202,26 @@ function DashboardPage({ summary, kpiSummary, dailyReports, bonuses, campaigns, 
       </div>
 
       <div className="stats-grid">
-        <StatCard title="Joriy oy KPI" value={`${Number(kpiSummary?.total_kpi || 0).toFixed(1)}%`} hint="umumiy KPI" />
-        <StatCard title="Joriy oy bonus" value={`${Number(summary?.total_bonus_amount || 0).toLocaleString()} so‘m`} hint="umumiy bonus" />
-        <StatCard title="Bugungi filial hisobotlari" value={summary?.today_report_count || 0} hint="bugungi ma’lumot" />
-        <StatCard title="Kechikkan vazifalar" value={kpiSummary?.late_tasks || 0} hint="deadline o‘tgan" />
+        <StatCard
+          title="Joriy oy KPI"
+          value={`${Number(kpiSummary?.total_kpi || 0).toFixed(1)}%`}
+          hint="umumiy KPI"
+        />
+        <StatCard
+          title="Joriy oy bonus"
+          value={`${Number(summary?.total_bonus_amount || 0).toLocaleString()} so‘m`}
+          hint="umumiy bonus"
+        />
+        <StatCard
+          title="Bugungi filial hisobotlari"
+          value={summary?.today_report_count || 0}
+          hint="bugungi ma’lumot"
+        />
+        <StatCard
+          title="Kechikkan vazifalar"
+          value={kpiSummary?.late_tasks || 0}
+          hint="deadline o‘tgan"
+        />
       </div>
 
       <div className="two-grid">
@@ -383,54 +414,96 @@ function BonusPage({ bonuses, bonusItems, users, branches, onToast, reload }) {
           desc="1 soni = 25,000 so‘m"
           right={
             <div className="toolbar-actions">
-              <button className="btn secondary" onClick={() => api.exportFile("/api/export/bonuses.xlsx", "bonuses.xlsx")}>Excel export</button>
-              <button className="btn secondary" onClick={() => api.exportFile("/api/export/bonuses.pdf", "bonuses.pdf")}>PDF export</button>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => api.exportFile("/api/export/bonuses.xlsx", "bonuses.xlsx")}
+              >
+                Excel export
+              </button>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => api.exportFile("/api/export/bonuses.pdf", "bonuses.pdf")}
+              >
+                PDF export
+              </button>
             </div>
           }
         />
 
-        <div className="summary-pill">Umumiy bonus: <strong>{totalBonus.toLocaleString()} so‘m</strong></div>
+        <div className="summary-pill">
+          Umumiy bonus: <strong>{totalBonus.toLocaleString()} so‘m</strong>
+        </div>
 
         <form className="form-grid" onSubmit={handleSubmit}>
           <label>
             <span>Hodim</span>
             <select value={form.user_id} onChange={(e) => setField("user_id", e.target.value)} required>
               <option value="">Tanlang</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.full_name}</option>
+              ))}
             </select>
           </label>
 
           <label>
             <span>Oy</span>
-            <input value={form.month_label} onChange={(e) => setField("month_label", e.target.value)} placeholder="2026-04" required />
+            <input
+              value={form.month_label}
+              onChange={(e) => setField("month_label", e.target.value)}
+              placeholder="2026-04"
+              required
+            />
           </label>
 
           <label>
             <span>Sana</span>
-            <input type="date" value={form.work_date} onChange={(e) => setField("work_date", e.target.value)} required />
+            <input
+              type="date"
+              value={form.work_date}
+              onChange={(e) => setField("work_date", e.target.value)}
+              required
+            />
           </label>
 
           <label>
             <span>Filial</span>
             <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)}>
               <option value="">Tanlang</option>
-              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
             </select>
           </label>
 
           <label>
             <span>Kontent turi</span>
-            <input value={form.content_type} onChange={(e) => setField("content_type", e.target.value)} placeholder="Story / Post / Reels" required />
+            <input
+              value={form.content_type}
+              onChange={(e) => setField("content_type", e.target.value)}
+              placeholder="Story / Post / Reels"
+              required
+            />
           </label>
 
           <label>
             <span>Kontent nomi</span>
-            <input value={form.content_title} onChange={(e) => setField("content_title", e.target.value)} />
+            <input
+              value={form.content_title}
+              onChange={(e) => setField("content_title", e.target.value)}
+            />
           </label>
 
           <label>
             <span>Soni</span>
-            <input type="number" min="1" value={form.units} onChange={(e) => setField("units", Number(e.target.value))} required />
+            <input
+              type="number"
+              min="1"
+              value={form.units}
+              onChange={(e) => setField("units", Number(e.target.value))}
+              required
+            />
           </label>
 
           <label>
@@ -466,6 +539,7 @@ function BonusPage({ bonuses, bonusItems, users, branches, onToast, reload }) {
             </select>
           }
         />
+
         <div className="table-wrap">
           <table>
             <thead>
@@ -482,20 +556,24 @@ function BonusPage({ bonuses, bonusItems, users, branches, onToast, reload }) {
               </tr>
             </thead>
             <tbody>
-              {filteredItems.length ? filteredItems.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.work_date}</td>
-                  <td>{row.branch_name || "-"}</td>
-                  <td>{row.full_name}</td>
-                  <td>{row.content_type}</td>
-                  <td>{row.content_title || "-"}</td>
-                  <td>{row.notes || "-"}</td>
-                  <td>{row.units}</td>
-                  <td>{Number(row.unit_price || 0).toLocaleString()}</td>
-                  <td>{Number(row.amount || 0).toLocaleString()}</td>
+              {filteredItems.length ? (
+                filteredItems.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.work_date}</td>
+                    <td>{row.branch_name || "-"}</td>
+                    <td>{row.full_name}</td>
+                    <td>{row.content_type}</td>
+                    <td>{row.content_title || "-"}</td>
+                    <td>{row.notes || "-"}</td>
+                    <td>{row.units}</td>
+                    <td>{Number(row.unit_price || 0).toLocaleString()}</td>
+                    <td>{Number(row.amount || 0).toLocaleString()}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="9" className="empty-cell">Hozircha ma’lumot yo‘q</td>
                 </tr>
-              )) : (
-                <tr><td colSpan="9" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -549,8 +627,20 @@ function DailyReportsPage({ reports, branches, users, onToast, reload }) {
           title="Kunlik filial hisobotlari"
           right={
             <div className="toolbar-actions">
-              <button className="btn secondary" onClick={() => api.exportFile("/api/export/daily-reports.xlsx", "daily-reports.xlsx")}>Excel export</button>
-              <button className="btn secondary" onClick={() => api.exportFile("/api/export/daily-reports.pdf", "daily-reports.pdf")}>PDF export</button>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => api.exportFile("/api/export/daily-reports.xlsx", "daily-reports.xlsx")}
+              >
+                Excel export
+              </button>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => api.exportFile("/api/export/daily-reports.pdf", "daily-reports.pdf")}
+              >
+                PDF export
+              </button>
             </div>
           }
         />
@@ -558,14 +648,21 @@ function DailyReportsPage({ reports, branches, users, onToast, reload }) {
         <form className="form-grid" onSubmit={handleSubmit}>
           <label>
             <span>Sana</span>
-            <input type="date" value={form.report_date} onChange={(e) => setField("report_date", e.target.value)} required />
+            <input
+              type="date"
+              value={form.report_date}
+              onChange={(e) => setField("report_date", e.target.value)}
+              required
+            />
           </label>
 
           <label>
             <span>Filial</span>
             <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)} required>
               <option value="">Tanlang</option>
-              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>{b.name}</option>
+              ))}
             </select>
           </label>
 
@@ -573,23 +670,40 @@ function DailyReportsPage({ reports, branches, users, onToast, reload }) {
             <span>Hodim</span>
             <select value={form.user_id} onChange={(e) => setField("user_id", e.target.value)}>
               <option value="">Tanlang</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.full_name}</option>
+              ))}
             </select>
           </label>
 
           <label>
             <span>Stories</span>
-            <input type="number" min="0" value={form.stories_count} onChange={(e) => setField("stories_count", Number(e.target.value))} />
+            <input
+              type="number"
+              min="0"
+              value={form.stories_count}
+              onChange={(e) => setField("stories_count", Number(e.target.value))}
+            />
           </label>
 
           <label>
             <span>Post</span>
-            <input type="number" min="0" value={form.posts_count} onChange={(e) => setField("posts_count", Number(e.target.value))} />
+            <input
+              type="number"
+              min="0"
+              value={form.posts_count}
+              onChange={(e) => setField("posts_count", Number(e.target.value))}
+            />
           </label>
 
           <label>
             <span>Reels</span>
-            <input type="number" min="0" value={form.reels_count} onChange={(e) => setField("reels_count", Number(e.target.value))} />
+            <input
+              type="number"
+              min="0"
+              value={form.reels_count}
+              onChange={(e) => setField("reels_count", Number(e.target.value))}
+            />
           </label>
 
           <label className="full-col">
@@ -619,18 +733,22 @@ function DailyReportsPage({ reports, branches, users, onToast, reload }) {
               </tr>
             </thead>
             <tbody>
-              {reports.length ? reports.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.report_date}</td>
-                  <td>{row.branch_name}</td>
-                  <td>{row.user_name}</td>
-                  <td>{row.stories_count}</td>
-                  <td>{row.posts_count}</td>
-                  <td>{row.reels_count}</td>
-                  <td>{row.notes || "-"}</td>
+              {reports.length ? (
+                reports.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.report_date}</td>
+                    <td>{row.branch_name}</td>
+                    <td>{row.user_name}</td>
+                    <td>{row.stories_count}</td>
+                    <td>{row.posts_count}</td>
+                    <td>{row.reels_count}</td>
+                    <td>{row.notes || "-"}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="7" className="empty-cell">Hozircha ma’lumot yo‘q</td>
                 </tr>
-              )) : (
-                <tr><td colSpan="7" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -650,9 +768,7 @@ function MediaPage({ uploads, onToast, reload }) {
 
     try {
       setSaving(true);
-      const fd = new FormData();
-      fd.append("file", file);
-      await api.upload(fd);
+      await api.uploadFile(file);
       await reload();
       setFile(null);
       onToast("Fayl yuklandi ✅", "success");
@@ -688,15 +804,21 @@ function MediaPage({ uploads, onToast, reload }) {
               </tr>
             </thead>
             <tbody>
-              {uploads.length ? uploads.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.original_name}</td>
-                  <td>{row.mime_type}</td>
-                  <td>{row.file_size}</td>
-                  <td><a href={row.file_url} target="_blank" rel="noreferrer">Ochish</a></td>
+              {uploads.length ? (
+                uploads.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.original_name}</td>
+                    <td>{row.mime_type}</td>
+                    <td>{row.file_size}</td>
+                    <td>
+                      <a href={row.file_url} target="_blank" rel="noreferrer">Ochish</a>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="4" className="empty-cell">Hozircha ma’lumot yo‘q</td>
                 </tr>
-              )) : (
-                <tr><td colSpan="4" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -764,7 +886,15 @@ function UsersPage({ users, onToast, reload }) {
       <div className="card">
         <SectionTitle
           title="Hodim yaratish"
-          right={<button className="btn secondary" onClick={() => api.exportFile("/api/export/users.xlsx", "users.xlsx")}>Excel export</button>}
+          right={
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={() => api.exportFile("/api/export/users.xlsx", "users.xlsx")}
+            >
+              Excel export
+            </button>
+          }
         />
         <form className="form-grid" onSubmit={handleCreate}>
           <label><span>Ism</span><input value={form.full_name} onChange={(e) => setField("full_name", e.target.value)} required /></label>
@@ -802,24 +932,34 @@ function UsersPage({ users, onToast, reload }) {
               </tr>
             </thead>
             <tbody>
-              {users.length ? users.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.full_name}</td>
-                  <td>{row.phone}</td>
-                  <td>{row.login || "-"}</td>
-                  <td>{row.role}</td>
-                  <td>{row.is_active ? "Faol" : "Bloklangan"}</td>
-                  <td>
-                    <div className="table-actions">
-                      <button className="btn tiny" onClick={() => resetPassword(row.id)}>Parol reset</button>
-                      <button className="btn tiny secondary" onClick={() => toggleActive(row.id)}>
-                        {row.is_active ? "Bloklash" : "Faollashtirish"}
-                      </button>
-                    </div>
-                  </td>
+              {users.length ? (
+                users.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.full_name}</td>
+                    <td>{row.phone}</td>
+                    <td>{row.login || "-"}</td>
+                    <td>{row.role}</td>
+                    <td>{row.is_active ? "Faol" : "Bloklangan"}</td>
+                    <td>
+                      <div className="table-actions">
+                        <button type="button" className="btn tiny" onClick={() => resetPassword(row.id)}>
+                          Parol reset
+                        </button>
+                        <button
+                          type="button"
+                          className="btn tiny secondary"
+                          onClick={() => toggleActive(row.id)}
+                        >
+                          {row.is_active ? "Bloklash" : "Faollashtirish"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" className="empty-cell">Hozircha ma’lumot yo‘q</td>
                 </tr>
-              )) : (
-                <tr><td colSpan="6" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -881,7 +1021,15 @@ function CampaignsPage({ campaigns, onToast, reload }) {
       <div className="card">
         <SectionTitle
           title="Reklama kampaniyasi"
-          right={<button className="btn secondary" onClick={() => api.exportFile("/api/export/campaigns.xlsx", "campaigns.xlsx")}>Excel export</button>}
+          right={
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={() => api.exportFile("/api/export/campaigns.xlsx", "campaigns.xlsx")}
+            >
+              Excel export
+            </button>
+          }
         />
         <form className="form-grid" onSubmit={handleCreate}>
           <label><span>Kampaniya nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
@@ -926,19 +1074,23 @@ function CampaignsPage({ campaigns, onToast, reload }) {
               </tr>
             </thead>
             <tbody>
-              {campaigns.length ? campaigns.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.title}</td>
-                  <td>{row.platform}</td>
-                  <td>{row.budget}</td>
-                  <td>{row.spend}</td>
-                  <td>{row.roi}</td>
-                  <td>{row.ctr}</td>
-                  <td>{row.cpa}</td>
-                  <td>{row.status}</td>
+              {campaigns.length ? (
+                campaigns.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.title}</td>
+                    <td>{row.platform}</td>
+                    <td>{row.budget}</td>
+                    <td>{row.spend}</td>
+                    <td>{row.roi}</td>
+                    <td>{row.ctr}</td>
+                    <td>{row.cpa}</td>
+                    <td>{row.status}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="8" className="empty-cell">Hozircha ma’lumot yo‘q</td>
                 </tr>
-              )) : (
-                <tr><td colSpan="8" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -989,14 +1141,16 @@ function TasksPage({ tasks, users, onToast, reload }) {
         <SectionTitle title="Vazifa yaratish" />
         <form className="form-grid" onSubmit={handleCreate}>
           <label><span>Vazifa</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
-          <label><span>Status</span>
+          <label>
+            <span>Status</span>
             <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
               <option value="todo">todo</option>
               <option value="doing">doing</option>
               <option value="done">done</option>
             </select>
           </label>
-          <label><span>Muhimlik</span>
+          <label>
+            <span>Muhimlik</span>
             <select value={form.priority} onChange={(e) => setField("priority", e.target.value)}>
               <option value="low">low</option>
               <option value="medium">medium</option>
@@ -1004,10 +1158,13 @@ function TasksPage({ tasks, users, onToast, reload }) {
             </select>
           </label>
           <label><span>Muddat</span><input type="date" value={form.due_date} onChange={(e) => setField("due_date", e.target.value)} /></label>
-          <label><span>Mas’ul</span>
+          <label>
+            <span>Mas’ul</span>
             <select value={form.assignee_user_id} onChange={(e) => setField("assignee_user_id", e.target.value)}>
               <option value="">Tanlang</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.full_name}</option>
+              ))}
             </select>
           </label>
           <label className="full-col"><span>Izoh</span><input value={form.description} onChange={(e) => setField("description", e.target.value)} /></label>
@@ -1031,16 +1188,20 @@ function TasksPage({ tasks, users, onToast, reload }) {
               </tr>
             </thead>
             <tbody>
-              {tasks.length ? tasks.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.title}</td>
-                  <td>{row.status}</td>
-                  <td>{row.priority}</td>
-                  <td>{row.due_date || "-"}</td>
-                  <td>{row.assignee_name || "-"}</td>
+              {tasks.length ? (
+                tasks.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.title}</td>
+                    <td>{row.status}</td>
+                    <td>{row.priority}</td>
+                    <td>{row.due_date || "-"}</td>
+                    <td>{row.assignee_name || "-"}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="empty-cell">Hozircha ma’lumot yo‘q</td>
                 </tr>
-              )) : (
-                <tr><td colSpan="5" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -1056,7 +1217,15 @@ function ContentPage({ contentRows }) {
       <div className="card">
         <SectionTitle
           title="Kontent reja"
-          right={<button className="btn secondary" onClick={() => api.exportFile("/api/export/content.xlsx", "content.xlsx")}>Excel export</button>}
+          right={
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={() => api.exportFile("/api/export/content.xlsx", "content.xlsx")}
+            >
+              Excel export
+            </button>
+          }
         />
         <div className="table-wrap">
           <table>
@@ -1070,16 +1239,20 @@ function ContentPage({ contentRows }) {
               </tr>
             </thead>
             <tbody>
-              {contentRows.length ? contentRows.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.title}</td>
-                  <td>{row.platform}</td>
-                  <td>{row.content_type}</td>
-                  <td>{row.status}</td>
-                  <td>{row.publish_date || "-"}</td>
+              {contentRows.length ? (
+                contentRows.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.title}</td>
+                    <td>{row.platform}</td>
+                    <td>{row.content_type}</td>
+                    <td>{row.status}</td>
+                    <td>{row.publish_date || "-"}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="empty-cell">Hozircha ma’lumot yo‘q</td>
                 </tr>
-              )) : (
-                <tr><td colSpan="5" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -1106,16 +1279,20 @@ function AuditPage({ logs }) {
               </tr>
             </thead>
             <tbody>
-              {logs.length ? logs.map((row) => (
-                <tr key={row.id}>
-                  <td>{row.full_name || "-"}</td>
-                  <td>{row.action_type}</td>
-                  <td>{row.entity_type}</td>
-                  <td>{row.entity_id || "-"}</td>
-                  <td>{row.created_at}</td>
+              {logs.length ? (
+                logs.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.full_name || "-"}</td>
+                    <td>{row.action_type}</td>
+                    <td>{row.entity_type}</td>
+                    <td>{row.entity_id || "-"}</td>
+                    <td>{row.created_at}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="empty-cell">Hozircha ma’lumot yo‘q</td>
                 </tr>
-              )) : (
-                <tr><td colSpan="5" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -1127,6 +1304,7 @@ function AuditPage({ logs }) {
 
 function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
   const [form, setForm] = useState(settings || {});
+
   useEffect(() => {
     setForm(settings || {});
   }, [settings]);
@@ -1246,7 +1424,9 @@ export default function App() {
       setCampaigns(campaignsRes || []);
       setTasks(tasksRes || []);
       setAuditLogs(auditLogsRes || []);
-    } catch {}
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   useEffect(() => {
@@ -1380,7 +1560,15 @@ export default function App() {
   } else if (active === "audit") {
     page = <AuditPage logs={auditLogs} />;
   } else if (active === "settings") {
-    page = <SettingsPage settings={settings} onSave={saveSettings} saving={savingSettings} theme={theme} setTheme={setTheme} />;
+    page = (
+      <SettingsPage
+        settings={settings}
+        onSave={saveSettings}
+        saving={savingSettings}
+        theme={theme}
+        setTheme={setTheme}
+      />
+    );
   }
 
   return (
@@ -1397,7 +1585,11 @@ export default function App() {
 
           <div className="sidebar-search">
             <Search size={16} />
-            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Qidiruv..." />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Qidiruv..."
+            />
           </div>
 
           <div className="menu-list">
