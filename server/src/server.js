@@ -1,317 +1,968 @@
-import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
-import multer from 'multer';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import { query } from './db.js';
-import { requireAuth, requireRoles } from './middleware/auth.js';
-import { sendPdfTable, sendXlsx } from './utils/export.js';
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import bcrypt from "bcryptjs";
+import multer from "multer";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { query } from "./db.js";
+import { authRequired, rolesAllowed, signToken } from "./auth.js";
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 8080;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadsDir = path.resolve(__dirname, '../uploads');
-fs.mkdirSync(uploadsDir, { recursive: true });
+const uploadsDir = path.join(__dirname, "..", "uploads");
 
-const app = express();
-app.use(cors({
-  origin: [
-    "https://smm-admin-panel-fron-production.up.railway.app",
-    "http://localhost:5173"
-  ],
-  credentials: true
-}));
-app.use(express.json({ limit: '10mb' }));
-app.use('/uploads', express.static(uploadsDir));
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+}
+
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL ? [process.env.CLIENT_URL, "http://localhost:5173"] : true,
+    credentials: true
+  })
+);
+
+app.use(express.json());
+app.use("/uploads", express.static(uploadsDir));
 
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, uploadsDir),
-  filename: (_, file, cb) => cb(null, `${Date.now()}-${file.originalname.replace(/\s+/g, '-')}`)
+  filename: (_, file, cb) => {
+    const safe = `${Date.now()}-${file.originalname.replace(/\s+/g, "-")}`;
+    cb(null, safe);
+  }
 });
+
 const upload = multer({ storage });
 
-function signToken(user) {
-  return jwt.sign({ id: user.id, role: user.role, full_name: user.full_name }, process.env.JWT_SECRET, { expiresIn: '7d' });
-}
-
-async function logAction(userId, action_type, entity_type, entity_id = null, meta = {}) {
-  await query(
-    'INSERT INTO audit_logs (user_id, action_type, entity_type, entity_id, meta) VALUES ($1,$2,$3,$4,$5)',
-    [userId || null, action_type, entity_type, entity_id, JSON.stringify(meta)]
-  );
-}
-
-async function ensureDefaults() {
-  const adminPhone = '998939000';
-  const adminPassword = '12345678';
-  const existing = await query('SELECT id FROM users WHERE phone = $1', [adminPhone]);
-  if (!existing.rowCount) {
-    const hash = await bcrypt.hash(adminPassword, 10);
+async function logAction(userId, actionType, entityType, entityId = null, meta = {}) {
+  try {
     await query(
-      'INSERT INTO users (full_name, phone, login, password_hash, role) VALUES ($1,$2,$3,$4,$5)',
-      ['Yaviz Admin', adminPhone, 'admin', hash, 'admin']
+      `INSERT INTO audit_logs (user_id, action_type, entity_type, entity_id, meta)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [userId || null, actionType, entityType, entityId, JSON.stringify(meta)]
     );
-  }
-  const settings = await query('SELECT id FROM app_settings LIMIT 1');
-  if (!settings.rowCount) {
-    await query('INSERT INTO app_settings (company_name, department_name, theme_default) VALUES ($1,$2,$3)', ['aloo', 'SMM department', 'dark']);
-  }
+  } catch {}
 }
 
-app.get('/api/health', async (_, res) => {
-  const db = await query('SELECT NOW()');
-  res.json({ ok: true, dbTime: db.rows[0].now });
-});
-
-app.post('/api/auth/login', async (req, res) => {
-  const { phoneOrLogin, password } = req.body;
-  const result = await query('SELECT * FROM users WHERE phone = $1 OR login = $1 LIMIT 1', [phoneOrLogin]);
-  const user = result.rows[0];
-  if (!user || !user.is_active) return res.status(401).json({ message: 'Login yoki parol xato' });
-  const ok = await bcrypt.compare(password, user.password_hash);
-  if (!ok) return res.status(401).json({ message: 'Login yoki parol xato' });
-  const token = signToken(user);
-  await logAction(user.id, 'login', 'auth', user.id, { phoneOrLogin });
-  res.json({ token, user: { id: user.id, full_name: user.full_name, role: user.role, phone: user.phone, login: user.login } });
-});
-
-app.get('/api/auth/me', requireAuth, async (req, res) => {
-  const r = await query('SELECT id, full_name, role, phone, login, is_active FROM users WHERE id = $1', [req.user.id]);
-  res.json(r.rows[0]);
-});
-
-app.post('/api/auth/change-password', requireAuth, async (req, res) => {
-  const { currentPassword, newPassword } = req.body;
-  const r = await query('SELECT * FROM users WHERE id = $1', [req.user.id]);
-  const user = r.rows[0];
-  const ok = await bcrypt.compare(currentPassword, user.password_hash);
-  if (!ok) return res.status(400).json({ message: 'Joriy parol noto‘g‘ri' });
-  const hash = await bcrypt.hash(newPassword, 10);
-  await query('UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2', [hash, req.user.id]);
-  await logAction(req.user.id, 'change_password', 'user', req.user.id);
-  res.json({ success: true });
-});
-
-function listRoute(table, orderBy = 'id DESC') {
-  return async (req, res) => {
-    const r = await query(`SELECT * FROM ${table} ORDER BY ${orderBy}`);
-    res.json(r.rows);
-  };
-}
-
-// users/team
-app.get('/api/team', requireAuth, requireRoles('admin', 'manager'), listRoute('users'));
-app.post('/api/team', requireAuth, requireRoles('admin'), async (req, res) => {
-  const { full_name, phone, login, password, role } = req.body;
-  const hash = await bcrypt.hash(password, 10);
-  const r = await query(
-    'INSERT INTO users (full_name, phone, login, password_hash, role) VALUES ($1,$2,$3,$4,$5) RETURNING id, full_name, phone, login, role, is_active',
-    [full_name, phone, login || null, hash, role || 'viewer']
+async function createNotification(userId, title, body, type = "info") {
+  await query(
+    `INSERT INTO notifications (user_id, title, body, type)
+     VALUES ($1, $2, $3, $4)`,
+    [userId || null, title, body, type]
   );
-  await logAction(req.user.id, 'create', 'user', r.rows[0].id, r.rows[0]);
-  res.json(r.rows[0]);
-});
-app.put('/api/team/:id', requireAuth, requireRoles('admin'), async (req, res) => {
-  const { full_name, phone, login, role, is_active } = req.body;
-  const r = await query(
-    'UPDATE users SET full_name=$1, phone=$2, login=$3, role=$4, is_active=$5, updated_at=NOW() WHERE id=$6 RETURNING id, full_name, phone, login, role, is_active',
-    [full_name, phone, login || null, role, is_active, req.params.id]
-  );
-  await logAction(req.user.id, 'update', 'user', Number(req.params.id), r.rows[0]);
-  res.json(r.rows[0]);
-});
-app.delete('/api/team/:id', requireAuth, requireRoles('admin'), async (req, res) => {
-  await query('DELETE FROM users WHERE id = $1', [req.params.id]);
-  await logAction(req.user.id, 'delete', 'user', Number(req.params.id));
-  res.json({ success: true });
-});
-
-// settings
-app.get('/api/settings', requireAuth, async (_, res) => {
-  const r = await query('SELECT * FROM app_settings LIMIT 1');
-  res.json(r.rows[0]);
-});
-app.put('/api/settings', requireAuth, requireRoles('admin', 'manager'), async (req, res) => {
-  const { company_name, department_name, theme_default, telegram_url, instagram_url, youtube_url, facebook_url, tiktok_url, website_url } = req.body;
-  const r = await query(
-    `UPDATE app_settings SET company_name=$1, department_name=$2, theme_default=$3, telegram_url=$4, instagram_url=$5, youtube_url=$6, facebook_url=$7, tiktok_url=$8, website_url=$9, updated_at=NOW() WHERE id=(SELECT id FROM app_settings LIMIT 1) RETURNING *`,
-    [company_name, department_name, theme_default, telegram_url, instagram_url, youtube_url, facebook_url, tiktok_url, website_url]
-  );
-  await logAction(req.user.id, 'update', 'settings', 1);
-  res.json(r.rows[0]);
-});
-
-// generic CRUD helpers
-async function createContentLike(res, req, table, fields) {
-  const values = fields.map((f) => req.body[f] ?? null);
-  const placeholders = fields.map((_, i) => `$${i + 1}`).join(',');
-  const cols = fields.join(',');
-  const r = await query(`INSERT INTO ${table} (${cols}) VALUES (${placeholders}) RETURNING *`, values);
-  await logAction(req.user.id, 'create', table, r.rows[0].id, r.rows[0]);
-  res.json(r.rows[0]);
-}
-async function updateContentLike(res, req, table, fields) {
-  const set = fields.map((f, i) => `${f}=$${i + 1}`).join(',');
-  const values = fields.map((f) => req.body[f] ?? null);
-  values.push(req.params.id);
-  const r = await query(`UPDATE ${table} SET ${set}${table === 'content_items' || table === 'tasks' ? ', updated_at=NOW()' : ''} WHERE id=$${fields.length + 1} RETURNING *`, values);
-  await logAction(req.user.id, 'update', table, Number(req.params.id), r.rows[0]);
-  res.json(r.rows[0]);
-}
-function deleteRoute(table) {
-  return async (req, res) => {
-    await query(`DELETE FROM ${table} WHERE id = $1`, [req.params.id]);
-    await logAction(req.user.id, 'delete', table, Number(req.params.id));
-    res.json({ success: true });
-  };
 }
 
-// content
-app.get('/api/content', requireAuth, listRoute('content_items', 'publish_date DESC NULLS LAST, id DESC'));
-app.post('/api/content', requireAuth, requireRoles('admin', 'manager', 'editor'), async (req, res) => createContentLike(res, req, 'content_items', ['title','platform','content_type','status','publish_date','assignee_user_id','branch_id','notes','created_by']));
-app.put('/api/content/:id', requireAuth, requireRoles('admin', 'manager', 'editor'), async (req, res) => updateContentLike(res, req, 'content_items', ['title','platform','content_type','status','publish_date','assignee_user_id','branch_id','notes','created_by']));
-app.delete('/api/content/:id', requireAuth, requireRoles('admin', 'manager'), deleteRoute('content_items'));
-app.get('/api/content/export/excel', requireAuth, async (_, res) => {
-  const r = await query('SELECT * FROM content_items ORDER BY id DESC');
-  sendXlsx(res, r.rows, 'content.xlsx', 'Content');
-});
-app.get('/api/content/export/pdf', requireAuth, async (_, res) => {
-  const r = await query('SELECT * FROM content_items ORDER BY id DESC');
-  sendPdfTable(res, r.rows, 'Content export', 'content.pdf');
-});
+function calcRoi(spend, revenue) {
+  const s = Number(spend || 0);
+  const r = Number(revenue || 0);
+  if (!s) return 0;
+  return (((r - s) / s) * 100).toFixed(2);
+}
 
-// tasks
-app.get('/api/tasks', requireAuth, listRoute('tasks', 'due_date ASC NULLS LAST, id DESC'));
-app.post('/api/tasks', requireAuth, requireRoles('admin','manager','editor'), async (req, res) => createContentLike(res, req, 'tasks', ['title','description','status','priority','due_date','assignee_user_id','created_by']));
-app.put('/api/tasks/:id', requireAuth, requireRoles('admin','manager','editor'), async (req, res) => updateContentLike(res, req, 'tasks', ['title','description','status','priority','due_date','assignee_user_id','created_by']));
-app.delete('/api/tasks/:id', requireAuth, requireRoles('admin','manager'), deleteRoute('tasks'));
+function calcCpa(spend, leads) {
+  const s = Number(spend || 0);
+  const l = Number(leads || 0);
+  if (!l) return 0;
+  return (s / l).toFixed(2);
+}
 
-// reports
-app.get('/api/reports', requireAuth, listRoute('reports', 'period_end DESC, id DESC'));
-app.post('/api/reports', requireAuth, requireRoles('admin','manager'), async (req, res) => createContentLike(res, req, 'reports', ['title','period_start','period_end','reach_count','lead_count','sales_count','spend_amount','revenue_amount','notes','created_by']));
-app.put('/api/reports/:id', requireAuth, requireRoles('admin','manager'), async (req, res) => updateContentLike(res, req, 'reports', ['title','period_start','period_end','reach_count','lead_count','sales_count','spend_amount','revenue_amount','notes','created_by']));
-app.delete('/api/reports/:id', requireAuth, requireRoles('admin'), deleteRoute('reports'));
-app.get('/api/reports/export/excel', requireAuth, async (_, res) => {
-  const r = await query('SELECT * FROM reports ORDER BY id DESC');
-  sendXlsx(res, r.rows, 'reports.xlsx', 'Reports');
-});
-app.get('/api/reports/export/pdf', requireAuth, async (_, res) => {
-  const r = await query('SELECT * FROM reports ORDER BY id DESC');
-  sendPdfTable(res, r.rows, 'Reports export', 'reports.pdf');
+app.get("/", (_, res) => {
+  res.json({ ok: true, service: "aloo-smm-server" });
 });
 
-// bonuses
-app.get('/api/bonus', requireAuth, async (_, res) => {
-  const r = await query(`SELECT b.*, u.full_name, u.role FROM bonuses b JOIN users u ON u.id = b.user_id ORDER BY b.created_at DESC`);
-  res.json(r.rows);
-});
-app.post('/api/bonus/recalculate', requireAuth, requireRoles('admin','manager'), async (req, res) => {
-  const { month_label, pool_amount = 0 } = req.body;
-  const users = await query('SELECT id, full_name, role FROM users WHERE is_active = TRUE');
-  const contents = await query('SELECT created_by, COUNT(*) total, COUNT(*) FILTER (WHERE status = $1) done FROM content_items GROUP BY created_by', ['posted']);
-  const tasks = await query('SELECT assignee_user_id, COUNT(*) total, COUNT(*) FILTER (WHERE status = $1) done FROM tasks GROUP BY assignee_user_id', ['done']);
-  const reports = await query('SELECT created_by, COUNT(*) total FROM reports GROUP BY created_by');
+/* AUTH */
 
-  const byContent = Object.fromEntries(contents.rows.map(r => [r.created_by, r]));
-  const byTasks = Object.fromEntries(tasks.rows.map(r => [r.assignee_user_id, r]));
-  const byReports = Object.fromEntries(reports.rows.map(r => [r.created_by, r]));
-  const activeCount = users.rows.length || 1;
-  const baseBonus = Number(pool_amount) / activeCount;
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { phone, login, password } = req.body;
 
-  await query('DELETE FROM bonuses WHERE month_label = $1', [month_label]);
-  const created = [];
-  for (const user of users.rows) {
-    const c = byContent[user.id] || { total: 0, done: 0 };
-    const t = byTasks[user.id] || { total: 0, done: 0 };
-    const r = byReports[user.id] || { total: 0 };
-    const contentScore = c.total ? (Number(c.done) / Number(c.total)) * 100 : 0;
-    const taskScore = t.total ? (Number(t.done) / Number(t.total)) * 100 : 0;
-    const reportScore = r.total ? Math.min(Number(r.total) * 20, 100) : 0;
-    const total = contentScore * 0.4 + taskScore * 0.35 + reportScore * 0.25;
-    const amount = Math.round(baseBonus * (total / 100));
-    const ins = await query(
-      'INSERT INTO bonuses (user_id, month_label, kpi_score, task_score, report_score, total_score, bonus_amount, notes) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *',
-      [user.id, month_label, Number(contentScore.toFixed(2)), Number(taskScore.toFixed(2)), Number(reportScore.toFixed(2)), Number(total.toFixed(2)), amount, 'Auto-calculated']
+    if ((!phone && !login) || !password) {
+      return res.status(400).json({ message: "Login va parol kiriting" });
+    }
+
+    const result = await query(
+      `SELECT *
+       FROM users
+       WHERE phone = $1 OR login = $2
+       LIMIT 1`,
+      [phone || "", login || ""]
     );
-    created.push(ins.rows[0]);
+
+    if (!result.rows.length) {
+      return res.status(401).json({ message: "Login yoki parol noto‘g‘ri" });
+    }
+
+    const user = result.rows[0];
+
+    if (!user.is_active) {
+      return res.status(403).json({ message: "Akkaunt bloklangan" });
+    }
+
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) {
+      return res.status(401).json({ message: "Login yoki parol noto‘g‘ri" });
+    }
+
+    const token = signToken(user);
+
+    await logAction(user.id, "login", "auth", user.id, { phone: user.phone });
+
+    return res.json({
+      token,
+      user: {
+        id: user.id,
+        full_name: user.full_name,
+        phone: user.phone,
+        login: user.login,
+        role: user.role,
+        avatar_url: user.avatar_url
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Server xatoligi" });
   }
-  await logAction(req.user.id, 'recalculate', 'bonuses', null, { month_label, pool_amount, count: created.length });
-  res.json(created);
-});
-app.get('/api/bonus/export/excel', requireAuth, async (_, res) => {
-  const r = await query(`SELECT b.*, u.full_name, u.role FROM bonuses b JOIN users u ON u.id = b.user_id ORDER BY b.created_at DESC`);
-  sendXlsx(res, r.rows, 'bonus.xlsx', 'Bonus');
 });
 
-// branches
-app.get('/api/branches', requireAuth, listRoute('branches'));
-app.post('/api/branches', requireAuth, requireRoles('admin','manager'), async (req, res) => createContentLike(res, req, 'branches', ['name','city','manager_name','phone','notes']));
-app.put('/api/branches/:id', requireAuth, requireRoles('admin','manager'), async (req, res) => updateContentLike(res, req, 'branches', ['name','city','manager_name','phone','notes']));
-app.delete('/api/branches/:id', requireAuth, requireRoles('admin'), deleteRoute('branches'));
+app.get("/api/auth/me", authRequired, async (req, res) => {
+  res.json({ user: req.user });
+});
 
-// social
-app.get('/api/social', requireAuth, listRoute('social_accounts'));
-app.post('/api/social', requireAuth, requireRoles('admin','manager','editor'), async (req, res) => createContentLike(res, req, 'social_accounts', ['platform','account_name','account_url','login_name','status','notes']));
-app.put('/api/social/:id', requireAuth, requireRoles('admin','manager','editor'), async (req, res) => updateContentLike(res, req, 'social_accounts', ['platform','account_name','account_url','login_name','status','notes']));
-app.delete('/api/social/:id', requireAuth, requireRoles('admin','manager'), deleteRoute('social_accounts'));
+app.post("/api/auth/change-password", authRequired, async (req, res) => {
+  try {
+    const { oldPassword, newPassword } = req.body;
 
-// uploads
-app.get('/api/uploads', requireAuth, listRoute('uploads'));
-app.post('/api/uploads', requireAuth, upload.single('file'), async (req, res) => {
-  const fileUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
-  const r = await query(
-    'INSERT INTO uploads (file_name, original_name, mime_type, file_size, file_url, uploaded_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
-    [req.file.filename, req.file.originalname, req.file.mimetype, req.file.size, fileUrl, req.user.id]
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({ message: "Eski va yangi parol kiriting" });
+    }
+
+    const result = await query(`SELECT * FROM users WHERE id = $1`, [req.user.id]);
+    const user = result.rows[0];
+
+    const ok = await bcrypt.compare(oldPassword, user.password_hash);
+    if (!ok) {
+      return res.status(400).json({ message: "Eski parol noto‘g‘ri" });
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
+
+    await query(
+      `UPDATE users
+       SET password_hash = $1, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [hash, req.user.id]
+    );
+
+    await logAction(req.user.id, "change_password", "users", req.user.id);
+
+    res.json({ message: "Parol yangilandi" });
+  } catch {
+    res.status(500).json({ message: "Server xatoligi" });
+  }
+});
+
+/* DASHBOARD */
+
+app.get("/api/dashboard/summary", authRequired, async (_, res) => {
+  try {
+    const [
+      contentCount,
+      taskCount,
+      campaignCount,
+      userCount,
+      todayReports,
+      bonusSum
+    ] = await Promise.all([
+      query(`SELECT COUNT(*)::int AS count FROM content_items`),
+      query(`SELECT COUNT(*)::int AS count FROM tasks`),
+      query(`SELECT COUNT(*)::int AS count FROM campaigns`),
+      query(`SELECT COUNT(*)::int AS count FROM users WHERE is_active = TRUE`),
+      query(
+        `SELECT COUNT(*)::int AS count
+         FROM daily_branch_reports
+         WHERE report_date = CURRENT_DATE`
+      ),
+      query(`SELECT COALESCE(SUM(total_amount), 0)::numeric AS total FROM bonuses`)
+    ]);
+
+    res.json({
+      content_count: contentCount.rows[0].count,
+      task_count: taskCount.rows[0].count,
+      campaign_count: campaignCount.rows[0].count,
+      user_count: userCount.rows[0].count,
+      today_report_count: todayReports.rows[0].count,
+      total_bonus_amount: Number(bonusSum.rows[0].total || 0)
+    });
+  } catch {
+    res.status(500).json({ message: "Dashboard ma’lumotini olib bo‘lmadi" });
+  }
+});
+
+/* SETTINGS */
+
+app.get("/api/settings", authRequired, async (_, res) => {
+  const result = await query(`SELECT * FROM app_settings ORDER BY id ASC LIMIT 1`);
+  res.json(result.rows[0] || null);
+});
+
+app.put("/api/settings", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  try {
+    const {
+      company_name,
+      platform_name,
+      department_name,
+      theme_default,
+      website_url,
+      telegram_url,
+      instagram_url,
+      youtube_url,
+      facebook_url,
+      tiktok_url
+    } = req.body;
+
+    const current = await query(`SELECT id FROM app_settings ORDER BY id ASC LIMIT 1`);
+
+    if (!current.rows.length) {
+      await query(
+        `INSERT INTO app_settings
+        (company_name, platform_name, department_name, theme_default, website_url, telegram_url, instagram_url, youtube_url, facebook_url, tiktok_url)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
+        [
+          company_name || "aloo",
+          platform_name || "",
+          department_name || "",
+          theme_default || "dark",
+          website_url || "",
+          telegram_url || "",
+          instagram_url || "",
+          youtube_url || "",
+          facebook_url || "",
+          tiktok_url || ""
+        ]
+      );
+    } else {
+      await query(
+        `UPDATE app_settings SET
+         company_name = $1,
+         platform_name = $2,
+         department_name = $3,
+         theme_default = $4,
+         website_url = $5,
+         telegram_url = $6,
+         instagram_url = $7,
+         youtube_url = $8,
+         facebook_url = $9,
+         tiktok_url = $10,
+         updated_at = CURRENT_TIMESTAMP
+         WHERE id = $11`,
+        [
+          company_name || "aloo",
+          platform_name || "",
+          department_name || "",
+          theme_default || "dark",
+          website_url || "",
+          telegram_url || "",
+          instagram_url || "",
+          youtube_url || "",
+          facebook_url || "",
+          tiktok_url || "",
+          current.rows[0].id
+        ]
+      );
+    }
+
+    await logAction(req.user.id, "update", "app_settings");
+
+    res.json({ message: "Sozlamalar saqlandi" });
+  } catch {
+    res.status(500).json({ message: "Sozlamalarni saqlab bo‘lmadi" });
+  }
+});
+
+/* USERS */
+
+app.get("/api/users", authRequired, rolesAllowed("admin", "manager"), async (_, res) => {
+  const result = await query(
+    `SELECT id, full_name, phone, login, role, avatar_url, is_active, created_at
+     FROM users
+     ORDER BY id DESC`
   );
-  await logAction(req.user.id, 'upload', 'file', r.rows[0].id, r.rows[0]);
-  res.json(r.rows[0]);
+  res.json(result.rows);
 });
-app.delete('/api/uploads/:id', requireAuth, async (req, res) => {
-  const r = await query('SELECT * FROM uploads WHERE id = $1', [req.params.id]);
-  const row = r.rows[0];
-  if (row) {
+
+app.post("/api/users", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  try {
+    const { full_name, phone, login, password, role, avatar_url } = req.body;
+
+    if (!full_name || !phone || !password) {
+      return res.status(400).json({ message: "Ism, telefon va parol majburiy" });
+    }
+
+    const hash = await bcrypt.hash(password, 10);
+
+    const result = await query(
+      `INSERT INTO users
+       (full_name, phone, login, password_hash, role, avatar_url, is_active)
+       VALUES ($1,$2,$3,$4,$5,$6,TRUE)
+       RETURNING id, full_name, phone, login, role, avatar_url, is_active`,
+      [full_name, phone, login || null, hash, role || "viewer", avatar_url || null]
+    );
+
+    await logAction(req.user.id, "create", "users", result.rows[0].id);
+
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Hodim qo‘shib bo‘lmadi" });
+  }
+});
+
+app.put("/api/users/:id", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  try {
+    const { full_name, phone, login, role, avatar_url, is_active } = req.body;
+
+    const result = await query(
+      `UPDATE users SET
+       full_name = $1,
+       phone = $2,
+       login = $3,
+       role = $4,
+       avatar_url = $5,
+       is_active = $6,
+       updated_at = CURRENT_TIMESTAMP
+       WHERE id = $7
+       RETURNING id, full_name, phone, login, role, avatar_url, is_active`,
+      [full_name, phone, login || null, role, avatar_url || null, is_active, req.params.id]
+    );
+
+    await logAction(req.user.id, "update", "users", Number(req.params.id));
+
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Hodimni yangilab bo‘lmadi" });
+  }
+});
+
+app.delete("/api/users/:id", authRequired, rolesAllowed("admin"), async (req, res) => {
+  try {
+    await query(`DELETE FROM users WHERE id = $1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "users", Number(req.params.id));
+    res.json({ message: "Hodim o‘chirildi" });
+  } catch {
+    res.status(500).json({ message: "Hodimni o‘chirib bo‘lmadi" });
+  }
+});
+
+/* BRANCHES */
+
+app.get("/api/branches", authRequired, async (_, res) => {
+  const result = await query(`SELECT * FROM branches ORDER BY id DESC`);
+  res.json(result.rows);
+});
+
+app.post("/api/branches", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  try {
+    const { name, city, manager_name, phone, notes } = req.body;
+    const result = await query(
+      `INSERT INTO branches (name, city, manager_name, phone, notes)
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING *`,
+      [name, city || "", manager_name || "", phone || "", notes || ""]
+    );
+    await logAction(req.user.id, "create", "branches", result.rows[0].id);
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Filial qo‘shib bo‘lmadi" });
+  }
+});
+
+app.put("/api/branches/:id", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  try {
+    const { name, city, manager_name, phone, notes } = req.body;
+    const result = await query(
+      `UPDATE branches SET
+       name=$1, city=$2, manager_name=$3, phone=$4, notes=$5
+       WHERE id=$6
+       RETURNING *`,
+      [name, city || "", manager_name || "", phone || "", notes || "", req.params.id]
+    );
+    await logAction(req.user.id, "update", "branches", Number(req.params.id));
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Filialni yangilab bo‘lmadi" });
+  }
+});
+
+app.delete("/api/branches/:id", authRequired, rolesAllowed("admin"), async (req, res) => {
+  try {
+    await query(`DELETE FROM branches WHERE id=$1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "branches", Number(req.params.id));
+    res.json({ message: "Filial o‘chirildi" });
+  } catch {
+    res.status(500).json({ message: "Filialni o‘chirib bo‘lmadi" });
+  }
+});
+
+/* CONTENT */
+
+app.get("/api/content", authRequired, async (_, res) => {
+  const result = await query(
+    `SELECT c.*, u.full_name AS assignee_name, b.name AS branch_name
+     FROM content_items c
+     LEFT JOIN users u ON u.id = c.assignee_user_id
+     LEFT JOIN branches b ON b.id = c.branch_id
+     ORDER BY c.id DESC`
+  );
+  res.json(result.rows);
+});
+
+app.post("/api/content", authRequired, rolesAllowed("admin", "manager", "editor"), async (req, res) => {
+  try {
+    const { title, platform, content_type, status, publish_date, assignee_user_id, branch_id, notes } = req.body;
+    const result = await query(
+      `INSERT INTO content_items
+       (title, platform, content_type, status, publish_date, assignee_user_id, branch_id, notes, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       RETURNING *`,
+      [
+        title,
+        platform,
+        content_type,
+        status || "draft",
+        publish_date || null,
+        assignee_user_id || null,
+        branch_id || null,
+        notes || "",
+        req.user.id
+      ]
+    );
+    await logAction(req.user.id, "create", "content_items", result.rows[0].id);
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Kontent qo‘shib bo‘lmadi" });
+  }
+});
+
+app.put("/api/content/:id", authRequired, rolesAllowed("admin", "manager", "editor"), async (req, res) => {
+  try {
+    const { title, platform, content_type, status, publish_date, assignee_user_id, branch_id, notes } = req.body;
+    const result = await query(
+      `UPDATE content_items SET
+       title=$1, platform=$2, content_type=$3, status=$4, publish_date=$5,
+       assignee_user_id=$6, branch_id=$7, notes=$8, updated_at=CURRENT_TIMESTAMP
+       WHERE id=$9
+       RETURNING *`,
+      [title, platform, content_type, status, publish_date || null, assignee_user_id || null, branch_id || null, notes || "", req.params.id]
+    );
+    await logAction(req.user.id, "update", "content_items", Number(req.params.id));
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Kontentni yangilab bo‘lmadi" });
+  }
+});
+
+app.delete("/api/content/:id", authRequired, rolesAllowed("admin", "manager", "editor"), async (req, res) => {
+  try {
+    await query(`DELETE FROM content_items WHERE id=$1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "content_items", Number(req.params.id));
+    res.json({ message: "Kontent o‘chirildi" });
+  } catch {
+    res.status(500).json({ message: "Kontentni o‘chirib bo‘lmadi" });
+  }
+});
+
+/* TASKS */
+
+app.get("/api/tasks", authRequired, async (_, res) => {
+  const result = await query(
+    `SELECT t.*, u.full_name AS assignee_name
+     FROM tasks t
+     LEFT JOIN users u ON u.id = t.assignee_user_id
+     ORDER BY t.id DESC`
+  );
+  res.json(result.rows);
+});
+
+app.post("/api/tasks", authRequired, rolesAllowed("admin", "manager", "editor"), async (req, res) => {
+  try {
+    const { title, description, status, priority, due_date, assignee_user_id } = req.body;
+    const result = await query(
+      `INSERT INTO tasks
+       (title, description, status, priority, due_date, assignee_user_id, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       RETURNING *`,
+      [title, description || "", status || "todo", priority || "medium", due_date || null, assignee_user_id || null, req.user.id]
+    );
+
+    if (assignee_user_id) {
+      await createNotification(
+        assignee_user_id,
+        "Yangi vazifa",
+        `Sizga yangi vazifa biriktirildi: ${title}`,
+        "info"
+      );
+    }
+
+    await logAction(req.user.id, "create", "tasks", result.rows[0].id);
+
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Vazifa qo‘shib bo‘lmadi" });
+  }
+});
+
+app.put("/api/tasks/:id", authRequired, rolesAllowed("admin", "manager", "editor"), async (req, res) => {
+  try {
+    const { title, description, status, priority, due_date, assignee_user_id } = req.body;
+    const result = await query(
+      `UPDATE tasks SET
+       title=$1, description=$2, status=$3, priority=$4, due_date=$5, assignee_user_id=$6,
+       updated_at=CURRENT_TIMESTAMP
+       WHERE id=$7
+       RETURNING *`,
+      [title, description || "", status || "todo", priority || "medium", due_date || null, assignee_user_id || null, req.params.id]
+    );
+    await logAction(req.user.id, "update", "tasks", Number(req.params.id));
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Vazifani yangilab bo‘lmadi" });
+  }
+});
+
+app.delete("/api/tasks/:id", authRequired, rolesAllowed("admin", "manager", "editor"), async (req, res) => {
+  try {
+    await query(`DELETE FROM tasks WHERE id=$1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "tasks", Number(req.params.id));
+    res.json({ message: "Vazifa o‘chirildi" });
+  } catch {
+    res.status(500).json({ message: "Vazifani o‘chirib bo‘lmadi" });
+  }
+});
+
+/* CAMPAIGNS */
+
+app.get("/api/campaigns", authRequired, async (_, res) => {
+  const result = await query(`SELECT * FROM campaigns ORDER BY id DESC`);
+  res.json(result.rows);
+});
+
+app.post("/api/campaigns", authRequired, rolesAllowed("admin", "manager", "editor"), async (req, res) => {
+  try {
+    const { title, platform, start_date, end_date, budget, spend, leads, sales, ctr, notes, status, revenue_amount } = req.body;
+    const cpa = calcCpa(spend, leads);
+    const roi = calcRoi(spend, revenue_amount || 0);
+
+    const result = await query(
+      `INSERT INTO campaigns
+       (title, platform, start_date, end_date, budget, spend, leads, sales, ctr, cpa, roi, status, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+       RETURNING *`,
+      [title, platform, start_date || null, end_date || null, budget || 0, spend || 0, leads || 0, sales || 0, ctr || 0, cpa, roi, status || "active", notes || ""]
+    );
+    await logAction(req.user.id, "create", "campaigns", result.rows[0].id);
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Kampaniya qo‘shib bo‘lmadi" });
+  }
+});
+
+app.put("/api/campaigns/:id", authRequired, rolesAllowed("admin", "manager", "editor"), async (req, res) => {
+  try {
+    const { title, platform, start_date, end_date, budget, spend, leads, sales, ctr, notes, status, revenue_amount } = req.body;
+    const cpa = calcCpa(spend, leads);
+    const roi = calcRoi(spend, revenue_amount || 0);
+
+    const result = await query(
+      `UPDATE campaigns SET
+       title=$1, platform=$2, start_date=$3, end_date=$4, budget=$5, spend=$6, leads=$7,
+       sales=$8, ctr=$9, cpa=$10, roi=$11, status=$12, notes=$13
+       WHERE id=$14
+       RETURNING *`,
+      [title, platform, start_date || null, end_date || null, budget || 0, spend || 0, leads || 0, sales || 0, ctr || 0, cpa, roi, status || "active", notes || "", req.params.id]
+    );
+    await logAction(req.user.id, "update", "campaigns", Number(req.params.id));
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Kampaniyani yangilab bo‘lmadi" });
+  }
+});
+
+app.delete("/api/campaigns/:id", authRequired, rolesAllowed("admin", "manager", "editor"), async (req, res) => {
+  try {
+    await query(`DELETE FROM campaigns WHERE id=$1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "campaigns", Number(req.params.id));
+    res.json({ message: "Kampaniya o‘chirildi" });
+  } catch {
+    res.status(500).json({ message: "Kampaniyani o‘chirib bo‘lmadi" });
+  }
+});
+
+/* DAILY REPORTS */
+
+app.get("/api/daily-reports", authRequired, async (_, res) => {
+  const result = await query(
+    `SELECT d.*, b.name AS branch_name, u.full_name AS user_name
+     FROM daily_branch_reports d
+     LEFT JOIN branches b ON b.id = d.branch_id
+     LEFT JOIN users u ON u.id = d.user_id
+     ORDER BY d.report_date DESC, d.id DESC`
+  );
+  res.json(result.rows);
+});
+
+app.post("/api/daily-reports", authRequired, rolesAllowed("admin", "manager", "mobilograf"), async (req, res) => {
+  try {
+    const { report_date, branch_id, user_id, stories_count, posts_count, reels_count, notes } = req.body;
+
+    const result = await query(
+      `INSERT INTO daily_branch_reports
+       (report_date, branch_id, user_id, stories_count, posts_count, reels_count, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       RETURNING *`,
+      [
+        report_date,
+        branch_id,
+        user_id || req.user.id,
+        stories_count || 0,
+        posts_count || 0,
+        reels_count || 0,
+        notes || ""
+      ]
+    );
+
+    await logAction(req.user.id, "create", "daily_branch_reports", result.rows[0].id);
+
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Kunlik hisobotni saqlab bo‘lmadi" });
+  }
+});
+
+app.put("/api/daily-reports/:id", authRequired, rolesAllowed("admin", "manager", "mobilograf"), async (req, res) => {
+  try {
+    const { report_date, branch_id, user_id, stories_count, posts_count, reels_count, notes } = req.body;
+    const result = await query(
+      `UPDATE daily_branch_reports SET
+       report_date=$1, branch_id=$2, user_id=$3, stories_count=$4, posts_count=$5, reels_count=$6, notes=$7
+       WHERE id=$8
+       RETURNING *`,
+      [report_date, branch_id, user_id, stories_count || 0, posts_count || 0, reels_count || 0, notes || "", req.params.id]
+    );
+    await logAction(req.user.id, "update", "daily_branch_reports", Number(req.params.id));
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Kunlik hisobotni yangilab bo‘lmadi" });
+  }
+});
+
+app.delete("/api/daily-reports/:id", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  try {
+    await query(`DELETE FROM daily_branch_reports WHERE id=$1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "daily_branch_reports", Number(req.params.id));
+    res.json({ message: "Kunlik hisobot o‘chirildi" });
+  } catch {
+    res.status(500).json({ message: "Kunlik hisobotni o‘chirib bo‘lmadi" });
+  }
+});
+
+/* BONUS */
+
+app.get("/api/bonuses", authRequired, async (_, res) => {
+  const result = await query(
+    `SELECT b.*, u.full_name
+     FROM bonuses b
+     LEFT JOIN users u ON u.id = b.user_id
+     ORDER BY b.id DESC`
+  );
+  res.json(result.rows);
+});
+
+app.post("/api/bonus-items", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  try {
+    const { user_id, month_label, work_date, branch_id, content_type, content_title, notes, units } = req.body;
+
+    let bonusRes = await query(
+      `SELECT * FROM bonuses WHERE user_id = $1 AND month_label = $2`,
+      [user_id, month_label]
+    );
+
+    if (!bonusRes.rows.length) {
+      bonusRes = await query(
+        `INSERT INTO bonuses (user_id, month_label, total_units, unit_price, total_amount, kpi_score)
+         VALUES ($1,$2,0,25000,0,0)
+         RETURNING *`,
+        [user_id, month_label]
+      );
+    }
+
+    const bonus = bonusRes.rows[0];
+    const amount = Number(units || 0) * 25000;
+
+    const item = await query(
+      `INSERT INTO bonus_items
+       (bonus_id, work_date, branch_id, content_type, content_title, notes, units, unit_price, amount)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,25000,$8)
+       RETURNING *`,
+      [bonus.id, work_date, branch_id || null, content_type, content_title || "", notes || "", units || 0, amount]
+    );
+
+    await query(
+      `UPDATE bonuses
+       SET total_units = (
+         SELECT COALESCE(SUM(units), 0) FROM bonus_items WHERE bonus_id = $1
+       ),
+       total_amount = (
+         SELECT COALESCE(SUM(amount), 0) FROM bonus_items WHERE bonus_id = $1
+       )
+       WHERE id = $1`,
+      [bonus.id]
+    );
+
+    await logAction(req.user.id, "create", "bonus_items", item.rows[0].id);
+
+    res.json(item.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Bonus qatori qo‘shib bo‘lmadi" });
+  }
+});
+
+app.put("/api/bonus-items/:id", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  try {
+    const { work_date, branch_id, content_type, content_title, notes, units } = req.body;
+    const amount = Number(units || 0) * 25000;
+
+    const updated = await query(
+      `UPDATE bonus_items SET
+       work_date=$1, branch_id=$2, content_type=$3, content_title=$4, notes=$5, units=$6, amount=$7
+       WHERE id=$8
+       RETURNING *`,
+      [work_date, branch_id || null, content_type, content_title || "", notes || "", units || 0, amount, req.params.id]
+    );
+
+    const bonusId = updated.rows[0].bonus_id;
+
+    await query(
+      `UPDATE bonuses
+       SET total_units = (
+         SELECT COALESCE(SUM(units), 0) FROM bonus_items WHERE bonus_id = $1
+       ),
+       total_amount = (
+         SELECT COALESCE(SUM(amount), 0) FROM bonus_items WHERE bonus_id = $1
+       )
+       WHERE id = $1`,
+      [bonusId]
+    );
+
+    await logAction(req.user.id, "update", "bonus_items", Number(req.params.id));
+
+    res.json(updated.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Bonus qatorini yangilab bo‘lmadi" });
+  }
+});
+
+app.delete("/api/bonus-items/:id", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  try {
+    const item = await query(`SELECT * FROM bonus_items WHERE id = $1`, [req.params.id]);
+    if (!item.rows.length) {
+      return res.status(404).json({ message: "Topilmadi" });
+    }
+
+    const bonusId = item.rows[0].bonus_id;
+
+    await query(`DELETE FROM bonus_items WHERE id = $1`, [req.params.id]);
+
+    await query(
+      `UPDATE bonuses
+       SET total_units = (
+         SELECT COALESCE(SUM(units), 0) FROM bonus_items WHERE bonus_id = $1
+       ),
+       total_amount = (
+         SELECT COALESCE(SUM(amount), 0) FROM bonus_items WHERE bonus_id = $1
+       )
+       WHERE id = $1`,
+      [bonusId]
+    );
+
+    await logAction(req.user.id, "delete", "bonus_items", Number(req.params.id));
+
+    res.json({ message: "Bonus qatori o‘chirildi" });
+  } catch {
+    res.status(500).json({ message: "Bonus qatorini o‘chirib bo‘lmadi" });
+  }
+});
+
+app.post("/api/bonuses/recalculate", authRequired, rolesAllowed("admin", "manager"), async (_, res) => {
+  try {
+    await query(
+      `UPDATE bonuses b
+       SET total_units = (
+         SELECT COALESCE(SUM(units), 0) FROM bonus_items bi WHERE bi.bonus_id = b.id
+       ),
+       total_amount = (
+         SELECT COALESCE(SUM(amount), 0) FROM bonus_items bi WHERE bi.bonus_id = b.id
+       )`
+    );
+
+    await logAction(req.user.id, "recalculate", "bonuses");
+    res.json({ message: "Bonuslar qayta hisoblandi" });
+  } catch {
+    res.status(500).json({ message: "Bonuslarni qayta hisoblab bo‘lmadi" });
+  }
+});
+
+/* SOCIAL */
+
+app.get("/api/social", authRequired, async (_, res) => {
+  const result = await query(`SELECT * FROM social_accounts ORDER BY id DESC`);
+  res.json(result.rows);
+});
+
+app.post("/api/social", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  try {
+    const { platform, account_name, account_url, login_name, status, notes } = req.body;
+    const result = await query(
+      `INSERT INTO social_accounts (platform, account_name, account_url, login_name, status, notes)
+       VALUES ($1,$2,$3,$4,$5,$6)
+       RETURNING *`,
+      [platform, account_name || "", account_url || "", login_name || "", status || "inactive", notes || ""]
+    );
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Ijtimoiy tarmoqni qo‘shib bo‘lmadi" });
+  }
+});
+
+app.put("/api/social/:id", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  try {
+    const { platform, account_name, account_url, login_name, status, notes } = req.body;
+    const result = await query(
+      `UPDATE social_accounts SET
+       platform=$1, account_name=$2, account_url=$3, login_name=$4, status=$5, notes=$6
+       WHERE id=$7
+       RETURNING *`,
+      [platform, account_name || "", account_url || "", login_name || "", status || "inactive", notes || "", req.params.id]
+    );
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Ijtimoiy tarmoqni yangilab bo‘lmadi" });
+  }
+});
+
+app.delete("/api/social/:id", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  try {
+    await query(`DELETE FROM social_accounts WHERE id = $1`, [req.params.id]);
+    res.json({ message: "Ijtimoiy tarmoq o‘chirildi" });
+  } catch {
+    res.status(500).json({ message: "Ijtimoiy tarmoqni o‘chirib bo‘lmadi" });
+  }
+});
+
+/* UPLOADS */
+
+app.get("/api/uploads", authRequired, async (_, res) => {
+  const result = await query(`SELECT * FROM uploads ORDER BY id DESC`);
+  res.json(result.rows);
+});
+
+app.post("/api/uploads", authRequired, upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: "Fayl topilmadi" });
+    }
+
+    const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+
+    const result = await query(
+      `INSERT INTO uploads
+       (file_name, original_name, mime_type, file_size, file_url, entity_type, entity_id, uploaded_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING *`,
+      [
+        req.file.filename,
+        req.file.originalname,
+        req.file.mimetype,
+        req.file.size,
+        fileUrl,
+        req.body.entity_type || null,
+        req.body.entity_id || null,
+        req.user.id
+      ]
+    );
+
+    await createNotification(req.user.id, "Fayl yuklandi", req.file.originalname, "success");
+    await logAction(req.user.id, "upload", "uploads", result.rows[0].id);
+
+    res.json(result.rows[0]);
+  } catch {
+    res.status(500).json({ message: "Faylni yuklab bo‘lmadi" });
+  }
+});
+
+app.delete("/api/uploads/:id", authRequired, async (req, res) => {
+  try {
+    const found = await query(`SELECT * FROM uploads WHERE id = $1`, [req.params.id]);
+    if (!found.rows.length) {
+      return res.status(404).json({ message: "Fayl topilmadi" });
+    }
+
+    const row = found.rows[0];
     const filePath = path.join(uploadsDir, row.file_name);
-    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    await query('DELETE FROM uploads WHERE id = $1', [req.params.id]);
+
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    await query(`DELETE FROM uploads WHERE id = $1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "uploads", Number(req.params.id));
+
+    res.json({ message: "Fayl o‘chirildi" });
+  } catch {
+    res.status(500).json({ message: "Faylni o‘chirib bo‘lmadi" });
   }
-  await logAction(req.user.id, 'delete', 'upload', Number(req.params.id));
-  res.json({ success: true });
 });
 
-// audit logs and dashboard
-app.get('/api/audit-logs', requireAuth, requireRoles('admin','manager'), async (_, res) => {
-  const r = await query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 200');
-  res.json(r.rows);
-});
-app.get('/api/dashboard/summary', requireAuth, async (_, res) => {
-  const [content, tasks, reports, users, bonuses] = await Promise.all([
-    query('SELECT COUNT(*)::int AS count, COUNT(*) FILTER (WHERE status = $1)::int AS posted FROM content_items', ['posted']),
-    query('SELECT COUNT(*)::int AS count, COUNT(*) FILTER (WHERE status = $1)::int AS done FROM tasks', ['done']),
-    query('SELECT COUNT(*)::int AS count, COALESCE(SUM(lead_count),0)::int AS leads FROM reports'),
-    query('SELECT COUNT(*)::int AS count FROM users WHERE is_active = TRUE'),
-    query('SELECT COALESCE(SUM(bonus_amount),0)::float AS total FROM bonuses')
-  ]);
-  res.json({
-    content: content.rows[0],
-    tasks: tasks.rows[0],
-    reports: reports.rows[0],
-    users: users.rows[0],
-    bonuses: bonuses.rows[0]
-  });
+/* NOTIFICATIONS */
+
+app.get("/api/notifications", authRequired, async (req, res) => {
+  const result = await query(
+    `SELECT * FROM notifications
+     WHERE user_id = $1 OR user_id IS NULL
+     ORDER BY id DESC`,
+    [req.user.id]
+  );
+  res.json(result.rows);
 });
 
-app.use((err, req, res, _next) => {
-  console.error(err);
-  res.status(500).json({ message: 'Server error', detail: err.message });
+app.post("/api/notifications/read/:id", authRequired, async (req, res) => {
+  await query(
+    `UPDATE notifications
+     SET is_read = TRUE
+     WHERE id = $1`,
+    [req.params.id]
+  );
+  res.json({ message: "O‘qilgan deb belgilandi" });
 });
 
-const port = process.env.PORT || 8080;
-ensureDefaults().then(() => {
-  app.listen(port, () => console.log(`API running on ${port}`));
-}).catch((e) => {
-  console.error(e);
-  process.exit(1);
+/* AUDIT LOGS */
+
+app.get("/api/audit-logs", authRequired, rolesAllowed("admin", "manager"), async (_, res) => {
+  const result = await query(
+    `SELECT a.*, u.full_name
+     FROM audit_logs a
+     LEFT JOIN users u ON u.id = a.user_id
+     ORDER BY a.id DESC
+     LIMIT 500`
+  );
+  res.json(result.rows);
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on ${PORT}`);
 });
