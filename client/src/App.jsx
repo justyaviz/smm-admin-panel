@@ -35,6 +35,37 @@ const MENU = [
   { id: "settings", title: "Sozlamalar", icon: Settings }
 ];
 
+function getMonthLabel(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function getMonthTitle(monthLabel) {
+  const [year, month] = monthLabel.split("-");
+  const names = {
+    "01": "Yanvar",
+    "02": "Fevral",
+    "03": "Mart",
+    "04": "Aprel",
+    "05": "May",
+    "06": "Iyun",
+    "07": "Iyul",
+    "08": "Avgust",
+    "09": "Sentabr",
+    "10": "Oktabr",
+    "11": "Noyabr",
+    "12": "Dekabr"
+  };
+  return `${names[month]} ${year}`;
+}
+
+function shiftMonth(monthLabel, step) {
+  const [y, m] = monthLabel.split("-").map(Number);
+  const d = new Date(y, m - 1 + step, 1);
+  return getMonthLabel(d);
+}
+
 function Toast({ toast, onClose }) {
   useEffect(() => {
     if (!toast) return;
@@ -358,10 +389,12 @@ function KpiPage({ kpiSummary, kpiEmployees, kpiBranches, kpiContentTypes }) {
   );
 }
 
-function BonusPage({ bonuses, bonusItems, onToast }) {
+function BonusPage({ bonusItems }) {
   const [monthFilter, setMonthFilter] = useState(getMonthLabel());
 
-  const monthOptions = [...new Set(bonusItems.map((i) => i.month_label).filter(Boolean))].sort().reverse();
+  const monthOptions = [...new Set(bonusItems.map((i) => i.month_label).filter(Boolean))]
+    .sort()
+    .reverse();
 
   const filteredItems = bonusItems.filter((item) =>
     monthFilter ? item.month_label === monthFilter : true
@@ -553,267 +586,6 @@ function BonusPage({ bonuses, bonusItems, onToast }) {
               ) : (
                 <tr>
                   <td colSpan="11" className="empty-cell">Bu oy uchun bonus yozuvi yo‘q</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DailyReportsPage({ reports, branches, users, onToast, reload }) {
-
-      <div className="card">
-        <SectionTitle title={`${getMonthTitle(monthFilter)} bonus yozuvlari`} />
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Sana</th>
-                <th>Filial</th>
-                <th>Kontent turi</th>
-                <th>Kontent nomi</th>
-                <th>1-hodim</th>
-                <th>2-hodim</th>
-                <th>Taklif soni</th>
-                <th>Taklif summasi</th>
-                <th>Tasdiq soni</th>
-                <th>Tasdiq summasi</th>
-                <th>Jami summa</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredItems.length ? (
-                filteredItems.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.work_date || "-"}</td>
-                    <td>{row.branch_name || "-"}</td>
-                    <td>{row.content_type || "-"}</td>
-                    <td>{row.content_title || "-"}</td>
-                    <td>{row.full_name || "-"}</td>
-                    <td>{row.second_full_name || "-"}</td>
-                    <td>{row.proposal_count || 0}</td>
-                    <td>{Number(row.proposal_amount || 0).toLocaleString()} so‘m</td>
-                    <td>{row.approved_count || 0}</td>
-                    <td>{Number(row.approved_amount || 0).toLocaleString()} so‘m</td>
-                    <td>{Number(row.total_amount || row.amount || 0).toLocaleString()} so‘m</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="11" className="empty-cell">Bu oy uchun bonus yozuvi yo‘q</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-   );
-}
-
-  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
-
-  const filteredItems = monthFilter
-    ? bonusItems.filter((item) => item.month_label === monthFilter)
-    : bonusItems;
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-    try {
-      setSaving(true);
-      await api.create("bonus-items", form);
-      await api.recalcBonus();
-      await reload();
-      onToast("Saqlandi ✅", "success");
-      setForm({
-        user_id: "",
-        month_label: "",
-        work_date: "",
-        branch_id: "",
-        content_type: "",
-        content_title: "",
-        notes: "",
-        units: 1
-      });
-    } catch (err) {
-      onToast(err.message || "Xatolik yuz berdi", "error");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const totalBonus = bonuses.reduce((sum, row) => sum + Number(row.total_amount || 0), 0);
-
-  return (
-    <div className="page-grid">
-      <div className="card">
-        <SectionTitle
-          title="Bonus tizimi"
-          desc="1 soni = 25,000 so‘m"
-          right={
-            <div className="toolbar-actions">
-              <button
-                type="button"
-                className="btn secondary"
-                onClick={() => api.exportFile("/api/export/bonuses.xlsx", "bonuses.xlsx")}
-              >
-                Excel export
-              </button>
-              <button
-                type="button"
-                className="btn secondary"
-                onClick={() => api.exportFile("/api/export/bonuses.pdf", "bonuses.pdf")}
-              >
-                PDF export
-              </button>
-            </div>
-          }
-        />
-
-        <div className="summary-pill">
-          Umumiy bonus: <strong>{totalBonus.toLocaleString()} so‘m</strong>
-        </div>
-
-        <form className="form-grid" onSubmit={handleSubmit}>
-          <label>
-            <span>Hodim</span>
-            <select value={form.user_id} onChange={(e) => setField("user_id", e.target.value)} required>
-              <option value="">Tanlang</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.full_name}</option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Oy</span>
-            <input
-              value={form.month_label}
-              onChange={(e) => setField("month_label", e.target.value)}
-              placeholder="2026-04"
-              required
-            />
-          </label>
-
-          <label>
-            <span>Sana</span>
-            <input
-              type="date"
-              value={form.work_date}
-              onChange={(e) => setField("work_date", e.target.value)}
-              required
-            />
-          </label>
-
-          <label>
-            <span>Filial</span>
-            <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)}>
-              <option value="">Tanlang</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Kontent turi</span>
-            <input
-              value={form.content_type}
-              onChange={(e) => setField("content_type", e.target.value)}
-              placeholder="Story / Post / Reels"
-              required
-            />
-          </label>
-
-          <label>
-            <span>Kontent nomi</span>
-            <input
-              value={form.content_title}
-              onChange={(e) => setField("content_title", e.target.value)}
-            />
-          </label>
-
-          <label>
-            <span>Soni</span>
-            <input
-              type="number"
-              min="1"
-              value={form.units}
-              onChange={(e) => setField("units", Number(e.target.value))}
-              required
-            />
-          </label>
-
-          <label>
-            <span>Birlik narx</span>
-            <input value="25,000 so‘m" disabled />
-          </label>
-
-          <label>
-            <span>Jami summa</span>
-            <input value={`${(Number(form.units || 0) * 25000).toLocaleString()} so‘m`} disabled />
-          </label>
-
-          <label className="full-col">
-            <span>Izoh</span>
-            <input value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
-          </label>
-
-          <button className="btn primary" type="submit" disabled={saving}>
-            {saving ? "Saqlanmoqda..." : "Saqlash"}
-          </button>
-        </form>
-      </div>
-
-      <div className="card">
-        <SectionTitle
-          title="Bonus yozuvlari"
-          right={
-            <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
-              <option value="">Barcha oylar</option>
-              {[...new Set(bonusItems.map((i) => i.month_label).filter(Boolean))].map((m) => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          }
-        />
-
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Sana</th>
-                <th>Filial</th>
-                <th>Hodim</th>
-                <th>Kontent turi</th>
-                <th>Kontent nomi</th>
-                <th>Izoh</th>
-                <th>Soni</th>
-                <th>Birlik narx</th>
-                <th>Jami</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredItems.length ? (
-                filteredItems.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.work_date}</td>
-                    <td>{row.branch_name || "-"}</td>
-                    <td>{row.full_name}</td>
-                    <td>{row.content_type}</td>
-                    <td>{row.content_title || "-"}</td>
-                    <td>{row.notes || "-"}</td>
-                    <td>{row.units}</td>
-                    <td>{Number(row.unit_price || 0).toLocaleString()}</td>
-                    <td>{Number(row.amount || 0).toLocaleString()}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="9" className="empty-cell">Hozircha ma’lumot yo‘q</td>
                 </tr>
               )}
             </tbody>
@@ -1452,37 +1224,6 @@ function TasksPage({ tasks, users, onToast, reload }) {
   );
 }
 
-function getMonthLabel(date = new Date()) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
-  return `${y}-${m}`;
-}
-
-function getMonthTitle(monthLabel) {
-  const [year, month] = monthLabel.split("-");
-  const names = {
-    "01": "Yanvar",
-    "02": "Fevral",
-    "03": "Mart",
-    "04": "Aprel",
-    "05": "May",
-    "06": "Iyun",
-    "07": "Iyul",
-    "08": "Avgust",
-    "09": "Sentabr",
-    "10": "Oktabr",
-    "11": "Noyabr",
-    "12": "Dekabr"
-  };
-  return `${names[month]} ${year}`;
-}
-
-function shiftMonth(monthLabel, step) {
-  const [y, m] = monthLabel.split("-").map(Number);
-  const d = new Date(y, m - 1 + step, 1);
-  return getMonthLabel(d);
-}
-
 function ContentPage({ users, branches, onToast }) {
   const [selectedMonth, setSelectedMonth] = useState(getMonthLabel());
   const [rows, setRows] = useState([]);
@@ -1946,7 +1687,6 @@ export default function App() {
   const [bonuses, setBonuses] = useState([]);
   const [bonusItems, setBonusItems] = useState([]);
   const [uploads, setUploads] = useState([]);
-  const [contentRows, setContentRows] = useState([]);
   const [dailyReports, setDailyReports] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [tasks, setTasks] = useState([]);
@@ -1973,7 +1713,6 @@ export default function App() {
         bonusRes,
         bonusItemsRes,
         uploadsRes,
-        contentRes,
         dailyReportsRes,
         campaignsRes,
         tasksRes,
@@ -1991,7 +1730,6 @@ export default function App() {
         api.list("bonuses").catch(() => []),
         api.list("bonus-items").catch(() => []),
         api.list("uploads").catch(() => []),
-        api.list("content").catch(() => []),
         api.list("daily-reports").catch(() => []),
         api.list("campaigns").catch(() => []),
         api.list("tasks").catch(() => []),
@@ -2010,7 +1748,6 @@ export default function App() {
       setBonuses(bonusRes || []);
       setBonusItems(bonusItemsRes || []);
       setUploads(uploadsRes || []);
-      setContentRows(contentRes || []);
       setDailyReports(dailyReportsRes || []);
       setCampaigns(campaignsRes || []);
       setTasks(tasksRes || []);
@@ -2094,116 +1831,96 @@ export default function App() {
       </>
     );
   }
+
   let page = null;
 
-if (...) { ... }
-else if (...) { ... }
-else if (...) { ... }
+  if (active === "dashboard") {
+    page = (
+      <DashboardPage
+        summary={summary}
+        kpiSummary={kpiSummary}
+        dailyReports={dailyReports}
+        bonuses={bonuses}
+        campaigns={campaigns}
+        tasks={tasks}
+      />
+    );
+  } else if (active === "kpi") {
+    page = (
+      <KpiPage
+        kpiSummary={kpiSummary}
+        kpiEmployees={kpiEmployees}
+        kpiBranches={kpiBranches}
+        kpiContentTypes={kpiContentTypes}
+      />
+    );
+  } else if (active === "content") {
+    page = (
+      <ContentPage
+        users={users}
+        branches={branches}
+        onToast={showToast}
+      />
+    );
+  } else if (active === "bonus") {
+    page = <BonusPage bonusItems={bonusItems} />;
+  } else if (active === "dailyReports") {
+    page = (
+      <DailyReportsPage
+        reports={dailyReports}
+        branches={branches}
+        users={users}
+        onToast={showToast}
+        reload={reloadData}
+      />
+    );
+  } else if (active === "uploads") {
+    page = (
+      <MediaPage
+        uploads={uploads}
+        onToast={showToast}
+        reload={reloadData}
+      />
+    );
+  } else if (active === "users") {
+    page = (
+      <UsersPage
+        users={users}
+        onToast={showToast}
+        reload={reloadData}
+      />
+    );
+  } else if (active === "campaigns") {
+    page = (
+      <CampaignsPage
+        campaigns={campaigns}
+        onToast={showToast}
+        reload={reloadData}
+      />
+    );
+  } else if (active === "tasks") {
+    page = (
+      <TasksPage
+        tasks={tasks}
+        users={users}
+        onToast={showToast}
+        reload={reloadData}
+      />
+    );
+  } else if (active === "audit") {
+    page = <AuditPage logs={auditLogs} />;
+  } else if (active === "settings") {
+    page = (
+      <SettingsPage
+        settings={settings}
+        onSave={saveSettings}
+        saving={savingSettings}
+        theme={theme}
+        setTheme={setTheme}
+      />
+    );
+  }
 
-return (
-  <>
-    <div className="app-shell">
-      ...
-      {page}
-    </div>
-  </>
-);
-if (active === "dashboard") {
-  page = (
-    <DashboardPage
-      summary={summary}
-      kpiSummary={kpiSummary}
-      dailyReports={dailyReports}
-      bonuses={bonuses}
-      campaigns={campaigns}
-      tasks={tasks}
-    />
-  );
-} else if (active === "kpi") {
-  page = (
-    <KpiPage
-      kpiSummary={kpiSummary}
-      kpiEmployees={kpiEmployees}
-      kpiBranches={kpiBranches}
-      kpiContentTypes={kpiContentTypes}
-    />
-  );
-} else if (active === "content") {
-  page = (
-    <ContentPage
-      users={users}
-      branches={branches}
-      onToast={showToast}
-    />
-  );
-} else if (active === "bonus") {
-  page = (
-    <BonusPage
-      bonuses={bonuses}
-      bonusItems={bonusItems}
-      users={users}
-      branches={branches}
-      onToast={showToast}
-      reload={reloadData}
-    />
-  );
-} else if (active === "dailyReports") {
-  page = (
-    <DailyReportsPage
-      reports={dailyReports}
-      branches={branches}
-      users={users}
-      onToast={showToast}
-      reload={reloadData}
-    />
-  );
-} else if (active === "uploads") {
-  page = (
-    <MediaPage
-      uploads={uploads}
-      onToast={showToast}
-      reload={reloadData}
-    />
-  );
-} else if (active === "users") {
-  page = (
-    <UsersPage
-      users={users}
-      onToast={showToast}
-      reload={reloadData}
-    />
-  );
-} else if (active === "campaigns") {
-  page = (
-    <CampaignsPage
-      campaigns={campaigns}
-      onToast={showToast}
-      reload={reloadData}
-    />
-  );
-} else if (active === "tasks") {
-  page = (
-    <TasksPage
-      tasks={tasks}
-      users={users}
-      onToast={showToast}
-      reload={reloadData}
-    />
-  );
-} else if (active === "audit") {
-  page = <AuditPage logs={auditLogs} />;
-} else if (active === "settings") {
-  page = (
-    <SettingsPage
-      settings={settings}
-      onSave={saveSettings}
-      saving={savingSettings}
-      theme={theme}
-      setTheme={setTheme}
-    />
-  );
-}
-  
   return (
     <>
       <div className="app-shell">
@@ -2652,3 +2369,4 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   .login-copy h2{font-size:24px}
 }
 `;
+حنة
