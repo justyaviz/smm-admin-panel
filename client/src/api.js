@@ -9,6 +9,7 @@ function authHeaders() {
 
 export function clearAuth() {
   localStorage.removeItem("aloo_token");
+  localStorage.removeItem("aloo_user");
 }
 
 export function getCurrentUser() {
@@ -30,10 +31,12 @@ function saveAuth(data) {
 }
 
 async function request(path, options = {}) {
+  const isFormData = options.body instanceof FormData;
+
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
-      ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...authHeaders(),
       ...(options.headers || {})
     }
@@ -44,8 +47,11 @@ async function request(path, options = {}) {
     throw new Error(data.message || "Xatolik yuz berdi");
   }
 
-  const ct = res.headers.get("content-type") || "";
-  if (ct.includes("application/json")) return res.json();
+  const contentType = res.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return res.json();
+  }
+
   return res.blob();
 }
 
@@ -60,6 +66,12 @@ export const api = {
   },
 
   me: () => request("/api/auth/me"),
+
+  changePassword: (payload) =>
+    request("/api/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
 
   dashboard: () => request("/api/dashboard/summary"),
 
