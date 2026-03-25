@@ -51,7 +51,6 @@ async function request(path, options = {}) {
   if (contentType.includes("application/json")) {
     return res.json();
   }
-
   return res.blob();
 }
 
@@ -64,17 +63,8 @@ export const api = {
     saveAuth(res);
     return res;
   },
-
   me: () => request("/api/auth/me"),
-
-  changePassword: (payload) =>
-    request("/api/auth/change-password", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    }),
-
   dashboard: () => request("/api/dashboard/summary"),
-
   settings: {
     get: () => request("/api/settings"),
     update: (payload) =>
@@ -83,34 +73,5 @@ export const api = {
         body: JSON.stringify(payload)
       })
   },
-
-  list: (entity) => request(`/api/${entity}`),
-
-  create: (entity, payload) =>
-    request(`/api/${entity}`, {
-      method: "POST",
-      body: JSON.stringify(payload)
-    }),
-
-  update: (entity, id, payload) =>
-    request(`/api/${entity}/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(payload)
-    }),
-
-  remove: (entity, id) =>
-    request(`/api/${entity}/${id}`, {
-      method: "DELETE"
-    }),
-
-  upload: (formData) =>
-    request("/api/uploads", {
-      method: "POST",
-      body: formData
-    }),
-
-  recalcBonus: () =>
-    request("/api/bonuses/recalculate", {
-      method: "POST"
-    })
+  list: (entity) => request(`/api/${entity}`)
 };
