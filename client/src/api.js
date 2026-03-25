@@ -1,4 +1,5 @@
-const API_BASE = "https://smm-admin-panel-production.up.railway.app";
+export const API_BASE =
+  import.meta.env.VITE_API_BASE || "https://smm-admin-panel-back-production.up.railway.app";
 
 function getToken() {
   return localStorage.getItem("aloo_token");
@@ -51,12 +52,8 @@ async function request(path, options = {}) {
 }
 
 export function saveAuth(data) {
-  if (data?.token) {
-    localStorage.setItem("aloo_token", data.token);
-  }
-  if (data?.user) {
-    localStorage.setItem("aloo_user", JSON.stringify(data.user));
-  }
+  if (data?.token) localStorage.setItem("aloo_token", data.token);
+  if (data?.user) localStorage.setItem("aloo_user", JSON.stringify(data.user));
 }
 
 export function clearAuth() {
@@ -147,5 +144,3 @@ export const api = {
     window.URL.revokeObjectURL(url);
   }
 };
-
-export { API_BASE };
