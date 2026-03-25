@@ -2153,7 +2153,6 @@ if (active === "dashboard") {
       setTheme={setTheme}
     />
   );
-}
   
   return (
     <>
