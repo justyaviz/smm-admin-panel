@@ -625,6 +625,7 @@ export default function App() {
   const [active, setActive] = useState("dashboard");
   const [theme, setTheme] = useState(localStorage.getItem("aloo_theme") || "dark");
   const [toast, setToast] = useState(null);
+  const [dailyReports, setDailyReports] = useState([]);
   const [search, setSearch] = useState("");
 
   const [summary, setSummary] = useState(null);
@@ -655,15 +656,26 @@ export default function App() {
         setUser(me.user);
 
         const [
-          dashboardRes,
-          settingsRes,
-          notificationsRes,
-          usersRes,
-          branchesRes,
-          bonusRes,
-          uploadsRes,
-          contentRes
-        ] = await Promise.all([
+  dashboardRes,
+  settingsRes,
+  notificationsRes,
+  usersRes,
+  branchesRes,
+  bonusRes,
+  uploadsRes,
+  contentRes,
+  dailyReportsRes
+] = await Promise.all([
+  api.dashboard(),
+  api.settings.get(),
+  api.list("notifications"),
+  api.list("users").catch(() => []),
+  api.list("branches").catch(() => []),
+  api.list("bonuses").catch(() => []),
+  api.list("uploads").catch(() => []),
+  api.list("content").catch(() => []),
+  api.list("daily-reports").catch(() => [])
+]);
           api.dashboard(),
           api.settings.get(),
           api.list("notifications"),
