@@ -2,11 +2,15 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Bell,
   Building2,
-  CheckCircle2,
-  ClipboardList,
+  CalendarDays,
+  FileBarChart2,
+  FolderKanban,
   Gift,
   Home,
+  Image,
+  LayoutGrid,
   LogOut,
+  Megaphone,
   Moon,
   Search,
   Settings,
@@ -14,26 +18,28 @@ import {
   Upload,
   User,
   Users,
-  X
+  X,
 } from "lucide-react";
 import { api, clearAuth, getCurrentUser } from "./api";
 
 const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: Home },
-  { id: "content", title: "Kontent reja", icon: ClipboardList },
-  { id: "branches", title: "Filiallar", icon: Building2 },
-  { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: Building2 },
+  { id: "content", title: "Kontent reja", icon: LayoutGrid },
+  { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: FileBarChart2 },
+  { id: "campaigns", title: "Reklama kampaniyalari", icon: Megaphone },
   { id: "bonus", title: "Bonus tizimi", icon: Gift },
+  { id: "branches", title: "Filiallar", icon: Building2 },
   { id: "users", title: "Hodimlar", icon: Users },
-  { id: "uploads", title: "Media kutubxona", icon: Upload },
+  { id: "uploads", title: "Media kutubxona", icon: Image },
+  { id: "tasks", title: "Vazifalar", icon: FolderKanban },
   { id: "settings", title: "Sozlamalar", icon: Settings }
 ];
 
 function Toast({ toast, onClose }) {
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(onClose, 2200);
-    return () => clearTimeout(timer);
+    const t = setTimeout(onClose, 2200);
+    return () => clearTimeout(t);
   }, [toast, onClose]);
 
   if (!toast) return null;
@@ -56,8 +62,28 @@ function ThemeToggle({ theme, setTheme }) {
       onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
     >
       {theme === "dark" ? <SunMedium size={16} /> : <Moon size={16} />}
-      {theme === "dark" ? "Light" : "Dark"}
     </button>
+  );
+}
+
+function SectionTitle({ title, subtitle }) {
+  return (
+    <div className="section-head">
+      <div>
+        <h2>{title}</h2>
+        {subtitle ? <p>{subtitle}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function StatCard({ title, value, subtitle }) {
+  return (
+    <div className="stat-card">
+      <div className="stat-title">{title}</div>
+      <div className="stat-value">{value ?? 0}</div>
+      {subtitle ? <div className="stat-sub">{subtitle}</div> : null}
+    </div>
   );
 }
 
@@ -84,21 +110,41 @@ function LoginPage({ onLoggedIn }) {
   return (
     <div className="login-page">
       <div className="login-left">
-        <div className="mini-badge">aloo SMM platforma</div>
+        <div className="brand-pill">aloo SMM platforma</div>
         <h1>Asalomu alaykum</h1>
         <h2>aloo do‘konlar tarmog‘i SMM jamoasi yagona ma’lumotlar platformasiga xush kelibsiz</h2>
         <p>Kirish uchun login va parolingizni kiriting.</p>
+
+        <div className="login-showcase">
+          <div className="show-card phone-card">
+            <div className="phone-frame">
+              <div className="phone-screen">
+                <div className="phone-logo">aloo</div>
+              </div>
+            </div>
+          </div>
+          <div className="show-card">
+            <div className="show-title">Texno hayotga ulanish</div>
+            <div className="show-text">SMM jamoasi uchun yagona boshqaruv va hisobot maydoni.</div>
+          </div>
+        </div>
       </div>
 
       <form className="login-card" onSubmit={submit}>
-        <div className="login-title">Tizimga kirish</div>
+        <div className="login-card-top">
+          <div>
+            <div className="small-label">Kirish</div>
+            <div className="login-title">Xush kelibsiz</div>
+          </div>
+          <ThemeToggle theme="light" setTheme={() => {}} />
+        </div>
 
         <label>
-          <span>Telefon raqam</span>
+          <span>Telefon raqam yoki login</span>
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            placeholder="998939000"
+            placeholder="998939000 yoki admin"
           />
         </label>
 
@@ -122,142 +168,35 @@ function LoginPage({ onLoggedIn }) {
   );
 }
 
-function StatCard({ title, value }) {
-  return (
-    <div className="stat-card">
-      <div className="stat-title">{title}</div>
-      <div className="stat-value">{value ?? 0}</div>
-    </div>
-  );
-}
-
 function DashboardPage({ summary }) {
   return (
     <div className="page-grid">
-      <div className="hero-card">
-        <div>
-          <div className="mini-badge">Boshqaruv markazi</div>
-          <h3>SMM jamoasi joriy ko‘rsatkichlari</h3>
-          <p>Bu yerda umumiy hisobot, bonus va faol jarayonlar ko‘rinadi.</p>
+      <div className="hero-banner">
+        <div className="hero-left">
+          <div className="brand-pill">Boshqaruv markazi</div>
+          <h2>aloo SMM jamoasi platformasi</h2>
+          <p>Kontent, filial hisobotlari, KPI, bonus, media va kampaniyalarni bitta joydan boshqaring.</p>
+        </div>
+        <div className="hero-right">
+          <div className="glass-card">
+            <div className="glass-label">Joriy holat</div>
+            <div className="glass-big">{summary?.today_report_count || 0}</div>
+            <div className="glass-sub">bugungi hisobot</div>
+          </div>
         </div>
       </div>
 
       <div className="stats-grid">
-        <StatCard title="Kontentlar" value={summary?.content_count || 0} />
-        <StatCard title="Vazifalar" value={summary?.task_count || 0} />
-        <StatCard title="Kampaniyalar" value={summary?.campaign_count || 0} />
-        <StatCard title="Hodimlar" value={summary?.user_count || 0} />
-        <StatCard title="Bugungi hisobotlar" value={summary?.today_report_count || 0} />
-        <StatCard title="Jami bonus" value={summary?.total_bonus_amount || 0} />
-      </div>
-    </div>
-  );
-}
-
-function SettingsPage({ settings, onSave, theme, setTheme, saving }) {
-  const [form, setForm] = useState(settings || {});
-
-  useEffect(() => {
-    setForm(settings || {});
-  }, [settings]);
-
-  const setField = (key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
-  return (
-    <div className="page-grid">
-      <div className="panel-card">
-        <div className="section-title">Ko‘rinish</div>
-        <div className="row between">
-          <div>
-            <strong>Theme</strong>
-            <p className="muted">Tizim ko‘rinishini almashtirish</p>
-          </div>
-          <ThemeToggle theme={theme} setTheme={setTheme} />
-        </div>
-      </div>
-
-      <div className="panel-card">
-        <div className="section-title">Asosiy sozlamalar</div>
-
-        <div className="form-grid">
-          <label>
-            <span>Kompaniya nomi</span>
-            <input
-              value={form.company_name || ""}
-              onChange={(e) => setField("company_name", e.target.value)}
-            />
-          </label>
-
-          <label>
-            <span>Platforma nomi</span>
-            <input
-              value={form.platform_name || ""}
-              onChange={(e) => setField("platform_name", e.target.value)}
-            />
-          </label>
-
-          <label>
-            <span>Bo‘lim</span>
-            <input
-              value={form.department_name || ""}
-              onChange={(e) => setField("department_name", e.target.value)}
-            />
-          </label>
-
-          <label>
-            <span>Websayt</span>
-            <input
-              value={form.website_url || ""}
-              onChange={(e) => setField("website_url", e.target.value)}
-            />
-          </label>
-
-          <label>
-            <span>Telegram</span>
-            <input
-              value={form.telegram_url || ""}
-              onChange={(e) => setField("telegram_url", e.target.value)}
-            />
-          </label>
-
-          <label>
-            <span>Instagram</span>
-            <input
-              value={form.instagram_url || ""}
-              onChange={(e) => setField("instagram_url", e.target.value)}
-            />
-          </label>
-
-          <label>
-            <span>YouTube</span>
-            <input
-              value={form.youtube_url || ""}
-              onChange={(e) => setField("youtube_url", e.target.value)}
-            />
-          </label>
-
-          <label>
-            <span>Facebook</span>
-            <input
-              value={form.facebook_url || ""}
-              onChange={(e) => setField("facebook_url", e.target.value)}
-            />
-          </label>
-
-          <label>
-            <span>TikTok</span>
-            <input
-              value={form.tiktok_url || ""}
-              onChange={(e) => setField("tiktok_url", e.target.value)}
-            />
-          </label>
-        </div>
-
-        <button className="primary-btn mt16" onClick={() => onSave(form)} disabled={saving}>
-          {saving ? "Saqlanmoqda..." : "Saqlash"}
-        </button>
+        <StatCard title="Kontentlar" value={summary?.content_count || 0} subtitle="rejadagi kontentlar" />
+        <StatCard title="Vazifalar" value={summary?.task_count || 0} subtitle="faol vazifalar" />
+        <StatCard title="Kampaniyalar" value={summary?.campaign_count || 0} subtitle="reklama kampaniyalari" />
+        <StatCard title="Hodimlar" value={summary?.user_count || 0} subtitle="faol foydalanuvchilar" />
+        <StatCard title="Bugungi hisobotlar" value={summary?.today_report_count || 0} subtitle="filial hisobotlari" />
+        <StatCard
+          title="Jami bonus"
+          value={`${Number(summary?.total_bonus_amount || 0).toLocaleString()} so‘m`}
+          subtitle="umumiy bonus summasi"
+        />
       </div>
     </div>
   );
@@ -266,7 +205,7 @@ function SettingsPage({ settings, onSave, theme, setTheme, saving }) {
 function SimpleTablePage({ title, rows, columns }) {
   return (
     <div className="panel-card">
-      <div className="section-title">{title}</div>
+      <SectionTitle title={title} />
       <div className="table-wrap">
         <table>
           <thead>
@@ -299,327 +238,73 @@ function SimpleTablePage({ title, rows, columns }) {
   );
 }
 
-function DailyReportsPage({ rows, branches, users, onSaved, reload }) {
-  const [form, setForm] = useState({
-    report_date: "",
-    branch_id: "",
-    user_id: "",
-    stories_count: 0,
-    posts_count: 0,
-    reels_count: 0,
-    notes: ""
-  });
-  const [saving, setSaving] = useState(false);
+function SettingsPage({ settings, onSave, theme, setTheme, saving }) {
+  const [form, setForm] = useState(settings || {});
 
-  const setField = (key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
+  useEffect(() => {
+    setForm(settings || {});
+  }, [settings]);
 
-  async function submit(e) {
-    e.preventDefault();
-    try {
-      setSaving(true);
-      await api.create("daily-reports", form);
-      setForm({
-        report_date: "",
-        branch_id: "",
-        user_id: "",
-        stories_count: 0,
-        posts_count: 0,
-        reels_count: 0,
-        notes: ""
-      });
-      onSaved("Saqlandi ✅");
-      await reload();
-    } catch (e2) {
-      onSaved(e2.message || "Xatolik yuz berdi", "error");
-    } finally {
-      setSaving(false);
-    }
-  }
+  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   return (
     <div className="page-grid">
       <div className="panel-card">
-        <div className="section-title">Kunlik filial hisobotini kiritish</div>
-
-        <form className="form-grid" onSubmit={submit}>
-          <label>
-            <span>Sana</span>
-            <input
-              type="date"
-              value={form.report_date}
-              onChange={(e) => setField("report_date", e.target.value)}
-              required
-            />
-          </label>
-
-          <label>
-            <span>Filial</span>
-            <select
-              value={form.branch_id}
-              onChange={(e) => setField("branch_id", e.target.value)}
-              required
-            >
-              <option value="">Tanlang</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Hodim</span>
-            <select
-              value={form.user_id}
-              onChange={(e) => setField("user_id", e.target.value)}
-            >
-              <option value="">Tanlang</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.full_name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Stories soni</span>
-            <input
-              type="number"
-              min="0"
-              value={form.stories_count}
-              onChange={(e) => setField("stories_count", Number(e.target.value))}
-            />
-          </label>
-
-          <label>
-            <span>Post soni</span>
-            <input
-              type="number"
-              min="0"
-              value={form.posts_count}
-              onChange={(e) => setField("posts_count", Number(e.target.value))}
-            />
-          </label>
-
-          <label>
-            <span>Reels soni</span>
-            <input
-              type="number"
-              min="0"
-              value={form.reels_count}
-              onChange={(e) => setField("reels_count", Number(e.target.value))}
-            />
-          </label>
-
-          <label className="full-col">
-            <span>Izoh</span>
-            <input
-              value={form.notes}
-              onChange={(e) => setField("notes", e.target.value)}
-              placeholder="Izoh"
-            />
-          </label>
-
-          <button className="primary-btn" disabled={saving} type="submit">
-            {saving ? "Saqlanmoqda..." : "Hisobotni saqlash"}
-          </button>
-        </form>
+        <SectionTitle title="Ko‘rinish" subtitle="Brandbook uslubidagi rang va tema boshqaruvi" />
+        <div className="toolbar-line">
+          <div className="color-chip blue">#1690F5</div>
+          <div className="color-chip black">#000000</div>
+          <div className="color-chip white">#FFFFFF</div>
+          <ThemeToggle theme={theme} setTheme={setTheme} />
+        </div>
       </div>
 
-      <SimpleTablePage
-        title="Kiritilgan kunlik hisobotlar"
-        rows={rows}
-        columns={[
-          { key: "report_date", label: "Sana" },
-          { key: "branch_name", label: "Filial" },
-          { key: "user_name", label: "Hodim" },
-          { key: "stories_count", label: "Stories" },
-          { key: "posts_count", label: "Post" },
-          { key: "reels_count", label: "Reels" },
-          { key: "notes", label: "Izoh" }
-        ]}
-      />
-    </div>
-  );
-}
-
-function BonusPage({ bonuses, users, branches, onSaved, reload }) {
-  const [form, setForm] = useState({
-    user_id: "",
-    month_label: "",
-    work_date: "",
-    branch_id: "",
-    content_type: "",
-    content_title: "",
-    notes: "",
-    units: 1
-  });
-  const [saving, setSaving] = useState(false);
-
-  const setField = (key, value) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  };
-
-  async function submit(e) {
-    e.preventDefault();
-    try {
-      setSaving(true);
-      await api.create("bonus-items", form);
-      await api.recalcBonus();
-      setForm({
-        user_id: "",
-        month_label: "",
-        work_date: "",
-        branch_id: "",
-        content_type: "",
-        content_title: "",
-        notes: "",
-        units: 1
-      });
-      onSaved("Saqlandi ✅");
-      await reload();
-    } catch (e2) {
-      onSaved(e2.message || "Xatolik yuz berdi", "error");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const totalBonus = bonuses.reduce((sum, b) => sum + Number(b.total_amount || 0), 0);
-
-  return (
-    <div className="page-grid">
       <div className="panel-card">
-        <div className="section-title">Oylik bonus hisobotini kiritish</div>
-        <div className="bonus-total-box">
-          Umumiy bonus summasi: <strong>{totalBonus.toLocaleString()} so‘m</strong>
+        <SectionTitle title="Asosiy sozlamalar" subtitle="Platforma ma’lumotlarini boshqaring" />
+
+        <div className="form-grid">
+          <label>
+            <span>Kompaniya nomi</span>
+            <input value={form.company_name || ""} onChange={(e) => setField("company_name", e.target.value)} />
+          </label>
+          <label>
+            <span>Platforma nomi</span>
+            <input value={form.platform_name || ""} onChange={(e) => setField("platform_name", e.target.value)} />
+          </label>
+          <label>
+            <span>Bo‘lim</span>
+            <input value={form.department_name || ""} onChange={(e) => setField("department_name", e.target.value)} />
+          </label>
+          <label>
+            <span>Websayt</span>
+            <input value={form.website_url || ""} onChange={(e) => setField("website_url", e.target.value)} />
+          </label>
+          <label>
+            <span>Telegram</span>
+            <input value={form.telegram_url || ""} onChange={(e) => setField("telegram_url", e.target.value)} />
+          </label>
+          <label>
+            <span>Instagram</span>
+            <input value={form.instagram_url || ""} onChange={(e) => setField("instagram_url", e.target.value)} />
+          </label>
+          <label>
+            <span>YouTube</span>
+            <input value={form.youtube_url || ""} onChange={(e) => setField("youtube_url", e.target.value)} />
+          </label>
+          <label>
+            <span>Facebook</span>
+            <input value={form.facebook_url || ""} onChange={(e) => setField("facebook_url", e.target.value)} />
+          </label>
+          <label>
+            <span>TikTok</span>
+            <input value={form.tiktok_url || ""} onChange={(e) => setField("tiktok_url", e.target.value)} />
+          </label>
         </div>
 
-        <form className="form-grid" onSubmit={submit}>
-          <label>
-            <span>Hodim</span>
-            <select
-              value={form.user_id}
-              onChange={(e) => setField("user_id", e.target.value)}
-              required
-            >
-              <option value="">Tanlang</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.full_name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Oy</span>
-            <input
-              value={form.month_label}
-              onChange={(e) => setField("month_label", e.target.value)}
-              placeholder="2026-04"
-              required
-            />
-          </label>
-
-          <label>
-            <span>Sana</span>
-            <input
-              type="date"
-              value={form.work_date}
-              onChange={(e) => setField("work_date", e.target.value)}
-              required
-            />
-          </label>
-
-          <label>
-            <span>Filial</span>
-            <select
-              value={form.branch_id}
-              onChange={(e) => setField("branch_id", e.target.value)}
-            >
-              <option value="">Tanlang</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label>
-            <span>Kontent turi</span>
-            <input
-              value={form.content_type}
-              onChange={(e) => setField("content_type", e.target.value)}
-              placeholder="Story / Post / Reels"
-              required
-            />
-          </label>
-
-          <label>
-            <span>Kontent nomi</span>
-            <input
-              value={form.content_title}
-              onChange={(e) => setField("content_title", e.target.value)}
-              placeholder="Kontent nomi"
-            />
-          </label>
-
-          <label>
-            <span>Soni</span>
-            <input
-              type="number"
-              min="1"
-              value={form.units}
-              onChange={(e) => setField("units", Number(e.target.value))}
-              required
-            />
-          </label>
-
-          <label>
-            <span>Birlik narx</span>
-            <input value="25,000 so‘m" disabled />
-          </label>
-
-          <label>
-            <span>Jami</span>
-            <input
-              value={`${(Number(form.units || 0) * 25000).toLocaleString()} so‘m`}
-              disabled
-            />
-          </label>
-
-          <label className="full-col">
-            <span>Izoh</span>
-            <input
-              value={form.notes}
-              onChange={(e) => setField("notes", e.target.value)}
-              placeholder="Izoh"
-            />
-          </label>
-
-          <button className="primary-btn" disabled={saving} type="submit">
-            {saving ? "Saqlanmoqda..." : "Bonus qatorini saqlash"}
-          </button>
-        </form>
+        <button className="primary-btn mt16" onClick={() => onSave(form)} disabled={saving}>
+          {saving ? "Saqlanmoqda..." : "Saqlash"}
+        </button>
       </div>
-
-      <SimpleTablePage
-        title="Bonuslar ro‘yxati"
-        rows={bonuses}
-        columns={[
-          { key: "full_name", label: "Hodim" },
-          { key: "month_label", label: "Oy" },
-          { key: "total_units", label: "Soni" },
-          { key: "unit_price", label: "Birlik narx" },
-          { key: "total_amount", label: "Jami summa" }
-        ]}
-      />
     </div>
   );
 }
@@ -641,6 +326,8 @@ export default function App() {
   const [uploads, setUploads] = useState([]);
   const [contentRows, setContentRows] = useState([]);
   const [dailyReports, setDailyReports] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
+  const [tasks, setTasks] = useState([]);
   const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
@@ -659,7 +346,9 @@ export default function App() {
         bonusRes,
         uploadsRes,
         contentRes,
-        dailyReportsRes
+        dailyReportsRes,
+        campaignsRes,
+        tasksRes
       ] = await Promise.all([
         api.dashboard(),
         api.settings.get(),
@@ -669,7 +358,9 @@ export default function App() {
         api.list("bonuses").catch(() => []),
         api.list("uploads").catch(() => []),
         api.list("content").catch(() => []),
-        api.list("daily-reports").catch(() => [])
+        api.list("daily-reports").catch(() => []),
+        api.list("campaigns").catch(() => []),
+        api.list("tasks").catch(() => [])
       ]);
 
       setSummary(dashboardRes);
@@ -681,6 +372,8 @@ export default function App() {
       setUploads(uploadsRes || []);
       setContentRows(contentRes || []);
       setDailyReports(dailyReportsRes || []);
+      setCampaigns(campaignsRes || []);
+      setTasks(tasksRes || []);
     } catch {}
   }
 
@@ -708,28 +401,11 @@ export default function App() {
 
   const filteredMenu = useMemo(() => {
     if (!search.trim()) return MENU;
-    return MENU.filter((m) =>
-      m.title.toLowerCase().includes(search.toLowerCase())
-    );
+    return MENU.filter((m) => m.title.toLowerCase().includes(search.toLowerCase()));
   }, [search]);
 
-  function showSaved(msg = "Saqlandi ✅", type = "success") {
-    setToast({ type, message: msg });
-  }
-
-  function logout() {
-    clearAuth();
-    setUser(null);
-    setSummary(null);
-    setSettings(null);
-    setNotifications([]);
-    setUsers([]);
-    setBranches([]);
-    setBonuses([]);
-    setUploads([]);
-    setContentRows([]);
-    setDailyReports([]);
-    setActive("dashboard");
+  function showSaved(message = "Saqlandi ✅", type = "success") {
+    setToast({ message, type });
   }
 
   async function saveSettings(payload) {
@@ -744,6 +420,23 @@ export default function App() {
     } finally {
       setSavingSettings(false);
     }
+  }
+
+  function logout() {
+    clearAuth();
+    setUser(null);
+    setSummary(null);
+    setSettings(null);
+    setNotifications([]);
+    setUsers([]);
+    setBranches([]);
+    setBonuses([]);
+    setUploads([]);
+    setContentRows([]);
+    setDailyReports([]);
+    setCampaigns([]);
+    setTasks([]);
+    setActive("dashboard");
   }
 
   if (booting) {
@@ -764,26 +457,17 @@ export default function App() {
 
   if (active === "dashboard") {
     page = <DashboardPage summary={summary} />;
-  } else if (active === "settings") {
-    page = (
-      <SettingsPage
-        settings={settings}
-        onSave={saveSettings}
-        theme={theme}
-        setTheme={setTheme}
-        saving={savingSettings}
-      />
-    );
-  } else if (active === "users") {
+  } else if (active === "content") {
     page = (
       <SimpleTablePage
-        title="Hodimlar"
-        rows={users}
+        title="Kontent reja"
+        rows={contentRows}
         columns={[
-          { key: "full_name", label: "Ism" },
-          { key: "phone", label: "Telefon" },
-          { key: "login", label: "Login" },
-          { key: "role", label: "Rol" }
+          { key: "title", label: "Sarlavha" },
+          { key: "platform", label: "Platforma" },
+          { key: "content_type", label: "Turi" },
+          { key: "status", label: "Holat" },
+          { key: "publish_date", label: "Sana" }
         ]}
       />
     );
@@ -800,24 +484,61 @@ export default function App() {
         ]}
       />
     );
-  } else if (active === "bonus") {
-    page = (
-      <BonusPage
-        bonuses={bonuses}
-        users={users}
-        branches={branches}
-        onSaved={showSaved}
-        reload={reloadData}
-      />
-    );
   } else if (active === "dailyReports") {
     page = (
-      <DailyReportsPage
+      <SimpleTablePage
+        title="Kunlik filial hisobotlari"
         rows={dailyReports}
-        branches={branches}
-        users={users}
-        onSaved={showSaved}
-        reload={reloadData}
+        columns={[
+          { key: "report_date", label: "Sana" },
+          { key: "branch_name", label: "Filial" },
+          { key: "user_name", label: "Hodim" },
+          { key: "stories_count", label: "Stories" },
+          { key: "posts_count", label: "Post" },
+          { key: "reels_count", label: "Reels" }
+        ]}
+      />
+    );
+  } else if (active === "campaigns") {
+    page = (
+      <SimpleTablePage
+        title="Reklama kampaniyalari"
+        rows={campaigns}
+        columns={[
+          { key: "title", label: "Kampaniya" },
+          { key: "platform", label: "Platforma" },
+          { key: "budget", label: "Byudjet" },
+          { key: "spend", label: "Sarf" },
+          { key: "roi", label: "ROI" },
+          { key: "status", label: "Holat" }
+        ]}
+      />
+    );
+  } else if (active === "bonus") {
+    page = (
+      <SimpleTablePage
+        title="Bonus tizimi"
+        rows={bonuses}
+        columns={[
+          { key: "full_name", label: "Hodim" },
+          { key: "month_label", label: "Oy" },
+          { key: "total_units", label: "Soni" },
+          { key: "unit_price", label: "Birlik narx" },
+          { key: "total_amount", label: "Jami summa" }
+        ]}
+      />
+    );
+  } else if (active === "users") {
+    page = (
+      <SimpleTablePage
+        title="Hodimlar"
+        rows={users}
+        columns={[
+          { key: "full_name", label: "Ism" },
+          { key: "phone", label: "Telefon" },
+          { key: "login", label: "Login" },
+          { key: "role", label: "Rol" }
+        ]}
       />
     );
   } else if (active === "uploads") {
@@ -833,18 +554,27 @@ export default function App() {
         ]}
       />
     );
-  } else if (active === "content") {
+  } else if (active === "tasks") {
     page = (
       <SimpleTablePage
-        title="Kontent reja"
-        rows={contentRows}
+        title="Vazifalar"
+        rows={tasks}
         columns={[
-          { key: "title", label: "Sarlavha" },
-          { key: "platform", label: "Platforma" },
-          { key: "content_type", label: "Turi" },
+          { key: "title", label: "Vazifa" },
           { key: "status", label: "Holat" },
-          { key: "publish_date", label: "Sana" }
+          { key: "priority", label: "Muhimlik" },
+          { key: "due_date", label: "Muddat" }
         ]}
+      />
+    );
+  } else if (active === "settings") {
+    page = (
+      <SettingsPage
+        settings={settings}
+        onSave={saveSettings}
+        theme={theme}
+        setTheme={setTheme}
+        saving={savingSettings}
       />
     );
   }
@@ -853,64 +583,62 @@ export default function App() {
     <>
       <div className="app-shell">
         <aside className="sidebar">
-          <div className="brand">
-            <div className="brand-logo">a</div>
+          <div className="brand-block">
+            <div className="brand-mark">a</div>
             <div>
-              <div className="brand-title">aloo</div>
-              <div className="brand-sub">SMM platforma</div>
+              <div className="brand-name">aloo</div>
+              <div className="brand-desc">SMM jamoasi platformasi</div>
             </div>
           </div>
 
-          <div className="search-box">
+          <div className="sidebar-search">
             <Search size={16} />
             <input
-              placeholder="Qidiruv..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              placeholder="Qidiruv..."
             />
           </div>
 
-          <div className="menu">
+          <div className="menu-list">
             {filteredMenu.map((item) => {
               const Icon = item.icon;
               return (
                 <button
                   key={item.id}
+                  type="button"
                   className={`menu-btn ${active === item.id ? "active" : ""}`}
                   onClick={() => setActive(item.id)}
-                  type="button"
                 >
-                  <span>
-                    <Icon size={16} />
-                    {item.title}
-                  </span>
+                  <Icon size={16} />
+                  <span>{item.title}</span>
                 </button>
               );
             })}
           </div>
 
-          <button className="logout-btn" onClick={logout} type="button">
+          <button type="button" className="logout-btn" onClick={logout}>
             <LogOut size={16} />
             Chiqish
           </button>
         </aside>
 
-        <main className="main">
+        <main className="main-area">
           <div className="topbar">
             <div>
+              <div className="small-label">aloo platforma</div>
               <h1>{MENU.find((m) => m.id === active)?.title || "Bosh sahifa"}</h1>
-              <p>Asalomu alaykum, {user.full_name}</p>
             </div>
 
             <div className="topbar-right">
-              <ThemeToggle theme={theme} setTheme={setTheme} />
               <div className="notif-pill">
                 <Bell size={16} />
                 {notifications.length}
               </div>
-              <div className="user-pill">
+              <ThemeToggle theme={theme} setTheme={setTheme} />
+              <div className="user-chip">
                 <User size={16} />
-                {user.role}
+                <span>{user.full_name}</span>
               </div>
             </div>
           </div>
@@ -925,92 +653,228 @@ export default function App() {
   );
 }
 
+function Toast({ toast, onClose }) {
+  useEffect(() => {
+    if (!toast) return;
+    const timer = setTimeout(onClose, 2200);
+    return () => clearTimeout(timer);
+  }, [toast, onClose]);
+
+  if (!toast) return null;
+
+  return (
+    <div className={`toast toast-${toast.type || "success"}`}>
+      <span>{toast.message}</span>
+      <button type="button" onClick={onClose}>
+        <X size={16} />
+      </button>
+    </div>
+  );
+}
+
 const styles = `
 :root{
-  --bg:#0b1220;
-  --panel:#121c2d;
-  --panel2:#182335;
-  --line:rgba(255,255,255,.08);
-  --text:#eef4ff;
-  --muted:#9cb0cb;
-  --blue:#2497ff;
-  --blue2:#6bddff;
-  --green:#1fbe73;
-  --red:#ef5a5a;
-}
-:root[data-theme='light']{
-  --bg:#eef5fb;
+  --blue:#1690F5;
+  --black:#000000;
+  --white:#FFFFFF;
+  --bg:#f5f8fc;
   --panel:#ffffff;
-  --panel2:#f7fbff;
-  --line:#dfeaf4;
-  --text:#10243a;
-  --muted:#6f8499;
-  --blue:#2497ff;
-  --blue2:#6bddff;
-  --green:#1fbe73;
-  --red:#ef5a5a;
+  --panel-soft:#f2f7fd;
+  --text:#0d1f38;
+  --muted:#6f8397;
+  --line:#dfe9f4;
+  --shadow:0 18px 40px rgba(20,73,130,.08);
+}
+:root[data-theme='dark']{
+  --blue:#1690F5;
+  --black:#000000;
+  --white:#FFFFFF;
+  --bg:#09111d;
+  --panel:#0f1826;
+  --panel-soft:#121e2e;
+  --text:#f4f8ff;
+  --muted:#98abc0;
+  --line:rgba(255,255,255,.08);
+  --shadow:0 18px 40px rgba(0,0,0,.25);
 }
 *{box-sizing:border-box}
-html,body,#root{margin:0;min-height:100%;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
+html,body,#root{margin:0;min-height:100%;font-family:Gilroy,Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
 button,input,select{font:inherit}
 input,select{outline:none}
-.loading-screen{min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text)}
+
+.loading-screen{
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  background:var(--bg);
+  color:var(--text);
+}
 
 .login-page{
   min-height:100vh;
   display:grid;
-  grid-template-columns:1.1fr .9fr;
+  grid-template-columns:1.15fr .85fr;
   gap:32px;
   padding:40px;
-  background:linear-gradient(180deg,var(--bg),#111b2b);
+  background:
+    radial-gradient(circle at 20% 10%, rgba(22,144,245,.14), transparent 24%),
+    linear-gradient(180deg, var(--bg), var(--bg));
 }
-.login-left{display:flex;flex-direction:column;justify-content:center}
-.login-left h1{margin:0;font-size:54px}
-.login-left h2{margin:12px 0 0;font-size:28px;line-height:1.2;max-width:760px}
-.login-left p{margin:18px 0 0;color:var(--muted);font-size:18px}
-.mini-badge{
-  display:inline-flex;
+.login-left{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+.login-left h1{
+  margin:0;
+  font-size:68px;
+  line-height:1;
+  font-weight:800;
+}
+.login-left h2{
+  margin:16px 0 0;
+  font-size:32px;
+  line-height:1.15;
+  max-width:760px;
+  font-weight:700;
+}
+.login-left p{
+  margin:18px 0 0;
+  max-width:680px;
+  color:var(--muted);
+  font-size:18px;
+  line-height:1.6;
+}
+.brand-pill{
   width:max-content;
-  padding:10px 14px;
+  padding:10px 16px;
   border-radius:999px;
-  background:rgba(36,151,255,.14);
-  border:1px solid rgba(36,151,255,.25);
-  color:#bfe5ff;
-  margin-bottom:18px;
+  border:1px solid rgba(22,144,245,.18);
+  background:rgba(22,144,245,.08);
+  color:var(--blue);
+  font-size:13px;
+  letter-spacing:.18em;
+  text-transform:uppercase;
 }
+.login-showcase{
+  margin-top:28px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:16px;
+  max-width:720px;
+}
+.show-card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:28px;
+  padding:22px;
+  box-shadow:var(--shadow);
+}
+.show-title{
+  font-size:20px;
+  font-weight:700;
+  margin-bottom:10px;
+}
+.show-text{
+  color:var(--muted);
+  line-height:1.6;
+}
+.phone-card{
+  display:grid;
+  place-items:center;
+}
+.phone-frame{
+  width:190px;
+  height:280px;
+  border-radius:34px;
+  background:#0d1420;
+  padding:10px;
+  box-shadow:0 18px 38px rgba(0,0,0,.2);
+}
+.phone-screen{
+  width:100%;
+  height:100%;
+  border-radius:26px;
+  background:linear-gradient(180deg,#e9f6ff,#cce9ff 35%, #1690F5);
+  display:grid;
+  place-items:center;
+  position:relative;
+  overflow:hidden;
+}
+.phone-screen::after{
+  content:"";
+  position:absolute;
+  inset:18px;
+  border-radius:22px;
+  border:2px solid rgba(255,255,255,.35);
+}
+.phone-logo{
+  position:relative;
+  z-index:2;
+  font-size:34px;
+  font-weight:800;
+  color:#fff;
+}
+
 .login-card{
   align-self:center;
   background:var(--panel);
   border:1px solid var(--line);
-  border-radius:28px;
+  border-radius:32px;
   padding:28px;
+  box-shadow:var(--shadow);
   display:grid;
   gap:16px;
-  box-shadow:0 20px 50px rgba(0,0,0,.2);
 }
-.login-title{font-size:30px;font-weight:800}
-.login-card label{display:grid;gap:8px}
-.login-card label span{color:var(--muted);font-size:13px}
+.login-card-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+}
+.small-label{
+  color:var(--muted);
+  font-size:12px;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+}
+.login-title{
+  margin-top:8px;
+  font-size:34px;
+  font-weight:800;
+}
+.login-card label{
+  display:grid;
+  gap:8px;
+}
+.login-card label span{
+  color:var(--muted);
+  font-size:13px;
+}
 .login-card input{
-  background:var(--panel2);
+  background:var(--panel-soft);
   border:1px solid var(--line);
   color:var(--text);
-  border-radius:16px;
-  padding:14px 16px;
+  border-radius:18px;
+  padding:15px 16px;
 }
 .primary-btn{
   border:0;
-  border-radius:16px;
-  padding:14px 18px;
+  border-radius:18px;
+  padding:15px 18px;
   cursor:pointer;
   font-weight:800;
   color:#fff;
-  background:linear-gradient(135deg,var(--blue),var(--blue2));
+  background:linear-gradient(135deg, #1690F5, #54c5ff);
+  box-shadow:0 16px 30px rgba(22,144,245,.22);
+}
+.primary-btn:hover{
+  transform:translateY(-1px);
 }
 .error-box{
-  background:rgba(239,90,90,.14);
-  color:#ffb3b3;
-  border:1px solid rgba(239,90,90,.2);
+  background:rgba(239,90,90,.1);
+  color:#d94f4f;
+  border:1px solid rgba(239,90,90,.18);
   padding:12px 14px;
   border-radius:14px;
 }
@@ -1018,149 +882,312 @@ input,select{outline:none}
 .app-shell{
   min-height:100vh;
   display:grid;
-  grid-template-columns:280px 1fr;
+  grid-template-columns:290px 1fr;
   background:var(--bg);
 }
 .sidebar{
-  padding:18px;
-  border-right:1px solid var(--line);
   background:var(--panel);
+  border-right:1px solid var(--line);
+  padding:18px;
   display:flex;
   flex-direction:column;
   gap:16px;
 }
-.brand{display:flex;gap:12px;align-items:center}
-.brand-logo{
-  width:48px;height:48px;border-radius:16px;
-  display:grid;place-items:center;
-  background:linear-gradient(135deg,var(--blue),var(--blue2));
-  color:#fff;font-weight:900;font-size:24px;
+.brand-block{
+  display:flex;
+  align-items:center;
+  gap:12px;
 }
-.brand-title{font-size:22px;font-weight:800}
-.brand-sub{font-size:12px;color:var(--muted)}
-.search-box{
-  display:flex;align-items:center;gap:10px;
-  background:var(--panel2);
+.brand-mark{
+  width:52px;
+  height:52px;
+  border-radius:18px;
+  background:linear-gradient(135deg,#1690F5,#72d8ff);
+  color:#fff;
+  display:grid;
+  place-items:center;
+  font-weight:900;
+  font-size:26px;
+}
+.brand-name{
+  font-size:24px;
+  font-weight:800;
+}
+.brand-desc{
+  font-size:12px;
+  color:var(--muted);
+}
+.sidebar-search{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  background:var(--panel-soft);
   border:1px solid var(--line);
-  border-radius:16px;padding:12px 14px;
+  border-radius:16px;
+  padding:12px 14px;
 }
-.search-box input{
+.sidebar-search input{
   width:100%;
-  border:0;background:transparent;color:var(--text);
+  border:0;
+  background:transparent;
+  color:var(--text);
 }
-.menu{display:grid;gap:10px}
+.menu-list{
+  display:grid;
+  gap:10px;
+}
 .menu-btn{
   border:1px solid transparent;
-  background:rgba(255,255,255,.04);
+  background:transparent;
   color:var(--text);
-  border-radius:16px;
   padding:14px 16px;
-  cursor:pointer;
+  border-radius:18px;
   text-align:left;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  cursor:pointer;
   font-weight:700;
 }
-.menu-btn span{display:flex;gap:10px;align-items:center}
+.menu-btn:hover{
+  background:var(--panel-soft);
+}
 .menu-btn.active{
-  background:linear-gradient(135deg,rgba(36,151,255,.2),rgba(109,221,255,.12));
-  border-color:rgba(36,151,255,.2);
+  background:linear-gradient(135deg, rgba(22,144,245,.14), rgba(84,197,255,.12));
+  border-color:rgba(22,144,245,.18);
 }
 .logout-btn{
   margin-top:auto;
   border:0;
-  border-radius:16px;
+  border-radius:18px;
   padding:14px 16px;
-  background:linear-gradient(135deg,var(--red),#ff8e8e);
+  background:#111;
   color:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
   cursor:pointer;
-  font-weight:700;
-  display:flex;gap:10px;align-items:center;justify-content:center;
 }
-.main{padding:24px}
+.main-area{
+  padding:24px;
+}
 .topbar{
-  display:flex;justify-content:space-between;gap:18px;align-items:center;flex-wrap:wrap;
   background:var(--panel);
   border:1px solid var(--line);
-  border-radius:24px;
+  border-radius:28px;
   padding:20px 22px;
+  display:flex;
+  justify-content:space-between;
+  gap:18px;
+  align-items:center;
+  flex-wrap:wrap;
+  box-shadow:var(--shadow);
 }
-.topbar h1{margin:0;font-size:34px}
-.topbar p{margin:6px 0 0;color:var(--muted)}
-.topbar-right{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-.theme-toggle,.notif-pill,.user-pill{
+.topbar h1{
+  margin:8px 0 0;
+  font-size:36px;
+}
+.topbar-right{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.theme-toggle,
+.notif-pill,
+.user-chip{
   border:1px solid var(--line);
-  background:var(--panel2);
+  background:var(--panel-soft);
   color:var(--text);
-  border-radius:14px;
+  border-radius:16px;
   padding:12px 14px;
-  display:flex;gap:8px;align-items:center;
+  display:flex;
+  align-items:center;
+  gap:8px;
 }
-.page-grid{display:grid;gap:18px;margin-top:18px}
-.hero-card,.panel-card,.stat-card{
-  background:var(--panel);
+.page-grid{
+  display:grid;
+  gap:18px;
+  margin-top:18px;
+}
+.hero-banner{
+  background:
+    linear-gradient(90deg, rgba(22,144,245,.1), rgba(255,255,255,0) 45%),
+    var(--panel);
   border:1px solid var(--line);
-  border-radius:24px;
-  padding:20px;
+  border-radius:30px;
+  padding:28px;
+  display:grid;
+  grid-template-columns:1.2fr .8fr;
+  gap:20px;
+  box-shadow:var(--shadow);
 }
-.hero-card h3{margin:12px 0 8px;font-size:34px}
-.hero-card p{margin:0;color:var(--muted)}
+.hero-banner h2{
+  margin:14px 0 10px;
+  font-size:52px;
+  line-height:1.02;
+}
+.hero-banner p{
+  margin:0;
+  color:var(--muted);
+  font-size:18px;
+  line-height:1.6;
+}
+.hero-right{
+  display:flex;
+  justify-content:flex-end;
+  align-items:center;
+}
+.glass-card{
+  min-width:220px;
+  padding:22px;
+  border-radius:24px;
+  background:linear-gradient(180deg, rgba(22,144,245,.16), rgba(255,255,255,.06));
+  border:1px solid rgba(22,144,245,.2);
+}
+.glass-label{
+  font-size:13px;
+  color:var(--muted);
+}
+.glass-big{
+  font-size:46px;
+  font-weight:900;
+  margin-top:8px;
+}
+.glass-sub{
+  color:var(--muted);
+  margin-top:6px;
+}
 .stats-grid{
   display:grid;
   grid-template-columns:repeat(3,1fr);
   gap:18px;
 }
-.stat-title{color:var(--muted);font-size:14px}
-.stat-value{font-size:40px;font-weight:900;margin-top:10px}
-.section-title{font-size:24px;font-weight:800;margin-bottom:16px}
+.stat-card,
+.panel-card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:24px;
+  padding:22px;
+  box-shadow:var(--shadow);
+}
+.stat-title{
+  color:var(--muted);
+  font-size:14px;
+}
+.stat-value{
+  font-size:40px;
+  font-weight:900;
+  margin-top:10px;
+}
+.stat-sub{
+  margin-top:8px;
+  color:var(--muted);
+}
+.section-head h2{
+  margin:0;
+  font-size:28px;
+}
+.section-head p{
+  margin:8px 0 0;
+  color:var(--muted);
+}
+.toolbar-line{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.color-chip{
+  padding:10px 14px;
+  border-radius:999px;
+  font-weight:700;
+  border:1px solid var(--line);
+}
+.color-chip.blue{background:rgba(22,144,245,.1); color:#1690F5}
+.color-chip.black{background:#111; color:#fff}
+.color-chip.white{background:#fff; color:#111}
 .form-grid{
   display:grid;
   grid-template-columns:repeat(3,1fr);
   gap:14px;
 }
-.form-grid label{display:grid;gap:8px}
-.form-grid label span{color:var(--muted);font-size:13px}
-.form-grid input,
-.form-grid select{
-  background:var(--panel2);
+.form-grid label{
+  display:grid;
+  gap:8px;
+}
+.form-grid label span{
+  color:var(--muted);
+  font-size:13px;
+}
+.form-grid input{
+  background:var(--panel-soft);
   border:1px solid var(--line);
   color:var(--text);
-  border-radius:14px;
-  padding:13px 14px;
+  border-radius:16px;
+  padding:14px 15px;
 }
-.row.between{display:flex;justify-content:space-between;gap:16px;align-items:center;flex-wrap:wrap}
-.muted{color:var(--muted)}
 .mt16{margin-top:16px}
-.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:18px}
-table{width:100%;border-collapse:collapse}
-th,td{padding:12px;border-bottom:1px solid var(--line);text-align:left}
-th{color:var(--muted);background:rgba(255,255,255,.03)}
-.empty-cell{text-align:center;color:var(--muted);padding:20px}
+.table-wrap{
+  overflow:auto;
+  border:1px solid var(--line);
+  border-radius:18px;
+}
+table{
+  width:100%;
+  border-collapse:collapse;
+}
+th,td{
+  padding:13px 14px;
+  border-bottom:1px solid var(--line);
+  text-align:left;
+}
+th{
+  color:var(--muted);
+  background:rgba(22,144,245,.05);
+}
+.empty-cell{
+  text-align:center;
+  color:var(--muted);
+  padding:24px;
+}
 .toast{
   position:fixed;
-  right:20px;bottom:20px;
-  min-width:240px;
-  display:flex;justify-content:space-between;gap:12px;align-items:center;
-  padding:14px 16px;
+  right:20px;
+  bottom:20px;
+  min-width:220px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
   border-radius:16px;
   color:#fff;
-  box-shadow:0 18px 40px rgba(0,0,0,.25);
-  z-index:9999;
-}
-.toast-success{background:linear-gradient(135deg,var(--green),#56e3a2)}
-.toast-error{background:linear-gradient(135deg,var(--red),#ff8e8e)}
-.toast button{background:transparent;border:0;color:#fff;cursor:pointer}
-.full-col{grid-column:1 / -1}
-.bonus-total-box{
-  margin-bottom:16px;
   padding:14px 16px;
-  border-radius:16px;
-  background:rgba(36,151,255,.12);
-  border:1px solid rgba(36,151,255,.18);
-  font-size:16px;
+  z-index:9999;
+  box-shadow:0 18px 34px rgba(0,0,0,.2);
+}
+.toast-success{background:linear-gradient(135deg,#1fbe73,#57e0a1)}
+.toast-error{background:linear-gradient(135deg,#ef5a5a,#ff9999)}
+.toast button{
+  background:transparent;
+  border:0;
+  color:#fff;
+  cursor:pointer;
 }
 
-@media (max-width: 1100px){
-  .login-page,.app-shell,.form-grid,.stats-grid{grid-template-columns:1fr}
-  .main{padding:14px}
+@media (max-width: 1180px){
+  .login-page,
+  .app-shell,
+  .hero-banner,
+  .stats-grid,
+  .form-grid{
+    grid-template-columns:1fr;
+  }
+  .main-area{padding:14px}
   .topbar h1{font-size:28px}
+  .hero-banner h2{font-size:38px}
+  .login-left h1{font-size:48px}
+  .login-left h2{font-size:24px}
 }
 `;
