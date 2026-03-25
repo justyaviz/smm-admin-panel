@@ -644,77 +644,86 @@ app.get("/api/users", authRequired, rolesAllowed("admin", "manager"), async (_, 
   res.json(result.rows);
 });
 
-app.post("/api/users", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+app.post("/api/users", authRequired, rolesAllowed("admin"), async (req, res) => {
   try {
-    const { full_name, phone, login, password, role, avatar_url } = req.body;
+    const {
+      full_name,
+      phone,
+      login,
+      password,
+      role,
+      avatar_url,
+      department_role,
+      permissions_json
+    } = req.body;
 
-    if (!full_name || !phone || !password) {
-      return res.status(400).json({ message: "Ism, telefon va parol majburiy" });
-    }
+    const hash = await bcrypt.hash(password, 10);
 
-    const { full_name, phone, login, password, role, avatar_url, department_role, permissions_json } = req.body;
-
-const hash = await bcrypt.hash(password, 10);
-const result = await query(
-  `INSERT INTO users
-   (full_name, phone, login, password_hash, role, avatar_url, is_active, department_role, permissions_json)
-   VALUES ($1,$2,$3,$4,$5,$6,TRUE,$7,$8)
-   RETURNING id, full_name, phone, login, role, avatar_url, is_active, department_role, permissions_json`,
-  [
-    full_name,
-    phone,
-    login || null,
-    hash,
-    role || "viewer",
-    avatar_url || null,
-    department_role || role || "viewer",
-    JSON.stringify(permissions_json || [])
-  ]
-);
-
-    await createNotification(null, "Yangi hodim yaratildi", full_name, "success");
-    await logAction(req.user.id, "create", "users", result.rows[0].id);
+    const result = await query(
+      `INSERT INTO users
+       (full_name, phone, login, password_hash, role, avatar_url, is_active, department_role, permissions_json)
+       VALUES ($1,$2,$3,$4,$5,$6,TRUE,$7,$8)
+       RETURNING id, full_name, phone, login, role, avatar_url, is_active, department_role, permissions_json`,
+      [
+        full_name,
+        phone,
+        login || null,
+        hash,
+        role || "viewer",
+        avatar_url || null,
+        department_role || role || "viewer",
+        JSON.stringify(permissions_json || [])
+      ]
+    );
 
     res.json(result.rows[0]);
-  } catch {
-    res.status(500).json({ message: "Hodim qo‘shib bo‘lmadi" });
+  } catch (err) {
+    res.status(500).json({ message: "User yaratilmadi" });
   }
 });
 
-app.put("/api/users/:id", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+app.put("/api/users/:id", authRequired, rolesAllowed("admin"), async (req, res) => {
   try {
-    const { full_name, phone, login, role, avatar_url, is_active, department_role, permissions_json } = req.body;
+    const {
+      full_name,
+      phone,
+      login,
+      role,
+      avatar_url,
+      is_active,
+      department_role,
+      permissions_json
+    } = req.body;
 
-const result = await query(
-  `UPDATE users SET
-   full_name = $1,
-   phone = $2,
-   login = $3,
-   role = $4,
-   avatar_url = $5,
-   is_active = $6,
-   department_role = $7,
-   permissions_json = $8,
-   updated_at = CURRENT_TIMESTAMP
-   WHERE id = $9
-   RETURNING id, full_name, phone, login, role, avatar_url, is_active, department_role, permissions_json`,
-  [
-    full_name,
-    phone,
-    login || null,
-    role,
-    avatar_url || null,
-    is_active,
-    department_role || role || "viewer",
-    JSON.stringify(permissions_json || []),
-    req.params.id
-  ]
-);
+    const result = await query(
+      `UPDATE users SET
+       full_name = $1,
+       phone = $2,
+       login = $3,
+       role = $4,
+       avatar_url = $5,
+       is_active = $6,
+       department_role = $7,
+       permissions_json = $8,
+       updated_at = CURRENT_TIMESTAMP
+       WHERE id = $9
+       RETURNING *`,
+      [
+        full_name,
+        phone,
+        login || null,
+        role,
+        avatar_url || null,
+        is_active,
+        department_role || role,
+        JSON.stringify(permissions_json || []),
+        req.params.id
+      ]
+    );
 
-    await logAction(req.user.id, "update", "users", Number(req.params.id));
     res.json(result.rows[0]);
-  } catch {
-    res.status(500).json({ message: "Hodimni yangilab bo‘lmadi" });
+  } catch (err) {
+    res.status(500).json({ message: "Update xato" });
   }
 });
 
