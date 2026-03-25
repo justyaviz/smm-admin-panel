@@ -67,7 +67,190 @@ async function createNotification(userId, title, body, type = "info") {
     [userId || null, title, body, type]
   );
 }
+function getCurrentMonthLabel(dateValue = new Date()) {
+  const d = new Date(dateValue);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
 
+function toMoney(count) {
+  return Number(count || 0) * 25000;
+}
+
+async function ensureMonthlyBonus(userId, monthLabel) {
+  let found = await query(
+    `SELECT * FROM bonuses WHERE user_id = $1 AND month_label = $2 LIMIT 1`,
+    [userId, monthLabel]
+  );
+
+  if (found.rows.length) return found.rows[0];
+
+  const created = await query(
+    `INSERT INTO bonuses (user_id, month_label, total_units, unit_price, total_amount, kpi_score)
+     VALUES ($1, $2, 0, 25000, 0, 0)
+     RETURNING *`,
+    [userId, monthLabel]
+  );
+
+  return created.rows[0];
+}
+
+async function refreshBonusTotals(bonusId) {
+  await query(
+    `UPDATE bonuses
+     SET total_units = (
+       SELECT COALESCE(SUM(proposal_count + approved_count), 0)
+       FROM bonus_items
+       WHERE bonus_id = $1
+     ),
+     total_amount = (
+       SELECT COALESCE(SUM(total_amount), 0)
+       FROM bonus_items
+       WHERE bonus_id = $1
+     )
+     WHERE id = $1`,
+    [bonusId]
+  );
+}
+
+async function generateBonusFromContent(contentRow, actorUserId) {
+  if (!contentRow) return;
+  if (!contentRow.bonus_enabled) return;
+  if (contentRow.bonus_generated) return;
+  if (contentRow.status !== "joylandi") return;
+
+  const monthLabel =
+    contentRow.plan_month ||
+    getCurrentMonthLabel(contentRow.publish_date || new Date());
+
+  const proposalCount = Number(contentRow.proposal_count || 0);
+  const approvedCount = Number(contentRow.approved_count || 0);
+
+  const proposalAmount = toMoney(proposalCount);
+  const approvedAmount = toMoney(approvedCount);
+  const totalAmount = proposalAmount + approvedAmount;
+
+  if (contentRow.content_type === "video") {
+    if (contentRow.video_editor_user_id) {
+      const bonus = await ensureMonthlyBonus(contentRow.video_editor_user_id, monthLabel);
+
+      await query(
+        `INSERT INTO bonus_items
+         (bonus_id, work_date, branch_id, content_type, content_title, notes, units, unit_price, amount,
+          source_content_id, employee_user_id, second_employee_user_id,
+          proposal_count, proposal_amount, approved_count, approved_amount, total_amount)
+         VALUES
+         ($1,$2,$3,$4,$5,$6,$7,25000,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+        [
+          bonus.id,
+          contentRow.publish_date || new Date(),
+          contentRow.branch_id || null,
+          contentRow.content_type,
+          contentRow.title || "",
+          "Kontent rejadan avtomatik bonus",
+          proposalCount + approvedCount,
+          totalAmount,
+          contentRow.id,
+          contentRow.video_editor_user_id,
+          contentRow.video_face_user_id || null,
+          proposalCount,
+          proposalAmount,
+          approvedCount,
+          approvedAmount,
+          totalAmount
+        ]
+      );
+
+      await refreshBonusTotals(bonus.id);
+    }
+
+    if (
+      contentRow.video_face_user_id &&
+      contentRow.video_face_user_id !== contentRow.video_editor_user_id
+    ) {
+      const bonus = await ensureMonthlyBonus(contentRow.video_face_user_id, monthLabel);
+
+      await query(
+        `INSERT INTO bonus_items
+         (bonus_id, work_date, branch_id, content_type, content_title, notes, units, unit_price, amount,
+          source_content_id, employee_user_id, second_employee_user_id,
+          proposal_count, proposal_amount, approved_count, approved_amount, total_amount)
+         VALUES
+         ($1,$2,$3,$4,$5,$6,$7,25000,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+        [
+          bonus.id,
+          contentRow.publish_date || new Date(),
+          contentRow.branch_id || null,
+          contentRow.content_type,
+          contentRow.title || "",
+          "Kontent rejadan avtomatik bonus",
+          proposalCount + approvedCount,
+          totalAmount,
+          contentRow.id,
+          contentRow.video_face_user_id,
+          contentRow.video_editor_user_id || null,
+          proposalCount,
+          proposalAmount,
+          approvedCount,
+          approvedAmount,
+          totalAmount
+        ]
+      );
+
+      await refreshBonusTotals(bonus.id);
+    }
+  } else if (contentRow.assigned_user_id) {
+    const bonus = await ensureMonthlyBonus(contentRow.assigned_user_id, monthLabel);
+
+    await query(
+      `INSERT INTO bonus_items
+       (bonus_id, work_date, branch_id, content_type, content_title, notes, units, unit_price, amount,
+        source_content_id, employee_user_id,
+        proposal_count, proposal_amount, approved_count, approved_amount, total_amount)
+       VALUES
+       ($1,$2,$3,$4,$5,$6,$7,25000,$8,$9,$10,$11,$12,$13,$14,$15)`,
+      [
+        bonus.id,
+        contentRow.publish_date || new Date(),
+        contentRow.branch_id || null,
+        contentRow.content_type,
+        contentRow.title || "",
+        "Kontent rejadan avtomatik bonus",
+        proposalCount + approvedCount,
+        totalAmount,
+        contentRow.id,
+        contentRow.assigned_user_id,
+        proposalCount,
+        proposalAmount,
+        approvedCount,
+        approvedAmount,
+        totalAmount
+      ]
+    );
+
+    await refreshBonusTotals(bonus.id);
+  }
+
+  await query(
+    `UPDATE content_items
+     SET bonus_generated = TRUE, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [contentRow.id]
+  );
+
+  await createNotification(
+    null,
+    "Bonus avtomatik qo‘shildi",
+    `${contentRow.title || "Kontent"} bonus tizimiga tushdi`,
+    "success"
+  );
+
+  await logAction(actorUserId, "bonus_auto_generate", "content_items", contentRow.id, {
+    title: contentRow.title,
+    month: monthLabel
+  });
+}
 function calcCpa(spend, leads) {
   const s = Number(spend || 0);
   const l = Number(leads || 0);
@@ -469,15 +652,25 @@ app.post("/api/users", authRequired, rolesAllowed("admin", "manager"), async (re
       return res.status(400).json({ message: "Ism, telefon va parol majburiy" });
     }
 
-    const hash = await bcrypt.hash(password, 10);
+    const { full_name, phone, login, password, role, avatar_url, department_role, permissions_json } = req.body;
 
-    const result = await query(
-      `INSERT INTO users
-       (full_name, phone, login, password_hash, role, avatar_url, is_active)
-       VALUES ($1,$2,$3,$4,$5,$6,TRUE)
-       RETURNING id, full_name, phone, login, role, avatar_url, is_active`,
-      [full_name, phone, login || null, hash, role || "viewer", avatar_url || null]
-    );
+const hash = await bcrypt.hash(password, 10);
+const result = await query(
+  `INSERT INTO users
+   (full_name, phone, login, password_hash, role, avatar_url, is_active, department_role, permissions_json)
+   VALUES ($1,$2,$3,$4,$5,$6,TRUE,$7,$8)
+   RETURNING id, full_name, phone, login, role, avatar_url, is_active, department_role, permissions_json`,
+  [
+    full_name,
+    phone,
+    login || null,
+    hash,
+    role || "viewer",
+    avatar_url || null,
+    department_role || role || "viewer",
+    JSON.stringify(permissions_json || [])
+  ]
+);
 
     await createNotification(null, "Yangi hodim yaratildi", full_name, "success");
     await logAction(req.user.id, "create", "users", result.rows[0].id);
@@ -490,21 +683,33 @@ app.post("/api/users", authRequired, rolesAllowed("admin", "manager"), async (re
 
 app.put("/api/users/:id", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
   try {
-    const { full_name, phone, login, role, avatar_url, is_active } = req.body;
+    const { full_name, phone, login, role, avatar_url, is_active, department_role, permissions_json } = req.body;
 
-    const result = await query(
-      `UPDATE users SET
-       full_name = $1,
-       phone = $2,
-       login = $3,
-       role = $4,
-       avatar_url = $5,
-       is_active = $6,
-       updated_at = CURRENT_TIMESTAMP
-       WHERE id = $7
-       RETURNING id, full_name, phone, login, role, avatar_url, is_active`,
-      [full_name, phone, login || null, role, avatar_url || null, is_active, req.params.id]
-    );
+const result = await query(
+  `UPDATE users SET
+   full_name = $1,
+   phone = $2,
+   login = $3,
+   role = $4,
+   avatar_url = $5,
+   is_active = $6,
+   department_role = $7,
+   permissions_json = $8,
+   updated_at = CURRENT_TIMESTAMP
+   WHERE id = $9
+   RETURNING id, full_name, phone, login, role, avatar_url, is_active, department_role, permissions_json`,
+  [
+    full_name,
+    phone,
+    login || null,
+    role,
+    avatar_url || null,
+    is_active,
+    department_role || role || "viewer",
+    JSON.stringify(permissions_json || []),
+    req.params.id
+  ]
+);
 
     await logAction(req.user.id, "update", "users", Number(req.params.id));
     res.json(result.rows[0]);
@@ -605,59 +810,165 @@ app.delete("/api/branches/:id", authRequired, rolesAllowed("admin"), async (req,
 
 /* CONTENT */
 
-app.get("/api/content", authRequired, async (_, res) => {
-  const result = await query(
-    `SELECT c.*, u.full_name AS assignee_name, b.name AS branch_name
-     FROM content_items c
-     LEFT JOIN users u ON u.id = c.assignee_user_id
-     LEFT JOIN branches b ON b.id = c.branch_id
-     ORDER BY c.id DESC`
-  );
+app.get("/api/content", authRequired, async (req, res) => {
+  const month = req.query.month;
+
+  let sql = `
+    SELECT
+      c.*,
+      u.full_name AS assignee_name,
+      ve.full_name AS video_editor_name,
+      vf.full_name AS video_face_name,
+      b.name AS branch_name
+    FROM content_items c
+    LEFT JOIN users u ON u.id = c.assigned_user_id
+    LEFT JOIN users ve ON ve.id = c.video_editor_user_id
+    LEFT JOIN users vf ON vf.id = c.video_face_user_id
+    LEFT JOIN branches b ON b.id = c.branch_id
+  `;
+
+  const params = [];
+
+  if (month) {
+    sql += ` WHERE c.plan_month = $1 `;
+    params.push(month);
+  }
+
+  sql += ` ORDER BY c.publish_date ASC NULLS LAST, c.id DESC`;
+
+  const result = await query(sql, params);
   res.json(result.rows);
 });
 
-app.post("/api/content", authRequired, rolesAllowed("admin", "manager", "editor"), async (req, res) => {
+app.post("/api/content", authRequired, rolesAllowed("admin", "manager", "editor", "smm"), async (req, res) => {
   try {
-    const { title, platform, content_type, status, publish_date, assignee_user_id, branch_id, notes } = req.body;
+    const {
+      title,
+      platform,
+      content_type,
+      status,
+      publish_date,
+      branch_id,
+      notes,
+      assigned_user_id,
+      video_editor_user_id,
+      video_face_user_id,
+      bonus_enabled,
+      proposal_count,
+      approved_count
+    } = req.body;
+
+    const planMonth = publish_date ? getCurrentMonthLabel(publish_date) : getCurrentMonthLabel();
+
     const result = await query(
       `INSERT INTO content_items
-       (title, platform, content_type, status, publish_date, assignee_user_id, branch_id, notes, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       (title, platform, content_type, status, publish_date, branch_id, notes, created_by,
+        plan_month, bonus_enabled, bonus_generated, assigned_user_id, video_editor_user_id, video_face_user_id,
+        proposal_count, approved_count)
+       VALUES
+       ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,FALSE,$11,$12,$13,$14,$15)
        RETURNING *`,
       [
         title,
-        platform,
+        platform || "",
         content_type,
-        status || "draft",
+        status || "rejalashtirilgan",
         publish_date || null,
-        assignee_user_id || null,
         branch_id || null,
         notes || "",
-        req.user.id
+        req.user.id,
+        planMonth,
+        !!bonus_enabled,
+        assigned_user_id || null,
+        video_editor_user_id || null,
+        video_face_user_id || null,
+        proposal_count || 0,
+        approved_count || 0
       ]
     );
-    await createNotification(req.user.id, "Kontent saqlandi", title, "success");
-    await logAction(req.user.id, "create", "content_items", result.rows[0].id);
-    res.json(result.rows[0]);
-  } catch {
+
+    const row = result.rows[0];
+
+    if (row.status === "joylandi" && row.bonus_enabled) {
+      await generateBonusFromContent(row, req.user.id);
+    }
+
+    await createNotification(null, "Kontent saqlandi", row.title, "success");
+    await logAction(req.user.id, "create", "content_items", row.id);
+
+    res.json(row);
+  } catch (err) {
     res.status(500).json({ message: "Kontent qo‘shib bo‘lmadi" });
   }
 });
 
-app.put("/api/content/:id", authRequired, rolesAllowed("admin", "manager", "editor"), async (req, res) => {
+app.put("/api/content/:id", authRequired, rolesAllowed("admin", "manager", "editor", "smm"), async (req, res) => {
   try {
-    const { title, platform, content_type, status, publish_date, assignee_user_id, branch_id, notes } = req.body;
+    const {
+      title,
+      platform,
+      content_type,
+      status,
+      publish_date,
+      branch_id,
+      notes,
+      assigned_user_id,
+      video_editor_user_id,
+      video_face_user_id,
+      bonus_enabled,
+      proposal_count,
+      approved_count
+    } = req.body;
+
+    const planMonth = publish_date ? getCurrentMonthLabel(publish_date) : getCurrentMonthLabel();
+
     const result = await query(
       `UPDATE content_items SET
-       title=$1, platform=$2, content_type=$3, status=$4, publish_date=$5,
-       assignee_user_id=$6, branch_id=$7, notes=$8, updated_at=CURRENT_TIMESTAMP
-       WHERE id=$9
+       title = $1,
+       platform = $2,
+       content_type = $3,
+       status = $4,
+       publish_date = $5,
+       branch_id = $6,
+       notes = $7,
+       updated_at = CURRENT_TIMESTAMP,
+       plan_month = $8,
+       bonus_enabled = $9,
+       assigned_user_id = $10,
+       video_editor_user_id = $11,
+       video_face_user_id = $12,
+       proposal_count = $13,
+       approved_count = $14
+       WHERE id = $15
        RETURNING *`,
-      [title, platform, content_type, status, publish_date || null, assignee_user_id || null, branch_id || null, notes || "", req.params.id]
+      [
+        title,
+        platform || "",
+        content_type,
+        status || "rejalashtirilgan",
+        publish_date || null,
+        branch_id || null,
+        notes || "",
+        planMonth,
+        !!bonus_enabled,
+        assigned_user_id || null,
+        video_editor_user_id || null,
+        video_face_user_id || null,
+        proposal_count || 0,
+        approved_count || 0,
+        req.params.id
+      ]
     );
+
+    const row = result.rows[0];
+
+    if (row.status === "joylandi" && row.bonus_enabled && !row.bonus_generated) {
+      await generateBonusFromContent(row, req.user.id);
+    }
+
     await logAction(req.user.id, "update", "content_items", Number(req.params.id));
-    res.json(result.rows[0]);
-  } catch {
+    res.json(row);
+  } catch (err) {
     res.status(500).json({ message: "Kontentni yangilab bo‘lmadi" });
   }
 });
@@ -883,12 +1194,14 @@ app.get("/api/bonus-items", authRequired, async (_, res) => {
       bi.*,
       b.month_label,
       u.full_name,
+      su.full_name AS second_full_name,
       br.name AS branch_name
      FROM bonus_items bi
      LEFT JOIN bonuses b ON b.id = bi.bonus_id
-     LEFT JOIN users u ON u.id = b.user_id
+     LEFT JOIN users u ON u.id = bi.employee_user_id
+     LEFT JOIN users su ON su.id = bi.second_employee_user_id
      LEFT JOIN branches br ON br.id = bi.branch_id
-     ORDER BY bi.id DESC`
+     ORDER BY bi.work_date DESC NULLS LAST, bi.id DESC`
   );
   res.json(result.rows);
 });
@@ -1189,6 +1502,30 @@ app.get("/api/export/daily-reports.pdf", authRequired, rolesAllowed("admin", "ma
   sendSimplePdf(res, "Kunlik filial hisobotlari", rows, "daily-reports.pdf");
 });
 
+export function permissionRequired(permissionKey) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json({ message: "Token required" });
+    }
+
+    if (req.user.role === "admin") return next();
+
+    let permissions = req.user.permissions_json || [];
+    if (typeof permissions === "string") {
+      try {
+        permissions = JSON.parse(permissions);
+      } catch {
+        permissions = [];
+      }
+    }
+
+    if (!Array.isArray(permissions) || !permissions.includes(permissionKey)) {
+      return res.status(403).json({ message: "Sizda bu amal uchun ruxsat yo‘q" });
+    }
+
+    next();
+  };
+}
 app.listen(PORT, () => {
   console.log(`Server running on ${PORT}`);
 });
