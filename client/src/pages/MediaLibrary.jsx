@@ -1,13 +1,12 @@
 import React, { useState } from "react";
-import Modal from "../components/ui/Modal";
+import { Upload, Image as ImageIcon } from "lucide-react";
 import { api } from "../api";
 
-export default function MediaLibraryPage({ uploads, onSaved, reload }) {
-  const [open, setOpen] = useState(false);
+export default function MediaLibraryPage({ uploads, onToast, reload }) {
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  async function submit(e) {
+  async function handleUpload(e) {
     e.preventDefault();
     if (!file) return;
 
@@ -16,12 +15,11 @@ export default function MediaLibraryPage({ uploads, onSaved, reload }) {
       const formData = new FormData();
       formData.append("file", file);
       await api.upload(formData);
-      onSaved("Saqlandi ✅");
-      setOpen(false);
-      setFile(null);
       await reload();
-    } catch (e2) {
-      onSaved(e2.message || "Xatolik yuz berdi", "error");
+      setFile(null);
+      onToast("Fayl yuklandi ✅", "success");
+    } catch (err) {
+      onToast(err.message || "Faylni yuklab bo‘lmadi", "error");
     } finally {
       setSaving(false);
     }
@@ -30,15 +28,28 @@ export default function MediaLibraryPage({ uploads, onSaved, reload }) {
   return (
     <div className="page-grid">
       <div className="card">
-        <div className="page-toolbar">
+        <div className="section-head">
           <div>
-            <div className="section-label">Media kutubxona</div>
-            <h2>Fayllar</h2>
-            <p>Rasm, video, PDF va Excel fayllarni yuklash va saqlash.</p>
+            <div className="section-label">Media</div>
+            <h2>Media kutubxona</h2>
+            <p>Rasm, video, PDF, Excel va boshqa fayllarni yuklash.</p>
           </div>
-          <button className="btn primary" type="button" onClick={() => setOpen(true)}>
-            Fayl yuklash
+        </div>
+
+        <form className="upload-box" onSubmit={handleUpload}>
+          <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          <button className="btn primary" type="submit" disabled={saving || !file}>
+            <Upload size={16} />
+            {saving ? "Yuklanmoqda..." : "Yuklash"}
           </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <div className="section-head">
+          <div>
+            <h2>Yuklangan fayllar</h2>
+          </div>
         </div>
 
         <div className="table-wrap">
@@ -52,48 +63,26 @@ export default function MediaLibraryPage({ uploads, onSaved, reload }) {
               </tr>
             </thead>
             <tbody>
-              {uploads?.length ? (
+              {uploads.length ? (
                 uploads.map((row) => (
                   <tr key={row.id}>
                     <td>{row.original_name}</td>
                     <td>{row.mime_type}</td>
                     <td>{row.file_size}</td>
                     <td>
-                      <a href={row.file_url} target="_blank" rel="noreferrer">
-                        Ochish
-                      </a>
+                      <a href={row.file_url} target="_blank" rel="noreferrer">Ochish</a>
                     </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="empty-cell">
-                    Hozircha fayl yo‘q
-                  </td>
+                  <td colSpan="4" className="empty-cell">Hozircha fayl yo‘q</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
-
-      <Modal open={open} title="Fayl yuklash" onClose={() => setOpen(false)} width={560}>
-        <form className="upload-form" onSubmit={submit}>
-          <input
-            type="file"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-          />
-
-          <div className="modal-actions">
-            <button type="button" className="btn secondary" onClick={() => setOpen(false)}>
-              Bekor qilish
-            </button>
-            <button type="submit" className="btn primary" disabled={saving || !file}>
-              {saving ? "Yuklanmoqda..." : "Yuklash"}
-            </button>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 }
