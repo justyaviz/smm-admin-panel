@@ -32,8 +32,8 @@ const MENU = [
 function Toast({ toast, onClose }) {
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(onClose, 2200);
-    return () => clearTimeout(t);
+    const timer = setTimeout(onClose, 2200);
+    return () => clearTimeout(timer);
   }, [toast, onClose]);
 
   if (!toast) return null;
@@ -41,7 +41,7 @@ function Toast({ toast, onClose }) {
   return (
     <div className={`toast toast-${toast.type || "success"}`}>
       <span>{toast.message}</span>
-      <button onClick={onClose}>
+      <button type="button" onClick={onClose}>
         <X size={16} />
       </button>
     </div>
@@ -52,8 +52,8 @@ function ThemeToggle({ theme, setTheme }) {
   return (
     <button
       className="theme-toggle"
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
       type="button"
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
     >
       {theme === "dark" ? <SunMedium size={16} /> : <Moon size={16} />}
       {theme === "dark" ? "Light" : "Dark"}
@@ -161,7 +161,9 @@ function SettingsPage({ settings, onSave, theme, setTheme, saving }) {
     setForm(settings || {});
   }, [settings]);
 
-  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const setField = (key, value) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  };
 
   return (
     <div className="page-grid">
@@ -296,6 +298,7 @@ function SimpleTablePage({ title, rows, columns }) {
     </div>
   );
 }
+
 function DailyReportsPage({ rows, branches, users, onSaved, reload }) {
   const [form, setForm] = useState({
     report_date: "",
@@ -308,8 +311,9 @@ function DailyReportsPage({ rows, branches, users, onSaved, reload }) {
   });
   const [saving, setSaving] = useState(false);
 
-  const setField = (key, value) =>
+  const setField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
 
   async function submit(e) {
     e.preventDefault();
@@ -326,7 +330,7 @@ function DailyReportsPage({ rows, branches, users, onSaved, reload }) {
         notes: ""
       });
       onSaved("Saqlandi ✅");
-      reload();
+      await reload();
     } catch (e2) {
       onSaved(e2.message || "Xatolik yuz berdi", "error");
     } finally {
@@ -456,15 +460,16 @@ function BonusPage({ bonuses, users, branches, onSaved, reload }) {
   });
   const [saving, setSaving] = useState(false);
 
-  const setField = (key, value) =>
+  const setField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
+  };
 
   async function submit(e) {
     e.preventDefault();
     try {
       setSaving(true);
       await api.create("bonus-items", form);
-      await api.recalcBonus({});
+      await api.recalcBonus();
       setForm({
         user_id: "",
         month_label: "",
@@ -476,7 +481,7 @@ function BonusPage({ bonuses, users, branches, onSaved, reload }) {
         units: 1
       });
       onSaved("Saqlandi ✅");
-      reload();
+      await reload();
     } catch (e2) {
       onSaved(e2.message || "Xatolik yuz berdi", "error");
     } finally {
@@ -484,10 +489,7 @@ function BonusPage({ bonuses, users, branches, onSaved, reload }) {
     }
   }
 
-  const totalBonus = bonuses.reduce(
-    (sum, b) => sum + Number(b.total_amount || 0),
-    0
-  );
+  const totalBonus = bonuses.reduce((sum, b) => sum + Number(b.total_amount || 0), 0);
 
   return (
     <div className="page-grid">
@@ -586,7 +588,10 @@ function BonusPage({ bonuses, users, branches, onSaved, reload }) {
 
           <label>
             <span>Jami</span>
-            <input value={`${(Number(form.units || 0) * 25000).toLocaleString()} so‘m`} disabled />
+            <input
+              value={`${(Number(form.units || 0) * 25000).toLocaleString()} so‘m`}
+              disabled
+            />
           </label>
 
           <label className="full-col">
@@ -625,43 +630,7 @@ export default function App() {
   const [active, setActive] = useState("dashboard");
   const [theme, setTheme] = useState(localStorage.getItem("aloo_theme") || "dark");
   const [toast, setToast] = useState(null);
-  const [dailyReports, setDailyReports] = useState([]);
   const [search, setSearch] = useState("");
-  async function reloadData() {
-  try {
-    const [
-      dashboardRes,
-      settingsRes,
-      notificationsRes,
-      usersRes,
-      branchesRes,
-      bonusRes,
-      uploadsRes,
-      contentRes,
-      dailyReportsRes
-    ] = await Promise.all([
-      api.dashboard(),
-      api.settings.get(),
-      api.list("notifications").catch(() => []),
-      api.list("users").catch(() => []),
-      api.list("branches").catch(() => []),
-      api.list("bonuses").catch(() => []),
-      api.list("uploads").catch(() => []),
-      api.list("content").catch(() => []),
-      api.list("daily-reports").catch(() => [])
-    ]);
-
-    setSummary(dashboardRes);
-    setSettings(settingsRes);
-    setNotifications(notificationsRes || []);
-    setUsers(usersRes || []);
-    setBranches(branchesRes || []);
-    setBonuses(bonusRes || []);
-    setUploads(uploadsRes || []);
-    setContentRows(contentRes || []);
-    setDailyReports(dailyReportsRes || []);
-  } catch {}
-}
 
   const [summary, setSummary] = useState(null);
   const [settings, setSettings] = useState(null);
@@ -671,13 +640,49 @@ export default function App() {
   const [bonuses, setBonuses] = useState([]);
   const [uploads, setUploads] = useState([]);
   const [contentRows, setContentRows] = useState([]);
-
+  const [dailyReports, setDailyReports] = useState([]);
   const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("aloo_theme", theme);
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
+
+  async function reloadData() {
+    try {
+      const [
+        dashboardRes,
+        settingsRes,
+        notificationsRes,
+        usersRes,
+        branchesRes,
+        bonusRes,
+        uploadsRes,
+        contentRes,
+        dailyReportsRes
+      ] = await Promise.all([
+        api.dashboard(),
+        api.settings.get(),
+        api.list("notifications").catch(() => []),
+        api.list("users").catch(() => []),
+        api.list("branches").catch(() => []),
+        api.list("bonuses").catch(() => []),
+        api.list("uploads").catch(() => []),
+        api.list("content").catch(() => []),
+        api.list("daily-reports").catch(() => [])
+      ]);
+
+      setSummary(dashboardRes);
+      setSettings(settingsRes);
+      setNotifications(notificationsRes || []);
+      setUsers(usersRes || []);
+      setBranches(branchesRes || []);
+      setBonuses(bonusRes || []);
+      setUploads(uploadsRes || []);
+      setContentRows(contentRes || []);
+      setDailyReports(dailyReportsRes || []);
+    } catch {}
+  }
 
   useEffect(() => {
     async function init() {
@@ -689,47 +694,7 @@ export default function App() {
       try {
         const me = await api.me();
         setUser(me.user);
-
-        const [
-  dashboardRes,
-  settingsRes,
-  notificationsRes,
-  usersRes,
-  branchesRes,
-  bonusRes,
-  uploadsRes,
-  contentRes,
-  dailyReportsRes
-] = await Promise.all([
-  api.dashboard(),
-  api.settings.get(),
-  api.list("notifications"),
-  api.list("users").catch(() => []),
-  api.list("branches").catch(() => []),
-  api.list("bonuses").catch(() => []),
-  api.list("uploads").catch(() => []),
-  api.list("content").catch(() => []),
-  api.list("daily-reports").catch(() => [])
-]);
-          api.dashboard(),
-          api.settings.get(),
-          api.list("notifications"),
-          api.list("users").catch(() => []),
-          api.list("branches").catch(() => []),
-          api.list("bonuses").catch(() => []),
-          api.list("uploads").catch(() => []),
-          api.list("content").catch(() => [])
-        ]);
-
-        setSummary(dashboardRes);
-        setSettings(settingsRes);
-        setNotifications(notificationsRes || []);
-        setUsers(usersRes || []);
-        setBranches(branchesRes || []);
-        setBonuses(bonusRes || []);
-        setUploads(uploadsRes || []);
-        setDailyReports(dailyReportsRes || []);
-        setContentRows(contentRes || []);
+        await reloadData();
       } catch {
         clearAuth();
         setUser(null);
@@ -739,7 +704,7 @@ export default function App() {
     }
 
     init();
-  }, [user?.id]);
+  }, []);
 
   const filteredMenu = useMemo(() => {
     if (!search.trim()) return MENU;
@@ -749,8 +714,8 @@ export default function App() {
   }, [search]);
 
   function showSaved(msg = "Saqlandi ✅", type = "success") {
-  setToast({ type, message: msg });
-}
+    setToast({ type, message: msg });
+  }
 
   function logout() {
     clearAuth();
@@ -763,6 +728,7 @@ export default function App() {
     setBonuses([]);
     setUploads([]);
     setContentRows([]);
+    setDailyReports([]);
     setActive("dashboard");
   }
 
@@ -774,7 +740,7 @@ export default function App() {
       setSettings(updated);
       showSaved(res.message || "Saqlandi ✅");
     } catch (e) {
-      setToast({ type: "error", message: e.message || "Xatolik yuz berdi" });
+      showSaved(e.message || "Xatolik yuz berdi", "error");
     } finally {
       setSavingSettings(false);
     }
@@ -835,25 +801,25 @@ export default function App() {
       />
     );
   } else if (active === "bonus") {
-  page = (
-    <BonusPage
-      bonuses={bonuses}
-      users={users}
-      branches={branches}
-      onSaved={showSaved}
-      reload={reloadData}
-    />
-  );
-} else if (active === "dailyReports") {
-  page = (
-    <DailyReportsPage
-      rows={dailyReports}
-      branches={branches}
-      users={users}
-      onSaved={showSaved}
-      reload={reloadData}
-    />
-  );
+    page = (
+      <BonusPage
+        bonuses={bonuses}
+        users={users}
+        branches={branches}
+        onSaved={showSaved}
+        reload={reloadData}
+      />
+    );
+  } else if (active === "dailyReports") {
+    page = (
+      <DailyReportsPage
+        rows={dailyReports}
+        branches={branches}
+        users={users}
+        onSaved={showSaved}
+        reload={reloadData}
+      />
+    );
   } else if (active === "uploads") {
     page = (
       <SimpleTablePage
@@ -912,6 +878,7 @@ export default function App() {
                   key={item.id}
                   className={`menu-btn ${active === item.id ? "active" : ""}`}
                   onClick={() => setActive(item.id)}
+                  type="button"
                 >
                   <span>
                     <Icon size={16} />
@@ -922,7 +889,7 @@ export default function App() {
             })}
           </div>
 
-          <button className="logout-btn" onClick={logout}>
+          <button className="logout-btn" onClick={logout} type="button">
             <LogOut size={16} />
             Chiqish
           </button>
@@ -932,9 +899,7 @@ export default function App() {
           <div className="topbar">
             <div>
               <h1>{MENU.find((m) => m.id === active)?.title || "Bosh sahifa"}</h1>
-              <p>
-                Asalomu alaykum, {user.full_name}
-              </p>
+              <p>Asalomu alaykum, {user.full_name}</p>
             </div>
 
             <div className="topbar-right">
@@ -985,29 +950,10 @@ const styles = `
   --green:#1fbe73;
   --red:#ef5a5a;
 }
-select{
-  background:var(--panel2);
-  border:1px solid var(--line);
-  color:var(--text);
-  border-radius:14px;
-  padding:13px 14px;
-  outline:none;
-}
-.full-col{
-  grid-column:1 / -1;
-}
-.bonus-total-box{
-  margin-bottom:16px;
-  padding:14px 16px;
-  border-radius:16px;
-  background:rgba(36,151,255,.12);
-  border:1px solid rgba(36,151,255,.18);
-  font-size:16px;
-}
 *{box-sizing:border-box}
 html,body,#root{margin:0;min-height:100%;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
-button,input{font:inherit}
-input{outline:none}
+button,input,select{font:inherit}
+input,select{outline:none}
 .loading-screen{min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text)}
 
 .login-page{
@@ -1172,7 +1118,8 @@ input{outline:none}
 }
 .form-grid label{display:grid;gap:8px}
 .form-grid label span{color:var(--muted);font-size:13px}
-.form-grid input{
+.form-grid input,
+.form-grid select{
   background:var(--panel2);
   border:1px solid var(--line);
   color:var(--text);
@@ -1201,6 +1148,15 @@ th{color:var(--muted);background:rgba(255,255,255,.03)}
 .toast-success{background:linear-gradient(135deg,var(--green),#56e3a2)}
 .toast-error{background:linear-gradient(135deg,var(--red),#ff8e8e)}
 .toast button{background:transparent;border:0;color:#fff;cursor:pointer}
+.full-col{grid-column:1 / -1}
+.bonus-total-box{
+  margin-bottom:16px;
+  padding:14px 16px;
+  border-radius:16px;
+  background:rgba(36,151,255,.12);
+  border:1px solid rgba(36,151,255,.18);
+  font-size:16px;
+}
 
 @media (max-width: 1100px){
   .login-page,.app-shell,.form-grid,.stats-grid{grid-template-columns:1fr}
