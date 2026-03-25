@@ -1211,47 +1211,397 @@ function TasksPage({ tasks, users, onToast, reload }) {
   );
 }
 
-function ContentPage({ contentRows }) {
+function getMonthLabel(date = new Date()) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function getMonthTitle(monthLabel) {
+  const [year, month] = monthLabel.split("-");
+  const names = {
+    "01": "Yanvar",
+    "02": "Fevral",
+    "03": "Mart",
+    "04": "Aprel",
+    "05": "May",
+    "06": "Iyun",
+    "07": "Iyul",
+    "08": "Avgust",
+    "09": "Sentabr",
+    "10": "Oktabr",
+    "11": "Noyabr",
+    "12": "Dekabr"
+  };
+  return `${names[month]} ${year}`;
+}
+
+function shiftMonth(monthLabel, step) {
+  const [y, m] = monthLabel.split("-").map(Number);
+  const d = new Date(y, m - 1 + step, 1);
+  return getMonthLabel(d);
+}
+
+function ContentPage({ users, branches, onToast }) {
+  const [selectedMonth, setSelectedMonth] = useState(getMonthLabel());
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const [form, setForm] = useState({
+    title: "",
+    platform: "Instagram",
+    content_type: "post",
+    status: "rejalashtirilgan",
+    publish_date: "",
+    branch_id: "",
+    notes: "",
+    bonus_enabled: false,
+    assigned_user_id: "",
+    video_editor_user_id: "",
+    video_face_user_id: "",
+    proposal_count: 0,
+    approved_count: 0
+  });
+
+  const isVideo = form.content_type === "video";
+
+  function setField(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function loadMonth(monthValue = selectedMonth) {
+    try {
+      setLoading(true);
+      const data = await api.contentByMonth(monthValue);
+      setRows(data || []);
+    } catch (err) {
+      onToast(err.message || "Kontent rejani olib bo‘lmadi", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadMonth(selectedMonth);
+  }, [selectedMonth]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+
+    try {
+      setSaving(true);
+
+      const payload = {
+        ...form,
+        publish_date: form.publish_date || null,
+        branch_id: form.branch_id || null,
+        assigned_user_id: isVideo ? null : form.assigned_user_id || null,
+        video_editor_user_id: isVideo ? form.video_editor_user_id || null : null,
+        video_face_user_id: isVideo ? form.video_face_user_id || null : null,
+        proposal_count: Number(form.proposal_count || 0),
+        approved_count: Number(form.approved_count || 0)
+      };
+
+      await api.createContentPlan(payload);
+      await loadMonth(selectedMonth);
+
+      setForm({
+        title: "",
+        platform: "Instagram",
+        content_type: "post",
+        status: "rejalashtirilgan",
+        publish_date: "",
+        branch_id: "",
+        notes: "",
+        bonus_enabled: false,
+        assigned_user_id: "",
+        video_editor_user_id: "",
+        video_face_user_id: "",
+        proposal_count: 0,
+        approved_count: 0
+      });
+
+      onToast("Kontent reja saqlandi ✅", "success");
+    } catch (err) {
+      onToast(err.message || "Kontent rejani saqlab bo‘lmadi", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeRow(id) {
+    const ok = window.confirm("Rostdan ham o‘chirilsinmi?");
+    if (!ok) return;
+
+    try {
+      await api.deleteContentPlan(id);
+      await loadMonth(selectedMonth);
+      onToast("Kontent o‘chirildi", "success");
+    } catch (err) {
+      onToast(err.message || "O‘chirishda xatolik", "error");
+    }
+  }
+
   return (
     <div className="page-grid">
       <div className="card">
         <SectionTitle
           title="Kontent reja"
+          desc={`${getMonthTitle(selectedMonth)} uchun reja`}
+          right={
+            <div className="toolbar-actions">
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}
+              >
+                ← Oldingi oy
+              </button>
+
+              <div className="summary-pill">
+                <strong>{getMonthTitle(selectedMonth)}</strong>
+              </div>
+
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}
+              >
+                Keyingi oy →
+              </button>
+            </div>
+          }
+        />
+
+        <form className="form-grid" onSubmit={handleSubmit}>
+          <label>
+            <span>Kontent nomi</span>
+            <input
+              value={form.title}
+              onChange={(e) => setField("title", e.target.value)}
+              placeholder="Masalan: Aksiya uchun reels"
+              required
+            />
+          </label>
+
+          <label>
+            <span>Platforma</span>
+            <select value={form.platform} onChange={(e) => setField("platform", e.target.value)}>
+              <option value="Instagram">Instagram</option>
+              <option value="Telegram">Telegram</option>
+              <option value="YouTube">YouTube</option>
+              <option value="Facebook">Facebook</option>
+              <option value="TikTok">TikTok</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Kontent turi</span>
+            <select value={form.content_type} onChange={(e) => setField("content_type", e.target.value)}>
+              <option value="post">Post</option>
+              <option value="story">Story</option>
+              <option value="reels">Reels</option>
+              <option value="video">Video</option>
+              <option value="banner">Banner</option>
+              <option value="design">Dizayn</option>
+              <option value="copywriting">Copywriting</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Status</span>
+            <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
+              <option value="rejalashtirilgan">Rejalashtirilgan</option>
+              <option value="jarayonda">Jarayonda</option>
+              <option value="tayyor">Tayyor</option>
+              <option value="joylandi">Joylandi</option>
+              <option value="bekor_qilindi">Bekor qilindi</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Sana</span>
+            <input
+              type="date"
+              value={form.publish_date}
+              onChange={(e) => setField("publish_date", e.target.value)}
+              required
+            />
+          </label>
+
+          <label>
+            <span>Filial</span>
+            <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)}>
+              <option value="">Tanlang</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          {isVideo ? (
+            <>
+              <label>
+                <span>Montaj kim qildi?</span>
+                <select
+                  value={form.video_editor_user_id}
+                  onChange={(e) => setField("video_editor_user_id", e.target.value)}
+                >
+                  <option value="">Tanlang</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                <span>Ovoz + face kim?</span>
+                <select
+                  value={form.video_face_user_id}
+                  onChange={(e) => setField("video_face_user_id", e.target.value)}
+                >
+                  <option value="">Tanlang</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </>
+          ) : (
+            <label>
+              <span>Mas’ul hodim</span>
+              <select
+                value={form.assigned_user_id}
+                onChange={(e) => setField("assigned_user_id", e.target.value)}
+              >
+                <option value="">Tanlang</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.full_name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <label>
+            <span>Taklif soni</span>
+            <input
+              type="number"
+              min="0"
+              value={form.proposal_count}
+              onChange={(e) => setField("proposal_count", Number(e.target.value))}
+            />
+          </label>
+
+          <label>
+            <span>Tasdiq soni</span>
+            <input
+              type="number"
+              min="0"
+              value={form.approved_count}
+              onChange={(e) => setField("approved_count", Number(e.target.value))}
+            />
+          </label>
+
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={form.bonus_enabled}
+              onChange={(e) => setField("bonus_enabled", e.target.checked)}
+            />
+            <span>Bonusga o‘tsinmi</span>
+          </label>
+
+          <label className="full-col">
+            <span>Izoh</span>
+            <input
+              value={form.notes}
+              onChange={(e) => setField("notes", e.target.value)}
+              placeholder="Qo‘shimcha izoh"
+            />
+          </label>
+
+          <button className="btn primary" type="submit" disabled={saving}>
+            {saving ? "Saqlanmoqda..." : "Kontentni saqlash"}
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <SectionTitle
+          title={`${getMonthTitle(selectedMonth)} rejalari`}
           right={
             <button
               type="button"
               className="btn secondary"
-              onClick={() => api.exportFile("/api/export/content.xlsx", "content.xlsx")}
+              onClick={() => api.exportFile("/api/export/content.xlsx", `content-${selectedMonth}.xlsx`)}
             >
               Excel export
             </button>
           }
         />
+
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Sarlavha</th>
+                <th>Sana</th>
+                <th>Filial</th>
                 <th>Platforma</th>
                 <th>Turi</th>
-                <th>Holat</th>
-                <th>Sana</th>
+                <th>Kontent nomi</th>
+                <th>Status</th>
+                <th>Mas’ul</th>
+                <th>Bonus</th>
+                <th>Taklif</th>
+                <th>Tasdiq</th>
+                <th>Amal</th>
               </tr>
             </thead>
             <tbody>
-              {contentRows.length ? (
-                contentRows.map((row) => (
+              {loading ? (
+                <tr>
+                  <td colSpan="11" className="empty-cell">Yuklanmoqda...</td>
+                </tr>
+              ) : rows.length ? (
+                rows.map((row) => (
                   <tr key={row.id}>
-                    <td>{row.title}</td>
-                    <td>{row.platform}</td>
-                    <td>{row.content_type}</td>
-                    <td>{row.status}</td>
                     <td>{row.publish_date || "-"}</td>
+                    <td>{row.branch_name || "-"}</td>
+                    <td>{row.platform || "-"}</td>
+                    <td>{row.content_type}</td>
+                    <td>{row.title}</td>
+                    <td>{row.status}</td>
+                    <td>
+                      {row.content_type === "video"
+                        ? `${row.video_editor_name || "-"} / ${row.video_face_name || "-"}`
+                        : row.assignee_name || "-"}
+                    </td>
+                    <td>{row.bonus_enabled ? "Ha" : "Yo‘q"}</td>
+                    <td>{row.proposal_count || 0}</td>
+                    <td>{row.approved_count || 0}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn tiny secondary"
+                        onClick={() => removeRow(row.id)}
+                      >
+                        O‘chirish
+                      </button>
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="empty-cell">Hozircha ma’lumot yo‘q</td>
+                  <td colSpan="11" className="empty-cell">Bu oy uchun reja yo‘q</td>
                 </tr>
               )}
             </tbody>
@@ -1556,7 +1906,14 @@ export default function App() {
   } else if (active === "tasks") {
     page = <TasksPage tasks={tasks} users={users} onToast={showToast} reload={reloadData} />;
   } else if (active === "content") {
-    page = <ContentPage contentRows={contentRows} />;
+  page = (
+    <ContentPage
+      users={users}
+      branches={branches}
+      onToast={showToast}
+    />
+  );
+}
   } else if (active === "audit") {
     page = <AuditPage logs={auditLogs} />;
   } else if (active === "settings") {
@@ -1702,6 +2059,16 @@ a{color:var(--blue);text-decoration:none}
   font-size:12px;
   text-transform:uppercase;
   letter-spacing:.16em;
+}
+.checkbox-row{
+  display:flex !important;
+  align-items:center;
+  gap:10px;
+  min-height:48px;
+}
+.checkbox-row input{
+  width:18px;
+  height:18px;
 }
 .login-copy h1{font-size:64px;margin:18px 0 0}
 .login-copy h2{font-size:30px;line-height:1.15;margin:12px 0 0;max-width:700px}
