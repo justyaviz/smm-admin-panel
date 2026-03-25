@@ -560,21 +560,8 @@ function BonusPage({ bonuses, bonusItems, onToast }) {
         </div>
       </div>
     </div>
-  );
+   );
 }
-  const [form, setForm] = useState({
-    user_id: "",
-    month_label: "",
-    work_date: "",
-    branch_id: "",
-    content_type: "",
-    content_title: "",
-    notes: "",
-    units: 1
-  });
-
-  const [saving, setSaving] = useState(false);
-  const [monthFilter, setMonthFilter] = useState("");
 
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -2056,9 +2043,20 @@ export default function App() {
       </>
     );
   }
-
   let page = null;
 
+if (...) { ... }
+else if (...) { ... }
+else if (...) { ... }
+
+return (
+  <>
+    <div className="app-shell">
+      ...
+      {page}
+    </div>
+  </>
+);
 if (active === "dashboard") {
   page = (
     <DashboardPage
@@ -2153,7 +2151,7 @@ if (active === "dashboard") {
       setTheme={setTheme}
     />
   );
-  
+}
   return (
     <>
       <div className="app-shell">
