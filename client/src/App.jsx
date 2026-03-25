@@ -2367,6 +2367,6 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   .hero-banner h1{font-size:34px}
   .login-copy h1{font-size:46px}
   .login-copy h2{font-size:24px}
-}
+const styles = `
+  ...css...
 `;
-حنة
