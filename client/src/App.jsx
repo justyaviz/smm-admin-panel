@@ -22,6 +22,7 @@ const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: Home },
   { id: "content", title: "Kontent reja", icon: ClipboardList },
   { id: "branches", title: "Filiallar", icon: Building2 },
+  { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: Building2 },
   { id: "bonus", title: "Bonus tizimi", icon: Gift },
   { id: "users", title: "Hodimlar", icon: Users },
   { id: "uploads", title: "Media kutubxona", icon: Upload },
@@ -292,6 +293,328 @@ function SimpleTablePage({ title, rows, columns }) {
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+function DailyReportsPage({ rows, branches, users, onSaved, reload }) {
+  const [form, setForm] = useState({
+    report_date: "",
+    branch_id: "",
+    user_id: "",
+    stories_count: 0,
+    posts_count: 0,
+    reels_count: 0,
+    notes: ""
+  });
+  const [saving, setSaving] = useState(false);
+
+  const setField = (key, value) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
+
+  async function submit(e) {
+    e.preventDefault();
+    try {
+      setSaving(true);
+      await api.create("daily-reports", form);
+      setForm({
+        report_date: "",
+        branch_id: "",
+        user_id: "",
+        stories_count: 0,
+        posts_count: 0,
+        reels_count: 0,
+        notes: ""
+      });
+      onSaved("Saqlandi ✅");
+      reload();
+    } catch (e2) {
+      onSaved(e2.message || "Xatolik yuz berdi", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="page-grid">
+      <div className="panel-card">
+        <div className="section-title">Kunlik filial hisobotini kiritish</div>
+
+        <form className="form-grid" onSubmit={submit}>
+          <label>
+            <span>Sana</span>
+            <input
+              type="date"
+              value={form.report_date}
+              onChange={(e) => setField("report_date", e.target.value)}
+              required
+            />
+          </label>
+
+          <label>
+            <span>Filial</span>
+            <select
+              value={form.branch_id}
+              onChange={(e) => setField("branch_id", e.target.value)}
+              required
+            >
+              <option value="">Tanlang</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Hodim</span>
+            <select
+              value={form.user_id}
+              onChange={(e) => setField("user_id", e.target.value)}
+            >
+              <option value="">Tanlang</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.full_name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Stories soni</span>
+            <input
+              type="number"
+              min="0"
+              value={form.stories_count}
+              onChange={(e) => setField("stories_count", Number(e.target.value))}
+            />
+          </label>
+
+          <label>
+            <span>Post soni</span>
+            <input
+              type="number"
+              min="0"
+              value={form.posts_count}
+              onChange={(e) => setField("posts_count", Number(e.target.value))}
+            />
+          </label>
+
+          <label>
+            <span>Reels soni</span>
+            <input
+              type="number"
+              min="0"
+              value={form.reels_count}
+              onChange={(e) => setField("reels_count", Number(e.target.value))}
+            />
+          </label>
+
+          <label className="full-col">
+            <span>Izoh</span>
+            <input
+              value={form.notes}
+              onChange={(e) => setField("notes", e.target.value)}
+              placeholder="Izoh"
+            />
+          </label>
+
+          <button className="primary-btn" disabled={saving} type="submit">
+            {saving ? "Saqlanmoqda..." : "Hisobotni saqlash"}
+          </button>
+        </form>
+      </div>
+
+      <SimpleTablePage
+        title="Kiritilgan kunlik hisobotlar"
+        rows={rows}
+        columns={[
+          { key: "report_date", label: "Sana" },
+          { key: "branch_name", label: "Filial" },
+          { key: "user_name", label: "Hodim" },
+          { key: "stories_count", label: "Stories" },
+          { key: "posts_count", label: "Post" },
+          { key: "reels_count", label: "Reels" },
+          { key: "notes", label: "Izoh" }
+        ]}
+      />
+    </div>
+  );
+}
+
+function BonusPage({ bonuses, users, branches, onSaved, reload }) {
+  const [form, setForm] = useState({
+    user_id: "",
+    month_label: "",
+    work_date: "",
+    branch_id: "",
+    content_type: "",
+    content_title: "",
+    notes: "",
+    units: 1
+  });
+  const [saving, setSaving] = useState(false);
+
+  const setField = (key, value) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
+
+  async function submit(e) {
+    e.preventDefault();
+    try {
+      setSaving(true);
+      await api.create("bonus-items", form);
+      await api.recalcBonus({});
+      setForm({
+        user_id: "",
+        month_label: "",
+        work_date: "",
+        branch_id: "",
+        content_type: "",
+        content_title: "",
+        notes: "",
+        units: 1
+      });
+      onSaved("Saqlandi ✅");
+      reload();
+    } catch (e2) {
+      onSaved(e2.message || "Xatolik yuz berdi", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const totalBonus = bonuses.reduce(
+    (sum, b) => sum + Number(b.total_amount || 0),
+    0
+  );
+
+  return (
+    <div className="page-grid">
+      <div className="panel-card">
+        <div className="section-title">Oylik bonus hisobotini kiritish</div>
+        <div className="bonus-total-box">
+          Umumiy bonus summasi: <strong>{totalBonus.toLocaleString()} so‘m</strong>
+        </div>
+
+        <form className="form-grid" onSubmit={submit}>
+          <label>
+            <span>Hodim</span>
+            <select
+              value={form.user_id}
+              onChange={(e) => setField("user_id", e.target.value)}
+              required
+            >
+              <option value="">Tanlang</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.full_name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Oy</span>
+            <input
+              value={form.month_label}
+              onChange={(e) => setField("month_label", e.target.value)}
+              placeholder="2026-04"
+              required
+            />
+          </label>
+
+          <label>
+            <span>Sana</span>
+            <input
+              type="date"
+              value={form.work_date}
+              onChange={(e) => setField("work_date", e.target.value)}
+              required
+            />
+          </label>
+
+          <label>
+            <span>Filial</span>
+            <select
+              value={form.branch_id}
+              onChange={(e) => setField("branch_id", e.target.value)}
+            >
+              <option value="">Tanlang</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            <span>Kontent turi</span>
+            <input
+              value={form.content_type}
+              onChange={(e) => setField("content_type", e.target.value)}
+              placeholder="Story / Post / Reels"
+              required
+            />
+          </label>
+
+          <label>
+            <span>Kontent nomi</span>
+            <input
+              value={form.content_title}
+              onChange={(e) => setField("content_title", e.target.value)}
+              placeholder="Kontent nomi"
+            />
+          </label>
+
+          <label>
+            <span>Soni</span>
+            <input
+              type="number"
+              min="1"
+              value={form.units}
+              onChange={(e) => setField("units", Number(e.target.value))}
+              required
+            />
+          </label>
+
+          <label>
+            <span>Birlik narx</span>
+            <input value="25,000 so‘m" disabled />
+          </label>
+
+          <label>
+            <span>Jami</span>
+            <input value={`${(Number(form.units || 0) * 25000).toLocaleString()} so‘m`} disabled />
+          </label>
+
+          <label className="full-col">
+            <span>Izoh</span>
+            <input
+              value={form.notes}
+              onChange={(e) => setField("notes", e.target.value)}
+              placeholder="Izoh"
+            />
+          </label>
+
+          <button className="primary-btn" disabled={saving} type="submit">
+            {saving ? "Saqlanmoqda..." : "Bonus qatorini saqlash"}
+          </button>
+        </form>
+      </div>
+
+      <SimpleTablePage
+        title="Bonuslar ro‘yxati"
+        rows={bonuses}
+        columns={[
+          { key: "full_name", label: "Hodim" },
+          { key: "month_label", label: "Oy" },
+          { key: "total_units", label: "Soni" },
+          { key: "unit_price", label: "Birlik narx" },
+          { key: "total_amount", label: "Jami summa" }
+        ]}
+      />
     </div>
   );
 }
