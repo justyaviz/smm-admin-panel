@@ -66,7 +66,6 @@ export const api = {
   },
 
   me: () => request("/api/auth/me"),
-
   changePassword: (payload) =>
     request("/api/auth/change-password", {
       method: "POST",
@@ -74,6 +73,13 @@ export const api = {
     }),
 
   dashboard: () => request("/api/dashboard/summary"),
+
+  kpi: {
+    summary: () => request("/api/kpi/summary"),
+    employees: () => request("/api/kpi/employees"),
+    branches: () => request("/api/kpi/branches"),
+    contentTypes: () => request("/api/kpi/content-types")
+  },
 
   settings: {
     get: () => request("/api/settings"),
@@ -85,19 +91,16 @@ export const api = {
   },
 
   list: (entity) => request(`/api/${entity}`),
-
   create: (entity, payload) =>
     request(`/api/${entity}`, {
       method: "POST",
       body: JSON.stringify(payload)
     }),
-
   update: (entity, id, payload) =>
     request(`/api/${entity}/${id}`, {
       method: "PUT",
       body: JSON.stringify(payload)
     }),
-
   remove: (entity, id) =>
     request(`/api/${entity}/${id}`, {
       method: "DELETE"
@@ -113,6 +116,16 @@ export const api = {
     request("/api/bonuses/recalculate", {
       method: "POST"
     }),
+
+  notifications: {
+    read: (id) => request(`/api/notifications/read/${id}`, { method: "POST" }),
+    readAll: () => request("/api/notifications/read-all", { method: "POST" })
+  },
+
+  users: {
+    resetPassword: (id) => request(`/api/users/${id}/reset-password`, { method: "POST" }),
+    toggleActive: (id) => request(`/api/users/${id}/toggle-active`, { method: "POST" })
+  },
 
   exportFile: async (path, fileName) => {
     const blob = await request(path);
