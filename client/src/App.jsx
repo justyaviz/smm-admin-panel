@@ -234,16 +234,50 @@ export default function App() {
   }
 
   let page = null;
-  if (active === "dashboard") page = <Dashboard summary={summary} dailyReports={dailyReports} tasks={tasks} />;
-  else if (active === "content") page = <ContentPlan rows={contentRows} />;
-  else if (active === "dailyReports") page = <DailyReports rows={dailyReports} />;
-  else if (active === "campaigns") page = <Campaigns rows={campaigns} />;
-  else if (active === "bonus") page = <Bonus bonuses={bonuses} />;
-  else if (active === "branches") page = <BranchesPage rows={branches} />;
-  else if (active === "users") page = <UsersPage rows={users} />;
-  else if (active === "uploads") page = <MediaLibrary rows={uploads} />;
-  else if (active === "tasks") page = <TasksPage rows={tasks} />;
-  else if (active === "settings") page = <SettingsPage settings={settings} onSave={saveSettings} theme={theme} setTheme={setTheme} saving={savingSettings} />;
+  } else if (active === "bonus") {
+  page = (
+    <BonusPage
+      bonuses={bonuses}
+      users={users}
+      branches={branches}
+      onToast={showToast}
+      reload={reloadData}
+    />
+  );
+} else if (active === "dailyReports") {
+  page = (
+    <DailyReportsPage
+      reports={dailyReports}
+      branches={branches}
+      users={users}
+      onToast={showToast}
+      reload={reloadData}
+    />
+  );
+} else if (active === "uploads") {
+  page = (
+    <MediaLibraryPage
+      uploads={uploads}
+      onToast={showToast}
+      reload={reloadData}
+    />
+  );
+} else if (active === "users") {
+  page = (
+    <UsersPage
+      users={users}
+      onToast={showToast}
+      reload={reloadData}
+    />
+  );
+} else if (active === "campaigns") {
+  page = (
+    <CampaignsPage
+      campaigns={campaigns}
+      onToast={showToast}
+      reload={reloadData}
+    />
+  );
 
   return (
     <>
