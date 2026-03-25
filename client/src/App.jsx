@@ -653,25 +653,6 @@ export default function App() {
   );
 }
 
-function Toast({ toast, onClose }) {
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(onClose, 2200);
-    return () => clearTimeout(timer);
-  }, [toast, onClose]);
-
-  if (!toast) return null;
-
-  return (
-    <div className={`toast toast-${toast.type || "success"}`}>
-      <span>{toast.message}</span>
-      <button type="button" onClick={onClose}>
-        <X size={16} />
-      </button>
-    </div>
-  );
-}
-
 const styles = `
 :root{
   --blue:#1690F5;
