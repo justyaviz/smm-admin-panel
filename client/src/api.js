@@ -41,6 +41,25 @@ async function request(path, options = {}) {
       ...(options.headers || {})
     }
   });
+  
+    contentByMonth: (month) => request(`/api/content?month=${month}`),
+
+  createContentPlan: (payload) =>
+    request("/api/content", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+
+  updateContentPlan: (id, payload) =>
+    request(`/api/content/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    }),
+
+  deleteContentPlan: (id) =>
+    request(`/api/content/${id}`, {
+      method: "DELETE"
+    }),
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
