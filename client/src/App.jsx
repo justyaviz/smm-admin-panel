@@ -20,7 +20,6 @@ import Bonus from "./pages/Bonus";
 import BonusPage from "./pages/Bonus";
 import DailyReportsPage from "./pages/DailyReports";
 import MediaLibraryPage from "./pages/MediaLibrary";
-import UsersPage from "./pages/Users";
 import CampaignsPage from "./pages/Campaigns";
 import DailyReports from "./pages/DailyReports";
 import Campaigns from "./pages/Campaigns";
@@ -232,9 +231,11 @@ export default function App() {
       </>
     );
   }
+let page = null;
 
-  let page = null;
-  } else if (active === "bonus") {
+if (active === "dashboard") {
+  page = <Dashboard />;
+} else if (active === "bonus") {
   page = (
     <BonusPage
       bonuses={bonuses}
@@ -278,7 +279,7 @@ export default function App() {
       reload={reloadData}
     />
   );
-
+}
   return (
     <>
       <div className="app-shell">
