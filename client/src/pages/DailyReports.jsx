@@ -1,10 +1,8 @@
 import React, { useState } from "react";
-import Modal from "../components/ui/Modal";
+import { FileBarChart2, Plus } from "lucide-react";
 import { api } from "../api";
 
-export default function DailyReportsPage({ rows, branches, users, onSaved, reload }) {
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+export default function DailyReportsPage({ reports, branches, users, onToast, reload }) {
   const [form, setForm] = useState({
     report_date: "",
     branch_id: "",
@@ -14,16 +12,17 @@ export default function DailyReportsPage({ rows, branches, users, onSaved, reloa
     reels_count: 0,
     notes: ""
   });
+  const [saving, setSaving] = useState(false);
 
-  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const setField = (key, value) =>
+    setForm((prev) => ({ ...prev, [key]: value }));
 
-  async function submit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     try {
       setSaving(true);
       await api.create("daily-reports", form);
-      onSaved("Saqlandi ✅");
-      setOpen(false);
+      await reload();
       setForm({
         report_date: "",
         branch_id: "",
@@ -33,9 +32,9 @@ export default function DailyReportsPage({ rows, branches, users, onSaved, reloa
         reels_count: 0,
         notes: ""
       });
-      await reload();
-    } catch (e2) {
-      onSaved(e2.message || "Xatolik yuz berdi", "error");
+      onToast("Saqlandi ✅", "success");
+    } catch (err) {
+      onToast(err.message || "Xatolik yuz berdi", "error");
     } finally {
       setSaving(false);
     }
@@ -44,57 +43,15 @@ export default function DailyReportsPage({ rows, branches, users, onSaved, reloa
   return (
     <div className="page-grid">
       <div className="card">
-        <div className="page-toolbar">
+        <div className="section-head">
           <div>
-            <div className="section-label">Filial tahlili</div>
-            <h2>Kunlik filial hisobotlari</h2>
-            <p>Mobilograf har kuni stories, post va reels hisobotini kiritadi.</p>
+            <div className="section-label">Filiallar</div>
+            <h2>Kunlik filial hisobotini kiritish</h2>
+            <p>Mobilograf har kuni filial bo‘yicha story, post va reels sonini kiritadi.</p>
           </div>
-          <button className="btn primary" type="button" onClick={() => setOpen(true)}>
-            Hisobot qo‘shish
-          </button>
         </div>
 
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Sana</th>
-                <th>Filial</th>
-                <th>Hodim</th>
-                <th>Stories</th>
-                <th>Post</th>
-                <th>Reels</th>
-                <th>Izoh</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows?.length ? (
-                rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.report_date}</td>
-                    <td>{row.branch_name}</td>
-                    <td>{row.user_name}</td>
-                    <td>{row.stories_count}</td>
-                    <td>{row.posts_count}</td>
-                    <td>{row.reels_count}</td>
-                    <td>{row.notes || "-"}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={7} className="empty-cell">
-                    Hozircha hisobot yo‘q
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <Modal open={open} title="Kunlik hisobot qo‘shish" onClose={() => setOpen(false)}>
-        <form className="form-grid" onSubmit={submit}>
+        <form className="form-grid" onSubmit={handleSubmit}>
           <label>
             <span>Sana</span>
             <input
@@ -137,7 +94,7 @@ export default function DailyReportsPage({ rows, branches, users, onSaved, reloa
           </label>
 
           <label>
-            <span>Stories soni</span>
+            <span>Stories</span>
             <input
               type="number"
               min="0"
@@ -147,7 +104,7 @@ export default function DailyReportsPage({ rows, branches, users, onSaved, reloa
           </label>
 
           <label>
-            <span>Post soni</span>
+            <span>Post</span>
             <input
               type="number"
               min="0"
@@ -157,7 +114,7 @@ export default function DailyReportsPage({ rows, branches, users, onSaved, reloa
           </label>
 
           <label>
-            <span>Reels soni</span>
+            <span>Reels</span>
             <input
               type="number"
               min="0"
@@ -175,16 +132,55 @@ export default function DailyReportsPage({ rows, branches, users, onSaved, reloa
             />
           </label>
 
-          <div className="modal-actions full-col">
-            <button type="button" className="btn secondary" onClick={() => setOpen(false)}>
-              Bekor qilish
-            </button>
-            <button type="submit" className="btn primary" disabled={saving}>
-              {saving ? "Saqlanmoqda..." : "Saqlash"}
-            </button>
-          </div>
+          <button className="btn primary" type="submit" disabled={saving}>
+            <Plus size={16} />
+            {saving ? "Saqlanmoqda..." : "Hisobotni saqlash"}
+          </button>
         </form>
-      </Modal>
+      </div>
+
+      <div className="card">
+        <div className="section-head">
+          <div>
+            <h2>Kiritilgan hisobotlar</h2>
+          </div>
+        </div>
+
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Sana</th>
+                <th>Filial</th>
+                <th>Hodim</th>
+                <th>Stories</th>
+                <th>Post</th>
+                <th>Reels</th>
+                <th>Izoh</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reports.length ? (
+                reports.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.report_date}</td>
+                    <td>{row.branch_name}</td>
+                    <td>{row.user_name}</td>
+                    <td>{row.stories_count}</td>
+                    <td>{row.posts_count}</td>
+                    <td>{row.reels_count}</td>
+                    <td>{row.notes || "-"}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="7" className="empty-cell">Hozircha ma’lumot yo‘q</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
