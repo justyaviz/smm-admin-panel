@@ -1,10 +1,8 @@
 import React, { useMemo, useState } from "react";
-import Modal from "../components/ui/Modal";
+import { Gift, Download, Plus } from "lucide-react";
 import { api } from "../api";
 
-export default function BonusPage({ bonuses, users, branches, onSaved, reload }) {
-  const [open, setOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
+export default function BonusPage({ bonuses, users, branches, onToast, reload }) {
   const [form, setForm] = useState({
     user_id: "",
     month_label: "",
@@ -15,24 +13,23 @@ export default function BonusPage({ bonuses, users, branches, onSaved, reload })
     notes: "",
     units: 1
   });
+  const [saving, setSaving] = useState(false);
 
-  const totalAmount = useMemo(
+  const totalBonus = useMemo(
     () => bonuses.reduce((sum, item) => sum + Number(item.total_amount || 0), 0),
     [bonuses]
   );
 
-  const setField = (key, value) => {
+  const setField = (key, value) =>
     setForm((prev) => ({ ...prev, [key]: value }));
-  };
 
-  async function submit(e) {
+  async function handleSubmit(e) {
     e.preventDefault();
     try {
       setSaving(true);
       await api.create("bonus-items", form);
       await api.recalcBonus();
-      onSaved("Saqlandi ✅");
-      setOpen(false);
+      await reload();
       setForm({
         user_id: "",
         month_label: "",
@@ -43,9 +40,9 @@ export default function BonusPage({ bonuses, users, branches, onSaved, reload })
         notes: "",
         units: 1
       });
-      await reload();
-    } catch (e2) {
-      onSaved(e2.message || "Xatolik yuz berdi", "error");
+      onToast("Saqlandi ✅", "success");
+    } catch (err) {
+      onToast(err.message || "Xatolik yuz berdi", "error");
     } finally {
       setSaving(false);
     }
@@ -54,58 +51,28 @@ export default function BonusPage({ bonuses, users, branches, onSaved, reload })
   return (
     <div className="page-grid">
       <div className="card">
-        <div className="page-toolbar">
+        <div className="section-head">
           <div>
             <div className="section-label">Bonus tizimi</div>
-            <h2>Oylik bonuslar</h2>
-            <p>Har 1 soni = 25,000 so‘m. Jami summa avtomatik hisoblanadi.</p>
+            <h2>Oylik bonus hisobotini kiritish</h2>
+            <p>1 soni = 25,000 so‘m. Jami summa avtomatik hisoblanadi.</p>
           </div>
-          <div className="toolbar-actions">
-            <div className="summary-pill">
-              Umumiy bonus: <strong>{totalAmount.toLocaleString()} so‘m</strong>
-            </div>
-            <button className="btn primary" onClick={() => setOpen(true)} type="button">
-              Bonus qatori qo‘shish
+          <div className="hero-actions">
+            <button className="btn secondary" type="button">
+              <Download size={16} />
+              Export
             </button>
           </div>
         </div>
 
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Hodim</th>
-                <th>Oy</th>
-                <th>Soni</th>
-                <th>Birlik narx</th>
-                <th>Jami summa</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bonuses?.length ? (
-                bonuses.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.full_name}</td>
-                    <td>{row.month_label}</td>
-                    <td>{row.total_units}</td>
-                    <td>{Number(row.unit_price || 0).toLocaleString()} so‘m</td>
-                    <td>{Number(row.total_amount || 0).toLocaleString()} so‘m</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={5} className="empty-cell">
-                    Hozircha bonus ma’lumoti yo‘q
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="summary-row">
+          <div className="summary-pill">
+            <Gift size={16} />
+            Umumiy bonus: <strong>{totalBonus.toLocaleString()} so‘m</strong>
+          </div>
         </div>
-      </div>
 
-      <Modal open={open} title="Bonus qatori qo‘shish" onClose={() => setOpen(false)}>
-        <form className="form-grid" onSubmit={submit}>
+        <form className="form-grid" onSubmit={handleSubmit}>
           <label>
             <span>Hodim</span>
             <select
@@ -189,15 +156,12 @@ export default function BonusPage({ bonuses, users, branches, onSaved, reload })
 
           <label>
             <span>Birlik narx</span>
-            <input disabled value="25,000 so‘m" />
+            <input value="25,000 so‘m" disabled />
           </label>
 
           <label>
-            <span>Jami summa</span>
-            <input
-              disabled
-              value={`${(Number(form.units || 0) * 25000).toLocaleString()} so‘m`}
-            />
+            <span>Jami</span>
+            <input value={`${(Number(form.units || 0) * 25000).toLocaleString()} so‘m`} disabled />
           </label>
 
           <label className="full-col">
@@ -209,16 +173,51 @@ export default function BonusPage({ bonuses, users, branches, onSaved, reload })
             />
           </label>
 
-          <div className="modal-actions full-col">
-            <button type="button" className="btn secondary" onClick={() => setOpen(false)}>
-              Bekor qilish
-            </button>
-            <button type="submit" className="btn primary" disabled={saving}>
-              {saving ? "Saqlanmoqda..." : "Saqlash"}
-            </button>
-          </div>
+          <button className="btn primary" type="submit" disabled={saving}>
+            <Plus size={16} />
+            {saving ? "Saqlanmoqda..." : "Bonus qatorini saqlash"}
+          </button>
         </form>
-      </Modal>
+      </div>
+
+      <div className="card">
+        <div className="section-head">
+          <div>
+            <h2>Bonuslar ro‘yxati</h2>
+          </div>
+        </div>
+
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Hodim</th>
+                <th>Oy</th>
+                <th>Soni</th>
+                <th>Birlik narx</th>
+                <th>Jami summa</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bonuses.length ? (
+                bonuses.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.full_name}</td>
+                    <td>{row.month_label}</td>
+                    <td>{row.total_units}</td>
+                    <td>{Number(row.unit_price || 0).toLocaleString()} so‘m</td>
+                    <td>{Number(row.total_amount || 0).toLocaleString()} so‘m</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="5" className="empty-cell">Hozircha ma’lumot yo‘q</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
