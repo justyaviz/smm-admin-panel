@@ -560,6 +560,57 @@ function BonusPage({ bonuses, bonusItems, onToast }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function DailyReportsPage({ reports, branches, users, onToast, reload }) {
+
+      <div className="card">
+        <SectionTitle title={`${getMonthTitle(monthFilter)} bonus yozuvlari`} />
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Sana</th>
+                <th>Filial</th>
+                <th>Kontent turi</th>
+                <th>Kontent nomi</th>
+                <th>1-hodim</th>
+                <th>2-hodim</th>
+                <th>Taklif soni</th>
+                <th>Taklif summasi</th>
+                <th>Tasdiq soni</th>
+                <th>Tasdiq summasi</th>
+                <th>Jami summa</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredItems.length ? (
+                filteredItems.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.work_date || "-"}</td>
+                    <td>{row.branch_name || "-"}</td>
+                    <td>{row.content_type || "-"}</td>
+                    <td>{row.content_title || "-"}</td>
+                    <td>{row.full_name || "-"}</td>
+                    <td>{row.second_full_name || "-"}</td>
+                    <td>{row.proposal_count || 0}</td>
+                    <td>{Number(row.proposal_amount || 0).toLocaleString()} so‘m</td>
+                    <td>{row.approved_count || 0}</td>
+                    <td>{Number(row.approved_amount || 0).toLocaleString()} so‘m</td>
+                    <td>{Number(row.total_amount || row.amount || 0).toLocaleString()} so‘m</td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="11" className="empty-cell">Bu oy uchun bonus yozuvi yo‘q</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
    );
 }
 
