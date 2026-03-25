@@ -21,6 +21,12 @@ import {
   X
 } from "lucide-react";
 import { api, clearAuth, getCurrentUser } from "./api";
+import KPI from "./pages/KPI";
+import Bonus from "./pages/Bonus";
+import Users from "./pages/Users";
+<Route path="/kpi" element={<KPI />} />
+<Route path="/bonus" element={<Bonus />} />
+<Route path="/users" element={<Users />} />
 
 const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: Home },
