@@ -835,19 +835,25 @@ export default function App() {
       />
     );
   } else if (active === "bonus") {
-    page = (
-      <SimpleTablePage
-        title="Bonuslar"
-        rows={bonuses}
-        columns={[
-          { key: "full_name", label: "Hodim" },
-          { key: "month_label", label: "Oy" },
-          { key: "total_units", label: "Soni" },
-          { key: "unit_price", label: "Birlik narx" },
-          { key: "total_amount", label: "Jami summa" }
-        ]}
-      />
-    );
+  page = (
+    <BonusPage
+      bonuses={bonuses}
+      users={users}
+      branches={branches}
+      onSaved={showSaved}
+      reload={reloadData}
+    />
+  );
+} else if (active === "dailyReports") {
+  page = (
+    <DailyReportsPage
+      rows={dailyReports}
+      branches={branches}
+      users={users}
+      onSaved={showSaved}
+      reload={reloadData}
+    />
+  );
   } else if (active === "uploads") {
     page = (
       <SimpleTablePage
@@ -978,6 +984,25 @@ const styles = `
   --blue2:#6bddff;
   --green:#1fbe73;
   --red:#ef5a5a;
+}
+select{
+  background:var(--panel2);
+  border:1px solid var(--line);
+  color:var(--text);
+  border-radius:14px;
+  padding:13px 14px;
+  outline:none;
+}
+.full-col{
+  grid-column:1 / -1;
+}
+.bonus-total-box{
+  margin-bottom:16px;
+  padding:14px 16px;
+  border-radius:16px;
+  background:rgba(36,151,255,.12);
+  border:1px solid rgba(36,151,255,.18);
+  font-size:16px;
 }
 *{box-sizing:border-box}
 html,body,#root{margin:0;min-height:100%;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
