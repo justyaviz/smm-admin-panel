@@ -321,16 +321,19 @@ app.post("/api/auth/login", async (req, res) => {
     await logAction(user.id, "login", "auth", user.id, { phone: user.phone });
 
     return res.json({
-      token,
-      user: {
-        id: user.id,
-        full_name: user.full_name,
-        phone: user.phone,
-        login: user.login,
-        role: user.role,
-        avatar_url: user.avatar_url
-      }
-    });
+  token,
+  user: {
+    id: user.id,
+    full_name: user.full_name,
+    phone: user.phone,
+    login: user.login,
+    role: user.role,
+    avatar_url: user.avatar_url,
+    department_role: user.department_role,
+    permissions_json: user.permissions_json,
+    is_active: user.is_active
+  }
+});
   } catch {
     return res.status(500).json({ message: "Server xatoligi" });
   }
