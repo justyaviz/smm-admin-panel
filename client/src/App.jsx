@@ -192,18 +192,21 @@ function LoginPage({ onLoggedIn }) {
   const [error, setError] = useState("");
 
   async function submit(e) {
-    e.preventDefault();
-    try {
-      setLoading(true);
-      setError("");
-      const data = await api.login({ phone, password });
-      onLoggedIn(data.user);
-    } catch (err) {
-      setError(err.message || "Kirishda xatolik");
-    } finally {
-      setLoading(false);
-    }
+  e.preventDefault();
+  try {
+    setLoading(true);
+    setError("");
+
+    await api.login({ phone, password });
+    const me = await api.me();
+
+    onLoggedIn(me.user);
+  } catch (err) {
+    setError(err.message || "Kirishda xatolik");
+  } finally {
+    setLoading(false);
   }
+}
 
   return (
     <div className="login-page">
@@ -1864,11 +1867,20 @@ function App() {
     init();
   }, []);
 
+  console.log("USER:", user);
+console.log("PERMISSIONS:", safePermissions(user?.permissions_json));
+
   const allowedMenu = useMemo(() => {
-    if (user?.role === "admin") return MENU;
-    const permissions = safePermissions(user?.permissions_json);
-    return MENU.filter((item) => permissions.includes(item.id));
-  }, [user]);
+  if (user?.role === "admin") return MENU;
+
+  const permissions = safePermissions(user?.permissions_json);
+
+  if (!permissions.length) {
+    return MENU.filter((item) => item.id === "dashboard" || item.id === "profile");
+  }
+
+  return MENU.filter((item) => permissions.includes(item.id));
+}, [user]);
 
   const filteredMenu = useMemo(() => {
     if (!search.trim()) return allowedMenu;
