@@ -1,20 +1,26 @@
 import jwt from "jsonwebtoken";
-import { query } from "./db.js";
+
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
 export function signToken(user) {
   return jwt.sign(
     {
       id: user.id,
+      full_name: user.full_name,
       phone: user.phone,
       login: user.login,
-      role: user.role
+      role: user.role,
+      avatar_url: user.avatar_url,
+      department_role: user.department_role,
+      permissions_json: user.permissions_json,
+      is_active: user.is_active
     },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" }
+    JWT_SECRET,
+    { expiresIn: "30d" }
   );
 }
 
-export async function authRequired(req, res, next) {
+export function authRequired(req, res, next) {
   try {
     const auth = req.headers.authorization || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
@@ -23,29 +29,11 @@ export async function authRequired(req, res, next) {
       return res.status(401).json({ message: "Token required" });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    const result = await query(
-      `SELECT id, full_name, phone, login, role, avatar_url, is_active
-       FROM users
-       WHERE id = $1`,
-      [decoded.id]
-    );
-
-    if (!result.rows.length) {
-      return res.status(401).json({ message: "Foydalanuvchi topilmadi" });
-    }
-
-    const user = result.rows[0];
-
-    if (!user.is_active) {
-      return res.status(403).json({ message: "Akkaunt bloklangan" });
-    }
-
-    req.user = user;
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
     next();
-  } catch {
-    return res.status(401).json({ message: "Token xato yoki eskirgan" });
+  } catch (err) {
+    return res.status(401).json({ message: "Token invalid" });
   }
 }
 
@@ -56,7 +44,7 @@ export function rolesAllowed(...roles) {
     }
 
     if (!roles.includes(req.user.role)) {
-      return res.status(403).json({ message: "Ruxsat yo‘q" });
+      return res.status(403).json({ message: "Sizda bu amal uchun ruxsat yo‘q" });
     }
 
     next();
