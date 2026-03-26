@@ -50,6 +50,7 @@ export const api = {
     if (data?.token) {
       localStorage.setItem("aloo_token", data.token);
     }
+
     if (data?.user) {
       localStorage.setItem("aloo_user", JSON.stringify(data.user));
     }
