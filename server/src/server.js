@@ -941,12 +941,12 @@ app.post("/api/users/:id/reset-password", authRequired, async (req, res) => {
       department_role
     });
 
-    res.json(updated.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Hodimni yangilashda xatolik" });
-  }
-});
+    try {
+  res.json(updated.rows[0]);
+} catch (err) {
+  console.error(err);
+  res.status(500).json({ message: "Hodimni yangilashda xatolik" });
+}
 
     res.json(result.rows[0]);
   } catch (err) {
