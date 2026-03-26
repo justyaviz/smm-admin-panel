@@ -139,6 +139,28 @@ export const api = {
     });
   },
 
+    updateProfile: (payload) =>
+    request("/api/auth/profile", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    }),
+
+  users: {
+    resetPassword: (id) =>
+      request(`/api/users/${id}/reset-password`, {
+        method: "POST"
+      }),
+    toggleActive: (id) =>
+      request(`/api/users/${id}/toggle-active`, {
+        method: "POST"
+      }),
+    update: (id, payload) =>
+      request(`/api/users/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(payload)
+      })
+  },
+
   recalcBonus: () =>
     request("/api/bonuses/recalculate", {
       method: "POST"
