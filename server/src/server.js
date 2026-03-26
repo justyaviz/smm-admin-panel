@@ -964,17 +964,22 @@ app.delete("/api/users/:id", authRequired, rolesAllowed("admin"), async (req, re
   }
 });
 
-app.post("/api/users/:id/reset-password", authRequired, rolesAllowed("admin"), async (req, res) => {
+app.post("/api/users/:id/reset-password", authRequired, async (req, res) => {
   try {
-    const hash = await bcrypt.hash("12345678", 10);
+    const { id } = req.params;
+    const hashed = await bcrypt.hash("12345678", 10);
+
     await query(
-      `UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
-      [hash, req.params.id]
+      `UPDATE users SET password_hash = $1 WHERE id = $2`,
+      [hashed, id]
     );
-    await logAction(req.user.id, "reset_password", "users", Number(req.params.id));
+
+    await logAction(req.user.id, "reset_password", "users", id, {});
+
     res.json({ message: "Parol 12345678 ga tiklandi" });
-  } catch {
-    res.status(500).json({ message: "Parolni tiklab bo‘lmadi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Parolni tiklashda xatolik" });
   }
 });
 
