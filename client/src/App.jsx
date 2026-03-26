@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Bell,
+  Eye,
   FileBarChart2,
   FolderKanban,
   Gift,
@@ -10,15 +11,18 @@ import {
   LogOut,
   Megaphone,
   Moon,
+  Pencil,
   Search,
   Settings,
   SunMedium,
+  Trash2,
+  Upload,
   User,
   Users as UsersIcon,
   ShieldCheck,
   X
 } from "lucide-react";
-import { api, clearAuth, getCurrentUser } from "./api";
+import { api, clearAuth, getCurrentUser, API_BASE } from "./api";
 
 const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: Home },
@@ -49,8 +53,9 @@ const PERMISSION_OPTIONS = [
 ];
 
 function getMonthLabel(date = new Date()) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = new Date(date);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
   return `${y}-${m}`;
 }
 
@@ -90,6 +95,63 @@ function safePermissions(raw) {
     }
   }
   return [];
+}
+
+function formatDate(value) {
+  if (!value) return "-";
+  if (typeof value === "string") {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    if (value.includes("T")) return value.slice(0, 10);
+    return value;
+  }
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toISOString().slice(0, 10);
+}
+
+function formatMoney(value) {
+  return `${Number(value || 0).toLocaleString()} so‘m`;
+}
+
+function Modal({ open, onClose, title, children, wide = false }) {
+  if (!open) return null;
+
+  return (
+    <div className="modal-wrap">
+      <div className="modal-backdrop" onClick={onClose} />
+      <div className={`modal-card ${wide ? "wide" : ""}`}>
+        <div className="modal-head">
+          <h3>{title}</h3>
+          <button type="button" className="icon-btn" onClick={onClose}>
+            <X size={18} />
+          </button>
+        </div>
+        <div className="modal-body">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function IconActions({ onView, onEdit, onDelete }) {
+  return (
+    <div className="icon-actions">
+      {onView ? (
+        <button type="button" className="icon-btn" onClick={onView} title="Ko‘rish">
+          <Eye size={16} />
+        </button>
+      ) : null}
+      {onEdit ? (
+        <button type="button" className="icon-btn" onClick={onEdit} title="Tahrirlash">
+          <Pencil size={16} />
+        </button>
+      ) : null}
+      {onDelete ? (
+        <button type="button" className="icon-btn danger" onClick={onDelete} title="O‘chirish">
+          <Trash2 size={16} />
+        </button>
+      ) : null}
+    </div>
+  );
 }
 
 function Toast({ toast, onClose }) {
@@ -253,7 +315,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
 
   const thisMonthContent = (contentRows || []).filter((row) => {
     if (!row.publish_date) return false;
-    return String(row.publish_date).slice(0, 7) === currentMonth;
+    return formatDate(row.publish_date).slice(0, 7) === currentMonth;
   });
 
   const totalPlan = thisMonthContent.length;
@@ -261,7 +323,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   const progress = totalPlan ? Math.round((postedCount / totalPlan) * 100) : 0;
 
   const thisMonthBonus = (bonusItems || [])
-    .filter((row) => row.month_label === currentMonth)
+    .filter((row) => (row.month_label || formatDate(row.work_date).slice(0, 7)) === currentMonth)
     .reduce((sum, row) => sum + Number(row.total_amount || row.amount || 0), 0);
 
   return (
@@ -282,7 +344,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
         />
         <StatCard
           title="Joriy oy bonus puli"
-          value={`${thisMonthBonus.toLocaleString()} so‘m`}
+          value={formatMoney(thisMonthBonus)}
           hint={getMonthTitle(currentMonth)}
         />
         <StatCard
@@ -314,7 +376,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
               <tbody>
                 {(dailyReports || []).slice(0, 5).map((row) => (
                   <tr key={row.id}>
-                    <td>{row.report_date}</td>
+                    <td>{formatDate(row.report_date)}</td>
                     <td>{row.branch_name}</td>
                     <td>{row.stories_count}</td>
                     <td>{row.posts_count}</td>
@@ -341,10 +403,345 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   );
 }
 
+function ContentPage({ users = [], onToast, reload }) {
+  const [selectedMonth, setSelectedMonth] = useState(getMonthLabel());
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [bonusMode, setBonusMode] = useState(false);
+  const [viewRow, setViewRow] = useState(null);
+  const [editRow, setEditRow] = useState(null);
+
+  const emptyForm = {
+    title: "",
+    publish_date: "",
+    status: "reja",
+    platform_primary: "Instagram",
+    platform_secondary: "",
+    content_type: "post",
+    assigned_user_id: "",
+    editor_user_id: "",
+    face_voice_user_id: "",
+    proposal_count: "",
+    approved_count: ""
+  };
+
+  const [form, setForm] = useState(emptyForm);
+
+  const isVideo = form.content_type === "video";
+
+  async function loadMonth(monthValue = selectedMonth) {
+    try {
+      setLoading(true);
+      const data = await api.list(`/api/content?month=${monthValue}`);
+      const sorted = (data || []).sort((a, b) => {
+        const aDate = a.publish_date ? new Date(a.publish_date).getTime() : 0;
+        const bDate = b.publish_date ? new Date(b.publish_date).getTime() : 0;
+        return bDate - aDate;
+      });
+      setRows(sorted);
+    } catch (err) {
+      onToast(err.message || "Kontent rejani olib bo‘lmadi", "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadMonth(selectedMonth);
+  }, [selectedMonth]);
+
+  function setField(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function resetForm() {
+    setForm(emptyForm);
+    setBonusMode(false);
+    setEditRow(null);
+  }
+
+  function startEdit(row) {
+    setEditRow(row);
+    const platforms = String(row.platform || "").split(",").map((x) => x.trim()).filter(Boolean);
+    setForm({
+      title: row.title || "",
+      publish_date: formatDate(row.publish_date) === "-" ? "" : formatDate(row.publish_date),
+      status: row.status || "reja",
+      platform_primary: platforms[0] || "Instagram",
+      platform_secondary: platforms[1] || "",
+      content_type: row.content_type || "post",
+      assigned_user_id: row.assigned_user_id || "",
+      editor_user_id: row.video_editor_user_id || "",
+      face_voice_user_id: row.video_face_user_id || "",
+      proposal_count: row.proposal_count ?? "",
+      approved_count: row.approved_count ?? ""
+    });
+    setBonusMode(!!row.bonus_enabled);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+
+    if (bonusMode && !form.proposal_count) {
+      onToast("Taklif soni majburiy", "error");
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      const payload = {
+        title: form.title,
+        publish_date: form.publish_date || null,
+        status: form.status,
+        platform: [form.platform_primary, form.platform_secondary].filter(Boolean).join(", "),
+        content_type: form.content_type,
+        assigned_user_id: isVideo ? null : form.assigned_user_id || null,
+        video_editor_user_id: isVideo ? form.editor_user_id || null : null,
+        video_face_user_id: isVideo ? form.face_voice_user_id || null : null,
+        bonus_enabled: bonusMode,
+        proposal_count: bonusMode ? Number(form.proposal_count || 0) : 0,
+        approved_count: bonusMode ? Number(form.approved_count || 0) : 0,
+        notes: ""
+      };
+
+      if (editRow?.id) {
+        await api.update("content", editRow.id, payload);
+        onToast("Kontent reja yangilandi ✅", "success");
+      } else {
+        await api.create("content", payload);
+        onToast("Kontent reja saqlandi ✅", "success");
+      }
+
+      await loadMonth(selectedMonth);
+      await reload();
+      resetForm();
+    } catch (err) {
+      onToast(err.message || "Saqlashda xatolik", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeRow(id) {
+    const ok = window.confirm("Rostdan ham o‘chirilsinmi?");
+    if (!ok) return;
+
+    try {
+      await api.remove("content", id);
+      await loadMonth(selectedMonth);
+      await reload();
+      onToast("Kontent o‘chirildi", "success");
+    } catch (err) {
+      onToast(err.message || "O‘chirishda xatolik", "error");
+    }
+  }
+
+  return (
+    <div className="page-grid">
+      <div className="card">
+        <SectionTitle
+          title={editRow ? "Kontent rejani tahrirlash" : "Kontent reja yaratish"}
+          desc={`${getMonthTitle(selectedMonth)} uchun`}
+          right={
+            <div className="toolbar-actions">
+              <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>
+                ← Oldingi oy
+              </button>
+              <div className="summary-pill">
+                <strong>{getMonthTitle(selectedMonth)}</strong>
+              </div>
+              <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>
+                Keyingi oy →
+              </button>
+              {editRow ? (
+                <button type="button" className="btn secondary" onClick={resetForm}>
+                  Bekor qilish
+                </button>
+              ) : null}
+            </div>
+          }
+        />
+
+        <form className="form-grid" onSubmit={handleSubmit}>
+          <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
+          <label><span>Joylash sanasi</span><input type="date" value={form.publish_date} onChange={(e) => setField("publish_date", e.target.value)} required /></label>
+          <label>
+            <span>Holati</span>
+            <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
+              <option value="reja">Reja</option>
+              <option value="tayyorlanmoqda">Tayyorlanmoqda</option>
+              <option value="tayyor">Tayyor</option>
+              <option value="joylangan">Joylangan</option>
+              <option value="bekor_qilingan">Bekor qilingan</option>
+            </select>
+          </label>
+
+          <label>
+            <span>1-platforma</span>
+            <select value={form.platform_primary} onChange={(e) => setField("platform_primary", e.target.value)}>
+              <option value="Instagram">Instagram</option>
+              <option value="Telegram">Telegram</option>
+              <option value="YouTube">YouTube</option>
+              <option value="Facebook">Facebook</option>
+              <option value="TikTok">TikTok</option>
+            </select>
+          </label>
+
+          <label>
+            <span>2-platforma</span>
+            <select value={form.platform_secondary} onChange={(e) => setField("platform_secondary", e.target.value)}>
+              <option value="">Tanlanmagan</option>
+              <option value="Instagram">Instagram</option>
+              <option value="Telegram">Telegram</option>
+              <option value="YouTube">YouTube</option>
+              <option value="Facebook">Facebook</option>
+              <option value="TikTok">TikTok</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Kontent turi</span>
+            <select value={form.content_type} onChange={(e) => setField("content_type", e.target.value)}>
+              <option value="post">Post</option>
+              <option value="story">Story</option>
+              <option value="reels">Reels</option>
+              <option value="video">Video</option>
+              <option value="banner">Banner</option>
+            </select>
+          </label>
+
+          {isVideo ? (
+            <>
+              <label>
+                <span>Montaj kim qildi</span>
+                <select value={form.editor_user_id} onChange={(e) => setField("editor_user_id", e.target.value)}>
+                  <option value="">Tanlang</option>
+                  {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                </select>
+              </label>
+
+              <label>
+                <span>Face + ovoz kimniki</span>
+                <select value={form.face_voice_user_id} onChange={(e) => setField("face_voice_user_id", e.target.value)}>
+                  <option value="">Tanlang</option>
+                  {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                </select>
+              </label>
+            </>
+          ) : (
+            <label>
+              <span>Mas’ul shaxs</span>
+              <select value={form.assigned_user_id} onChange={(e) => setField("assigned_user_id", e.target.value)}>
+                <option value="">Tanlang</option>
+                {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+              </select>
+            </label>
+          )}
+
+          <label className="checkbox-row">
+            <input type="checkbox" checked={bonusMode} onChange={(e) => setBonusMode(e.target.checked)} />
+            <span>Bonusga o‘tkazish</span>
+          </label>
+
+          {bonusMode ? (
+            <>
+              <label><span>Taklif soni</span><input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required /></label>
+              <label><span>Tasdiq soni</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} /></label>
+            </>
+          ) : null}
+
+          <button className="btn primary" type="submit" disabled={saving}>
+            {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <SectionTitle
+          title={`${getMonthTitle(selectedMonth)} kontent rejasi`}
+          right={
+            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/content.xlsx", `content-${selectedMonth}.xlsx`)}>
+              Excel export
+            </button>
+          }
+        />
+
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Kontent nomi</th>
+                <th>Joylash sanasi</th>
+                <th>Holati</th>
+                <th>Platforma</th>
+                <th>Kontent turi</th>
+                <th>Mas’ul / Video</th>
+                <th>Bonus</th>
+                <th>Amallar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan="8" className="empty-cell">Yuklanmoqda...</td></tr>
+              ) : rows.length ? (
+                rows.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.title}</td>
+                    <td>{formatDate(row.publish_date)}</td>
+                    <td>{row.status}</td>
+                    <td>{row.platform || "-"}</td>
+                    <td>{row.content_type || "-"}</td>
+                    <td>
+                      {row.content_type === "video"
+                        ? `${row.video_editor_name || "-"} / ${row.video_face_name || "-"}`
+                        : row.assignee_name || "-"}
+                    </td>
+                    <td>{row.bonus_enabled ? "Ha" : "Yo‘q"}</td>
+                    <td>
+                      <IconActions
+                        onView={() => setViewRow(row)}
+                        onEdit={() => startEdit(row)}
+                        onDelete={() => removeRow(row.id)}
+                      />
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan="8" className="empty-cell">Bu oy uchun reja yo‘q</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kontent reja tafsiloti">
+        {viewRow ? (
+          <div className="detail-grid">
+            <div><strong>Kontent nomi:</strong> {viewRow.title}</div>
+            <div><strong>Sana:</strong> {formatDate(viewRow.publish_date)}</div>
+            <div><strong>Holati:</strong> {viewRow.status}</div>
+            <div><strong>Platforma:</strong> {viewRow.platform || "-"}</div>
+            <div><strong>Turi:</strong> {viewRow.content_type || "-"}</div>
+            <div><strong>Bonus:</strong> {viewRow.bonus_enabled ? "Ha" : "Yo‘q"}</div>
+            <div><strong>Taklif soni:</strong> {viewRow.proposal_count || 0}</div>
+            <div><strong>Tasdiq soni:</strong> {viewRow.approved_count || 0}</div>
+          </div>
+        ) : null}
+      </Modal>
+    </div>
+  );
+}
+
 function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload }) {
   const [monthFilter, setMonthFilter] = useState(getMonthLabel());
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
+  const [viewRow, setViewRow] = useState(null);
+  const [editRow, setEditRow] = useState(null);
+
+  const emptyForm = {
     title: "",
     work_date: "",
     content_type: "post",
@@ -354,18 +751,62 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
     branch_id: "",
     proposal_count: "",
     approved_count: ""
-  });
+  };
 
+  const [form, setForm] = useState(emptyForm);
   const isVideo = form.content_type === "video";
+
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const filteredItems = (bonusItems || []).filter((item) =>
-    monthFilter ? item.month_label === monthFilter : true
+  const filteredItems = bonusItems.filter((item) =>
+    monthFilter ? (item.month_label || formatDate(item.work_date).slice(0, 7)) === monthFilter : true
   );
 
   const totalProposalAmount = filteredItems.reduce((sum, item) => sum + Number(item.proposal_amount || 0), 0);
   const totalApprovedAmount = filteredItems.reduce((sum, item) => sum + Number(item.approved_amount || 0), 0);
   const totalAmount = filteredItems.reduce((sum, item) => sum + Number(item.total_amount || item.amount || 0), 0);
+
+  const employeeStatsMap = new Map();
+  filteredItems.forEach((item) => {
+    const add = (name, amount) => {
+      if (!name || name === "-") return;
+      if (!employeeStatsMap.has(name)) employeeStatsMap.set(name, 0);
+      employeeStatsMap.set(name, employeeStatsMap.get(name) + Number(amount || 0));
+    };
+
+    if (item.content_type === "video") {
+      const share = Number(item.total_amount || item.amount || 0);
+      add(item.video_editor_name || item.editor_name, share);
+      add(item.video_face_name || item.second_full_name, share);
+    } else {
+      add(item.full_name, Number(item.total_amount || item.amount || 0));
+    }
+  });
+
+  const employeeStats = [...employeeStatsMap.entries()]
+    .map(([name, amount]) => ({ name, amount }))
+    .sort((a, b) => b.amount - a.amount);
+
+  function resetForm() {
+    setForm(emptyForm);
+    setEditRow(null);
+  }
+
+  function startEdit(row) {
+    setEditRow(row);
+    setForm({
+      title: row.content_title || "",
+      work_date: formatDate(row.work_date) === "-" ? "" : formatDate(row.work_date),
+      content_type: row.content_type || "post",
+      user_id: row.user_id || "",
+      editor_user_id: row.video_editor_user_id || "",
+      face_voice_user_id: row.video_face_user_id || "",
+      branch_id: row.branch_id || "",
+      proposal_count: row.proposal_count ?? "",
+      approved_count: row.approved_count ?? ""
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -386,32 +827,37 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
         proposal_count: Number(form.proposal_count || 0),
         approved_count: Number(form.approved_count || 0),
         user_id: isVideo ? null : form.user_id || null,
-        second_user_id: isVideo ? form.face_voice_user_id || null : null,
         video_editor_user_id: isVideo ? form.editor_user_id || null : null,
         video_face_user_id: isVideo ? form.face_voice_user_id || null : null,
-        branch_id: isVideo ? form.branch_id || null : null
+        branch_id: form.branch_id || null
       };
 
-      await api.create("bonus-items", payload);
+      if (editRow?.id) {
+        await api.update("bonus-items", editRow.id, payload);
+        onToast("Bonus hisobot yangilandi ✅", "success");
+      } else {
+        await api.create("bonus-items", payload);
+        onToast("Bonus hisobot saqlandi ✅", "success");
+      }
+
       await reload();
-
-      setForm({
-        title: "",
-        work_date: "",
-        content_type: "post",
-        user_id: "",
-        editor_user_id: "",
-        face_voice_user_id: "",
-        branch_id: "",
-        proposal_count: "",
-        approved_count: ""
-      });
-
-      onToast("Bonus hisobot saqlandi ✅", "success");
+      resetForm();
     } catch (err) {
       onToast(err.message || "Saqlashda xatolik", "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function removeRow(id) {
+    const ok = window.confirm("Rostdan ham o‘chirilsinmi?");
+    if (!ok) return;
+    try {
+      await api.remove("bonus-items", id);
+      await reload();
+      onToast("Bonus yozuvi o‘chirildi", "success");
+    } catch (err) {
+      onToast(err.message || "O‘chirishda xatolik", "error");
     }
   }
 
@@ -425,10 +871,16 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
             <div className="toolbar-actions">
               <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
                 <option value={getMonthLabel()}>{getMonthTitle(getMonthLabel())}</option>
-                {[...new Set((bonusItems || []).map((i) => i.month_label).filter(Boolean))].map((m) => (
+                {[...new Set((bonusItems || []).map((i) => i.month_label || formatDate(i.work_date).slice(0, 7)).filter(Boolean))].map((m) => (
                   <option key={m} value={m}>{getMonthTitle(m)}</option>
                 ))}
               </select>
+
+              {editRow ? (
+                <button type="button" className="btn secondary" onClick={resetForm}>
+                  Bekor qilish
+                </button>
+              ) : null}
 
               <button
                 type="button"
@@ -442,26 +894,18 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
         />
 
         <div className="stats-grid">
-          <StatCard title="Taklif summasi" value={`${totalProposalAmount.toLocaleString()} so‘m`} hint="joriy oy" />
-          <StatCard title="Tasdiq summasi" value={`${totalApprovedAmount.toLocaleString()} so‘m`} hint="joriy oy" />
-          <StatCard title="Jami bonus" value={`${totalAmount.toLocaleString()} so‘m`} hint={getMonthTitle(monthFilter)} />
+          <StatCard title="Taklif summasi" value={formatMoney(totalProposalAmount)} hint="joriy oy" />
+          <StatCard title="Tasdiq summasi" value={formatMoney(totalApprovedAmount)} hint="joriy oy" />
+          <StatCard title="Jami bonus" value={formatMoney(totalAmount)} hint={getMonthTitle(monthFilter)} />
           <StatCard title="Yozuvlar soni" value={filteredItems.length} hint="bonus hisobotlar" />
         </div>
       </div>
 
       <div className="card">
-        <SectionTitle title="Hisobot qo‘shish" />
+        <SectionTitle title={editRow ? "Bonus hisobotni tahrirlash" : "Hisobot qo‘shish"} />
         <form className="form-grid" onSubmit={handleSubmit}>
-          <label>
-            <span>Kontent nomi</span>
-            <input value={form.title} onChange={(e) => setField("title", e.target.value)} required />
-          </label>
-
-          <label>
-            <span>Joylangan sanasi</span>
-            <input type="date" value={form.work_date} onChange={(e) => setField("work_date", e.target.value)} required />
-          </label>
-
+          <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
+          <label><span>Joylangan sanasi</span><input type="date" value={form.work_date} onChange={(e) => setField("work_date", e.target.value)} required /></label>
           <label>
             <span>Kontent turi</span>
             <select value={form.content_type} onChange={(e) => setField("content_type", e.target.value)}>
@@ -490,14 +934,6 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
                   {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
                 </select>
               </label>
-
-              <label>
-                <span>Qaysi filial kontenti</span>
-                <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)}>
-                  <option value="">Tanlang</option>
-                  {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-                </select>
-              </label>
             </>
           ) : (
             <label>
@@ -510,19 +946,46 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
           )}
 
           <label>
-            <span>Taklif soni</span>
-            <input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required />
+            <span>Filial</span>
+            <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)}>
+              <option value="">Tanlang</option>
+              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
           </label>
 
-          <label>
-            <span>Tasdiq soni</span>
-            <input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} />
-          </label>
+          <label><span>Taklif soni</span><input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required /></label>
+          <label><span>Tasdiq soni</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} /></label>
 
           <button className="btn primary" type="submit" disabled={saving}>
-            {saving ? "Saqlanmoqda..." : "Hisobotni saqlash"}
+            {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Hisobotni saqlash"}
           </button>
         </form>
+      </div>
+
+      <div className="card">
+        <SectionTitle title="Hodim bo‘yicha bonus summalari" />
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Hodim</th>
+                <th>Jami bonus</th>
+              </tr>
+            </thead>
+            <tbody>
+              {employeeStats.length ? (
+                employeeStats.map((row, idx) => (
+                  <tr key={`${row.name}-${idx}`}>
+                    <td>{row.name}</td>
+                    <td>{formatMoney(row.amount)}</td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan="2" className="empty-cell">Bu oy uchun bonus yo‘q</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div className="card">
@@ -534,13 +997,11 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
                 <th>Kontent nomi</th>
                 <th>Sana</th>
                 <th>Turi</th>
-                <th>Montaj</th>
-                <th>Face+ovoz</th>
-                <th>Hodim</th>
-                <th>Filial</th>
+                <th>Hodim / Video</th>
                 <th>Taklif</th>
                 <th>Tasdiq</th>
                 <th>Jami</th>
+                <th>Amallar</th>
               </tr>
             </thead>
             <tbody>
@@ -548,58 +1009,102 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
                 filteredItems.map((row) => (
                   <tr key={row.id}>
                     <td>{row.content_title || "-"}</td>
-                    <td>{row.work_date || "-"}</td>
+                    <td>{formatDate(row.work_date)}</td>
                     <td>{row.content_type || "-"}</td>
-                    <td>{row.video_editor_name || "-"}</td>
-                    <td>{row.second_full_name || row.video_face_name || "-"}</td>
-                    <td>{row.full_name || "-"}</td>
-                    <td>{row.branch_name || "-"}</td>
+                    <td>
+                      {row.content_type === "video"
+                        ? `${row.video_editor_name || "-"} / ${row.video_face_name || "-"}`
+                        : row.full_name || "-"}
+                    </td>
                     <td>{row.proposal_count || 0}</td>
                     <td>{row.approved_count || 0}</td>
-                    <td>{Number(row.total_amount || row.amount || 0).toLocaleString()} so‘m</td>
+                    <td>{formatMoney(row.total_amount || row.amount || 0)}</td>
+                    <td>
+                      <IconActions
+                        onView={() => setViewRow(row)}
+                        onEdit={() => startEdit(row)}
+                        onDelete={() => removeRow(row.id)}
+                      />
+                    </td>
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="10" className="empty-cell">Bu oy uchun bonus yozuvi yo‘q</td></tr>
+                <tr><td colSpan="8" className="empty-cell">Bu oy uchun bonus yozuvi yo‘q</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Bonus yozuvi tafsiloti">
+        {viewRow ? (
+          <div className="detail-grid">
+            <div><strong>Kontent nomi:</strong> {viewRow.content_title || "-"}</div>
+            <div><strong>Sana:</strong> {formatDate(viewRow.work_date)}</div>
+            <div><strong>Turi:</strong> {viewRow.content_type || "-"}</div>
+            <div><strong>Taklif:</strong> {viewRow.proposal_count || 0}</div>
+            <div><strong>Tasdiq:</strong> {viewRow.approved_count || 0}</div>
+            <div><strong>Jami:</strong> {formatMoney(viewRow.total_amount || viewRow.amount || 0)}</div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
 
-function DailyReportsPage({ reports = [], branches = [], users = [], onToast, reload }) {
-  const [form, setForm] = useState({
+function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
+  const [saving, setSaving] = useState(false);
+  const [filterDate, setFilterDate] = useState("");
+  const [viewRow, setViewRow] = useState(null);
+  const [editRow, setEditRow] = useState(null);
+
+  const emptyForm = {
     report_date: "",
     branch_id: "",
-    user_id: "",
     stories_count: 0,
     posts_count: 0,
     reels_count: 0,
     notes: ""
-  });
-  const [saving, setSaving] = useState(false);
+  };
 
+  const [form, setForm] = useState(emptyForm);
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const filteredReports = filterDate
+    ? reports.filter((row) => formatDate(row.report_date) === filterDate)
+    : reports;
+
+  function resetForm() {
+    setForm(emptyForm);
+    setEditRow(null);
+  }
+
+  function startEdit(row) {
+    setEditRow(row);
+    setForm({
+      report_date: formatDate(row.report_date) === "-" ? "" : formatDate(row.report_date),
+      branch_id: row.branch_id || "",
+      stories_count: row.stories_count || 0,
+      posts_count: row.posts_count || 0,
+      reels_count: row.reels_count || 0,
+      notes: row.notes || ""
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
     try {
       setSaving(true);
-      await api.create("daily-reports", form);
+      if (editRow?.id) {
+        await api.update("daily-reports", editRow.id, form);
+        onToast("Hisobot yangilandi ✅", "success");
+      } else {
+        await api.create("daily-reports", form);
+        onToast("Saqlandi ✅", "success");
+      }
       await reload();
-      onToast("Saqlandi ✅", "success");
-      setForm({
-        report_date: "",
-        branch_id: "",
-        user_id: "",
-        stories_count: 0,
-        posts_count: 0,
-        reels_count: 0,
-        notes: ""
-      });
+      resetForm();
     } catch (err) {
       onToast(err.message || "Xatolik yuz berdi", "error");
     } finally {
@@ -607,12 +1112,43 @@ function DailyReportsPage({ reports = [], branches = [], users = [], onToast, re
     }
   }
 
+  async function removeRow(id) {
+    const ok = window.confirm("Rostdan ham o‘chirilsinmi?");
+    if (!ok) return;
+    try {
+      await api.remove("daily-reports", id);
+      await reload();
+      onToast("Hisobot o‘chirildi", "success");
+    } catch (err) {
+      onToast(err.message || "O‘chirishda xatolik", "error");
+    }
+  }
+
   return (
     <div className="page-grid">
       <div className="card">
-        <SectionTitle title="Kunlik filial hisobotlari" />
+        <SectionTitle
+          title={editRow ? "Kunlik hisobotni tahrirlash" : "Kunlik filial hisobotlari"}
+          right={
+            <div className="toolbar-actions">
+              {editRow ? (
+                <button type="button" className="btn secondary" onClick={resetForm}>
+                  Bekor qilish
+                </button>
+              ) : null}
+              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/daily-reports.xlsx", "daily-reports.xlsx")}>
+                Excel export
+              </button>
+              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/daily-reports.pdf", "daily-reports.pdf")}>
+                PDF export
+              </button>
+            </div>
+          }
+        />
+
         <form className="form-grid" onSubmit={handleSubmit}>
           <label><span>Sana</span><input type="date" value={form.report_date} onChange={(e) => setField("report_date", e.target.value)} required /></label>
+
           <label>
             <span>Filial</span>
             <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)} required>
@@ -620,49 +1156,53 @@ function DailyReportsPage({ reports = [], branches = [], users = [], onToast, re
               {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </label>
-          <label>
-            <span>Hodim</span>
-            <select value={form.user_id} onChange={(e) => setField("user_id", e.target.value)}>
-              <option value="">Tanlang</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-            </select>
-          </label>
+
           <label><span>Stories</span><input type="number" min="0" value={form.stories_count} onChange={(e) => setField("stories_count", Number(e.target.value))} /></label>
           <label><span>Post</span><input type="number" min="0" value={form.posts_count} onChange={(e) => setField("posts_count", Number(e.target.value))} /></label>
           <label><span>Reels</span><input type="number" min="0" value={form.reels_count} onChange={(e) => setField("reels_count", Number(e.target.value))} /></label>
           <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
+
           <button className="btn primary" type="submit" disabled={saving}>
-            {saving ? "Saqlanmoqda..." : "Hisobotni saqlash"}
+            {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Hisobotni saqlash"}
           </button>
         </form>
       </div>
 
       <div className="card">
-        <SectionTitle title="Kiritilgan hisobotlar" />
+        <SectionTitle
+          title="Kiritilgan hisobotlar"
+          right={<input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />}
+        />
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Sana</th>
                 <th>Filial</th>
-                <th>Hodim</th>
                 <th>Stories</th>
                 <th>Post</th>
                 <th>Reels</th>
                 <th>Izoh</th>
+                <th>Amallar</th>
               </tr>
             </thead>
             <tbody>
-              {reports.length ? (
-                reports.map((row) => (
+              {filteredReports.length ? (
+                filteredReports.map((row) => (
                   <tr key={row.id}>
-                    <td>{row.report_date}</td>
+                    <td>{formatDate(row.report_date)}</td>
                     <td>{row.branch_name}</td>
-                    <td>{row.user_name}</td>
                     <td>{row.stories_count}</td>
                     <td>{row.posts_count}</td>
                     <td>{row.reels_count}</td>
                     <td>{row.notes || "-"}</td>
+                    <td>
+                      <IconActions
+                        onView={() => setViewRow(row)}
+                        onEdit={() => startEdit(row)}
+                        onDelete={() => removeRow(row.id)}
+                      />
+                    </td>
                   </tr>
                 ))
               ) : (
@@ -672,6 +1212,208 @@ function DailyReportsPage({ reports = [], branches = [], users = [], onToast, re
           </table>
         </div>
       </div>
+
+      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Hisobot tafsiloti">
+        {viewRow ? (
+          <div className="detail-grid">
+            <div><strong>Sana:</strong> {formatDate(viewRow.report_date)}</div>
+            <div><strong>Filial:</strong> {viewRow.branch_name}</div>
+            <div><strong>Stories:</strong> {viewRow.stories_count}</div>
+            <div><strong>Post:</strong> {viewRow.posts_count}</div>
+            <div><strong>Reels:</strong> {viewRow.reels_count}</div>
+            <div><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
+          </div>
+        ) : null}
+      </Modal>
+    </div>
+  );
+}
+
+function CampaignsPage({ campaigns = [], onToast, reload }) {
+  const [saving, setSaving] = useState(false);
+  const [viewRow, setViewRow] = useState(null);
+  const [editRow, setEditRow] = useState(null);
+
+  const emptyForm = {
+    title: "",
+    platform: "",
+    start_date: "",
+    end_date: "",
+    budget: 0,
+    spend: 0,
+    leads: 0,
+    sales: 0,
+    ctr: 0,
+    revenue_amount: 0,
+    status: "active",
+    notes: ""
+  };
+
+  const [form, setForm] = useState(emptyForm);
+  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  function resetForm() {
+    setForm(emptyForm);
+    setEditRow(null);
+  }
+
+  function startEdit(row) {
+    setEditRow(row);
+    setForm({
+      title: row.title || "",
+      platform: row.platform || "",
+      start_date: formatDate(row.start_date) === "-" ? "" : formatDate(row.start_date),
+      end_date: formatDate(row.end_date) === "-" ? "" : formatDate(row.end_date),
+      budget: row.budget || 0,
+      spend: row.spend || 0,
+      leads: row.leads || 0,
+      sales: row.sales || 0,
+      ctr: row.ctr || 0,
+      revenue_amount: row.revenue_amount || 0,
+      status: row.status || "active",
+      notes: row.notes || ""
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    try {
+      setSaving(true);
+      if (editRow?.id) {
+        await api.update("campaigns", editRow.id, form);
+        onToast("Kampaniya yangilandi ✅", "success");
+      } else {
+        await api.create("campaigns", form);
+        onToast("Kampaniya saqlandi ✅", "success");
+      }
+      await reload();
+      resetForm();
+    } catch (err) {
+      onToast(err.message || "Xatolik yuz berdi", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeRow(id) {
+    const ok = window.confirm("Rostdan ham o‘chirilsinmi?");
+    if (!ok) return;
+    try {
+      await api.remove("campaigns", id);
+      await reload();
+      onToast("Kampaniya o‘chirildi", "success");
+    } catch (err) {
+      onToast(err.message || "O‘chirishda xatolik", "error");
+    }
+  }
+
+  return (
+    <div className="page-grid">
+      <div className="card">
+        <SectionTitle
+          title={editRow ? "Reklama kampaniyasini tahrirlash" : "Reklama kampaniyasi"}
+          right={
+            <div className="toolbar-actions">
+              {editRow ? (
+                <button type="button" className="btn secondary" onClick={resetForm}>
+                  Bekor qilish
+                </button>
+              ) : null}
+              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/campaigns.xlsx", "campaigns.xlsx")}>
+                Excel export
+              </button>
+            </div>
+          }
+        />
+        <form className="form-grid" onSubmit={handleSubmit}>
+          <label><span>Kampaniya nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
+          <label><span>Platforma</span><input value={form.platform} onChange={(e) => setField("platform", e.target.value)} required /></label>
+          <label><span>Start sana</span><input type="date" value={form.start_date} onChange={(e) => setField("start_date", e.target.value)} /></label>
+          <label><span>End sana</span><input type="date" value={form.end_date} onChange={(e) => setField("end_date", e.target.value)} /></label>
+          <label><span>Byudjet</span><input type="number" value={form.budget} onChange={(e) => setField("budget", Number(e.target.value))} /></label>
+          <label><span>Sarf</span><input type="number" value={form.spend} onChange={(e) => setField("spend", Number(e.target.value))} /></label>
+          <label><span>Lead</span><input type="number" value={form.leads} onChange={(e) => setField("leads", Number(e.target.value))} /></label>
+          <label><span>Sotuv</span><input type="number" value={form.sales} onChange={(e) => setField("sales", Number(e.target.value))} /></label>
+          <label><span>CTR</span><input type="number" value={form.ctr} onChange={(e) => setField("ctr", Number(e.target.value))} /></label>
+          <label><span>Daromad</span><input type="number" value={form.revenue_amount} onChange={(e) => setField("revenue_amount", Number(e.target.value))} /></label>
+          <label>
+            <span>Status</span>
+            <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
+              <option value="active">active</option>
+              <option value="paused">paused</option>
+              <option value="done">done</option>
+            </select>
+          </label>
+          <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
+          <button className="btn primary" type="submit" disabled={saving}>
+            {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Kampaniya qo‘shish"}
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <SectionTitle title="Kampaniyalar ro‘yxati" />
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Kampaniya</th>
+                <th>Platforma</th>
+                <th>Byudjet</th>
+                <th>Sarf</th>
+                <th>ROI</th>
+                <th>CTR</th>
+                <th>CPA</th>
+                <th>Status</th>
+                <th>Amallar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {campaigns.length ? (
+                campaigns.map((row) => (
+                  <tr key={row.id}>
+                    <td>{row.title}</td>
+                    <td>{row.platform}</td>
+                    <td>{row.budget}</td>
+                    <td>{row.spend}</td>
+                    <td>{row.roi}</td>
+                    <td>{row.ctr}</td>
+                    <td>{row.cpa}</td>
+                    <td>{row.status}</td>
+                    <td>
+                      <IconActions
+                        onView={() => setViewRow(row)}
+                        onEdit={() => startEdit(row)}
+                        onDelete={() => removeRow(row.id)}
+                      />
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan="9" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kampaniya tafsiloti">
+        {viewRow ? (
+          <div className="detail-grid">
+            <div><strong>Nomi:</strong> {viewRow.title}</div>
+            <div><strong>Platforma:</strong> {viewRow.platform}</div>
+            <div><strong>Start:</strong> {formatDate(viewRow.start_date)}</div>
+            <div><strong>End:</strong> {formatDate(viewRow.end_date)}</div>
+            <div><strong>Byudjet:</strong> {viewRow.budget}</div>
+            <div><strong>Sarf:</strong> {viewRow.spend}</div>
+            <div><strong>Lead:</strong> {viewRow.leads}</div>
+            <div><strong>Sotuv:</strong> {viewRow.sales}</div>
+            <div><strong>CTR:</strong> {viewRow.ctr}</div>
+            <div><strong>Status:</strong> {viewRow.status}</div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
@@ -679,6 +1421,12 @@ function DailyReportsPage({ reports = [], branches = [], users = [], onToast, re
 function MediaPage({ uploads = [], onToast, reload }) {
   const [file, setFile] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [viewRow, setViewRow] = useState(null);
+  const [typeFilter, setTypeFilter] = useState("");
+
+  const filteredUploads = typeFilter
+    ? uploads.filter((u) => String(u.mime_type || "").toLowerCase().includes(typeFilter))
+    : uploads;
 
   async function handleUpload(e) {
     e.preventDefault();
@@ -699,13 +1447,43 @@ function MediaPage({ uploads = [], onToast, reload }) {
     }
   }
 
+  async function removeRow(id) {
+    const ok = window.confirm("Rostdan ham o‘chirilsinmi?");
+    if (!ok) return;
+    try {
+      await api.remove("uploads", id);
+      await reload();
+      onToast("Fayl o‘chirildi", "success");
+    } catch (err) {
+      onToast(err.message || "O‘chirishda xatolik", "error");
+    }
+  }
+
+  function isImage(mime) {
+    return String(mime || "").startsWith("image/");
+  }
+
   return (
     <div className="page-grid">
       <div className="card">
-        <SectionTitle title="Media kutubxona" />
+        <SectionTitle
+          title="Media kutubxona"
+          right={
+            <div className="toolbar-actions">
+              <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
+                <option value="">Barcha turlar</option>
+                <option value="image">Rasm</option>
+                <option value="video">Video</option>
+                <option value="pdf">PDF</option>
+                <option value="sheet">Excel</option>
+              </select>
+            </div>
+          }
+        />
         <form className="upload-row" onSubmit={handleUpload}>
           <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
           <button className="btn primary" type="submit" disabled={!file || saving}>
+            <Upload size={16} />
             {saving ? "Yuklanmoqda..." : "Yuklash"}
           </button>
         </form>
@@ -713,33 +1491,57 @@ function MediaPage({ uploads = [], onToast, reload }) {
 
       <div className="card">
         <SectionTitle title="Yuklangan fayllar" />
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Fayl</th>
-                <th>Turi</th>
-                <th>Hajmi</th>
-                <th>Link</th>
-              </tr>
-            </thead>
-            <tbody>
-              {uploads.length ? (
-                uploads.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.original_name}</td>
-                    <td>{row.mime_type}</td>
-                    <td>{row.file_size}</td>
-                    <td><a href={row.file_url} target="_blank" rel="noreferrer">Ochish</a></td>
-                  </tr>
-                ))
-              ) : (
-                <tr><td colSpan="4" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
-              )}
-            </tbody>
-          </table>
+        <div className="media-grid">
+          {filteredUploads.length ? filteredUploads.map((row) => (
+            <div className="media-card" key={row.id}>
+              <div className="media-preview">
+                {isImage(row.mime_type) ? (
+                  <img src={row.file_url} alt={row.original_name} />
+                ) : (
+                  <div className="media-fallback">{row.mime_type || "file"}</div>
+                )}
+              </div>
+              <div className="media-info">
+                <div className="media-name">{row.original_name}</div>
+                <div className="media-meta">{row.mime_type}</div>
+                <div className="media-meta">{row.file_size}</div>
+              </div>
+              <div className="media-actions">
+                <IconActions
+                  onView={() => setViewRow(row)}
+                  onEdit={null}
+                  onDelete={() => removeRow(row.id)}
+                />
+                <a className="btn tiny secondary" href={row.file_url} target="_blank" rel="noreferrer">
+                  Ochish
+                </a>
+              </div>
+            </div>
+          )) : (
+            <div className="empty-block">Hozircha media yo‘q</div>
+          )}
         </div>
       </div>
+
+      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Media tafsiloti" wide>
+        {viewRow ? (
+          <div className="media-modal">
+            {isImage(viewRow.mime_type) ? (
+              <img src={viewRow.file_url} alt={viewRow.original_name} className="media-modal-image" />
+            ) : (
+              <a href={viewRow.file_url} target="_blank" rel="noreferrer" className="btn secondary">
+                Faylni ochish
+              </a>
+            )}
+            <div className="detail-grid">
+              <div><strong>Nomi:</strong> {viewRow.original_name}</div>
+              <div><strong>Turi:</strong> {viewRow.mime_type}</div>
+              <div><strong>Hajmi:</strong> {viewRow.file_size}</div>
+              <div><strong>Link:</strong> {viewRow.file_url}</div>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
@@ -759,6 +1561,7 @@ function UsersPage({ users = [], onToast, reload }) {
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [viewRow, setViewRow] = useState(null);
 
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -785,6 +1588,7 @@ function UsersPage({ users = [], onToast, reload }) {
       department_role: row.department_role || "",
       permissions_json: safePermissions(row.permissions_json)
     });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function resetForm() {
@@ -842,6 +1646,18 @@ function UsersPage({ users = [], onToast, reload }) {
     }
   }
 
+  async function removeRow(id) {
+    const ok = window.confirm("Rostdan ham o‘chirilsinmi?");
+    if (!ok) return;
+    try {
+      await api.remove("users", id);
+      await reload();
+      onToast("Hodim o‘chirildi", "success");
+    } catch (err) {
+      onToast(err.message || "O‘chirishda xatolik", "error");
+    }
+  }
+
   return (
     <div className="page-grid">
       <div className="card">
@@ -888,7 +1704,9 @@ function UsersPage({ users = [], onToast, reload }) {
           {!editingId ? (
             <label><span>Profil rasmi linki</span><input value={form.avatar_url} onChange={(e) => setField("avatar_url", e.target.value)} placeholder="https://..." /></label>
           ) : (
-            <div />
+            <div className="avatar-preview-box">
+              {form.avatar_url ? <img src={form.avatar_url} alt="avatar" className="avatar-preview" /> : <div className="avatar-empty">Avatar</div>}
+            </div>
           )}
 
           <div className="full-col permission-box">
@@ -919,12 +1737,12 @@ function UsersPage({ users = [], onToast, reload }) {
           <table>
             <thead>
               <tr>
+                <th>Avatar</th>
                 <th>Ism</th>
                 <th>Telefon</th>
                 <th>Login</th>
                 <th>Rol</th>
                 <th>Lavozim</th>
-                <th>Ruxsatlar</th>
                 <th>Holat</th>
                 <th>Amallar</th>
               </tr>
@@ -933,16 +1751,26 @@ function UsersPage({ users = [], onToast, reload }) {
               {users.length ? (
                 users.map((row) => (
                   <tr key={row.id}>
+                    <td>
+                      {row.avatar_url ? (
+                        <img src={row.avatar_url} alt={row.full_name} className="table-avatar" />
+                      ) : (
+                        <div className="table-avatar empty">?</div>
+                      )}
+                    </td>
                     <td>{row.full_name}</td>
                     <td>{row.phone}</td>
                     <td>{row.login || "-"}</td>
                     <td>{row.role}</td>
                     <td>{row.department_role || "-"}</td>
-                    <td>{safePermissions(row.permissions_json).join(", ") || "-"}</td>
                     <td>{row.is_active ? "Faol" : "Bloklangan"}</td>
                     <td>
                       <div className="table-actions">
-                        <button type="button" className="btn tiny" onClick={() => startEdit(row)}>Tahrirlash</button>
+                        <IconActions
+                          onView={() => setViewRow(row)}
+                          onEdit={() => startEdit(row)}
+                          onDelete={() => removeRow(row.id)}
+                        />
                         <button type="button" className="btn tiny" onClick={() => resetPassword(row.id)}>Parol reset</button>
                         <button type="button" className="btn tiny secondary" onClick={() => toggleActive(row.id)}>
                           {row.is_active ? "Bloklash" : "Faollashtirish"}
@@ -958,54 +1786,93 @@ function UsersPage({ users = [], onToast, reload }) {
           </table>
         </div>
       </div>
+
+      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Hodim tafsiloti">
+        {viewRow ? (
+          <div className="detail-grid">
+            <div><strong>Ism:</strong> {viewRow.full_name}</div>
+            <div><strong>Telefon:</strong> {viewRow.phone}</div>
+            <div><strong>Login:</strong> {viewRow.login || "-"}</div>
+            <div><strong>Rol:</strong> {viewRow.role}</div>
+            <div><strong>Lavozim:</strong> {viewRow.department_role || "-"}</div>
+            <div><strong>Holat:</strong> {viewRow.is_active ? "Faol" : "Bloklangan"}</div>
+            <div className="full-col"><strong>Ruxsatlar:</strong> {safePermissions(viewRow.permissions_json).join(", ") || "-"}</div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
 
-function CampaignsPage({ campaigns = [], onToast, reload }) {
-  const [form, setForm] = useState({
-    title: "",
-    platform: "",
-    start_date: "",
-    end_date: "",
-    budget: 0,
-    spend: 0,
-    leads: 0,
-    sales: 0,
-    ctr: 0,
-    revenue_amount: 0,
-    status: "active",
-    notes: ""
-  });
+function TasksPage({ tasks = [], users = [], onToast, reload }) {
   const [saving, setSaving] = useState(false);
+  const [filterDate, setFilterDate] = useState("");
+  const [viewRow, setViewRow] = useState(null);
+  const [editRow, setEditRow] = useState(null);
 
+  const emptyForm = {
+    title: "",
+    description: "",
+    status: "todo",
+    priority: "medium",
+    due_date: "",
+    assignee_user_id: ""
+  };
+
+  const [form, setForm] = useState(emptyForm);
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  async function handleCreate(e) {
+  const filteredTasks = filterDate
+    ? tasks.filter((row) => formatDate(row.due_date) === filterDate)
+    : tasks;
+
+  function resetForm() {
+    setForm(emptyForm);
+    setEditRow(null);
+  }
+
+  function startEdit(row) {
+    setEditRow(row);
+    setForm({
+      title: row.title || "",
+      description: row.description || "",
+      status: row.status || "todo",
+      priority: row.priority || "medium",
+      due_date: formatDate(row.due_date) === "-" ? "" : formatDate(row.due_date),
+      assignee_user_id: row.assignee_user_id || ""
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function handleSubmit(e) {
     e.preventDefault();
     try {
       setSaving(true);
-      await api.create("campaigns", form);
+      if (editRow?.id) {
+        await api.update("tasks", editRow.id, form);
+        onToast("Vazifa yangilandi ✅", "success");
+      } else {
+        await api.create("tasks", form);
+        onToast("Vazifa saqlandi ✅", "success");
+      }
       await reload();
-      onToast("Kampaniya saqlandi ✅", "success");
-      setForm({
-        title: "",
-        platform: "",
-        start_date: "",
-        end_date: "",
-        budget: 0,
-        spend: 0,
-        leads: 0,
-        sales: 0,
-        ctr: 0,
-        revenue_amount: 0,
-        status: "active",
-        notes: ""
-      });
+      resetForm();
     } catch (err) {
       onToast(err.message || "Xatolik yuz berdi", "error");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function removeRow(id) {
+    const ok = window.confirm("Rostdan ham o‘chirilsinmi?");
+    if (!ok) return;
+    try {
+      await api.remove("tasks", id);
+      await reload();
+      onToast("Vazifa o‘chirildi", "success");
+    } catch (err) {
+      onToast(err.message || "O‘chirishda xatolik", "error");
     }
   }
 
@@ -1013,120 +1880,10 @@ function CampaignsPage({ campaigns = [], onToast, reload }) {
     <div className="page-grid">
       <div className="card">
         <SectionTitle
-          title="Reklama kampaniyasi"
-          right={
-            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/campaigns.xlsx", "campaigns.xlsx")}>
-              Excel export
-            </button>
-          }
+          title={editRow ? "Vazifani tahrirlash" : "Vazifa yaratish"}
+          right={editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null}
         />
-        <form className="form-grid" onSubmit={handleCreate}>
-          <label><span>Kampaniya nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
-          <label><span>Platforma</span><input value={form.platform} onChange={(e) => setField("platform", e.target.value)} required /></label>
-          <label><span>Start sana</span><input type="date" value={form.start_date} onChange={(e) => setField("start_date", e.target.value)} /></label>
-          <label><span>End sana</span><input type="date" value={form.end_date} onChange={(e) => setField("end_date", e.target.value)} /></label>
-          <label><span>Byudjet</span><input type="number" value={form.budget} onChange={(e) => setField("budget", Number(e.target.value))} /></label>
-          <label><span>Sarf</span><input type="number" value={form.spend} onChange={(e) => setField("spend", Number(e.target.value))} /></label>
-          <label><span>Lead</span><input type="number" value={form.leads} onChange={(e) => setField("leads", Number(e.target.value))} /></label>
-          <label><span>Sotuv</span><input type="number" value={form.sales} onChange={(e) => setField("sales", Number(e.target.value))} /></label>
-          <label><span>CTR</span><input type="number" value={form.ctr} onChange={(e) => setField("ctr", Number(e.target.value))} /></label>
-          <label><span>Daromad</span><input type="number" value={form.revenue_amount} onChange={(e) => setField("revenue_amount", Number(e.target.value))} /></label>
-          <label>
-            <span>Status</span>
-            <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
-              <option value="active">active</option>
-              <option value="paused">paused</option>
-              <option value="done">done</option>
-            </select>
-          </label>
-          <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
-          <button className="btn primary" type="submit" disabled={saving}>
-            {saving ? "Saqlanmoqda..." : "Kampaniya qo‘shish"}
-          </button>
-        </form>
-      </div>
-
-      <div className="card">
-        <SectionTitle title="Kampaniyalar ro‘yxati" />
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Kampaniya</th>
-                <th>Platforma</th>
-                <th>Byudjet</th>
-                <th>Sarf</th>
-                <th>ROI</th>
-                <th>CTR</th>
-                <th>CPA</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {campaigns.length ? (
-                campaigns.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.title}</td>
-                    <td>{row.platform}</td>
-                    <td>{row.budget}</td>
-                    <td>{row.spend}</td>
-                    <td>{row.roi}</td>
-                    <td>{row.ctr}</td>
-                    <td>{row.cpa}</td>
-                    <td>{row.status}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr><td colSpan="8" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function TasksPage({ tasks = [], users = [], onToast, reload }) {
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    status: "todo",
-    priority: "medium",
-    due_date: "",
-    assignee_user_id: ""
-  });
-  const [saving, setSaving] = useState(false);
-
-  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
-
-  async function handleCreate(e) {
-    e.preventDefault();
-    try {
-      setSaving(true);
-      await api.create("tasks", form);
-      await reload();
-      onToast("Vazifa saqlandi ✅", "success");
-      setForm({
-        title: "",
-        description: "",
-        status: "todo",
-        priority: "medium",
-        due_date: "",
-        assignee_user_id: ""
-      });
-    } catch (err) {
-      onToast(err.message || "Xatolik yuz berdi", "error");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <div className="page-grid">
-      <div className="card">
-        <SectionTitle title="Vazifa yaratish" />
-        <form className="form-grid" onSubmit={handleCreate}>
+        <form className="form-grid" onSubmit={handleSubmit}>
           <label><span>Vazifa</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
           <label>
             <span>Status</span>
@@ -1154,13 +1911,13 @@ function TasksPage({ tasks = [], users = [], onToast, reload }) {
           </label>
           <label className="full-col"><span>Izoh</span><input value={form.description} onChange={(e) => setField("description", e.target.value)} /></label>
           <button className="btn primary" type="submit" disabled={saving}>
-            {saving ? "Saqlanmoqda..." : "Vazifa qo‘shish"}
+            {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Vazifa qo‘shish"}
           </button>
         </form>
       </div>
 
       <div className="card">
-        <SectionTitle title="Vazifalar ro‘yxati" />
+        <SectionTitle title="Vazifalar ro‘yxati" right={<input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />} />
         <div className="table-wrap">
           <table>
             <thead>
@@ -1170,291 +1927,47 @@ function TasksPage({ tasks = [], users = [], onToast, reload }) {
                 <th>Muhimlik</th>
                 <th>Muddat</th>
                 <th>Mas’ul</th>
+                <th>Amallar</th>
               </tr>
             </thead>
             <tbody>
-              {tasks.length ? (
-                tasks.map((row) => (
+              {filteredTasks.length ? (
+                filteredTasks.map((row) => (
                   <tr key={row.id}>
                     <td>{row.title}</td>
                     <td>{row.status}</td>
                     <td>{row.priority}</td>
-                    <td>{row.due_date || "-"}</td>
+                    <td>{formatDate(row.due_date)}</td>
                     <td>{row.assignee_name || "-"}</td>
-                  </tr>
-                ))
-              ) : (
-                <tr><td colSpan="5" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function ContentPage({ users = [], onToast, reload }) {
-  const [selectedMonth, setSelectedMonth] = useState(getMonthLabel());
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [bonusMode, setBonusMode] = useState(false);
-
-  const [form, setForm] = useState({
-    title: "",
-    publish_date: "",
-    status: "reja",
-    platform_primary: "Instagram",
-    platform_secondary: "",
-    content_type: "post",
-    editor_user_id: "",
-    face_voice_user_id: "",
-    proposal_count: "",
-    approved_count: ""
-  });
-
-  async function loadMonth(monthValue = selectedMonth) {
-    try {
-      setLoading(true);
-      const data = await api.list(`/api/content?month=${monthValue}`);
-      const sorted = (data || []).sort((a, b) => {
-        const aDate = a.publish_date ? new Date(a.publish_date).getTime() : 0;
-        const bDate = b.publish_date ? new Date(b.publish_date).getTime() : 0;
-        return bDate - aDate;
-      });
-      setRows(sorted);
-    } catch (err) {
-      onToast(err.message || "Kontent rejani olib bo‘lmadi", "error");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadMonth(selectedMonth);
-  }, [selectedMonth]);
-
-  function setField(key, value) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }
-
-  async function handleSubmit(e) {
-    e.preventDefault();
-
-    if (bonusMode && !form.proposal_count) {
-      onToast("Taklif soni majburiy", "error");
-      return;
-    }
-
-    try {
-      setSaving(true);
-
-      const payload = {
-        title: form.title,
-        publish_date: form.publish_date || null,
-        status: form.status,
-        platform: [form.platform_primary, form.platform_secondary].filter(Boolean).join(", "),
-        content_type: form.content_type,
-        assigned_user_id: null,
-        video_editor_user_id: form.editor_user_id || null,
-        video_face_user_id: form.face_voice_user_id || null,
-        bonus_enabled: bonusMode,
-        proposal_count: bonusMode ? Number(form.proposal_count || 0) : 0,
-        approved_count: bonusMode ? Number(form.approved_count || 0) : 0,
-        notes: ""
-      };
-
-      await api.create("content", payload);
-      await loadMonth(selectedMonth);
-      await reload();
-
-      setForm({
-        title: "",
-        publish_date: "",
-        status: "reja",
-        platform_primary: "Instagram",
-        platform_secondary: "",
-        content_type: "post",
-        editor_user_id: "",
-        face_voice_user_id: "",
-        proposal_count: "",
-        approved_count: ""
-      });
-      setBonusMode(false);
-
-      onToast("Kontent reja saqlandi ✅", "success");
-    } catch (err) {
-      onToast(err.message || "Saqlashda xatolik", "error");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham o‘chirilsinmi?");
-    if (!ok) return;
-
-    try {
-      await api.remove("content", id);
-      await loadMonth(selectedMonth);
-      await reload();
-      onToast("Kontent o‘chirildi", "success");
-    } catch (err) {
-      onToast(err.message || "O‘chirishda xatolik", "error");
-    }
-  }
-
-  return (
-    <div className="page-grid">
-      <div className="card">
-        <SectionTitle
-          title="Kontent reja yaratish"
-          desc={`${getMonthTitle(selectedMonth)} uchun`}
-          right={
-            <div className="toolbar-actions">
-              <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>
-                ← Oldingi oy
-              </button>
-              <div className="summary-pill">
-                <strong>{getMonthTitle(selectedMonth)}</strong>
-              </div>
-              <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>
-                Keyingi oy →
-              </button>
-            </div>
-          }
-        />
-
-        <form className="form-grid" onSubmit={handleSubmit}>
-          <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
-          <label><span>Joylash sanasi</span><input type="date" value={form.publish_date} onChange={(e) => setField("publish_date", e.target.value)} required /></label>
-          <label>
-            <span>Holati</span>
-            <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
-              <option value="reja">Reja</option>
-              <option value="tayyorlanmoqda">Tayyorlanmoqda</option>
-              <option value="tayyor">Tayyor</option>
-              <option value="joylangan">Joylangan</option>
-              <option value="bekor_qilingan">Bekor qilingan</option>
-            </select>
-          </label>
-          <label>
-            <span>1-platforma</span>
-            <select value={form.platform_primary} onChange={(e) => setField("platform_primary", e.target.value)}>
-              <option value="Instagram">Instagram</option>
-              <option value="Telegram">Telegram</option>
-              <option value="YouTube">YouTube</option>
-              <option value="Facebook">Facebook</option>
-              <option value="TikTok">TikTok</option>
-            </select>
-          </label>
-          <label>
-            <span>2-platforma</span>
-            <select value={form.platform_secondary} onChange={(e) => setField("platform_secondary", e.target.value)}>
-              <option value="">Tanlanmagan</option>
-              <option value="Instagram">Instagram</option>
-              <option value="Telegram">Telegram</option>
-              <option value="YouTube">YouTube</option>
-              <option value="Facebook">Facebook</option>
-              <option value="TikTok">TikTok</option>
-            </select>
-          </label>
-          <label>
-            <span>Kontent turi</span>
-            <select value={form.content_type} onChange={(e) => setField("content_type", e.target.value)}>
-              <option value="post">Post</option>
-              <option value="story">Story</option>
-              <option value="reels">Reels</option>
-              <option value="video">Video</option>
-              <option value="banner">Banner</option>
-            </select>
-          </label>
-          <label>
-            <span>Montaj kim qildi</span>
-            <select value={form.editor_user_id} onChange={(e) => setField("editor_user_id", e.target.value)}>
-              <option value="">Tanlang</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-            </select>
-          </label>
-          <label>
-            <span>Face + ovoz kimniki</span>
-            <select value={form.face_voice_user_id} onChange={(e) => setField("face_voice_user_id", e.target.value)}>
-              <option value="">Tanlang</option>
-              {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
-            </select>
-          </label>
-          <label className="checkbox-row">
-            <input type="checkbox" checked={bonusMode} onChange={(e) => setBonusMode(e.target.checked)} />
-            <span>Bonusga o‘tkazish</span>
-          </label>
-
-          {bonusMode ? (
-            <>
-              <label><span>Taklif soni</span><input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required /></label>
-              <label><span>Tasdiq soni</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} /></label>
-            </>
-          ) : null}
-
-          <button className="btn primary" type="submit" disabled={saving}>
-            {saving ? "Saqlanmoqda..." : "Saqlash"}
-          </button>
-        </form>
-      </div>
-
-      <div className="card">
-        <SectionTitle
-          title={`${getMonthTitle(selectedMonth)} kontent rejasi`}
-          right={
-            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/content.xlsx", `content-${selectedMonth}.xlsx`)}>
-              Excel export
-            </button>
-          }
-        />
-
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Kontent nomi</th>
-                <th>Joylash sanasi</th>
-                <th>Holati</th>
-                <th>Platforma</th>
-                <th>Kontent turi</th>
-                <th>Montaj</th>
-                <th>Face+ovoz</th>
-                <th>Bonus</th>
-                <th>Amal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan="9" className="empty-cell">Yuklanmoqda...</td></tr>
-              ) : rows.length ? (
-                rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.title}</td>
-                    <td>{row.publish_date || "-"}</td>
-                    <td>{row.status}</td>
-                    <td>{row.platform || "-"}</td>
-                    <td>{row.content_type || "-"}</td>
-                    <td>{row.video_editor_name || "-"}</td>
-                    <td>{row.video_face_name || "-"}</td>
-                    <td>{row.bonus_enabled ? "Ha" : "Yo‘q"}</td>
                     <td>
-                      <button type="button" className="btn tiny secondary" onClick={() => removeRow(row.id)}>
-                        O‘chirish
-                      </button>
+                      <IconActions
+                        onView={() => setViewRow(row)}
+                        onEdit={() => startEdit(row)}
+                        onDelete={() => removeRow(row.id)}
+                      />
                     </td>
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="9" className="empty-cell">Bu oy uchun reja yo‘q</td></tr>
+                <tr><td colSpan="6" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
+
+      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Vazifa tafsiloti">
+        {viewRow ? (
+          <div className="detail-grid">
+            <div><strong>Vazifa:</strong> {viewRow.title}</div>
+            <div><strong>Status:</strong> {viewRow.status}</div>
+            <div><strong>Muhimlik:</strong> {viewRow.priority}</div>
+            <div><strong>Muddat:</strong> {formatDate(viewRow.due_date)}</div>
+            <div><strong>Mas’ul:</strong> {viewRow.assignee_name || "-"}</div>
+            <div className="full-col"><strong>Izoh:</strong> {viewRow.description || "-"}</div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
@@ -1483,7 +1996,7 @@ function AuditPage({ logs = [] }) {
                     <td>{row.action_type}</td>
                     <td>{row.entity_type}</td>
                     <td>{row.entity_id || "-"}</td>
-                    <td>{row.created_at}</td>
+                    <td>{formatDate(row.created_at)}</td>
                   </tr>
                 ))
               ) : (
@@ -1497,7 +2010,7 @@ function AuditPage({ logs = [] }) {
   );
 }
 
-function ProfilePage({ user = {}, onToast }) {
+function ProfilePage({ user = {}, onToast, refreshUser }) {
   const [form, setForm] = useState({
     full_name: user.full_name || "",
     phone: user.phone || "",
@@ -1545,16 +2058,12 @@ function ProfilePage({ user = {}, onToast }) {
       }
 
       const me = await api.me();
+      refreshUser(me.user);
       onToast("Profil saqlandi ✅", "success");
       setForm((prev) => ({
         ...prev,
         old_password: "",
-        new_password: "",
-        full_name: me.user?.full_name || prev.full_name,
-        phone: me.user?.phone || prev.phone,
-        login: me.user?.login || prev.login,
-        avatar_url: me.user?.avatar_url || prev.avatar_url,
-        department_role: me.user?.department_role || prev.department_role
+        new_password: ""
       }));
     } catch (err) {
       onToast(err.message || "Profilni saqlab bo‘lmadi", "error");
@@ -1573,6 +2082,9 @@ function ProfilePage({ user = {}, onToast }) {
           <label><span>Login</span><input value={form.login} onChange={(e) => setField("login", e.target.value)} /></label>
           <label><span>Lavozimi</span><input value={form.department_role} onChange={(e) => setField("department_role", e.target.value)} /></label>
           <label className="full-col"><span>Profil rasmi linki</span><input value={form.avatar_url} onChange={(e) => setField("avatar_url", e.target.value)} /></label>
+          <div className="full-col profile-avatar-line">
+            {form.avatar_url ? <img src={form.avatar_url} alt="avatar" className="profile-avatar" /> : <div className="avatar-empty">Avatar</div>}
+          </div>
           <label><span>Eski parol</span><input type="password" value={form.old_password} onChange={(e) => setField("old_password", e.target.value)} /></label>
           <label><span>Yangi parol</span><input type="password" value={form.new_password} onChange={(e) => setField("new_password", e.target.value)} /></label>
           <button className="btn primary" type="submit" disabled={saving}>
@@ -1801,7 +2313,7 @@ function App() {
   } else if (active === "bonus") {
     page = <BonusPage bonusItems={bonusItems} users={users} branches={branches} onToast={showToast} reload={reloadData} />;
   } else if (active === "dailyReports") {
-    page = <DailyReportsPage reports={dailyReports} branches={branches} users={users} onToast={showToast} reload={reloadData} />;
+    page = <DailyReportsPage reports={dailyReports} branches={branches} onToast={showToast} reload={reloadData} />;
   } else if (active === "campaigns") {
     page = <CampaignsPage campaigns={campaigns} onToast={showToast} reload={reloadData} />;
   } else if (active === "uploads") {
@@ -1813,7 +2325,7 @@ function App() {
   } else if (active === "audit") {
     page = <AuditPage logs={auditLogs} />;
   } else if (active === "profile") {
-    page = <ProfilePage user={user} onToast={showToast} />;
+    page = <ProfilePage user={user} onToast={showToast} refreshUser={setUser} />;
   } else if (active === "settings") {
     page = <SettingsPage settings={settings} onSave={saveSettings} saving={savingSettings} theme={theme} setTheme={setTheme} />;
   }
@@ -1906,6 +2418,7 @@ const styles = `
   --muted:#667085;
   --line:#e5edf5;
   --black:#141414;
+  --danger:#e11d48;
 }
 :root[data-theme='dark']{
   --blue:#1690F5;
@@ -1916,12 +2429,15 @@ const styles = `
   --muted:#97a6ba;
   --line:rgba(255,255,255,.08);
   --black:#141414;
+  --danger:#fb7185;
 }
 *{box-sizing:border-box}
 html,body,#root{margin:0;min-height:100%;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
-button,input,select{font:inherit}
-input,select{outline:none}
+button,input,select,textarea{font:inherit}
+input,select,textarea{outline:none}
 a{color:var(--blue);text-decoration:none}
+img{display:block;max-width:100%}
+
 .loading-screen{min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text)}
 
 .login-page{
@@ -1969,6 +2485,7 @@ a{color:var(--blue);text-decoration:none}
   border-radius:16px;
   padding:14px 16px;
 }
+
 .app-shell{
   min-height:100vh;
   display:grid;
@@ -1991,6 +2508,7 @@ a{color:var(--blue);text-decoration:none}
 }
 .brand-name{font-size:24px;font-weight:800}
 .brand-desc{font-size:12px;color:var(--muted)}
+
 .sidebar-search{
   display:flex;align-items:center;gap:10px;
   background:var(--soft);
@@ -2004,6 +2522,7 @@ a{color:var(--blue);text-decoration:none}
   border:0;
   color:var(--text);
 }
+
 .menu-list{display:grid;gap:10px}
 .menu-btn{
   border:1px solid transparent;
@@ -2021,6 +2540,7 @@ a{color:var(--blue);text-decoration:none}
   background:linear-gradient(135deg,rgba(22,144,245,.10),rgba(98,210,255,.08));
   border-color:rgba(22,144,245,.16);
 }
+
 .logout-btn{
   margin-top:auto;
   border:0;
@@ -2031,6 +2551,7 @@ a{color:var(--blue);text-decoration:none}
   display:flex;align-items:center;justify-content:center;gap:8px;
   cursor:pointer;
 }
+
 .main-area{padding:24px}
 .topbar{
   background:var(--panel);
@@ -2041,6 +2562,7 @@ a{color:var(--blue);text-decoration:none}
 }
 .topbar h1{margin:8px 0 0;font-size:34px}
 .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+
 .theme-toggle,.notif-pill,.user-chip{
   border:1px solid var(--line);
   background:var(--soft);
@@ -2050,6 +2572,7 @@ a{color:var(--blue);text-decoration:none}
   display:flex;align-items:center;gap:8px;
 }
 .notif-pill,.user-chip{cursor:pointer}
+
 .page-grid{display:grid;gap:18px;margin-top:18px}
 .hero-banner,.card,.stat-card{
   background:var(--panel);
@@ -2067,6 +2590,7 @@ a{color:var(--blue);text-decoration:none}
 .stat-card-title{font-size:14px;color:var(--muted)}
 .stat-card-value{font-size:36px;font-weight:900;margin-top:10px}
 .stat-card-hint{font-size:13px;color:var(--muted);margin-top:8px}
+
 .two-grid{
   display:grid;
   grid-template-columns:1.1fr .9fr;
@@ -2080,6 +2604,7 @@ a{color:var(--blue);text-decoration:none}
   border-radius:16px;
   display:flex;justify-content:space-between;gap:10px
 }
+
 .section-title-row{
   display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
   margin-bottom:16px;
@@ -2087,6 +2612,7 @@ a{color:var(--blue);text-decoration:none}
 .section-title-row h2{margin:0;font-size:26px}
 .section-title-row p{margin:8px 0 0;color:var(--muted)}
 .toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
+
 .form-grid{
   display:grid;
   grid-template-columns:repeat(3,1fr);
@@ -2094,7 +2620,7 @@ a{color:var(--blue);text-decoration:none}
 }
 .form-grid label{display:grid;gap:8px}
 .form-grid label span{font-size:13px;color:var(--muted)}
-.form-grid input,.form-grid select{
+.form-grid input,.form-grid select,.form-grid textarea{
   background:var(--soft);
   border:1px solid var(--line);
   color:var(--text);
@@ -2103,12 +2629,16 @@ a{color:var(--blue);text-decoration:none}
 }
 .full-col{grid-column:1 / -1}
 .mt16{margin-top:16px}
+
 .btn{
   border:0;
   border-radius:14px;
   padding:12px 14px;
   cursor:pointer;
   font-weight:700;
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
 }
 .btn.primary{
   background:linear-gradient(135deg,var(--blue),#62d2ff);
@@ -2124,6 +2654,7 @@ a{color:var(--blue);text-decoration:none}
 .link-btn{
   border:0;background:transparent;color:var(--blue);cursor:pointer;padding:0
 }
+
 .summary-pill{
   margin-bottom:16px;
   padding:14px 16px;
@@ -2131,6 +2662,7 @@ a{color:var(--blue);text-decoration:none}
   background:var(--soft);
   border:1px solid var(--line);
 }
+
 .upload-row{
   display:flex;gap:12px;align-items:center;flex-wrap:wrap
 }
@@ -2141,16 +2673,18 @@ a{color:var(--blue);text-decoration:none}
   padding:12px;
   color:var(--text);
 }
+
 .table-wrap{
   overflow:auto;
   border:1px solid var(--line);
   border-radius:16px;
 }
 table{width:100%;border-collapse:collapse}
-th,td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left}
+th,td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
 th{background:rgba(22,144,245,.05);color:var(--muted)}
 .empty-cell{text-align:center;color:var(--muted);padding:24px}
-.table-actions{display:flex;gap:8px;flex-wrap:wrap}
+.table-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+
 .error-box{
   background:rgba(239,90,90,.10);
   color:#db4f4f;
@@ -2158,6 +2692,7 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   padding:12px 14px;
   border-radius:14px;
 }
+
 .toast{
   position:fixed;
   right:20px;bottom:20px;
@@ -2172,6 +2707,7 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
 .toast-success{background:linear-gradient(135deg,#22b35d,#52da90)}
 .toast-error{background:linear-gradient(135deg,#ef5a5a,#ff9c9c)}
 .toast button{background:transparent;border:0;color:#fff;cursor:pointer}
+
 .drawer{
   position:fixed;
   inset:0;
@@ -2224,6 +2760,7 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   color:var(--muted);
   text-align:center;
 }
+
 .checkbox-row{
   display:flex !important;
   align-items:center;
@@ -2234,6 +2771,7 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   width:18px;
   height:18px;
 }
+
 .permission-box{
   border:1px solid var(--line);
   border-radius:16px;
@@ -2262,6 +2800,165 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   width:16px;
   height:16px;
 }
+
+.icon-actions{
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+.icon-btn{
+  border:1px solid var(--line);
+  background:var(--soft);
+  color:var(--text);
+  width:34px;
+  height:34px;
+  border-radius:10px;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+}
+.icon-btn.danger{
+  color:var(--danger);
+}
+
+.modal-wrap{
+  position:fixed;
+  inset:0;
+  z-index:10000;
+}
+.modal-backdrop{
+  position:absolute;
+  inset:0;
+  background:rgba(0,0,0,.35);
+}
+.modal-card{
+  position:relative;
+  z-index:2;
+  width:min(720px, calc(100vw - 32px));
+  margin:48px auto;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:24px;
+  padding:20px;
+}
+.modal-card.wide{
+  width:min(980px, calc(100vw - 32px));
+}
+.modal-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  margin-bottom:16px;
+}
+.modal-head h3{
+  margin:0;
+  font-size:24px;
+}
+.modal-body{
+  max-height:75vh;
+  overflow:auto;
+}
+.detail-grid{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:12px;
+}
+.media-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:14px;
+}
+.media-card{
+  border:1px solid var(--line);
+  border-radius:18px;
+  overflow:hidden;
+  background:var(--soft);
+}
+.media-preview{
+  height:180px;
+  background:var(--panel);
+  display:grid;
+  place-items:center;
+  overflow:hidden;
+}
+.media-preview img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+.media-fallback{
+  font-size:13px;
+  color:var(--muted);
+  padding:10px;
+  text-align:center;
+}
+.media-info{
+  padding:12px;
+}
+.media-name{
+  font-weight:800;
+  word-break:break-word;
+}
+.media-meta{
+  font-size:12px;
+  color:var(--muted);
+  margin-top:6px;
+}
+.media-actions{
+  padding:12px;
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  align-items:center;
+}
+.media-modal{
+  display:grid;
+  gap:16px;
+}
+.media-modal-image{
+  max-height:420px;
+  width:100%;
+  object-fit:contain;
+  background:var(--soft);
+  border-radius:16px;
+}
+.avatar-preview-box{
+  display:flex;
+  align-items:center;
+}
+.avatar-preview,
+.profile-avatar,
+.table-avatar{
+  width:52px;
+  height:52px;
+  border-radius:50%;
+  object-fit:cover;
+  border:1px solid var(--line);
+}
+.table-avatar.empty{
+  display:grid;
+  place-items:center;
+  background:var(--soft);
+}
+.avatar-empty{
+  width:52px;
+  height:52px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  background:var(--soft);
+  border:1px solid var(--line);
+  color:var(--muted);
+}
+.profile-avatar-line{
+  display:flex;
+  align-items:center;
+}
+.profile-avatar{
+  width:72px;
+  height:72px;
+}
 @media (max-width: 1100px){
   .login-page,.app-shell,.stats-grid,.two-grid,.form-grid{grid-template-columns:1fr}
   .main-area{padding:14px}
@@ -2270,6 +2967,8 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   .login-copy h1{font-size:46px}
   .login-copy h2{font-size:24px}
   .permission-grid{grid-template-columns:1fr}
+  .media-grid{grid-template-columns:1fr}
+  .detail-grid{grid-template-columns:1fr}
 }
 `;
 
