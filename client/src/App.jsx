@@ -1885,10 +1885,19 @@ export default function App() {
 
   const [contentRows, setContentRows] = useState([]);
   
-  const filteredMenu = useMemo(() => {
-    if (!search.trim()) return MENU;
-    return MENU.filter((item) => item.title.toLowerCase().includes(search.toLowerCase()));
-  }, [search]);
+  const allowedMenu = useMemo(() => {
+  if (user?.role === "admin") return MENU;
+
+  const permissions = Array.isArray(user?.permissions_json) ? user.permissions_json : [];
+  return MENU.filter((item) => permissions.includes(item.id));
+}, [user]);
+
+const filteredMenu = useMemo(() => {
+  if (!search.trim()) return allowedMenu;
+  return allowedMenu.filter((item) =>
+    item.title.toLowerCase().includes(search.toLowerCase())
+  );
+}, [search, allowedMenu]);
 
   function showToast(message = "Saqlandi ✅", type = "success") {
     setToast({ message, type });
