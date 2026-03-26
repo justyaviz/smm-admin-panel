@@ -166,6 +166,12 @@ export const api = {
       })
   },
 
+    updateProfile: (payload) =>
+    request("/api/auth/profile", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    }),
+
   exportFile: async (path, fileName) => {
     const blob = await request(path);
     const url = window.URL.createObjectURL(blob);
