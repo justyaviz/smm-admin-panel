@@ -715,7 +715,7 @@ app.post("/api/users", authRequired, async (req, res) => {
       ]
     );
 
-    await logAction(req.user.id, "create", "users", inserted.rows[0].id, {
+        await logAction(req.user.id, "create", "users", inserted.rows[0].id, {
       full_name,
       phone,
       role,
@@ -729,9 +729,28 @@ app.post("/api/users", authRequired, async (req, res) => {
   }
 });
 
-    res.json(result.rows[0]);
+app.get("/api/users", authRequired, async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT
+        id,
+        full_name,
+        phone,
+        login,
+        role,
+        avatar_url,
+        department_role,
+        permissions_json,
+        is_active,
+        created_at
+      FROM users
+      ORDER BY created_at DESC, id DESC
+    `);
+
+    res.json(result.rows);
   } catch (err) {
-    res.status(500).json({ message: "User yaratilmadi" });
+    console.error(err);
+    res.status(500).json({ message: "Userlarni olishda xatolik" });
   }
 });
 
@@ -777,19 +796,41 @@ app.put("/api/auth/profile", authRequired, async (req, res) => {
   }
 });
 
-    await logAction(req.user.id, "update", "profile", req.user.id, {
-      full_name,
-      phone,
-      login
-    });
+app.post("/api/auth/change-password", authRequired, async (req, res) => {
+  try {
+    const { old_password, new_password } = req.body;
 
-    res.json({
-      message: "Profil saqlandi",
-      user: updated.rows[0]
-    });
+    if (!old_password || !new_password) {
+      return res.status(400).json({ message: "Eski va yangi parol majburiy" });
+    }
+
+    const found = await query(
+      `SELECT id, password_hash FROM users WHERE id = $1 LIMIT 1`,
+      [req.user.id]
+    );
+
+    if (!found.rows.length) {
+      return res.status(404).json({ message: "Foydalanuvchi topilmadi" });
+    }
+
+    const ok = await bcrypt.compare(old_password, found.rows[0].password_hash);
+    if (!ok) {
+      return res.status(400).json({ message: "Eski parol noto‘g‘ri" });
+    }
+
+    const hashed = await bcrypt.hash(new_password, 10);
+
+    await query(
+      `UPDATE users SET password_hash = $1 WHERE id = $2`,
+      [hashed, req.user.id]
+    );
+
+    await logAction(req.user.id, "change_password", "users", req.user.id, {});
+
+    res.json({ message: "Parol yangilandi" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Profilni saqlashda xatolik" });
+    res.status(500).json({ message: "Parolni o‘zgartirishda xatolik" });
   }
 });
 
@@ -833,6 +874,65 @@ app.put("/api/users/:id", authRequired, async (req, res) => {
         id
       ]
     );
+
+    await logAction(req.user.id, "update", "users", id, {
+      full_name,
+      phone,
+      role,
+      department_role
+    });
+
+    res.json(updated.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Hodimni yangilashda xatolik" });
+  }
+});
+
+app.post("/api/users/:id/toggle-active", authRequired, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const updated = await query(
+      `
+      UPDATE users
+      SET is_active = NOT COALESCE(is_active, TRUE)
+      WHERE id = $1
+      RETURNING id, full_name, is_active
+      `,
+      [id]
+    );
+
+    await logAction(req.user.id, "toggle_active", "users", id, {});
+
+    res.json({
+      message: "Holat yangilandi",
+      user: updated.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Holatni yangilashda xatolik" });
+  }
+});
+
+app.post("/api/users/:id/reset-password", authRequired, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const hashed = await bcrypt.hash("12345678", 10);
+
+    await query(
+      `UPDATE users SET password_hash = $1 WHERE id = $2`,
+      [hashed, id]
+    );
+
+    await logAction(req.user.id, "reset_password", "users", id, {});
+
+    res.json({ message: "Parol 12345678 ga tiklandi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Parolni tiklashda xatolik" });
+  }
+});
 
     await logAction(req.user.id, "update", "users", id, {
       full_name,
