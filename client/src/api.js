@@ -47,22 +47,14 @@ export const api = {
       body: JSON.stringify(payload)
     });
 
-    if (data?.token) {
-      localStorage.setItem("aloo_token", data.token);
-    }
-
-    if (data?.user) {
-      localStorage.setItem("aloo_user", JSON.stringify(data.user));
-    }
-
+    if (data?.token) localStorage.setItem("aloo_token", data.token);
+    if (data?.user) localStorage.setItem("aloo_user", JSON.stringify(data.user));
     return data;
   },
 
   me: async () => {
     const data = await request("/api/auth/me");
-    if (data?.user) {
-      localStorage.setItem("aloo_user", JSON.stringify(data.user));
-    }
+    if (data?.user) localStorage.setItem("aloo_user", JSON.stringify(data.user));
     return data;
   },
 
