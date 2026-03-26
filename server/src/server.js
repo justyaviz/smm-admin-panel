@@ -635,16 +635,32 @@ app.put("/api/settings", authRequired, rolesAllowed("admin", "manager"), async (
 
 /* USERS */
 
-app.get("/api/users", authRequired, rolesAllowed("admin", "manager"), async (_, res) => {
-  const result = await query(
-    `SELECT id, full_name, phone, login, role, avatar_url, is_active, created_at
-     FROM users
-     ORDER BY id DESC`
-  );
-  res.json(result.rows);
+app.get("/api/users", authRequired, async (req, res) => {
+  try {
+    const result = await query(`
+      SELECT
+        id,
+        full_name,
+        phone,
+        login,
+        role,
+        avatar_url,
+        department_role,
+        permissions_json,
+        is_active,
+        created_at
+      FROM users
+      ORDER BY created_at DESC, id DESC
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Hodimlarni olishda xatolik" });
+  }
 });
 
-app.post("/api/users", authRequired, rolesAllowed("admin"), async (req, res) => {
+app.post("/api/users", authRequired, async (req, res) => {
   try {
     const {
       full_name,
@@ -657,24 +673,66 @@ app.post("/api/users", authRequired, rolesAllowed("admin"), async (req, res) => 
       permissions_json
     } = req.body;
 
-    const hash = await bcrypt.hash(password, 10);
+    if (!full_name || !phone || !password) {
+      return res.status(400).json({ message: "Ism, telefon va parol majburiy" });
+    }
 
-    const result = await query(
-      `INSERT INTO users
-       (full_name, phone, login, password_hash, role, avatar_url, is_active, department_role, permissions_json)
-       VALUES ($1,$2,$3,$4,$5,$6,TRUE,$7,$8)
-       RETURNING id, full_name, phone, login, role, avatar_url, is_active, department_role, permissions_json`,
+    const exists = await query(
+      `SELECT id FROM users WHERE phone = $1 OR (login IS NOT NULL AND login = $2) LIMIT 1`,
+      [phone, login || null]
+    );
+
+    if (exists.rows.length) {
+      return res.status(400).json({ message: "Bu telefon yoki login allaqachon mavjud" });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+
+    const permissions = Array.isArray(permissions_json) ? permissions_json : [];
+
+    const inserted = await query(
+      `
+      INSERT INTO users
+      (
+        full_name,
+        phone,
+        login,
+        password_hash,
+        role,
+        avatar_url,
+        department_role,
+        permissions_json,
+        is_active
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      RETURNING id, full_name, phone, login, role, avatar_url, department_role, permissions_json, is_active
+      `,
       [
         full_name,
         phone,
         login || null,
-        hash,
+        hashed,
         role || "viewer",
         avatar_url || null,
-        department_role || role || "viewer",
-        JSON.stringify(permissions_json || [])
+        department_role || null,
+        JSON.stringify(permissions),
+        true
       ]
     );
+
+    await logAction(req.user.id, "create", "users", inserted.rows[0].id, {
+      full_name,
+      phone,
+      role,
+      department_role
+    });
+
+    res.json(inserted.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Hodim yaratishda xatolik" });
+  }
+});
 
     res.json(result.rows[0]);
   } catch (err) {
