@@ -57,15 +57,29 @@ async function request(path, options = {}) {
 
 export const api = {
   login: async (payload) => {
-    const res = await request("/api/auth/login", {
-      method: "POST",
-      body: JSON.stringify(payload)
-    });
-    saveAuth(res);
-    return res;
-  },
+  const data = await request("/api/auth/login", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 
-  me: () => request("/api/auth/me"),
+  if (data?.token) {
+    localStorage.setItem("aloo_token", data.token);
+  }
+
+  if (data?.user) {
+    localStorage.setItem("aloo_user", JSON.stringify(data.user));
+  }
+
+  return data;
+},
+
+  me: async () => {
+  const data = await request("/api/auth/me");
+  if (data?.user) {
+    localStorage.setItem("aloo_user", JSON.stringify(data.user));
+  }
+  return data;
+},
 
   changePassword: (payload) =>
     request("/api/auth/change-password", {
