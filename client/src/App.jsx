@@ -1637,10 +1637,23 @@ function ProfilePage({ user = {}, onToast }) {
     phone: user.phone || "",
     login: user.login || "",
     avatar_url: user.avatar_url || "",
+    department_role: user.department_role || "",
     old_password: "",
     new_password: ""
   });
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setForm({
+      full_name: user.full_name || "",
+      phone: user.phone || "",
+      login: user.login || "",
+      avatar_url: user.avatar_url || "",
+      department_role: user.department_role || "",
+      old_password: "",
+      new_password: ""
+    });
+  }, [user]);
 
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -1651,14 +1664,13 @@ function ProfilePage({ user = {}, onToast }) {
     try {
       setSaving(true);
 
-      if (api.updateProfile) {
-        await api.updateProfile({
-          full_name: form.full_name,
-          phone: form.phone,
-          login: form.login,
-          avatar_url: form.avatar_url
-        });
-      }
+      await api.updateProfile({
+        full_name: form.full_name,
+        phone: form.phone,
+        login: form.login,
+        avatar_url: form.avatar_url,
+        department_role: form.department_role
+      });
 
       if (form.old_password && form.new_password) {
         await api.changePassword({
@@ -1696,6 +1708,11 @@ function ProfilePage({ user = {}, onToast }) {
           </label>
 
           <label>
+            <span>Lavozimi</span>
+            <input value={form.department_role} onChange={(e) => setField("department_role", e.target.value)} />
+          </label>
+
+          <label className="full-col">
             <span>Profil rasmi linki</span>
             <input value={form.avatar_url} onChange={(e) => setField("avatar_url", e.target.value)} />
           </label>
