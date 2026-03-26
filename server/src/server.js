@@ -367,6 +367,13 @@ app.get("/api/auth/me", authRequired, async (req, res) => {
   }
 });
 
+    res.json({ user: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Foydalanuvchini olishda xatolik" });
+  }
+});
+
 app.post("/api/auth/change-password", authRequired, async (req, res) => {
   try {
     const { old_password, new_password } = req.body;
