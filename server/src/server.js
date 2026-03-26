@@ -342,44 +342,39 @@ app.get("/api/auth/me", authRequired, async (req, res) => {
 
 app.post("/api/auth/change-password", authRequired, async (req, res) => {
   try {
-    const { oldPassword, newPassword } = req.body;
+    const { old_password, new_password } = req.body;
 
-    if (!oldPassword || !newPassword) {
-      return res.status(400).json({ message: "Eski va yangi parol kiriting" });
+    if (!old_password || !new_password) {
+      return res.status(400).json({ message: "Eski va yangi parol majburiy" });
     }
 
-    const found = await query(`SELECT * FROM users WHERE id = $1`, [req.user.id]);
-    const user = found.rows[0];
+    const found = await query(
+      `SELECT id, password_hash FROM users WHERE id = $1 LIMIT 1`,
+      [req.user.id]
+    );
 
-    let ok = false;
-    try {
-      ok = await bcrypt.compare(oldPassword, user.password_hash);
-    } catch {
-      ok = false;
+    if (!found.rows.length) {
+      return res.status(404).json({ message: "Foydalanuvchi topilmadi" });
     }
 
-    if (!ok && req.user.phone === "998939000" && oldPassword === "12345678") {
-      ok = true;
-    }
-
+    const ok = await bcrypt.compare(old_password, found.rows[0].password_hash);
     if (!ok) {
       return res.status(400).json({ message: "Eski parol noto‘g‘ri" });
     }
 
-    const hash = await bcrypt.hash(newPassword, 10);
+    const hashed = await bcrypt.hash(new_password, 10);
 
     await query(
-      `UPDATE users
-       SET password_hash = $1, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $2`,
-      [hash, req.user.id]
+      `UPDATE users SET password_hash = $1 WHERE id = $2`,
+      [hashed, req.user.id]
     );
 
-    await logAction(req.user.id, "change_password", "users", req.user.id);
+    await logAction(req.user.id, "change_password", "users", req.user.id, {});
 
     res.json({ message: "Parol yangilandi" });
-  } catch {
-    res.status(500).json({ message: "Server xatoligi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Parolni o‘zgartirishda xatolik" });
   }
 });
 
@@ -779,44 +774,6 @@ app.put("/api/auth/profile", authRequired, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Profilni saqlashda xatolik" });
-  }
-});
-
-app.post("/api/auth/change-password", authRequired, async (req, res) => {
-  try {
-    const { old_password, new_password } = req.body;
-
-    if (!old_password || !new_password) {
-      return res.status(400).json({ message: "Eski va yangi parol majburiy" });
-    }
-
-    const found = await query(
-      `SELECT id, password_hash FROM users WHERE id = $1 LIMIT 1`,
-      [req.user.id]
-    );
-
-    if (!found.rows.length) {
-      return res.status(404).json({ message: "Foydalanuvchi topilmadi" });
-    }
-
-    const ok = await bcrypt.compare(old_password, found.rows[0].password_hash);
-    if (!ok) {
-      return res.status(400).json({ message: "Eski parol noto‘g‘ri" });
-    }
-
-    const hashed = await bcrypt.hash(new_password, 10);
-
-    await query(
-      `UPDATE users SET password_hash = $1 WHERE id = $2`,
-      [hashed, req.user.id]
-    );
-
-    await logAction(req.user.id, "change_password", "users", req.user.id, {});
-
-    res.json({ message: "Parol yangilandi" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Parolni o‘zgartirishda xatolik" });
   }
 });
 
