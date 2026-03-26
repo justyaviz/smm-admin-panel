@@ -1880,6 +1880,34 @@ export default function App() {
       }
     }
 
+    app.get("/api/auth/me", authRequired, async (req, res) => {
+  try {
+    const result = await query(
+      `
+      SELECT
+        id,
+        full_name,
+        phone,
+        login,
+        role,
+        avatar_url,
+        department_role,
+        permissions_json,
+        is_active
+      FROM users
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [req.user.id]
+    );
+
+    res.json({ user: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Foydalanuvchini olishda xatolik" });
+  }
+});
+
     init();
   }, []);
 
