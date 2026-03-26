@@ -2517,12 +2517,8 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
 }
 `;
 
-function App() {
-  return (
-    <div>
-      test
-    </div>
-  );
-}
+const styles = `
+  ...
+`;
 
 export default App;
