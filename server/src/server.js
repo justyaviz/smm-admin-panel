@@ -156,7 +156,7 @@ async function generateBonusFromContent(contentRow, actorUserId) {
           contentRow.video_face_user_id || null,
           proposalCount,
           proposalAmount,
-          approvedCount,
+          approvedCount,  
           approvedAmount,
           totalAmount
         ]
@@ -337,7 +337,31 @@ app.post("/api/auth/login", async (req, res) => {
 });
 
 app.get("/api/auth/me", authRequired, async (req, res) => {
-  res.json({ user: req.user });
+  try {
+    const result = await query(
+      `
+      SELECT
+        id,
+        full_name,
+        phone,
+        login,
+        role,
+        avatar_url,
+        department_role,
+        permissions_json,
+        is_active
+      FROM users
+      WHERE id = $1
+      LIMIT 1
+      `,
+      [req.user.id]
+    );
+
+    res.json({ user: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Foydalanuvchini olishda xatolik" });
+  }
 });
 
 app.post("/api/auth/change-password", authRequired, async (req, res) => {
@@ -729,6 +753,8 @@ app.post("/api/users", authRequired, async (req, res) => {
   }
 });
 
+/* USERS */
+
 app.get("/api/users", authRequired, async (req, res) => {
   try {
     const result = await query(`
@@ -750,7 +776,80 @@ app.get("/api/users", authRequired, async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Userlarni olishda xatolik" });
+    res.status(500).json({ message: "Hodimlarni olishda xatolik" });
+  }
+});
+
+app.post("/api/users", authRequired, async (req, res) => {
+  try {
+    const {
+      full_name,
+      phone,
+      login,
+      password,
+      role,
+      avatar_url,
+      department_role,
+      permissions_json
+    } = req.body;
+
+    if (!full_name || !phone || !password) {
+      return res.status(400).json({ message: "Ism, telefon va parol majburiy" });
+    }
+
+    const exists = await query(
+      `SELECT id FROM users WHERE phone = $1 OR (login IS NOT NULL AND login = $2) LIMIT 1`,
+      [phone, login || null]
+    );
+
+    if (exists.rows.length) {
+      return res.status(400).json({ message: "Bu telefon yoki login allaqachon mavjud" });
+    }
+
+    const hashed = await bcrypt.hash(password, 10);
+    const permissions = Array.isArray(permissions_json) ? permissions_json : [];
+
+    const inserted = await query(
+      `
+      INSERT INTO users
+      (
+        full_name,
+        phone,
+        login,
+        password_hash,
+        role,
+        avatar_url,
+        department_role,
+        permissions_json,
+        is_active
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      RETURNING id, full_name, phone, login, role, avatar_url, department_role, permissions_json, is_active
+      `,
+      [
+        full_name,
+        phone,
+        login || null,
+        hashed,
+        role || "viewer",
+        avatar_url || null,
+        department_role || null,
+        JSON.stringify(permissions),
+        true
+      ]
+    );
+
+    await logAction(req.user.id, "create", "users", inserted.rows[0].id, {
+      full_name,
+      phone,
+      role,
+      department_role
+    });
+
+    res.json(inserted.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Hodim yaratishda xatolik" });
   }
 });
 
@@ -793,44 +892,6 @@ app.put("/api/auth/profile", authRequired, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Profilni saqlashda xatolik" });
-  }
-});
-
-app.post("/api/auth/change-password", authRequired, async (req, res) => {
-  try {
-    const { old_password, new_password } = req.body;
-
-    if (!old_password || !new_password) {
-      return res.status(400).json({ message: "Eski va yangi parol majburiy" });
-    }
-
-    const found = await query(
-      `SELECT id, password_hash FROM users WHERE id = $1 LIMIT 1`,
-      [req.user.id]
-    );
-
-    if (!found.rows.length) {
-      return res.status(404).json({ message: "Foydalanuvchi topilmadi" });
-    }
-
-    const ok = await bcrypt.compare(old_password, found.rows[0].password_hash);
-    if (!ok) {
-      return res.status(400).json({ message: "Eski parol noto‘g‘ri" });
-    }
-
-    const hashed = await bcrypt.hash(new_password, 10);
-
-    await query(
-      `UPDATE users SET password_hash = $1 WHERE id = $2`,
-      [hashed, req.user.id]
-    );
-
-    await logAction(req.user.id, "change_password", "users", req.user.id, {});
-
-    res.json({ message: "Parol yangilandi" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Parolni o‘zgartirishda xatolik" });
   }
 });
 
@@ -889,77 +950,13 @@ app.put("/api/users/:id", authRequired, async (req, res) => {
   }
 });
 
-app.post("/api/users/:id/toggle-active", authRequired, async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const updated = await query(
-      `
-      UPDATE users
-      SET is_active = NOT COALESCE(is_active, TRUE)
-      WHERE id = $1
-      RETURNING id, full_name, is_active
-      `,
-      [id]
-    );
-
-    await logAction(req.user.id, "toggle_active", "users", id, {});
-
-    res.json({
-      message: "Holat yangilandi",
-      user: updated.rows[0]
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Holatni yangilashda xatolik" });
-  }
-});
-
-app.post("/api/users/:id/reset-password", authRequired, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const hashed = await bcrypt.hash("12345678", 10);
-
-    await query(
-      `UPDATE users SET password_hash = $1 WHERE id = $2`,
-      [hashed, id]
-    );
-
-    await logAction(req.user.id, "reset_password", "users", id, {});
-
-    res.json({ message: "Parol 12345678 ga tiklandi" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Parolni tiklashda xatolik" });
-  }
-});
-
-    await logAction(req.user.id, "update", "users", id, {
-      full_name,
-      phone,
-      role,
-      department_role
-    });
-
-    try {
-  res.json(updated.rows[0]);
-} catch (err) {
-  console.error(err);
-  res.status(500).json({ message: "Hodimni yangilashda xatolik" });
-}
-
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ message: "Update xato" });
-  }
-});
-
 app.delete("/api/users/:id", authRequired, rolesAllowed("admin"), async (req, res) => {
   try {
     await query(`DELETE FROM users WHERE id = $1`, [req.params.id]);
     await logAction(req.user.id, "delete", "users", Number(req.params.id));
     res.json({ message: "Hodim o‘chirildi" });
-  } catch {
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ message: "Hodimni o‘chirib bo‘lmadi" });
   }
 });
@@ -975,7 +972,6 @@ app.post("/api/users/:id/reset-password", authRequired, async (req, res) => {
     );
 
     await logAction(req.user.id, "reset_password", "users", id, {});
-
     res.json({ message: "Parol 12345678 ga tiklandi" });
   } catch (err) {
     console.error(err);
@@ -986,16 +982,20 @@ app.post("/api/users/:id/reset-password", authRequired, async (req, res) => {
 app.post("/api/users/:id/toggle-active", authRequired, rolesAllowed("admin"), async (req, res) => {
   try {
     const result = await query(
-      `UPDATE users
-       SET is_active = NOT is_active, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1
-       RETURNING id, is_active`,
+      `
+      UPDATE users
+      SET is_active = NOT COALESCE(is_active, TRUE), updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING id, full_name, is_active
+      `,
       [req.params.id]
     );
+
     await logAction(req.user.id, "toggle_active", "users", Number(req.params.id));
     res.json({ message: "Holat yangilandi", data: result.rows[0] });
-  } catch {
-    res.status(500).json({ message: "Holatni yangilab bo‘lmadi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Holatni yangilashda xatolik" });
   }
 });
 
