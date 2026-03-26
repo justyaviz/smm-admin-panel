@@ -192,21 +192,19 @@ function LoginPage({ onLoggedIn }) {
   const [error, setError] = useState("");
 
   async function submit(e) {
-  e.preventDefault();
-  try {
-    setLoading(true);
-    setError("");
-
-    await api.login({ phone, password });
-    const me = await api.me();
-
-    onLoggedIn(me.user);
-  } catch (err) {
-    setError(err.message || "Kirishda xatolik");
-  } finally {
-    setLoading(false);
+    e.preventDefault();
+    try {
+      setLoading(true);
+      setError("");
+      await api.login({ phone, password });
+      const me = await api.me();
+      onLoggedIn(me.user);
+    } catch (err) {
+      setError(err.message || "Kirishda xatolik");
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
   return (
     <div className="login-page">
@@ -346,7 +344,6 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
 function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload }) {
   const [monthFilter, setMonthFilter] = useState(getMonthLabel());
   const [saving, setSaving] = useState(false);
-
   const [form, setForm] = useState({
     title: "",
     work_date: "",
@@ -360,10 +357,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
   });
 
   const isVideo = form.content_type === "video";
-
-  function setField(key, value) {
-    setForm((prev) => ({ ...prev, [key]: value }));
-  }
+  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const filteredItems = (bonusItems || []).filter((item) =>
     monthFilter ? item.month_label === monthFilter : true
@@ -399,9 +393,6 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
       };
 
       await api.create("bonus-items", payload);
-      if (api.recalcBonus) {
-        await api.recalcBonus();
-      }
       await reload();
 
       setForm({
@@ -520,23 +511,12 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
 
           <label>
             <span>Taklif soni</span>
-            <input
-              type="number"
-              min="0"
-              value={form.proposal_count}
-              onChange={(e) => setField("proposal_count", e.target.value)}
-              required
-            />
+            <input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required />
           </label>
 
           <label>
             <span>Tasdiq soni</span>
-            <input
-              type="number"
-              min="0"
-              value={form.approved_count}
-              onChange={(e) => setField("approved_count", e.target.value)}
-            />
+            <input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} />
           </label>
 
           <button className="btn primary" type="submit" disabled={saving}>
@@ -630,79 +610,27 @@ function DailyReportsPage({ reports = [], branches = [], users = [], onToast, re
   return (
     <div className="page-grid">
       <div className="card">
-        <SectionTitle
-          title="Kunlik filial hisobotlari"
-          right={
-            <div className="toolbar-actions">
-              <button
-                type="button"
-                className="btn secondary"
-                onClick={() => api.exportFile("/api/export/daily-reports.xlsx", "daily-reports.xlsx")}
-              >
-                Excel export
-              </button>
-              <button
-                type="button"
-                className="btn secondary"
-                onClick={() => api.exportFile("/api/export/daily-reports.pdf", "daily-reports.pdf")}
-              >
-                PDF export
-              </button>
-            </div>
-          }
-        />
-
+        <SectionTitle title="Kunlik filial hisobotlari" />
         <form className="form-grid" onSubmit={handleSubmit}>
-          <label>
-            <span>Sana</span>
-            <input
-              type="date"
-              value={form.report_date}
-              onChange={(e) => setField("report_date", e.target.value)}
-              required
-            />
-          </label>
-
+          <label><span>Sana</span><input type="date" value={form.report_date} onChange={(e) => setField("report_date", e.target.value)} required /></label>
           <label>
             <span>Filial</span>
             <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)} required>
               <option value="">Tanlang</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>{b.name}</option>
-              ))}
+              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
           </label>
-
           <label>
             <span>Hodim</span>
             <select value={form.user_id} onChange={(e) => setField("user_id", e.target.value)}>
               <option value="">Tanlang</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.full_name}</option>
-              ))}
+              {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
             </select>
           </label>
-
-          <label>
-            <span>Stories</span>
-            <input type="number" min="0" value={form.stories_count} onChange={(e) => setField("stories_count", Number(e.target.value))} />
-          </label>
-
-          <label>
-            <span>Post</span>
-            <input type="number" min="0" value={form.posts_count} onChange={(e) => setField("posts_count", Number(e.target.value))} />
-          </label>
-
-          <label>
-            <span>Reels</span>
-            <input type="number" min="0" value={form.reels_count} onChange={(e) => setField("reels_count", Number(e.target.value))} />
-          </label>
-
-          <label className="full-col">
-            <span>Izoh</span>
-            <input value={form.notes} onChange={(e) => setField("notes", e.target.value)} />
-          </label>
-
+          <label><span>Stories</span><input type="number" min="0" value={form.stories_count} onChange={(e) => setField("stories_count", Number(e.target.value))} /></label>
+          <label><span>Post</span><input type="number" min="0" value={form.posts_count} onChange={(e) => setField("posts_count", Number(e.target.value))} /></label>
+          <label><span>Reels</span><input type="number" min="0" value={form.reels_count} onChange={(e) => setField("reels_count", Number(e.target.value))} /></label>
+          <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
           <button className="btn primary" type="submit" disabled={saving}>
             {saving ? "Saqlanmoqda..." : "Hisobotni saqlash"}
           </button>
@@ -738,9 +666,7 @@ function DailyReportsPage({ reports = [], branches = [], users = [], onToast, re
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan="7" className="empty-cell">Hozircha ma’lumot yo‘q</td>
-                </tr>
+                <tr><td colSpan="7" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -808,9 +734,7 @@ function MediaPage({ uploads = [], onToast, reload }) {
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan="4" className="empty-cell">Hozircha ma’lumot yo‘q</td>
-                </tr>
+                <tr><td colSpan="4" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -938,31 +862,14 @@ function UsersPage({ users = [], onToast, reload }) {
         />
 
         <form className="form-grid" onSubmit={handleSubmit}>
-          <label>
-            <span>Ism</span>
-            <input value={form.full_name} onChange={(e) => setField("full_name", e.target.value)} required />
-          </label>
-
-          <label>
-            <span>Telefon</span>
-            <input value={form.phone} onChange={(e) => setField("phone", e.target.value)} required />
-          </label>
-
-          <label>
-            <span>Login</span>
-            <input value={form.login} onChange={(e) => setField("login", e.target.value)} />
-          </label>
+          <label><span>Ism</span><input value={form.full_name} onChange={(e) => setField("full_name", e.target.value)} required /></label>
+          <label><span>Telefon</span><input value={form.phone} onChange={(e) => setField("phone", e.target.value)} required /></label>
+          <label><span>Login</span><input value={form.login} onChange={(e) => setField("login", e.target.value)} /></label>
 
           {!editingId ? (
-            <label>
-              <span>Parol</span>
-              <input type="password" value={form.password} onChange={(e) => setField("password", e.target.value)} required />
-            </label>
+            <label><span>Parol</span><input type="password" value={form.password} onChange={(e) => setField("password", e.target.value)} required /></label>
           ) : (
-            <label>
-              <span>Profil rasmi linki</span>
-              <input value={form.avatar_url} onChange={(e) => setField("avatar_url", e.target.value)} placeholder="https://..." />
-            </label>
+            <label><span>Profil rasmi linki</span><input value={form.avatar_url} onChange={(e) => setField("avatar_url", e.target.value)} placeholder="https://..." /></label>
           )}
 
           <label>
@@ -976,16 +883,10 @@ function UsersPage({ users = [], onToast, reload }) {
             </select>
           </label>
 
-          <label>
-            <span>Lavozimi</span>
-            <input value={form.department_role} onChange={(e) => setField("department_role", e.target.value)} placeholder="Masalan: Mobilograf" />
-          </label>
+          <label><span>Lavozimi</span><input value={form.department_role} onChange={(e) => setField("department_role", e.target.value)} placeholder="Masalan: Mobilograf" /></label>
 
           {!editingId ? (
-            <label>
-              <span>Profil rasmi linki</span>
-              <input value={form.avatar_url} onChange={(e) => setField("avatar_url", e.target.value)} placeholder="https://..." />
-            </label>
+            <label><span>Profil rasmi linki</span><input value={form.avatar_url} onChange={(e) => setField("avatar_url", e.target.value)} placeholder="https://..." /></label>
           ) : (
             <div />
           )}
@@ -1051,9 +952,7 @@ function UsersPage({ users = [], onToast, reload }) {
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan="8" className="empty-cell">Hozircha ma’lumot yo‘q</td>
-                </tr>
+                <tr><td colSpan="8" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -1178,9 +1077,7 @@ function CampaignsPage({ campaigns = [], onToast, reload }) {
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan="8" className="empty-cell">Hozircha ma’lumot yo‘q</td>
-                </tr>
+                <tr><td colSpan="8" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -1287,9 +1184,7 @@ function TasksPage({ tasks = [], users = [], onToast, reload }) {
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan="5" className="empty-cell">Hozircha ma’lumot yo‘q</td>
-                </tr>
+                <tr><td colSpan="5" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -1322,7 +1217,7 @@ function ContentPage({ users = [], onToast, reload }) {
   async function loadMonth(monthValue = selectedMonth) {
     try {
       setLoading(true);
-      const data = await api.list(`content?month=${monthValue}`);
+      const data = await api.list(`/api/content?month=${monthValue}`);
       const sorted = (data || []).sort((a, b) => {
         const aDate = a.publish_date ? new Date(a.publish_date).getTime() : 0;
         const bDate = b.publish_date ? new Date(b.publish_date).getTime() : 0;
@@ -1432,16 +1327,8 @@ function ContentPage({ users = [], onToast, reload }) {
         />
 
         <form className="form-grid" onSubmit={handleSubmit}>
-          <label>
-            <span>Kontent nomi</span>
-            <input value={form.title} onChange={(e) => setField("title", e.target.value)} required />
-          </label>
-
-          <label>
-            <span>Joylash sanasi</span>
-            <input type="date" value={form.publish_date} onChange={(e) => setField("publish_date", e.target.value)} required />
-          </label>
-
+          <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
+          <label><span>Joylash sanasi</span><input type="date" value={form.publish_date} onChange={(e) => setField("publish_date", e.target.value)} required /></label>
           <label>
             <span>Holati</span>
             <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
@@ -1452,7 +1339,6 @@ function ContentPage({ users = [], onToast, reload }) {
               <option value="bekor_qilingan">Bekor qilingan</option>
             </select>
           </label>
-
           <label>
             <span>1-platforma</span>
             <select value={form.platform_primary} onChange={(e) => setField("platform_primary", e.target.value)}>
@@ -1463,7 +1349,6 @@ function ContentPage({ users = [], onToast, reload }) {
               <option value="TikTok">TikTok</option>
             </select>
           </label>
-
           <label>
             <span>2-platforma</span>
             <select value={form.platform_secondary} onChange={(e) => setField("platform_secondary", e.target.value)}>
@@ -1475,7 +1360,6 @@ function ContentPage({ users = [], onToast, reload }) {
               <option value="TikTok">TikTok</option>
             </select>
           </label>
-
           <label>
             <span>Kontent turi</span>
             <select value={form.content_type} onChange={(e) => setField("content_type", e.target.value)}>
@@ -1486,27 +1370,20 @@ function ContentPage({ users = [], onToast, reload }) {
               <option value="banner">Banner</option>
             </select>
           </label>
-
           <label>
             <span>Montaj kim qildi</span>
             <select value={form.editor_user_id} onChange={(e) => setField("editor_user_id", e.target.value)}>
               <option value="">Tanlang</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.full_name}</option>
-              ))}
+              {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
             </select>
           </label>
-
           <label>
             <span>Face + ovoz kimniki</span>
             <select value={form.face_voice_user_id} onChange={(e) => setField("face_voice_user_id", e.target.value)}>
               <option value="">Tanlang</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.full_name}</option>
-              ))}
+              {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
             </select>
           </label>
-
           <label className="checkbox-row">
             <input type="checkbox" checked={bonusMode} onChange={(e) => setBonusMode(e.target.checked)} />
             <span>Bonusga o‘tkazish</span>
@@ -1514,15 +1391,8 @@ function ContentPage({ users = [], onToast, reload }) {
 
           {bonusMode ? (
             <>
-              <label>
-                <span>Taklif soni</span>
-                <input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required />
-              </label>
-
-              <label>
-                <span>Tasdiq soni</span>
-                <input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} />
-              </label>
+              <label><span>Taklif soni</span><input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required /></label>
+              <label><span>Tasdiq soni</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} /></label>
             </>
           ) : null}
 
@@ -1617,9 +1487,7 @@ function AuditPage({ logs = [] }) {
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan="5" className="empty-cell">Hozircha ma’lumot yo‘q</td>
-                </tr>
+                <tr><td colSpan="5" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -1661,7 +1529,6 @@ function ProfilePage({ user = {}, onToast }) {
     e.preventDefault();
     try {
       setSaving(true);
-
       await api.updateProfile({
         full_name: form.full_name,
         phone: form.phone,
@@ -1677,7 +1544,18 @@ function ProfilePage({ user = {}, onToast }) {
         });
       }
 
+      const me = await api.me();
       onToast("Profil saqlandi ✅", "success");
+      setForm((prev) => ({
+        ...prev,
+        old_password: "",
+        new_password: "",
+        full_name: me.user?.full_name || prev.full_name,
+        phone: me.user?.phone || prev.phone,
+        login: me.user?.login || prev.login,
+        avatar_url: me.user?.avatar_url || prev.avatar_url,
+        department_role: me.user?.department_role || prev.department_role
+      }));
     } catch (err) {
       onToast(err.message || "Profilni saqlab bo‘lmadi", "error");
     } finally {
@@ -1690,41 +1568,13 @@ function ProfilePage({ user = {}, onToast }) {
       <div className="card">
         <SectionTitle title="Mening profilim" />
         <form className="form-grid" onSubmit={saveProfile}>
-          <label>
-            <span>Ism</span>
-            <input value={form.full_name} onChange={(e) => setField("full_name", e.target.value)} />
-          </label>
-
-          <label>
-            <span>Telefon</span>
-            <input value={form.phone} onChange={(e) => setField("phone", e.target.value)} />
-          </label>
-
-          <label>
-            <span>Login</span>
-            <input value={form.login} onChange={(e) => setField("login", e.target.value)} />
-          </label>
-
-          <label>
-            <span>Lavozimi</span>
-            <input value={form.department_role} onChange={(e) => setField("department_role", e.target.value)} />
-          </label>
-
-          <label className="full-col">
-            <span>Profil rasmi linki</span>
-            <input value={form.avatar_url} onChange={(e) => setField("avatar_url", e.target.value)} />
-          </label>
-
-          <label>
-            <span>Eski parol</span>
-            <input type="password" value={form.old_password} onChange={(e) => setField("old_password", e.target.value)} />
-          </label>
-
-          <label>
-            <span>Yangi parol</span>
-            <input type="password" value={form.new_password} onChange={(e) => setField("new_password", e.target.value)} />
-          </label>
-
+          <label><span>Ism</span><input value={form.full_name} onChange={(e) => setField("full_name", e.target.value)} /></label>
+          <label><span>Telefon</span><input value={form.phone} onChange={(e) => setField("phone", e.target.value)} /></label>
+          <label><span>Login</span><input value={form.login} onChange={(e) => setField("login", e.target.value)} /></label>
+          <label><span>Lavozimi</span><input value={form.department_role} onChange={(e) => setField("department_role", e.target.value)} /></label>
+          <label className="full-col"><span>Profil rasmi linki</span><input value={form.avatar_url} onChange={(e) => setField("avatar_url", e.target.value)} /></label>
+          <label><span>Eski parol</span><input type="password" value={form.old_password} onChange={(e) => setField("old_password", e.target.value)} /></label>
+          <label><span>Yangi parol</span><input type="password" value={form.new_password} onChange={(e) => setField("new_password", e.target.value)} /></label>
           <button className="btn primary" type="submit" disabled={saving}>
             {saving ? "Saqlanmoqda..." : "Profilni saqlash"}
           </button>
@@ -1780,7 +1630,6 @@ function App() {
   const [notifications, setNotifications] = useState([]);
   const [users, setUsers] = useState([]);
   const [branches, setBranches] = useState([]);
-  const [bonuses, setBonuses] = useState([]);
   const [bonusItems, setBonusItems] = useState([]);
   const [uploads, setUploads] = useState([]);
   const [contentRows, setContentRows] = useState([]);
@@ -1803,7 +1652,6 @@ function App() {
         notificationsRes,
         usersRes,
         branchesRes,
-        bonusRes,
         bonusItemsRes,
         uploadsRes,
         contentRes,
@@ -1817,7 +1665,6 @@ function App() {
         api.list("notifications").catch(() => []),
         api.list("users").catch(() => []),
         api.list("branches").catch(() => []),
-        api.list("bonuses").catch(() => []),
         api.list("bonus-items").catch(() => []),
         api.list("uploads").catch(() => []),
         api.list("content").catch(() => []),
@@ -1832,7 +1679,6 @@ function App() {
       setNotifications(notificationsRes || []);
       setUsers(usersRes || []);
       setBranches(branchesRes || []);
-      setBonuses(bonusRes || []);
       setBonusItems(bonusItemsRes || []);
       setUploads(uploadsRes || []);
       setContentRows(contentRes || []);
@@ -1867,20 +1713,14 @@ function App() {
     init();
   }, []);
 
-  console.log("USER:", user);
-console.log("PERMISSIONS:", safePermissions(user?.permissions_json));
-
   const allowedMenu = useMemo(() => {
-  if (user?.role === "admin") return MENU;
-
-  const permissions = safePermissions(user?.permissions_json);
-
-  if (!permissions.length) {
-    return MENU.filter((item) => item.id === "dashboard" || item.id === "profile");
-  }
-
-  return MENU.filter((item) => permissions.includes(item.id));
-}, [user]);
+    if (user?.role === "admin") return MENU;
+    const permissions = safePermissions(user?.permissions_json);
+    if (!permissions.length) {
+      return MENU.filter((item) => item.id === "dashboard" || item.id === "profile");
+    }
+    return MENU.filter((item) => permissions.includes(item.id));
+  }, [user]);
 
   const filteredMenu = useMemo(() => {
     if (!search.trim()) return allowedMenu;
@@ -1957,85 +1797,25 @@ console.log("PERMISSIONS:", safePermissions(user?.permissions_json));
       />
     );
   } else if (active === "content") {
-    page = (
-      <ContentPage
-        users={users}
-        onToast={showToast}
-        reload={reloadData}
-      />
-    );
+    page = <ContentPage users={users} onToast={showToast} reload={reloadData} />;
   } else if (active === "bonus") {
-    page = (
-      <BonusPage
-        bonusItems={bonusItems}
-        users={users}
-        branches={branches}
-        onToast={showToast}
-        reload={reloadData}
-      />
-    );
+    page = <BonusPage bonusItems={bonusItems} users={users} branches={branches} onToast={showToast} reload={reloadData} />;
   } else if (active === "dailyReports") {
-    page = (
-      <DailyReportsPage
-        reports={dailyReports}
-        branches={branches}
-        users={users}
-        onToast={showToast}
-        reload={reloadData}
-      />
-    );
+    page = <DailyReportsPage reports={dailyReports} branches={branches} users={users} onToast={showToast} reload={reloadData} />;
   } else if (active === "campaigns") {
-    page = (
-      <CampaignsPage
-        campaigns={campaigns}
-        onToast={showToast}
-        reload={reloadData}
-      />
-    );
+    page = <CampaignsPage campaigns={campaigns} onToast={showToast} reload={reloadData} />;
   } else if (active === "uploads") {
-    page = (
-      <MediaPage
-        uploads={uploads}
-        onToast={showToast}
-        reload={reloadData}
-      />
-    );
+    page = <MediaPage uploads={uploads} onToast={showToast} reload={reloadData} />;
   } else if (active === "users") {
-    page = (
-      <UsersPage
-        users={users}
-        onToast={showToast}
-        reload={reloadData}
-      />
-    );
+    page = <UsersPage users={users} onToast={showToast} reload={reloadData} />;
   } else if (active === "tasks") {
-    page = (
-      <TasksPage
-        tasks={tasks}
-        users={users}
-        onToast={showToast}
-        reload={reloadData}
-      />
-    );
+    page = <TasksPage tasks={tasks} users={users} onToast={showToast} reload={reloadData} />;
   } else if (active === "audit") {
     page = <AuditPage logs={auditLogs} />;
   } else if (active === "profile") {
-    page = (
-      <ProfilePage
-        user={user}
-        onToast={showToast}
-      />
-    );
+    page = <ProfilePage user={user} onToast={showToast} />;
   } else if (active === "settings") {
-    page = (
-      <SettingsPage
-        settings={settings}
-        onSave={saveSettings}
-        saving={savingSettings}
-        theme={theme}
-        setTheme={setTheme}
-      />
-    );
+    page = <SettingsPage settings={settings} onSave={saveSettings} saving={savingSettings} theme={theme} setTheme={setTheme} />;
   }
 
   return (
@@ -2052,11 +1832,7 @@ console.log("PERMISSIONS:", safePermissions(user?.permissions_json));
 
           <div className="sidebar-search">
             <Search size={16} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Qidiruv..."
-            />
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Qidiruv..." />
           </div>
 
           <div className="menu-list">
@@ -2193,7 +1969,6 @@ a{color:var(--blue);text-decoration:none}
   border-radius:16px;
   padding:14px 16px;
 }
-
 .app-shell{
   min-height:100vh;
   display:grid;
@@ -2216,7 +1991,6 @@ a{color:var(--blue);text-decoration:none}
 }
 .brand-name{font-size:24px;font-weight:800}
 .brand-desc{font-size:12px;color:var(--muted)}
-
 .sidebar-search{
   display:flex;align-items:center;gap:10px;
   background:var(--soft);
@@ -2230,7 +2004,6 @@ a{color:var(--blue);text-decoration:none}
   border:0;
   color:var(--text);
 }
-
 .menu-list{display:grid;gap:10px}
 .menu-btn{
   border:1px solid transparent;
@@ -2248,7 +2021,6 @@ a{color:var(--blue);text-decoration:none}
   background:linear-gradient(135deg,rgba(22,144,245,.10),rgba(98,210,255,.08));
   border-color:rgba(22,144,245,.16);
 }
-
 .logout-btn{
   margin-top:auto;
   border:0;
@@ -2259,7 +2031,6 @@ a{color:var(--blue);text-decoration:none}
   display:flex;align-items:center;justify-content:center;gap:8px;
   cursor:pointer;
 }
-
 .main-area{padding:24px}
 .topbar{
   background:var(--panel);
@@ -2270,7 +2041,6 @@ a{color:var(--blue);text-decoration:none}
 }
 .topbar h1{margin:8px 0 0;font-size:34px}
 .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-
 .theme-toggle,.notif-pill,.user-chip{
   border:1px solid var(--line);
   background:var(--soft);
@@ -2280,7 +2050,6 @@ a{color:var(--blue);text-decoration:none}
   display:flex;align-items:center;gap:8px;
 }
 .notif-pill,.user-chip{cursor:pointer}
-
 .page-grid{display:grid;gap:18px;margin-top:18px}
 .hero-banner,.card,.stat-card{
   background:var(--panel);
@@ -2298,7 +2067,6 @@ a{color:var(--blue);text-decoration:none}
 .stat-card-title{font-size:14px;color:var(--muted)}
 .stat-card-value{font-size:36px;font-weight:900;margin-top:10px}
 .stat-card-hint{font-size:13px;color:var(--muted);margin-top:8px}
-
 .two-grid{
   display:grid;
   grid-template-columns:1.1fr .9fr;
@@ -2312,7 +2080,6 @@ a{color:var(--blue);text-decoration:none}
   border-radius:16px;
   display:flex;justify-content:space-between;gap:10px
 }
-
 .section-title-row{
   display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
   margin-bottom:16px;
@@ -2320,7 +2087,6 @@ a{color:var(--blue);text-decoration:none}
 .section-title-row h2{margin:0;font-size:26px}
 .section-title-row p{margin:8px 0 0;color:var(--muted)}
 .toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
-
 .form-grid{
   display:grid;
   grid-template-columns:repeat(3,1fr);
@@ -2337,7 +2103,6 @@ a{color:var(--blue);text-decoration:none}
 }
 .full-col{grid-column:1 / -1}
 .mt16{margin-top:16px}
-
 .btn{
   border:0;
   border-radius:14px;
@@ -2359,7 +2124,6 @@ a{color:var(--blue);text-decoration:none}
 .link-btn{
   border:0;background:transparent;color:var(--blue);cursor:pointer;padding:0
 }
-
 .summary-pill{
   margin-bottom:16px;
   padding:14px 16px;
@@ -2367,7 +2131,6 @@ a{color:var(--blue);text-decoration:none}
   background:var(--soft);
   border:1px solid var(--line);
 }
-
 .upload-row{
   display:flex;gap:12px;align-items:center;flex-wrap:wrap
 }
@@ -2378,7 +2141,6 @@ a{color:var(--blue);text-decoration:none}
   padding:12px;
   color:var(--text);
 }
-
 .table-wrap{
   overflow:auto;
   border:1px solid var(--line);
@@ -2389,7 +2151,6 @@ th,td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left}
 th{background:rgba(22,144,245,.05);color:var(--muted)}
 .empty-cell{text-align:center;color:var(--muted);padding:24px}
 .table-actions{display:flex;gap:8px;flex-wrap:wrap}
-
 .error-box{
   background:rgba(239,90,90,.10);
   color:#db4f4f;
@@ -2397,7 +2158,6 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   padding:12px 14px;
   border-radius:14px;
 }
-
 .toast{
   position:fixed;
   right:20px;bottom:20px;
@@ -2412,7 +2172,6 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
 .toast-success{background:linear-gradient(135deg,#22b35d,#52da90)}
 .toast-error{background:linear-gradient(135deg,#ef5a5a,#ff9c9c)}
 .toast button{background:transparent;border:0;color:#fff;cursor:pointer}
-
 .drawer{
   position:fixed;
   inset:0;
@@ -2465,7 +2224,6 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   color:var(--muted);
   text-align:center;
 }
-
 .checkbox-row{
   display:flex !important;
   align-items:center;
@@ -2476,7 +2234,6 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   width:18px;
   height:18px;
 }
-
 .permission-box{
   border:1px solid var(--line);
   border-radius:16px;
@@ -2505,7 +2262,6 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   width:16px;
   height:16px;
 }
-
 @media (max-width: 1100px){
   .login-page,.app-shell,.stats-grid,.two-grid,.form-grid{grid-template-columns:1fr}
   .main-area{padding:14px}
