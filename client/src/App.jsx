@@ -2516,4 +2516,3 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   .login-copy h2{font-size:24px}
 }
 `;
-export default App;
