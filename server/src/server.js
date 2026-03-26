@@ -777,6 +777,22 @@ app.put("/api/auth/profile", authRequired, async (req, res) => {
   }
 });
 
+    await logAction(req.user.id, "update", "profile", req.user.id, {
+      full_name,
+      phone,
+      login
+    });
+
+    res.json({
+      message: "Profil saqlandi",
+      user: updated.rows[0]
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Profilni saqlashda xatolik" });
+  }
+});
+
 app.put("/api/users/:id", authRequired, async (req, res) => {
   try {
     const { id } = req.params;
