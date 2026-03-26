@@ -11,6 +11,34 @@
   --line:#DEE7F0;
   --shadow:0 16px 36px rgba(24,67,112,.08);
 }
+.permission-box{
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:16px;
+  background:var(--soft);
+}
+.permission-title{
+  font-weight:800;
+  margin-bottom:12px;
+}
+.permission-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:10px;
+}
+.permission-item{
+  display:flex !important;
+  align-items:center;
+  gap:8px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 12px;
+}
+.permission-item input{
+  width:16px;
+  height:16px;
+}
 :root[data-theme='dark']{
   --bg:#09111C;
   --panel:#101B29;
