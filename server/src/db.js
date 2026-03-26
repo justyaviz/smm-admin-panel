@@ -1,17 +1,34 @@
-import pg from "pg";
+ALTER TABLE users ADD COLUMN IF NOT EXISTS department_role TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions_json JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS login TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT;
 
-const { Pool } = pg;
+ALTER TABLE content_items ADD COLUMN IF NOT EXISTS assigned_user_id INTEGER;
+ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_editor_user_id INTEGER;
+ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_face_user_id INTEGER;
+ALTER TABLE content_items ADD COLUMN IF NOT EXISTS bonus_enabled BOOLEAN DEFAULT FALSE;
+ALTER TABLE content_items ADD COLUMN IF NOT EXISTS proposal_count INTEGER DEFAULT 0;
+ALTER TABLE content_items ADD COLUMN IF NOT EXISTS approved_count INTEGER DEFAULT 0;
+ALTER TABLE content_items ADD COLUMN IF NOT EXISTS plan_month TEXT;
+ALTER TABLE content_items ADD COLUMN IF NOT EXISTS created_by INTEGER;
+ALTER TABLE content_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP;
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl:
-    process.env.DATABASE_URL &&
-    (process.env.DATABASE_URL.includes("railway.app") ||
-      process.env.DATABASE_URL.includes("proxy.rlwy.net"))
-      ? { rejectUnauthorized: false }
-      : false
-});
+ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS month_label TEXT;
+ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS user_id INTEGER;
+ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS video_editor_user_id INTEGER;
+ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS video_face_user_id INTEGER;
+ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS branch_id INTEGER;
+ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS proposal_count INTEGER DEFAULT 0;
+ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approved_count INTEGER DEFAULT 0;
+ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS proposal_amount NUMERIC DEFAULT 0;
+ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approved_amount NUMERIC DEFAULT 0;
+ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS total_amount NUMERIC DEFAULT 0;
+ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS created_by INTEGER;
 
-export async function query(text, params = []) {
-  return pool.query(text, params);
-}
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS revenue_amount NUMERIC DEFAULT 0;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS cpa NUMERIC DEFAULT 0;
+ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS roi NUMERIC DEFAULT 0;
