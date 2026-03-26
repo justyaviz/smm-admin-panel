@@ -1,16 +1,5 @@
 export const API_BASE =
-  import.meta.env.VITE_API_BASE ||
-  "https://smm-admin-panel-back-production.up.railway.app";
-
-function authHeaders() {
-  const token = localStorage.getItem("aloo_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-
-export function clearAuth() {
-  localStorage.removeItem("aloo_token");
-  localStorage.removeItem("aloo_user");
-}
+  import.meta.env.VITE_API_BASE || "http://localhost:8080";
 
 export function getCurrentUser() {
   try {
@@ -21,22 +10,21 @@ export function getCurrentUser() {
   }
 }
 
-function saveAuth(data) {
-  if (data?.token) {
-    localStorage.setItem("aloo_token", data.token);
-  }
-  if (data?.user) {
-    localStorage.setItem("aloo_user", JSON.stringify(data.user));
-  }
+export function clearAuth() {
+  localStorage.removeItem("aloo_token");
+  localStorage.removeItem("aloo_user");
+}
+
+function authHeaders() {
+  const token = localStorage.getItem("aloo_token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 async function request(path, options = {}) {
-  const isFormData = options.body instanceof FormData;
-
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
-      ...(isFormData ? {} : { "Content-Type": "application/json" }),
+      ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       ...authHeaders(),
       ...(options.headers || {})
     }
@@ -47,39 +35,41 @@ async function request(path, options = {}) {
     throw new Error(data.message || "Xatolik yuz berdi");
   }
 
-  const contentType = res.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    return res.json();
-  }
-
+  const ct = res.headers.get("content-type") || "";
+  if (ct.includes("application/json")) return res.json();
   return res.blob();
 }
 
 export const api = {
   login: async (payload) => {
-  const data = await request("/api/auth/login", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
+    const data = await request("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
 
-  if (data?.token) {
-    localStorage.setItem("aloo_token", data.token);
-  }
+    if (data?.token) {
+      localStorage.setItem("aloo_token", data.token);
+    }
+    if (data?.user) {
+      localStorage.setItem("aloo_user", JSON.stringify(data.user));
+    }
 
-  if (data?.user) {
-    localStorage.setItem("aloo_user", JSON.stringify(data.user));
-  }
-
-  return data;
-},
+    return data;
+  },
 
   me: async () => {
-  const data = await request("/api/auth/me");
-  if (data?.user) {
-    localStorage.setItem("aloo_user", JSON.stringify(data.user));
-  }
-  return data;
-},
+    const data = await request("/api/auth/me");
+    if (data?.user) {
+      localStorage.setItem("aloo_user", JSON.stringify(data.user));
+    }
+    return data;
+  },
+
+  updateProfile: (payload) =>
+    request("/api/auth/profile", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    }),
 
   changePassword: (payload) =>
     request("/api/auth/change-password", {
@@ -88,13 +78,6 @@ export const api = {
     }),
 
   dashboard: () => request("/api/dashboard/summary"),
-
-  kpi: {
-    summary: () => request("/api/kpi/summary"),
-    employees: () => request("/api/kpi/employees"),
-    branches: () => request("/api/kpi/branches"),
-    contentTypes: () => request("/api/kpi/content-types")
-  },
 
   settings: {
     get: () => request("/api/settings"),
@@ -105,7 +88,8 @@ export const api = {
       })
   },
 
-  list: (entity) => request(`/api/${entity}`),
+  list: (entityOrPath) =>
+    request(entityOrPath.startsWith("/") ? entityOrPath : `/api/${entityOrPath}`),
 
   create: (entity, payload) =>
     request(`/api/${entity}`, {
@@ -124,61 +108,21 @@ export const api = {
       method: "DELETE"
     }),
 
-  contentByMonth: (month) => request(`/api/content?month=${month}`),
-
-  createContentPlan: (payload) =>
-    request("/api/content", {
+  upload: (formData) =>
+    request("/api/uploads", {
       method: "POST",
-      body: JSON.stringify(payload)
+      body: formData
     }),
 
-  updateContentPlan: (id, payload) =>
-    request(`/api/content/${id}`, {
-      method: "PUT",
-      body: JSON.stringify(payload)
-    }),
-
-  deleteContentPlan: (id) =>
-    request(`/api/content/${id}`, {
-      method: "DELETE"
-    }),
-
-  uploadFile: (file) => {
-    const fd = new FormData();
-    fd.append("file", file);
-
-    return request("/api/uploads", {
-      method: "POST",
-      body: fd
-    });
+  exportFile: async (path, fileName) => {
+    const blob = await request(path);
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    window.URL.revokeObjectURL(url);
   },
-
-    updateProfile: (payload) =>
-    request("/api/auth/profile", {
-      method: "PUT",
-      body: JSON.stringify(payload)
-    }),
-
-  users: {
-    resetPassword: (id) =>
-      request(`/api/users/${id}/reset-password`, {
-        method: "POST"
-      }),
-    toggleActive: (id) =>
-      request(`/api/users/${id}/toggle-active`, {
-        method: "POST"
-      }),
-    update: (id, payload) =>
-      request(`/api/users/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(payload)
-      })
-  },
-
-  recalcBonus: () =>
-    request("/api/bonuses/recalculate", {
-      method: "POST"
-    }),
 
   notifications: {
     read: (id) =>
@@ -192,6 +136,11 @@ export const api = {
   },
 
   users: {
+    update: (id, payload) =>
+      request(`/api/users/${id}`, {
+        method: "PUT",
+        body: JSON.stringify(payload)
+      }),
     resetPassword: (id) =>
       request(`/api/users/${id}/reset-password`, {
         method: "POST"
@@ -200,23 +149,5 @@ export const api = {
       request(`/api/users/${id}/toggle-active`, {
         method: "POST"
       })
-  },
-
-    updateProfile: (payload) =>
-    request("/api/auth/profile", {
-      method: "PUT",
-      body: JSON.stringify(payload)
-    }),
-
-  exportFile: async (path, fileName) => {
-    const blob = await request(path);
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
   }
 };
