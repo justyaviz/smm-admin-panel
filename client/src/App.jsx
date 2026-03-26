@@ -1923,84 +1923,96 @@ export default function App() {
 
   let page = null;
 
+if (active === "dashboard") {
   page = (
-  <DashboardPage
-    summary={summary}
-    dailyReports={dailyReports}
-    bonusItems={bonusItems}
-    contentRows={contentRows}
-  />
-);
-  } else if (active === "profile") {
+    <DashboardPage
+      summary={summary}
+      dailyReports={dailyReports}
+      bonusItems={bonusItems}
+      contentRows={contentRows}
+    />
+  );
+} else if (active === "content") {
+  page = (
+    <ContentPage
+      users={users}
+      onToast={showToast}
+      reload={reloadData}
+    />
+  );
+} else if (active === "bonus") {
+  page = (
+    <BonusPage
+      bonusItems={bonusItems}
+      users={users}
+      branches={branches}
+      onToast={showToast}
+      reload={reloadData}
+    />
+  );
+} else if (active === "dailyReports") {
+  page = (
+    <DailyReportsPage
+      reports={dailyReports}
+      branches={branches}
+      users={users}
+      onToast={showToast}
+      reload={reloadData}
+    />
+  );
+} else if (active === "campaigns") {
+  page = (
+    <CampaignsPage
+      campaigns={campaigns}
+      onToast={showToast}
+      reload={reloadData}
+    />
+  );
+} else if (active === "uploads") {
+  page = (
+    <MediaPage
+      uploads={uploads}
+      onToast={showToast}
+      reload={reloadData}
+    />
+  );
+} else if (active === "users") {
+  page = (
+    <UsersPage
+      users={users}
+      onToast={showToast}
+      reload={reloadData}
+    />
+  );
+} else if (active === "tasks") {
+  page = (
+    <TasksPage
+      tasks={tasks}
+      users={users}
+      onToast={showToast}
+      reload={reloadData}
+    />
+  );
+} else if (active === "audit") {
+  page = <AuditPage logs={auditLogs} />;
+} else if (active === "profile") {
   page = (
     <ProfilePage
       user={user}
       onToast={showToast}
     />
   );
-  } else if (active === "content") {
-    page = (
-      <ContentPage
-        users={users}
-        branches={branches}
-        onToast={showToast}
-      />
-    );
+} else if (active === "settings") {
   page = (
-  <BonusPage
-    bonusItems={bonusItems}
-    users={users}
-    branches={branches}
-    onToast={showToast}
-    reload={reloadData}
-  />
-);
-  } else if (active === "uploads") {
-    page = (
-      <MediaPage
-        uploads={uploads}
-        onToast={showToast}
-        reload={reloadData}
-      />
-    );
-  } else if (active === "users") {
-    page = (
-      <UsersPage
-        users={users}
-        onToast={showToast}
-        reload={reloadData}
-      />
-    );
-  } else if (active === "campaigns") {
-    page = (
-      <CampaignsPage
-        campaigns={campaigns}
-        onToast={showToast}
-        reload={reloadData}
-      />
-    );
-  } else if (active === "tasks") {
-    page = (
-      <TasksPage
-        tasks={tasks}
-        users={users}
-        onToast={showToast}
-        reload={reloadData}
-      />
-    );
-  } else if (active === "audit") {
-    page = <AuditPage logs={auditLogs} />;
-  } else if (active === "settings") {
-    page = (
-      <SettingsPage
-        settings={settings}
-        onSave={saveSettings}
-        saving={savingSettings}
-        theme={theme}
-        setTheme={setTheme}
-      />
-    );
-  }
+    <SettingsPage
+      settings={settings}
+      onSave={saveSettings}
+      saving={savingSettings}
+      theme={theme}
+      setTheme={setTheme}
+    />
+  );
+}
 
   return (
     <>
