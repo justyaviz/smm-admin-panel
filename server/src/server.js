@@ -8,6 +8,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { query } from "./db.js";
 import { authRequired, rolesAllowed, signToken } from "./auth.js";
+import { sendExcel, sendSimplePdf } from "./exports.js";
 
 dotenv.config();
 
@@ -49,27 +50,76 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+function formatDateOnly(value) {
+  if (!value) return null;
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+function getMonthLabel(date = new Date()) {
+  const d = new Date(date);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function calcMoney(count) {
+  return Number(count || 0) * 25000;
+}
+
+function calcCpa(spend, leads) {
+  const s = Number(spend || 0);
+  const l = Number(leads || 0);
+  if (!l) return 0;
+  return Number((s / l).toFixed(2));
+}
+
+function calcRoi(spend, revenue) {
+  const s = Number(spend || 0);
+  const r = Number(revenue || 0);
+  if (!s) return 0;
+  return Number((((r - s) / s) * 100).toFixed(2));
+}
+
 async function logAction(userId, actionType, entityType, entityId = null, meta = {}) {
   try {
     await query(
-      `INSERT INTO audit_logs (user_id, action_type, entity_type, entity_id, meta)
-       VALUES ($1, $2, $3, $4, $5)`,
+      `
+      INSERT INTO audit_logs (user_id, action_type, entity_type, entity_id, meta)
+      VALUES ($1, $2, $3, $4, $5)
+      `,
       [userId || null, actionType, entityType, entityId, JSON.stringify(meta)]
     );
   } catch (err) {
-    console.error("logAction error:", err.message);
+    console.error("audit log error:", err.message);
   }
 }
 
 async function createNotification(userId, title, body, type = "info") {
   try {
     await query(
-      `INSERT INTO notifications (user_id, title, body, type)
-       VALUES ($1, $2, $3, $4)`,
+      `
+      INSERT INTO notifications (user_id, title, body, type)
+      VALUES ($1, $2, $3, $4)
+      `,
       [userId || null, title, body, type]
     );
   } catch (err) {
-    console.error("createNotification error:", err.message);
+    console.error("notification error:", err.message);
+  }
+}
+
+async function recomputeBonusFromItems() {
+  try {
+    await query(`
+      UPDATE bonus_items
+      SET
+        proposal_amount = COALESCE(proposal_count, 0) * 25000,
+        approved_amount = COALESCE(approved_count, 0) * 25000,
+        total_amount = (COALESCE(proposal_count, 0) + COALESCE(approved_count, 0)) * 25000
+    `);
+  } catch (err) {
+    console.error("recomputeBonusFromItems error:", err.message);
   }
 }
 
@@ -145,11 +195,11 @@ app.post("/api/auth/login", async (req, res) => {
     });
 
     await logAction(user.id, "login", "auth", user.id, {
-      phone: user.phone,
-      login: user.login
+      login: user.login,
+      phone: user.phone
     });
 
-    return res.json({
+    res.json({
       token,
       user: {
         id: user.id,
@@ -165,7 +215,7 @@ app.post("/api/auth/login", async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    return res.status(500).json({ message: "Server xatoligi" });
+    res.status(500).json({ message: "Server xatoligi" });
   }
 });
 
@@ -194,9 +244,7 @@ app.get("/api/auth/me", authRequired, async (req, res) => {
       return res.status(404).json({ message: "Foydalanuvchi topilmadi" });
     }
 
-    res.json({
-      user: result.rows[0]
-    });
+    res.json({ user: result.rows[0] });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Foydalanuvchini olishda xatolik" });
@@ -353,9 +401,21 @@ app.put("/api/settings", authRequired, async (req, res) => {
 
     if (!current.rows.length) {
       await query(
-        `INSERT INTO app_settings
-        (company_name, platform_name, department_name, website_url, telegram_url, instagram_url, youtube_url, facebook_url, tiktok_url)
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        `
+        INSERT INTO app_settings
+        (
+          company_name,
+          platform_name,
+          department_name,
+          website_url,
+          telegram_url,
+          instagram_url,
+          youtube_url,
+          facebook_url,
+          tiktok_url
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        `,
         [
           company_name || "aloo",
           platform_name || "",
@@ -370,18 +430,21 @@ app.put("/api/settings", authRequired, async (req, res) => {
       );
     } else {
       await query(
-        `UPDATE app_settings SET
-         company_name = $1,
-         platform_name = $2,
-         department_name = $3,
-         website_url = $4,
-         telegram_url = $5,
-         instagram_url = $6,
-         youtube_url = $7,
-         facebook_url = $8,
-         tiktok_url = $9,
-         updated_at = CURRENT_TIMESTAMP
-         WHERE id = $10`,
+        `
+        UPDATE app_settings
+        SET
+          company_name = $1,
+          platform_name = $2,
+          department_name = $3,
+          website_url = $4,
+          telegram_url = $5,
+          instagram_url = $6,
+          youtube_url = $7,
+          facebook_url = $8,
+          tiktok_url = $9,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $10
+        `,
         [
           company_name || "aloo",
           platform_name || "",
@@ -397,7 +460,7 @@ app.put("/api/settings", authRequired, async (req, res) => {
       );
     }
 
-    await logAction(req.user.id, "update", "app_settings");
+    await logAction(req.user.id, "update", "app_settings", null, {});
     res.json({ message: "Sozlamalar saqlandi" });
   } catch (err) {
     console.error(err);
@@ -407,7 +470,7 @@ app.put("/api/settings", authRequired, async (req, res) => {
 
 /* USERS */
 
-app.get("/api/users", authRequired, async (req, res) => {
+app.get("/api/users", authRequired, async (_, res) => {
   try {
     const result = await query(`
       SELECT
@@ -509,7 +572,6 @@ app.post("/api/users", authRequired, async (req, res) => {
     await logAction(req.user.id, "create", "users", inserted.rows[0].id, {
       full_name,
       phone,
-      login,
       role,
       department_role,
       permissions_json: permissions
@@ -580,7 +642,6 @@ app.put("/api/users/:id", authRequired, async (req, res) => {
     await logAction(req.user.id, "update", "users", Number(id), {
       full_name,
       phone,
-      login,
       role,
       department_role,
       permissions_json: permissions
@@ -593,10 +654,19 @@ app.put("/api/users/:id", authRequired, async (req, res) => {
   }
 });
 
+app.delete("/api/users/:id", authRequired, rolesAllowed("admin"), async (req, res) => {
+  try {
+    await query(`DELETE FROM users WHERE id = $1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "users", Number(req.params.id), {});
+    res.json({ message: "Hodim o‘chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Hodimni o‘chirib bo‘lmadi" });
+  }
+});
+
 app.post("/api/users/:id/toggle-active", authRequired, async (req, res) => {
   try {
-    const { id } = req.params;
-
     const updated = await query(
       `
       UPDATE users
@@ -606,14 +676,14 @@ app.post("/api/users/:id/toggle-active", authRequired, async (req, res) => {
       WHERE id = $1
       RETURNING id, full_name, is_active
       `,
-      [id]
+      [req.params.id]
     );
 
     if (!updated.rows.length) {
       return res.status(404).json({ message: "Hodim topilmadi" });
     }
 
-    await logAction(req.user.id, "toggle_active", "users", Number(id), {});
+    await logAction(req.user.id, "toggle_active", "users", Number(req.params.id), {});
 
     res.json({
       message: "Holat yangilandi",
@@ -627,7 +697,6 @@ app.post("/api/users/:id/toggle-active", authRequired, async (req, res) => {
 
 app.post("/api/users/:id/reset-password", authRequired, async (req, res) => {
   try {
-    const { id } = req.params;
     const hashed = await bcrypt.hash("12345678", 10);
 
     const updated = await query(
@@ -637,14 +706,14 @@ app.post("/api/users/:id/reset-password", authRequired, async (req, res) => {
       WHERE id = $2
       RETURNING id, full_name
       `,
-      [hashed, id]
+      [hashed, req.params.id]
     );
 
     if (!updated.rows.length) {
       return res.status(404).json({ message: "Hodim topilmadi" });
     }
 
-    await logAction(req.user.id, "reset_password", "users", Number(id), {});
+    await logAction(req.user.id, "reset_password", "users", Number(req.params.id), {});
 
     res.json({ message: "Parol 12345678 ga tiklandi" });
   } catch (err) {
@@ -670,12 +739,15 @@ app.get("/api/branches", authRequired, async (_, res) => {
 app.get("/api/content", authRequired, async (req, res) => {
   try {
     const month = req.query.month;
+
     let sql = `
       SELECT
         c.*,
+        u.full_name AS assignee_name,
         ve.full_name AS video_editor_name,
         vf.full_name AS video_face_name
       FROM content_items c
+      LEFT JOIN users u ON u.id = c.assigned_user_id
       LEFT JOIN users ve ON ve.id = c.video_editor_user_id
       LEFT JOIN users vf ON vf.id = c.video_face_user_id
     `;
@@ -704,6 +776,7 @@ app.post("/api/content", authRequired, async (req, res) => {
       status,
       platform,
       content_type,
+      assigned_user_id,
       video_editor_user_id,
       video_face_user_id,
       bonus_enabled,
@@ -712,7 +785,10 @@ app.post("/api/content", authRequired, async (req, res) => {
       notes
     } = req.body;
 
-    const result = await query(
+    const publishDate = formatDateOnly(publish_date);
+    const planMonth = publishDate ? publishDate.slice(0, 7) : getMonthLabel();
+
+    const inserted = await query(
       `
       INSERT INTO content_items
       (
@@ -721,38 +797,255 @@ app.post("/api/content", authRequired, async (req, res) => {
         status,
         platform,
         content_type,
+        assigned_user_id,
         video_editor_user_id,
         video_face_user_id,
         bonus_enabled,
         proposal_count,
         approved_count,
         notes,
+        plan_month,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       RETURNING *
       `,
       [
         title,
-        publish_date || null,
+        publishDate,
         status || "reja",
         platform || "",
         content_type || "post",
+        assigned_user_id || null,
         video_editor_user_id || null,
         video_face_user_id || null,
         !!bonus_enabled,
         Number(proposal_count || 0),
         Number(approved_count || 0),
         notes || "",
+        planMonth,
         req.user.id
       ]
     );
 
-    await logAction(req.user.id, "create", "content_items", result.rows[0].id, { title });
-    res.json(result.rows[0]);
+    const row = inserted.rows[0];
+
+    if (row.bonus_enabled && Number(row.proposal_count || 0) > 0) {
+      const proposalAmount = calcMoney(row.proposal_count);
+      const approvedAmount = calcMoney(row.approved_count);
+      const totalAmount = proposalAmount + approvedAmount;
+
+      await query(
+        `
+        INSERT INTO bonus_items
+        (
+          month_label,
+          work_date,
+          content_type,
+          content_title,
+          proposal_count,
+          approved_count,
+          proposal_amount,
+          approved_amount,
+          total_amount,
+          user_id,
+          video_editor_user_id,
+          video_face_user_id,
+          created_by
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+        `,
+        [
+          row.plan_month,
+          row.publish_date,
+          row.content_type,
+          row.title,
+          Number(row.proposal_count || 0),
+          Number(row.approved_count || 0),
+          proposalAmount,
+          approvedAmount,
+          totalAmount,
+          row.content_type === "video" ? null : row.assigned_user_id || null,
+          row.content_type === "video" ? row.video_editor_user_id || null : null,
+          row.content_type === "video" ? row.video_face_user_id || null : null,
+          req.user.id
+        ]
+      );
+
+      await createNotification(
+        null,
+        "Bonusga o‘tkazildi",
+        `${row.title} bonus tizimiga qo‘shildi`,
+        "success"
+      );
+    }
+
+    await logAction(req.user.id, "create", "content_items", row.id, { title: row.title });
+    res.json(row);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Kontent qo‘shib bo‘lmadi" });
+  }
+});
+
+app.put("/api/content/:id", authRequired, async (req, res) => {
+  try {
+    const {
+      title,
+      publish_date,
+      status,
+      platform,
+      content_type,
+      assigned_user_id,
+      video_editor_user_id,
+      video_face_user_id,
+      bonus_enabled,
+      proposal_count,
+      approved_count,
+      notes
+    } = req.body;
+
+    const publishDate = formatDateOnly(publish_date);
+    const planMonth = publishDate ? publishDate.slice(0, 7) : getMonthLabel();
+
+    const updated = await query(
+      `
+      UPDATE content_items
+      SET
+        title = $1,
+        publish_date = $2,
+        status = $3,
+        platform = $4,
+        content_type = $5,
+        assigned_user_id = $6,
+        video_editor_user_id = $7,
+        video_face_user_id = $8,
+        bonus_enabled = $9,
+        proposal_count = $10,
+        approved_count = $11,
+        notes = $12,
+        plan_month = $13,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $14
+      RETURNING *
+      `,
+      [
+        title,
+        publishDate,
+        status || "reja",
+        platform || "",
+        content_type || "post",
+        assigned_user_id || null,
+        video_editor_user_id || null,
+        video_face_user_id || null,
+        !!bonus_enabled,
+        Number(proposal_count || 0),
+        Number(approved_count || 0),
+        notes || "",
+        planMonth,
+        req.params.id
+      ]
+    );
+
+    if (!updated.rows.length) {
+      return res.status(404).json({ message: "Kontent topilmadi" });
+    }
+
+    const row = updated.rows[0];
+
+    if (row.bonus_enabled) {
+      const proposalAmount = calcMoney(row.proposal_count);
+      const approvedAmount = calcMoney(row.approved_count);
+      const totalAmount = proposalAmount + approvedAmount;
+
+      const existingBonus = await query(
+        `SELECT id FROM bonus_items WHERE content_title = $1 AND work_date = $2 LIMIT 1`,
+        [row.title, row.publish_date]
+      );
+
+      if (existingBonus.rows.length) {
+        await query(
+          `
+          UPDATE bonus_items
+          SET
+            month_label = $1,
+            work_date = $2,
+            content_type = $3,
+            content_title = $4,
+            proposal_count = $5,
+            approved_count = $6,
+            proposal_amount = $7,
+            approved_amount = $8,
+            total_amount = $9,
+            user_id = $10,
+            video_editor_user_id = $11,
+            video_face_user_id = $12
+          WHERE id = $13
+          `,
+          [
+            row.plan_month,
+            row.publish_date,
+            row.content_type,
+            row.title,
+            Number(row.proposal_count || 0),
+            Number(row.approved_count || 0),
+            proposalAmount,
+            approvedAmount,
+            totalAmount,
+            row.content_type === "video" ? null : row.assigned_user_id || null,
+            row.content_type === "video" ? row.video_editor_user_id || null : null,
+            row.content_type === "video" ? row.video_face_user_id || null : null,
+            existingBonus.rows[0].id
+          ]
+        );
+      } else if (Number(row.proposal_count || 0) > 0) {
+        await query(
+          `
+          INSERT INTO bonus_items
+          (
+            month_label,
+            work_date,
+            content_type,
+            content_title,
+            proposal_count,
+            approved_count,
+            proposal_amount,
+            approved_amount,
+            total_amount,
+            user_id,
+            video_editor_user_id,
+            video_face_user_id,
+            created_by
+          )
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+          `,
+          [
+            row.plan_month,
+            row.publish_date,
+            row.content_type,
+            row.title,
+            Number(row.proposal_count || 0),
+            Number(row.approved_count || 0),
+            proposalAmount,
+            approvedAmount,
+            totalAmount,
+            row.content_type === "video" ? null : row.assigned_user_id || null,
+            row.content_type === "video" ? row.video_editor_user_id || null : null,
+            row.content_type === "video" ? row.video_face_user_id || null : null,
+            req.user.id
+          ]
+        );
+      }
+    }
+
+    await logAction(req.user.id, "update", "content_items", Number(req.params.id), {
+      title: row.title
+    });
+
+    res.json(row);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Kontentni yangilab bo‘lmadi" });
   }
 });
 
@@ -771,18 +1064,16 @@ app.delete("/api/content/:id", authRequired, async (req, res) => {
 
 app.get("/api/bonus-items", authRequired, async (_, res) => {
   try {
+    await recomputeBonusFromItems();
+
     const result = await query(
       `
       SELECT
         bi.*,
-        to_char(bi.work_date, 'YYYY-MM') AS month_label,
         u.full_name,
         ve.full_name AS video_editor_name,
         vf.full_name AS video_face_name,
-        br.name AS branch_name,
-        COALESCE(bi.proposal_count, 0) * 25000 AS proposal_amount,
-        COALESCE(bi.approved_count, 0) * 25000 AS approved_amount,
-        (COALESCE(bi.proposal_count, 0) + COALESCE(bi.approved_count, 0)) * 25000 AS total_amount
+        br.name AS branch_name
       FROM bonus_items bi
       LEFT JOIN users u ON u.id = bi.user_id
       LEFT JOIN users ve ON ve.id = bi.video_editor_user_id
@@ -814,48 +1105,147 @@ app.post("/api/bonus-items", authRequired, async (req, res) => {
       branch_id
     } = req.body;
 
-    const result = await query(
+    const dateOnly = formatDateOnly(work_date);
+    const month = month_label || getMonthLabel(dateOnly || new Date());
+
+    const proposalAmount = calcMoney(proposal_count);
+    const approvedAmount = calcMoney(approved_count);
+    const totalAmount = proposalAmount + approvedAmount;
+
+    const inserted = await query(
       `
       INSERT INTO bonus_items
       (
+        month_label,
         work_date,
         content_type,
         content_title,
         proposal_count,
         approved_count,
+        proposal_amount,
+        approved_amount,
+        total_amount,
         user_id,
         video_editor_user_id,
         video_face_user_id,
         branch_id,
-        month_label,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       RETURNING *
       `,
       [
-        work_date || null,
+        month,
+        dateOnly,
         content_type || "post",
         content_title || "",
         Number(proposal_count || 0),
         Number(approved_count || 0),
-        user_id || null,
-        video_editor_user_id || null,
-        video_face_user_id || null,
+        proposalAmount,
+        approvedAmount,
+        totalAmount,
+        content_type === "video" ? null : user_id || null,
+        content_type === "video" ? video_editor_user_id || null : null,
+        content_type === "video" ? video_face_user_id || null : null,
         branch_id || null,
-        month_label || null,
         req.user.id
       ]
     );
 
-    await logAction(req.user.id, "create", "bonus_items", result.rows[0].id, {
+    await logAction(req.user.id, "create", "bonus_items", inserted.rows[0].id, {
       content_title
     });
 
-    res.json(result.rows[0]);
+    res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Bonus hisobotini qo‘shib bo‘lmadi" });
+  }
+});
+
+app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
+  try {
+    const {
+      month_label,
+      work_date,
+      content_type,
+      content_title,
+      proposal_count,
+      approved_count,
+      user_id,
+      video_editor_user_id,
+      video_face_user_id,
+      branch_id
+    } = req.body;
+
+    const dateOnly = formatDateOnly(work_date);
+    const month = month_label || getMonthLabel(dateOnly || new Date());
+
+    const proposalAmount = calcMoney(proposal_count);
+    const approvedAmount = calcMoney(approved_count);
+    const totalAmount = proposalAmount + approvedAmount;
+
+    const updated = await query(
+      `
+      UPDATE bonus_items
+      SET
+        month_label = $1,
+        work_date = $2,
+        content_type = $3,
+        content_title = $4,
+        proposal_count = $5,
+        approved_count = $6,
+        proposal_amount = $7,
+        approved_amount = $8,
+        total_amount = $9,
+        user_id = $10,
+        video_editor_user_id = $11,
+        video_face_user_id = $12,
+        branch_id = $13
+      WHERE id = $14
+      RETURNING *
+      `,
+      [
+        month,
+        dateOnly,
+        content_type || "post",
+        content_title || "",
+        Number(proposal_count || 0),
+        Number(approved_count || 0),
+        proposalAmount,
+        approvedAmount,
+        totalAmount,
+        content_type === "video" ? null : user_id || null,
+        content_type === "video" ? video_editor_user_id || null : null,
+        content_type === "video" ? video_face_user_id || null : null,
+        branch_id || null,
+        req.params.id
+      ]
+    );
+
+    if (!updated.rows.length) {
+      return res.status(404).json({ message: "Bonus yozuvi topilmadi" });
+    }
+
+    await logAction(req.user.id, "update", "bonus_items", Number(req.params.id), {
+      content_title
+    });
+
+    res.json(updated.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Bonus hisobotini yangilab bo‘lmadi" });
+  }
+});
+
+app.delete("/api/bonus-items/:id", authRequired, async (req, res) => {
+  try {
+    await query(`DELETE FROM bonus_items WHERE id = $1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "bonus_items", Number(req.params.id), {});
+    res.json({ message: "Bonus yozuvi o‘chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Bonus yozuvini o‘chirib bo‘lmadi" });
   }
 });
 
@@ -865,10 +1255,11 @@ app.get("/api/daily-reports", authRequired, async (_, res) => {
   try {
     const result = await query(
       `
-      SELECT d.*, b.name AS branch_name, u.full_name AS user_name
+      SELECT
+        d.*,
+        b.name AS branch_name
       FROM daily_branch_reports d
       LEFT JOIN branches b ON b.id = d.branch_id
-      LEFT JOIN users u ON u.id = d.user_id
       ORDER BY d.report_date DESC, d.id DESC
       `
     );
@@ -881,19 +1272,27 @@ app.get("/api/daily-reports", authRequired, async (_, res) => {
 
 app.post("/api/daily-reports", authRequired, async (req, res) => {
   try {
-    const { report_date, branch_id, user_id, stories_count, posts_count, reels_count, notes } = req.body;
+    const { report_date, branch_id, stories_count, posts_count, reels_count, notes } = req.body;
 
-    const result = await query(
+    const inserted = await query(
       `
       INSERT INTO daily_branch_reports
-      (report_date, branch_id, user_id, stories_count, posts_count, reels_count, notes)
+      (
+        report_date,
+        branch_id,
+        user_id,
+        stories_count,
+        posts_count,
+        reels_count,
+        notes
+      )
       VALUES ($1,$2,$3,$4,$5,$6,$7)
       RETURNING *
       `,
       [
-        report_date,
+        formatDateOnly(report_date),
         branch_id,
-        user_id || req.user.id,
+        req.user.id,
         Number(stories_count || 0),
         Number(posts_count || 0),
         Number(reels_count || 0),
@@ -901,13 +1300,64 @@ app.post("/api/daily-reports", authRequired, async (req, res) => {
       ]
     );
 
-    await createNotification(null, "Yangi hisobot kiritildi", report_date, "success");
-    await logAction(req.user.id, "create", "daily_branch_reports", result.rows[0].id, {});
+    await createNotification(null, "Yangi hisobot kiritildi", formatDateOnly(report_date), "success");
+    await logAction(req.user.id, "create", "daily_branch_reports", inserted.rows[0].id, {});
 
-    res.json(result.rows[0]);
+    res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Kunlik hisobotni saqlab bo‘lmadi" });
+  }
+});
+
+app.put("/api/daily-reports/:id", authRequired, async (req, res) => {
+  try {
+    const { report_date, branch_id, stories_count, posts_count, reels_count, notes } = req.body;
+
+    const updated = await query(
+      `
+      UPDATE daily_branch_reports
+      SET
+        report_date = $1,
+        branch_id = $2,
+        stories_count = $3,
+        posts_count = $4,
+        reels_count = $5,
+        notes = $6
+      WHERE id = $7
+      RETURNING *
+      `,
+      [
+        formatDateOnly(report_date),
+        branch_id,
+        Number(stories_count || 0),
+        Number(posts_count || 0),
+        Number(reels_count || 0),
+        notes || "",
+        req.params.id
+      ]
+    );
+
+    if (!updated.rows.length) {
+      return res.status(404).json({ message: "Hisobot topilmadi" });
+    }
+
+    await logAction(req.user.id, "update", "daily_branch_reports", Number(req.params.id), {});
+    res.json(updated.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Hisobotni yangilab bo‘lmadi" });
+  }
+});
+
+app.delete("/api/daily-reports/:id", authRequired, async (req, res) => {
+  try {
+    await query(`DELETE FROM daily_branch_reports WHERE id = $1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "daily_branch_reports", Number(req.params.id), {});
+    res.json({ message: "Hisobot o‘chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Hisobotni o‘chirib bo‘lmadi" });
   }
 });
 
@@ -925,36 +1375,152 @@ app.get("/api/campaigns", authRequired, async (_, res) => {
 
 app.post("/api/campaigns", authRequired, async (req, res) => {
   try {
-    const { title, platform, start_date, end_date, budget, spend, leads, sales, ctr, revenue_amount, status, notes } = req.body;
+    const {
+      title,
+      platform,
+      start_date,
+      end_date,
+      budget,
+      spend,
+      leads,
+      sales,
+      ctr,
+      revenue_amount,
+      status,
+      notes
+    } = req.body;
 
-    const result = await query(
+    const cpa = calcCpa(spend, leads);
+    const roi = calcRoi(spend, revenue_amount);
+
+    const inserted = await query(
       `
       INSERT INTO campaigns
-      (title, platform, start_date, end_date, budget, spend, leads, sales, ctr, revenue_amount, status, notes)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      (
+        title,
+        platform,
+        start_date,
+        end_date,
+        budget,
+        spend,
+        leads,
+        sales,
+        ctr,
+        revenue_amount,
+        cpa,
+        roi,
+        status,
+        notes
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       RETURNING *
       `,
       [
         title,
         platform,
-        start_date || null,
-        end_date || null,
+        formatDateOnly(start_date),
+        formatDateOnly(end_date),
         Number(budget || 0),
         Number(spend || 0),
         Number(leads || 0),
         Number(sales || 0),
         Number(ctr || 0),
         Number(revenue_amount || 0),
+        cpa,
+        roi,
         status || "active",
         notes || ""
       ]
     );
 
-    await logAction(req.user.id, "create", "campaigns", result.rows[0].id, {});
-    res.json(result.rows[0]);
+    await logAction(req.user.id, "create", "campaigns", inserted.rows[0].id, {});
+    res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Kampaniya qo‘shib bo‘lmadi" });
+  }
+});
+
+app.put("/api/campaigns/:id", authRequired, async (req, res) => {
+  try {
+    const {
+      title,
+      platform,
+      start_date,
+      end_date,
+      budget,
+      spend,
+      leads,
+      sales,
+      ctr,
+      revenue_amount,
+      status,
+      notes
+    } = req.body;
+
+    const cpa = calcCpa(spend, leads);
+    const roi = calcRoi(spend, revenue_amount);
+
+    const updated = await query(
+      `
+      UPDATE campaigns
+      SET
+        title = $1,
+        platform = $2,
+        start_date = $3,
+        end_date = $4,
+        budget = $5,
+        spend = $6,
+        leads = $7,
+        sales = $8,
+        ctr = $9,
+        revenue_amount = $10,
+        cpa = $11,
+        roi = $12,
+        status = $13,
+        notes = $14
+      WHERE id = $15
+      RETURNING *
+      `,
+      [
+        title,
+        platform,
+        formatDateOnly(start_date),
+        formatDateOnly(end_date),
+        Number(budget || 0),
+        Number(spend || 0),
+        Number(leads || 0),
+        Number(sales || 0),
+        Number(ctr || 0),
+        Number(revenue_amount || 0),
+        cpa,
+        roi,
+        status || "active",
+        notes || "",
+        req.params.id
+      ]
+    );
+
+    if (!updated.rows.length) {
+      return res.status(404).json({ message: "Kampaniya topilmadi" });
+    }
+
+    await logAction(req.user.id, "update", "campaigns", Number(req.params.id), {});
+    res.json(updated.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Kampaniyani yangilab bo‘lmadi" });
+  }
+});
+
+app.delete("/api/campaigns/:id", authRequired, async (req, res) => {
+  try {
+    await query(`DELETE FROM campaigns WHERE id = $1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "campaigns", Number(req.params.id), {});
+    res.json({ message: "Kampaniya o‘chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Kampaniyani o‘chirib bo‘lmadi" });
   }
 });
 
@@ -964,7 +1530,9 @@ app.get("/api/tasks", authRequired, async (_, res) => {
   try {
     const result = await query(
       `
-      SELECT t.*, u.full_name AS assignee_name
+      SELECT
+        t.*,
+        u.full_name AS assignee_name
       FROM tasks t
       LEFT JOIN users u ON u.id = t.assignee_user_id
       ORDER BY t.id DESC
@@ -981,10 +1549,18 @@ app.post("/api/tasks", authRequired, async (req, res) => {
   try {
     const { title, description, status, priority, due_date, assignee_user_id } = req.body;
 
-    const result = await query(
+    const inserted = await query(
       `
       INSERT INTO tasks
-      (title, description, status, priority, due_date, assignee_user_id, created_by)
+      (
+        title,
+        description,
+        status,
+        priority,
+        due_date,
+        assignee_user_id,
+        created_by
+      )
       VALUES ($1,$2,$3,$4,$5,$6,$7)
       RETURNING *
       `,
@@ -993,17 +1569,68 @@ app.post("/api/tasks", authRequired, async (req, res) => {
         description || "",
         status || "todo",
         priority || "medium",
-        due_date || null,
+        formatDateOnly(due_date),
         assignee_user_id || null,
         req.user.id
       ]
     );
 
-    await logAction(req.user.id, "create", "tasks", result.rows[0].id, {});
-    res.json(result.rows[0]);
+    await logAction(req.user.id, "create", "tasks", inserted.rows[0].id, {});
+    res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Vazifa qo‘shib bo‘lmadi" });
+  }
+});
+
+app.put("/api/tasks/:id", authRequired, async (req, res) => {
+  try {
+    const { title, description, status, priority, due_date, assignee_user_id } = req.body;
+
+    const updated = await query(
+      `
+      UPDATE tasks
+      SET
+        title = $1,
+        description = $2,
+        status = $3,
+        priority = $4,
+        due_date = $5,
+        assignee_user_id = $6
+      WHERE id = $7
+      RETURNING *
+      `,
+      [
+        title,
+        description || "",
+        status || "todo",
+        priority || "medium",
+        formatDateOnly(due_date),
+        assignee_user_id || null,
+        req.params.id
+      ]
+    );
+
+    if (!updated.rows.length) {
+      return res.status(404).json({ message: "Vazifa topilmadi" });
+    }
+
+    await logAction(req.user.id, "update", "tasks", Number(req.params.id), {});
+    res.json(updated.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Vazifani yangilab bo‘lmadi" });
+  }
+});
+
+app.delete("/api/tasks/:id", authRequired, async (req, res) => {
+  try {
+    await query(`DELETE FROM tasks WHERE id = $1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "tasks", Number(req.params.id), {});
+    res.json({ message: "Vazifa o‘chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Vazifani o‘chirib bo‘lmadi" });
   }
 });
 
@@ -1015,7 +1642,7 @@ app.get("/api/uploads", authRequired, async (_, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Uploadlarni olib bo‘lmadi" });
+    res.status(500).json({ message: "Media fayllarni olib bo‘lmadi" });
   }
 });
 
@@ -1027,10 +1654,17 @@ app.post("/api/uploads", authRequired, upload.single("file"), async (req, res) =
 
     const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
 
-    const result = await query(
+    const inserted = await query(
       `
       INSERT INTO uploads
-      (file_name, original_name, mime_type, file_size, file_url, uploaded_by)
+      (
+        file_name,
+        original_name,
+        mime_type,
+        file_size,
+        file_url,
+        uploaded_by
+      )
       VALUES ($1,$2,$3,$4,$5,$6)
       RETURNING *
       `,
@@ -1044,11 +1678,38 @@ app.post("/api/uploads", authRequired, upload.single("file"), async (req, res) =
       ]
     );
 
-    await logAction(req.user.id, "upload", "uploads", result.rows[0].id, {});
-    res.json(result.rows[0]);
+    await createNotification(req.user.id, "Fayl yuklandi", req.file.originalname, "success");
+    await logAction(req.user.id, "upload", "uploads", inserted.rows[0].id, {});
+
+    res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Upload xatoligi" });
+  }
+});
+
+app.delete("/api/uploads/:id", authRequired, async (req, res) => {
+  try {
+    const found = await query(`SELECT * FROM uploads WHERE id = $1 LIMIT 1`, [req.params.id]);
+
+    if (!found.rows.length) {
+      return res.status(404).json({ message: "Fayl topilmadi" });
+    }
+
+    const row = found.rows[0];
+    const filePath = path.join(uploadsDir, row.file_name);
+
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
+
+    await query(`DELETE FROM uploads WHERE id = $1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "uploads", Number(req.params.id), {});
+
+    res.json({ message: "Fayl o‘chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Faylni o‘chirib bo‘lmadi" });
   }
 });
 
@@ -1065,6 +1726,7 @@ app.get("/api/notifications", authRequired, async (req, res) => {
       `,
       [req.user.id]
     );
+
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -1101,7 +1763,9 @@ app.get("/api/audit-logs", authRequired, async (_, res) => {
   try {
     const result = await query(
       `
-      SELECT a.*, u.full_name
+      SELECT
+        a.*,
+        u.full_name
       FROM audit_logs a
       LEFT JOIN users u ON u.id = a.user_id
       ORDER BY a.id DESC
@@ -1112,6 +1776,157 @@ app.get("/api/audit-logs", authRequired, async (_, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Audit logni olib bo‘lmadi" });
+  }
+});
+
+/* EXPORTS */
+
+app.get("/api/export/users.xlsx", authRequired, async (_, res) => {
+  try {
+    const rows = (
+      await query(`
+        SELECT
+          full_name,
+          phone,
+          login,
+          role,
+          department_role,
+          is_active,
+          created_at
+        FROM users
+        ORDER BY id DESC
+      `)
+    ).rows;
+
+    sendExcel(res, rows, "users.xlsx", "Users");
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Export xatoligi" });
+  }
+});
+
+app.get("/api/export/content.xlsx", authRequired, async (_, res) => {
+  try {
+    const rows = (
+      await query(`
+        SELECT
+          title,
+          publish_date,
+          status,
+          platform,
+          content_type,
+          bonus_enabled,
+          proposal_count,
+          approved_count
+        FROM content_items
+        ORDER BY id DESC
+      `)
+    ).rows;
+
+    sendExcel(res, rows, "content.xlsx", "Content");
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Export xatoligi" });
+  }
+});
+
+app.get("/api/export/bonuses.xlsx", authRequired, async (_, res) => {
+  try {
+    const rows = (
+      await query(`
+        SELECT
+          month_label,
+          work_date,
+          content_title,
+          content_type,
+          proposal_count,
+          approved_count,
+          proposal_amount,
+          approved_amount,
+          total_amount
+        FROM bonus_items
+        ORDER BY id DESC
+      `)
+    ).rows;
+
+    sendExcel(res, rows, "bonuses.xlsx", "Bonuses");
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Export xatoligi" });
+  }
+});
+
+app.get("/api/export/daily-reports.xlsx", authRequired, async (_, res) => {
+  try {
+    const rows = (
+      await query(`
+        SELECT
+          report_date,
+          branch_id,
+          stories_count,
+          posts_count,
+          reels_count,
+          notes
+        FROM daily_branch_reports
+        ORDER BY report_date DESC
+      `)
+    ).rows;
+
+    sendExcel(res, rows, "daily-reports.xlsx", "DailyReports");
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Export xatoligi" });
+  }
+});
+
+app.get("/api/export/campaigns.xlsx", authRequired, async (_, res) => {
+  try {
+    const rows = (
+      await query(`
+        SELECT
+          title,
+          platform,
+          start_date,
+          end_date,
+          budget,
+          spend,
+          leads,
+          sales,
+          ctr,
+          cpa,
+          roi,
+          status
+        FROM campaigns
+        ORDER BY id DESC
+      `)
+    ).rows;
+
+    sendExcel(res, rows, "campaigns.xlsx", "Campaigns");
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Export xatoligi" });
+  }
+});
+
+app.get("/api/export/daily-reports.pdf", authRequired, async (_, res) => {
+  try {
+    const rows = (
+      await query(`
+        SELECT
+          report_date,
+          branch_id,
+          stories_count,
+          posts_count,
+          reels_count
+        FROM daily_branch_reports
+        ORDER BY report_date DESC
+      `)
+    ).rows;
+
+    sendSimplePdf(res, "Kunlik filial hisobotlari", rows, "daily-reports.pdf");
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Export xatoligi" });
   }
 });
 
