@@ -23,15 +23,15 @@ import { api, clearAuth, getCurrentUser } from "./api";
 
 const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: Home },
-  { id: "kpi", title: "KPI va natijalar", icon: LineChart },
   { id: "content", title: "Kontent reja", icon: LayoutGrid },
+  { id: "bonus", title: "Bonus tizimi", icon: Gift },
   { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: FileBarChart2 },
   { id: "campaigns", title: "Reklama kampaniyalari", icon: Megaphone },
-  { id: "bonus", title: "Bonus tizimi", icon: Gift },
   { id: "uploads", title: "Media kutubxona", icon: Image },
   { id: "users", title: "Hodimlar", icon: UsersIcon },
   { id: "tasks", title: "Vazifalar", icon: FolderKanban },
   { id: "audit", title: "Audit log", icon: ShieldCheck },
+  { id: "profile", title: "Profil", icon: User },
   { id: "settings", title: "Sozlamalar", icon: Settings }
 ];
 
@@ -221,27 +221,42 @@ function LoginPage({ onLoggedIn }) {
   );
 }
 
-function DashboardPage({ summary, kpiSummary, dailyReports, bonuses, campaigns, tasks }) {
+function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], contentRows = [] }) {
+  const currentMonth = getMonthLabel();
+
+  const thisMonthContent = contentRows.filter((row) => {
+    if (!row.publish_date) return false;
+    return String(row.publish_date).slice(0, 7) === currentMonth;
+  });
+
+  const totalPlan = thisMonthContent.length;
+  const postedCount = thisMonthContent.filter((row) => row.status === "joylangan").length;
+  const progress = totalPlan ? Math.round((postedCount / totalPlan) * 100) : 0;
+
+  const thisMonthBonus = bonusItems
+    .filter((row) => row.month_label === currentMonth)
+    .reduce((sum, row) => sum + Number(row.total_amount || row.amount || 0), 0);
+
   return (
     <div className="page-grid">
       <div className="hero-banner">
         <div>
           <div className="small-label">Boshqaruv markazi</div>
           <h1>aloo SMM jamoasi platformasi</h1>
-          <p>Kontent, bonus, filial hisobotlari va kampaniyalarni bitta joydan boshqaring.</p>
+          <p>Kontent reja, bonus, filial hisobotlari va media boshqaruvi bitta joyda.</p>
         </div>
       </div>
 
       <div className="stats-grid">
         <StatCard
-          title="Joriy oy KPI"
-          value={`${Number(kpiSummary?.total_kpi || 0).toFixed(1)}%`}
-          hint="umumiy KPI"
+          title="Kontent reja bajarilishi"
+          value={`${progress}%`}
+          hint={`${postedCount} / ${totalPlan} joylangan`}
         />
         <StatCard
-          title="Joriy oy bonus"
-          value={`${Number(summary?.total_bonus_amount || 0).toLocaleString()} so‘m`}
-          hint="umumiy bonus"
+          title="Joriy oy bonus puli"
+          value={`${thisMonthBonus.toLocaleString()} so‘m`}
+          hint={getMonthTitle(currentMonth)}
         />
         <StatCard
           title="Bugungi filial hisobotlari"
@@ -249,9 +264,9 @@ function DashboardPage({ summary, kpiSummary, dailyReports, bonuses, campaigns, 
           hint="bugungi ma’lumot"
         />
         <StatCard
-          title="Kechikkan vazifalar"
-          value={kpiSummary?.late_tasks || 0}
-          hint="deadline o‘tgan"
+          title="Faol vazifalar"
+          value={summary?.tasks_count || 0}
+          hint="umumiy vazifalar"
         />
       </div>
 
@@ -270,7 +285,7 @@ function DashboardPage({ summary, kpiSummary, dailyReports, bonuses, campaigns, 
                 </tr>
               </thead>
               <tbody>
-                {dailyReports.slice(0, 5).map((row) => (
+                {(dailyReports || []).slice(0, 5).map((row) => (
                   <tr key={row.id}>
                     <td>{row.report_date}</td>
                     <td>{row.branch_name}</td>
@@ -285,12 +300,13 @@ function DashboardPage({ summary, kpiSummary, dailyReports, bonuses, campaigns, 
         </div>
 
         <div className="card">
-          <SectionTitle title="Tezkor holat" />
+          <SectionTitle title="Kontent holati" />
           <div className="quick-list">
-            <div className="quick-item">Bonus yozuvlari: <strong>{bonuses.length}</strong></div>
-            <div className="quick-item">Kampaniyalar: <strong>{campaigns.length}</strong></div>
-            <div className="quick-item">Vazifalar: <strong>{tasks.length}</strong></div>
-            <div className="quick-item">Kontentlar: <strong>{summary?.content_count || 0}</strong></div>
+            <div className="quick-item">Reja: <strong>{thisMonthContent.filter((r) => r.status === "reja").length}</strong></div>
+            <div className="quick-item">Tayyorlanmoqda: <strong>{thisMonthContent.filter((r) => r.status === "tayyorlanmoqda").length}</strong></div>
+            <div className="quick-item">Tayyor: <strong>{thisMonthContent.filter((r) => r.status === "tayyor").length}</strong></div>
+            <div className="quick-item">Joylangan: <strong>{thisMonthContent.filter((r) => r.status === "joylangan").length}</strong></div>
+            <div className="quick-item">Bekor qilingan: <strong>{thisMonthContent.filter((r) => r.status === "bekor_qilingan").length}</strong></div>
           </div>
         </div>
       </div>
@@ -389,86 +405,99 @@ function KpiPage({ kpiSummary, kpiEmployees, kpiBranches, kpiContentTypes }) {
   );
 }
 
-function BonusPage({ bonusItems }) {
+function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload }) {
   const [monthFilter, setMonthFilter] = useState(getMonthLabel());
+  const [saving, setSaving] = useState(false);
 
-  const monthOptions = [...new Set(bonusItems.map((i) => i.month_label).filter(Boolean))]
-    .sort()
-    .reverse();
+  const [form, setForm] = useState({
+    title: "",
+    work_date: "",
+    content_type: "post",
+    user_id: "",
+    editor_user_id: "",
+    face_voice_user_id: "",
+    branch_id: "",
+    proposal_count: "",
+    approved_count: ""
+  });
+
+  const isVideo = form.content_type === "video";
+
+  function setField(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
 
   const filteredItems = bonusItems.filter((item) =>
     monthFilter ? item.month_label === monthFilter : true
   );
 
-  const totalProposalAmount = filteredItems.reduce(
-    (sum, item) => sum + Number(item.proposal_amount || 0),
-    0
-  );
+  const totalProposalAmount = filteredItems.reduce((sum, item) => sum + Number(item.proposal_amount || 0), 0);
+  const totalApprovedAmount = filteredItems.reduce((sum, item) => sum + Number(item.approved_amount || 0), 0);
+  const totalAmount = filteredItems.reduce((sum, item) => sum + Number(item.total_amount || item.amount || 0), 0);
 
-  const totalApprovedAmount = filteredItems.reduce(
-    (sum, item) => sum + Number(item.approved_amount || 0),
-    0
-  );
+  async function handleSubmit(e) {
+    e.preventDefault();
 
-  const totalAmount = filteredItems.reduce(
-    (sum, item) => sum + Number(item.total_amount || item.amount || 0),
-    0
-  );
-
-  const employeeSummaryMap = new Map();
-
-  filteredItems.forEach((item) => {
-    const firstName = item.full_name || "Noma’lum";
-    const firstTotal = Number(item.total_amount || item.amount || 0);
-
-    if (!employeeSummaryMap.has(firstName)) {
-      employeeSummaryMap.set(firstName, {
-        name: firstName,
-        total: 0,
-        proposal: 0,
-        approved: 0
-      });
+    if (!form.proposal_count) {
+      onToast("Taklif soni majburiy", "error");
+      return;
     }
 
-    const first = employeeSummaryMap.get(firstName);
-    first.total += firstTotal;
-    first.proposal += Number(item.proposal_amount || 0);
-    first.approved += Number(item.approved_amount || 0);
+    try {
+      setSaving(true);
 
-    if (item.second_full_name) {
-      if (!employeeSummaryMap.has(item.second_full_name)) {
-        employeeSummaryMap.set(item.second_full_name, {
-          name: item.second_full_name,
-          total: 0,
-          proposal: 0,
-          approved: 0
-        });
+      const payload = {
+        month_label: monthFilter,
+        work_date: form.work_date,
+        content_type: form.content_type,
+        content_title: form.title,
+        proposal_count: Number(form.proposal_count || 0),
+        approved_count: Number(form.approved_count || 0),
+        user_id: isVideo ? null : form.user_id || null,
+        second_user_id: isVideo ? form.face_voice_user_id || null : null,
+        video_editor_user_id: isVideo ? form.editor_user_id || null : null,
+        video_face_user_id: isVideo ? form.face_voice_user_id || null : null,
+        branch_id: isVideo ? form.branch_id || null : null
+      };
+
+      await api.create("bonus-items", payload);
+      if (api.recalcBonus) {
+        await api.recalcBonus();
       }
+      if (reload) await reload();
 
-      const second = employeeSummaryMap.get(item.second_full_name);
-      second.total += firstTotal;
-      second.proposal += Number(item.proposal_amount || 0);
-      second.approved += Number(item.approved_amount || 0);
+      setForm({
+        title: "",
+        work_date: "",
+        content_type: "post",
+        user_id: "",
+        editor_user_id: "",
+        face_voice_user_id: "",
+        branch_id: "",
+        proposal_count: "",
+        approved_count: ""
+      });
+
+      onToast("Bonus hisobot saqlandi ✅", "success");
+    } catch (err) {
+      onToast(err.message || "Saqlashda xatolik", "error");
+    } finally {
+      setSaving(false);
     }
-  });
-
-  const employeeSummary = [...employeeSummaryMap.values()].sort((a, b) => b.total - a.total);
-  const topEmployee = employeeSummary[0];
+  }
 
   return (
     <div className="page-grid">
       <div className="card">
         <SectionTitle
           title="Bonus tizimi"
-          desc="Taklif va tasdiq asosida hisoblangan oylik bonuslar"
+          desc="Bonus hisobotlari va avtomatik hisob"
           right={
             <div className="toolbar-actions">
               <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
                 <option value={getMonthLabel()}>{getMonthTitle(getMonthLabel())}</option>
-                {monthOptions.map((m) => (
-                  <option key={m} value={m}>
-                    {getMonthTitle(m)}
-                  </option>
+                {[...new Set(bonusItems.map((i) => i.month_label).filter(Boolean))].map((m) => (
+                  <option key={m} value={m}>{getMonthTitle(m)}</option>
                 ))}
               </select>
 
@@ -479,72 +508,103 @@ function BonusPage({ bonusItems }) {
               >
                 Excel export
               </button>
-
-              <button
-                type="button"
-                className="btn secondary"
-                onClick={() => api.exportFile("/api/export/bonuses.pdf", `bonuses-${monthFilter}.pdf`)}
-              >
-                PDF export
-              </button>
             </div>
           }
         />
 
         <div className="stats-grid">
-          <StatCard
-            title="Joriy oy jami bonus"
-            value={`${totalAmount.toLocaleString()} so‘m`}
-            hint={getMonthTitle(monthFilter)}
-          />
-          <StatCard
-            title="Taklif summasi"
-            value={`${totalProposalAmount.toLocaleString()} so‘m`}
-            hint="proposal"
-          />
-          <StatCard
-            title="Tasdiq summasi"
-            value={`${totalApprovedAmount.toLocaleString()} so‘m`}
-            hint="approved"
-          />
-          <StatCard
-            title="Top hodim"
-            value={topEmployee ? topEmployee.name : "-"}
-            hint={topEmployee ? `${topEmployee.total.toLocaleString()} so‘m` : "ma’lumot yo‘q"}
-          />
+          <StatCard title="Taklif summasi" value={`${totalProposalAmount.toLocaleString()} so‘m`} hint="joriy oy" />
+          <StatCard title="Tasdiq summasi" value={`${totalApprovedAmount.toLocaleString()} so‘m`} hint="joriy oy" />
+          <StatCard title="Jami bonus" value={`${totalAmount.toLocaleString()} so‘m`} hint={getMonthTitle(monthFilter)} />
+          <StatCard title="Yozuvlar soni" value={filteredItems.length} hint="bonus hisobotlar" />
         </div>
       </div>
 
       <div className="card">
-        <SectionTitle title="Hodimlar bo‘yicha jami bonus" />
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Hodim</th>
-                <th>Taklif summasi</th>
-                <th>Tasdiq summasi</th>
-                <th>Jami bonus</th>
-              </tr>
-            </thead>
-            <tbody>
-              {employeeSummary.length ? (
-                employeeSummary.map((row, index) => (
-                  <tr key={`${row.name}-${index}`}>
-                    <td>{row.name}</td>
-                    <td>{row.proposal.toLocaleString()} so‘m</td>
-                    <td>{row.approved.toLocaleString()} so‘m</td>
-                    <td>{row.total.toLocaleString()} so‘m</td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="4" className="empty-cell">Bu oy uchun bonus ma’lumoti yo‘q</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <SectionTitle title="Hisobot qo‘shish" />
+        <form className="form-grid" onSubmit={handleSubmit}>
+          <label>
+            <span>Kontent nomi</span>
+            <input value={form.title} onChange={(e) => setField("title", e.target.value)} required />
+          </label>
+
+          <label>
+            <span>Joylangan sanasi</span>
+            <input type="date" value={form.work_date} onChange={(e) => setField("work_date", e.target.value)} required />
+          </label>
+
+          <label>
+            <span>Kontent turi</span>
+            <select value={form.content_type} onChange={(e) => setField("content_type", e.target.value)}>
+              <option value="post">Post</option>
+              <option value="story">Story</option>
+              <option value="reels">Reels</option>
+              <option value="video">Video</option>
+              <option value="banner">Banner</option>
+            </select>
+          </label>
+
+          {isVideo ? (
+            <>
+              <label>
+                <span>Montajni kim qildi</span>
+                <select value={form.editor_user_id} onChange={(e) => setField("editor_user_id", e.target.value)}>
+                  <option value="">Tanlang</option>
+                  {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                </select>
+              </label>
+
+              <label>
+                <span>Face + ovoz kimniki</span>
+                <select value={form.face_voice_user_id} onChange={(e) => setField("face_voice_user_id", e.target.value)}>
+                  <option value="">Tanlang</option>
+                  {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                </select>
+              </label>
+
+              <label>
+                <span>Qaysi filial kontenti</span>
+                <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)}>
+                  <option value="">Tanlang</option>
+                  {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </label>
+            </>
+          ) : (
+            <label>
+              <span>Hodim</span>
+              <select value={form.user_id} onChange={(e) => setField("user_id", e.target.value)}>
+                <option value="">Tanlang</option>
+                {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+              </select>
+            </label>
+          )}
+
+          <label>
+            <span>Taklif soni</span>
+            <input
+              type="number"
+              min="0"
+              value={form.proposal_count}
+              onChange={(e) => setField("proposal_count", e.target.value)}
+              required
+            />
+          </label>
+
+          <label>
+            <span>Tasdiq soni</span>
+            <input
+              type="number"
+              min="0"
+              value={form.approved_count}
+              onChange={(e) => setField("approved_count", e.target.value)}
+            />
+          </label>
+
+          <button className="btn primary" type="submit" disabled={saving}>
+            {saving ? "Saqlanmoqda..." : "Hisobotni saqlash"}
+          </button>
+        </form>
       </div>
 
       <div className="card">
@@ -553,40 +613,36 @@ function BonusPage({ bonusItems }) {
           <table>
             <thead>
               <tr>
-                <th>Sana</th>
-                <th>Filial</th>
-                <th>Kontent turi</th>
                 <th>Kontent nomi</th>
-                <th>1-hodim</th>
-                <th>2-hodim</th>
-                <th>Taklif soni</th>
-                <th>Taklif summasi</th>
-                <th>Tasdiq soni</th>
-                <th>Tasdiq summasi</th>
-                <th>Jami summa</th>
+                <th>Sana</th>
+                <th>Turi</th>
+                <th>Montaj</th>
+                <th>Face+ovoz</th>
+                <th>Hodim</th>
+                <th>Filial</th>
+                <th>Taklif</th>
+                <th>Tasdiq</th>
+                <th>Jami</th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.length ? (
                 filteredItems.map((row) => (
                   <tr key={row.id}>
-                    <td>{row.work_date || "-"}</td>
-                    <td>{row.branch_name || "-"}</td>
-                    <td>{row.content_type || "-"}</td>
                     <td>{row.content_title || "-"}</td>
+                    <td>{row.work_date || "-"}</td>
+                    <td>{row.content_type || "-"}</td>
+                    <td>{row.video_editor_name || "-"}</td>
+                    <td>{row.second_full_name || row.video_face_name || "-"}</td>
                     <td>{row.full_name || "-"}</td>
-                    <td>{row.second_full_name || "-"}</td>
+                    <td>{row.branch_name || "-"}</td>
                     <td>{row.proposal_count || 0}</td>
-                    <td>{Number(row.proposal_amount || 0).toLocaleString()} so‘m</td>
                     <td>{row.approved_count || 0}</td>
-                    <td>{Number(row.approved_amount || 0).toLocaleString()} so‘m</td>
                     <td>{Number(row.total_amount || row.amount || 0).toLocaleString()} so‘m</td>
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan="11" className="empty-cell">Bu oy uchun bonus yozuvi yo‘q</td>
-                </tr>
+                <tr><td colSpan="10" className="empty-cell">Bu oy uchun bonus yozuvi yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -1224,26 +1280,24 @@ function TasksPage({ tasks, users, onToast, reload }) {
   );
 }
 
-function ContentPage({ users, branches, onToast }) {
+function ContentPage({ users = [], onToast, reload }) {
   const [selectedMonth, setSelectedMonth] = useState(getMonthLabel());
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [bonusMode, setBonusMode] = useState(false);
 
   const [form, setForm] = useState({
     title: "",
-    platform: "Instagram",
-    content_type: "post",
-    status: "rejalashtirilgan",
     publish_date: "",
-    branch_id: "",
-    notes: "",
-    bonus_enabled: false,
-    assigned_user_id: "",
-    video_editor_user_id: "",
-    video_face_user_id: "",
-    proposal_count: 0,
-    approved_count: 0
+    status: "reja",
+    platform_primary: "Instagram",
+    platform_secondary: "",
+    content_type: "post",
+    editor_user_id: "",
+    face_voice_user_id: "",
+    proposal_count: "",
+    approved_count: ""
   });
 
   const isVideo = form.content_type === "video";
@@ -1256,7 +1310,12 @@ function ContentPage({ users, branches, onToast }) {
     try {
       setLoading(true);
       const data = await api.contentByMonth(monthValue);
-      setRows(data || []);
+      const sorted = (data || []).sort((a, b) => {
+        const aDate = a.publish_date ? new Date(a.publish_date).getTime() : 0;
+        const bDate = b.publish_date ? new Date(b.publish_date).getTime() : 0;
+        return bDate - aDate;
+      });
+      setRows(sorted);
     } catch (err) {
       onToast(err.message || "Kontent rejani olib bo‘lmadi", "error");
     } finally {
@@ -1271,42 +1330,50 @@ function ContentPage({ users, branches, onToast }) {
   async function handleSubmit(e) {
     e.preventDefault();
 
+    if (bonusMode && !form.proposal_count) {
+      onToast("Taklif soni majburiy", "error");
+      return;
+    }
+
     try {
       setSaving(true);
 
       const payload = {
-        ...form,
+        title: form.title,
         publish_date: form.publish_date || null,
-        branch_id: form.branch_id || null,
-        assigned_user_id: isVideo ? null : form.assigned_user_id || null,
-        video_editor_user_id: isVideo ? form.video_editor_user_id || null : null,
-        video_face_user_id: isVideo ? form.video_face_user_id || null : null,
-        proposal_count: Number(form.proposal_count || 0),
-        approved_count: Number(form.approved_count || 0)
+        status: form.status,
+        platform: [form.platform_primary, form.platform_secondary].filter(Boolean).join(", "),
+        content_type: form.content_type,
+        assigned_user_id: null,
+        video_editor_user_id: form.editor_user_id || null,
+        video_face_user_id: form.face_voice_user_id || null,
+        bonus_enabled: bonusMode,
+        proposal_count: bonusMode ? Number(form.proposal_count || 0) : 0,
+        approved_count: bonusMode ? Number(form.approved_count || 0) : 0,
+        notes: ""
       };
 
       await api.createContentPlan(payload);
       await loadMonth(selectedMonth);
+      if (reload) await reload();
 
       setForm({
         title: "",
-        platform: "Instagram",
-        content_type: "post",
-        status: "rejalashtirilgan",
         publish_date: "",
-        branch_id: "",
-        notes: "",
-        bonus_enabled: false,
-        assigned_user_id: "",
-        video_editor_user_id: "",
-        video_face_user_id: "",
-        proposal_count: 0,
-        approved_count: 0
+        status: "reja",
+        platform_primary: "Instagram",
+        platform_secondary: "",
+        content_type: "post",
+        editor_user_id: "",
+        face_voice_user_id: "",
+        proposal_count: "",
+        approved_count: ""
       });
+      setBonusMode(false);
 
       onToast("Kontent reja saqlandi ✅", "success");
     } catch (err) {
-      onToast(err.message || "Kontent rejani saqlab bo‘lmadi", "error");
+      onToast(err.message || "Saqlashda xatolik", "error");
     } finally {
       setSaving(false);
     }
@@ -1319,6 +1386,7 @@ function ContentPage({ users, branches, onToast }) {
     try {
       await api.deleteContentPlan(id);
       await loadMonth(selectedMonth);
+      if (reload) await reload();
       onToast("Kontent o‘chirildi", "success");
     } catch (err) {
       onToast(err.message || "O‘chirishda xatolik", "error");
@@ -1329,27 +1397,17 @@ function ContentPage({ users, branches, onToast }) {
     <div className="page-grid">
       <div className="card">
         <SectionTitle
-          title="Kontent reja"
-          desc={`${getMonthTitle(selectedMonth)} uchun reja`}
+          title="Kontent reja yaratish"
+          desc={`${getMonthTitle(selectedMonth)} uchun`}
           right={
             <div className="toolbar-actions">
-              <button
-                type="button"
-                className="btn secondary"
-                onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}
-              >
+              <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>
                 ← Oldingi oy
               </button>
-
               <div className="summary-pill">
                 <strong>{getMonthTitle(selectedMonth)}</strong>
               </div>
-
-              <button
-                type="button"
-                className="btn secondary"
-                onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}
-              >
+              <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>
                 Keyingi oy →
               </button>
             </div>
@@ -1359,17 +1417,40 @@ function ContentPage({ users, branches, onToast }) {
         <form className="form-grid" onSubmit={handleSubmit}>
           <label>
             <span>Kontent nomi</span>
-            <input
-              value={form.title}
-              onChange={(e) => setField("title", e.target.value)}
-              placeholder="Masalan: Aksiya uchun reels"
-              required
-            />
+            <input value={form.title} onChange={(e) => setField("title", e.target.value)} required />
           </label>
 
           <label>
-            <span>Platforma</span>
-            <select value={form.platform} onChange={(e) => setField("platform", e.target.value)}>
+            <span>Joylash sanasi</span>
+            <input type="date" value={form.publish_date} onChange={(e) => setField("publish_date", e.target.value)} required />
+          </label>
+
+          <label>
+            <span>Holati</span>
+            <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
+              <option value="reja">Reja</option>
+              <option value="tayyorlanmoqda">Tayyorlanmoqda</option>
+              <option value="tayyor">Tayyor</option>
+              <option value="joylangan">Joylangan</option>
+              <option value="bekor_qilingan">Bekor qilingan</option>
+            </select>
+          </label>
+
+          <label>
+            <span>1-platforma</span>
+            <select value={form.platform_primary} onChange={(e) => setField("platform_primary", e.target.value)}>
+              <option value="Instagram">Instagram</option>
+              <option value="Telegram">Telegram</option>
+              <option value="YouTube">YouTube</option>
+              <option value="Facebook">Facebook</option>
+              <option value="TikTok">TikTok</option>
+            </select>
+          </label>
+
+          <label>
+            <span>2-platforma</span>
+            <select value={form.platform_secondary} onChange={(e) => setField("platform_secondary", e.target.value)}>
+              <option value="">Tanlanmagan</option>
               <option value="Instagram">Instagram</option>
               <option value="Telegram">Telegram</option>
               <option value="YouTube">YouTube</option>
@@ -1386,140 +1467,72 @@ function ContentPage({ users, branches, onToast }) {
               <option value="reels">Reels</option>
               <option value="video">Video</option>
               <option value="banner">Banner</option>
-              <option value="design">Dizayn</option>
-              <option value="copywriting">Copywriting</option>
             </select>
           </label>
 
           <label>
-            <span>Status</span>
-            <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
-              <option value="rejalashtirilgan">Rejalashtirilgan</option>
-              <option value="jarayonda">Jarayonda</option>
-              <option value="tayyor">Tayyor</option>
-              <option value="joylandi">Joylandi</option>
-              <option value="bekor_qilindi">Bekor qilindi</option>
-            </select>
-          </label>
-
-          <label>
-            <span>Sana</span>
-            <input
-              type="date"
-              value={form.publish_date}
-              onChange={(e) => setField("publish_date", e.target.value)}
-              required
-            />
-          </label>
-
-          <label>
-            <span>Filial</span>
-            <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)}>
+            <span>Montaj kim qildi</span>
+            <select value={form.editor_user_id} onChange={(e) => setField("editor_user_id", e.target.value)}>
               <option value="">Tanlang</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.full_name}</option>
               ))}
             </select>
           </label>
 
-          {isVideo ? (
-            <>
-              <label>
-                <span>Montaj kim qildi?</span>
-                <select
-                  value={form.video_editor_user_id}
-                  onChange={(e) => setField("video_editor_user_id", e.target.value)}
-                >
-                  <option value="">Tanlang</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                <span>Ovoz + face kim?</span>
-                <select
-                  value={form.video_face_user_id}
-                  onChange={(e) => setField("video_face_user_id", e.target.value)}
-                >
-                  <option value="">Tanlang</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.full_name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </>
-          ) : (
-            <label>
-              <span>Mas’ul hodim</span>
-              <select
-                value={form.assigned_user_id}
-                onChange={(e) => setField("assigned_user_id", e.target.value)}
-              >
-                <option value="">Tanlang</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.full_name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-
           <label>
-            <span>Taklif soni</span>
-            <input
-              type="number"
-              min="0"
-              value={form.proposal_count}
-              onChange={(e) => setField("proposal_count", Number(e.target.value))}
-            />
-          </label>
-
-          <label>
-            <span>Tasdiq soni</span>
-            <input
-              type="number"
-              min="0"
-              value={form.approved_count}
-              onChange={(e) => setField("approved_count", Number(e.target.value))}
-            />
+            <span>Face + ovoz kimniki</span>
+            <select value={form.face_voice_user_id} onChange={(e) => setField("face_voice_user_id", e.target.value)}>
+              <option value="">Tanlang</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>{u.full_name}</option>
+              ))}
+            </select>
           </label>
 
           <label className="checkbox-row">
             <input
               type="checkbox"
-              checked={form.bonus_enabled}
-              onChange={(e) => setField("bonus_enabled", e.target.checked)}
+              checked={bonusMode}
+              onChange={(e) => setBonusMode(e.target.checked)}
             />
-            <span>Bonusga o‘tsinmi</span>
+            <span>Bonusga o‘tkazish</span>
           </label>
 
-          <label className="full-col">
-            <span>Izoh</span>
-            <input
-              value={form.notes}
-              onChange={(e) => setField("notes", e.target.value)}
-              placeholder="Qo‘shimcha izoh"
-            />
-          </label>
+          {bonusMode ? (
+            <>
+              <label>
+                <span>Taklif soni</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={form.proposal_count}
+                  onChange={(e) => setField("proposal_count", e.target.value)}
+                  required
+                />
+              </label>
+
+              <label>
+                <span>Tasdiq soni</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={form.approved_count}
+                  onChange={(e) => setField("approved_count", e.target.value)}
+                />
+              </label>
+            </>
+          ) : null}
 
           <button className="btn primary" type="submit" disabled={saving}>
-            {saving ? "Saqlanmoqda..." : "Kontentni saqlash"}
+            {saving ? "Saqlanmoqda..." : "Saqlash"}
           </button>
         </form>
       </div>
 
       <div className="card">
         <SectionTitle
-          title={`${getMonthTitle(selectedMonth)} rejalari`}
+          title={`${getMonthTitle(selectedMonth)} kontent rejasi`}
           right={
             <button
               type="button"
@@ -1535,56 +1548,40 @@ function ContentPage({ users, branches, onToast }) {
           <table>
             <thead>
               <tr>
-                <th>Sana</th>
-                <th>Filial</th>
-                <th>Platforma</th>
-                <th>Turi</th>
                 <th>Kontent nomi</th>
-                <th>Status</th>
-                <th>Mas’ul</th>
+                <th>Joylash sanasi</th>
+                <th>Holati</th>
+                <th>Platforma</th>
+                <th>Kontent turi</th>
+                <th>Montaj</th>
+                <th>Face+ovoz</th>
                 <th>Bonus</th>
-                <th>Taklif</th>
-                <th>Tasdiq</th>
                 <th>Amal</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <tr>
-                  <td colSpan="11" className="empty-cell">Yuklanmoqda...</td>
-                </tr>
+                <tr><td colSpan="9" className="empty-cell">Yuklanmoqda...</td></tr>
               ) : rows.length ? (
                 rows.map((row) => (
                   <tr key={row.id}>
-                    <td>{row.publish_date || "-"}</td>
-                    <td>{row.branch_name || "-"}</td>
-                    <td>{row.platform || "-"}</td>
-                    <td>{row.content_type}</td>
                     <td>{row.title}</td>
+                    <td>{row.publish_date || "-"}</td>
                     <td>{row.status}</td>
-                    <td>
-                      {row.content_type === "video"
-                        ? `${row.video_editor_name || "-"} / ${row.video_face_name || "-"}`
-                        : row.assignee_name || "-"}
-                    </td>
+                    <td>{row.platform || "-"}</td>
+                    <td>{row.content_type || "-"}</td>
+                    <td>{row.video_editor_name || "-"}</td>
+                    <td>{row.video_face_name || "-"}</td>
                     <td>{row.bonus_enabled ? "Ha" : "Yo‘q"}</td>
-                    <td>{row.proposal_count || 0}</td>
-                    <td>{row.approved_count || 0}</td>
                     <td>
-                      <button
-                        type="button"
-                        className="btn tiny secondary"
-                        onClick={() => removeRow(row.id)}
-                      >
+                      <button type="button" className="btn tiny secondary" onClick={() => removeRow(row.id)}>
                         O‘chirish
                       </button>
                     </td>
                   </tr>
                 ))
               ) : (
-                <tr>
-                  <td colSpan="11" className="empty-cell">Bu oy uchun reja yo‘q</td>
-                </tr>
+                <tr><td colSpan="9" className="empty-cell">Bu oy uchun reja yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -1629,6 +1626,94 @@ function AuditPage({ logs }) {
             </tbody>
           </table>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ProfilePage({ user = {}, onToast }) {
+  const [form, setForm] = useState({
+    full_name: user.full_name || "",
+    phone: user.phone || "",
+    login: user.login || "",
+    avatar_url: user.avatar_url || "",
+    old_password: "",
+    new_password: ""
+  });
+  const [saving, setSaving] = useState(false);
+
+  function setField(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  async function saveProfile(e) {
+    e.preventDefault();
+    try {
+      setSaving(true);
+
+      if (api.updateProfile) {
+        await api.updateProfile({
+          full_name: form.full_name,
+          phone: form.phone,
+          login: form.login,
+          avatar_url: form.avatar_url
+        });
+      }
+
+      if (form.old_password && form.new_password) {
+        await api.changePassword({
+          old_password: form.old_password,
+          new_password: form.new_password
+        });
+      }
+
+      onToast("Profil saqlandi ✅", "success");
+    } catch (err) {
+      onToast(err.message || "Profilni saqlab bo‘lmadi", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="page-grid">
+      <div className="card">
+        <SectionTitle title="Mening profilim" />
+        <form className="form-grid" onSubmit={saveProfile}>
+          <label>
+            <span>Ism</span>
+            <input value={form.full_name} onChange={(e) => setField("full_name", e.target.value)} />
+          </label>
+
+          <label>
+            <span>Telefon</span>
+            <input value={form.phone} onChange={(e) => setField("phone", e.target.value)} />
+          </label>
+
+          <label>
+            <span>Login</span>
+            <input value={form.login} onChange={(e) => setField("login", e.target.value)} />
+          </label>
+
+          <label>
+            <span>Profil rasmi linki</span>
+            <input value={form.avatar_url} onChange={(e) => setField("avatar_url", e.target.value)} />
+          </label>
+
+          <label>
+            <span>Eski parol</span>
+            <input type="password" value={form.old_password} onChange={(e) => setField("old_password", e.target.value)} />
+          </label>
+
+          <label>
+            <span>Yangi parol</span>
+            <input type="password" value={form.new_password} onChange={(e) => setField("new_password", e.target.value)} />
+          </label>
+
+          <button className="btn primary" type="submit" disabled={saving}>
+            {saving ? "Saqlanmoqda..." : "Profilni saqlash"}
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -1701,41 +1786,42 @@ export default function App() {
   async function reloadData() {
     try {
       const [
-        dashboardRes,
-        kpiSummaryRes,
-        kpiEmployeesRes,
-        kpiBranchesRes,
-        kpiContentTypesRes,
-        settingsRes,
-        notificationsRes,
-        usersRes,
-        branchesRes,
-        bonusRes,
-        bonusItemsRes,
-        uploadsRes,
-        dailyReportsRes,
-        campaignsRes,
-        tasksRes,
-        auditLogsRes
-      ] = await Promise.all([
-        api.dashboard(),
-        api.kpi.summary(),
-        api.kpi.employees(),
-        api.kpi.branches(),
-        api.kpi.contentTypes(),
-        api.settings.get(),
-        api.list("notifications").catch(() => []),
-        api.list("users").catch(() => []),
-        api.list("branches").catch(() => []),
-        api.list("bonuses").catch(() => []),
-        api.list("bonus-items").catch(() => []),
-        api.list("uploads").catch(() => []),
-        api.list("daily-reports").catch(() => []),
-        api.list("campaigns").catch(() => []),
-        api.list("tasks").catch(() => []),
-        api.list("audit-logs").catch(() => [])
-      ]);
-
+  dashboardRes,
+  kpiSummaryRes,
+  kpiEmployeesRes,
+  kpiBranchesRes,
+  kpiContentTypesRes,
+  settingsRes,
+  notificationsRes,
+  usersRes,
+  branchesRes,
+  bonusRes,
+  bonusItemsRes,
+  uploadsRes,
+  contentRes,
+  dailyReportsRes,
+  campaignsRes,
+  tasksRes,
+  auditLogsRes
+] = await Promise.all([
+  api.dashboard(),
+  api.kpi.summary(),
+  api.kpi.employees(),
+  api.kpi.branches(),
+  api.kpi.contentTypes(),
+  api.settings.get(),
+  api.list("notifications").catch(() => []),
+  api.list("users").catch(() => []),
+  api.list("branches").catch(() => []),
+  api.list("bonuses").catch(() => []),
+  api.list("bonus-items").catch(() => []),
+  api.list("uploads").catch(() => []),
+  api.list("content").catch(() => []),
+  api.list("daily-reports").catch(() => []),
+  api.list("campaigns").catch(() => []),
+  api.list("tasks").catch(() => []),
+  api.list("audit-logs").catch(() => [])
+]);
       setSummary(dashboardRes);
       setKpiSummary(kpiSummaryRes);
       setKpiEmployees(kpiEmployeesRes || []);
@@ -1745,6 +1831,7 @@ export default function App() {
       setNotifications(notificationsRes || []);
       setUsers(usersRes || []);
       setBranches(branchesRes || []);
+      setContentRows(contentRes || []);
       setBonuses(bonusRes || []);
       setBonusItems(bonusItemsRes || []);
       setUploads(uploadsRes || []);
@@ -1779,6 +1866,8 @@ export default function App() {
     init();
   }, []);
 
+  const [contentRows, setContentRows] = useState([]);
+  
   const filteredMenu = useMemo(() => {
     if (!search.trim()) return MENU;
     return MENU.filter((item) => item.title.toLowerCase().includes(search.toLowerCase()));
@@ -1834,26 +1923,21 @@ export default function App() {
 
   let page = null;
 
-  if (active === "dashboard") {
-    page = (
-      <DashboardPage
-        summary={summary}
-        kpiSummary={kpiSummary}
-        dailyReports={dailyReports}
-        bonuses={bonuses}
-        campaigns={campaigns}
-        tasks={tasks}
-      />
-    );
-  } else if (active === "kpi") {
-    page = (
-      <KpiPage
-        kpiSummary={kpiSummary}
-        kpiEmployees={kpiEmployees}
-        kpiBranches={kpiBranches}
-        kpiContentTypes={kpiContentTypes}
-      />
-    );
+  page = (
+  <DashboardPage
+    summary={summary}
+    dailyReports={dailyReports}
+    bonusItems={bonusItems}
+    contentRows={contentRows}
+  />
+);
+  } else if (active === "profile") {
+  page = (
+    <ProfilePage
+      user={user}
+      onToast={showToast}
+    />
+  );
   } else if (active === "content") {
     page = (
       <ContentPage
@@ -1862,18 +1946,15 @@ export default function App() {
         onToast={showToast}
       />
     );
-  } else if (active === "bonus") {
-    page = <BonusPage bonusItems={bonusItems} />;
-  } else if (active === "dailyReports") {
-    page = (
-      <DailyReportsPage
-        reports={dailyReports}
-        branches={branches}
-        users={users}
-        onToast={showToast}
-        reload={reloadData}
-      />
-    );
+  page = (
+  <BonusPage
+    bonusItems={bonusItems}
+    users={users}
+    branches={branches}
+    onToast={showToast}
+    reload={reloadData}
+  />
+);
   } else if (active === "uploads") {
     page = (
       <MediaPage
@@ -1978,10 +2059,10 @@ export default function App() {
                 {notifications.filter((n) => !n.is_read).length}
               </button>
               <ThemeToggle theme={theme} setTheme={setTheme} />
-              <div className="user-chip">
-                <User size={16} />
-                <span>{user.full_name}</span>
-              </div>
+              <button type="button" className="user-chip" onClick={() => setActive("profile")}>
+  <User size={16} />
+  <span>{user.full_name}</span>
+</button>
             </div>
           </div>
 
