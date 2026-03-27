@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
+  Bot,
+  BarChart3,
   Bell,
   CreditCard,
   Eye,
@@ -14,6 +16,8 @@ import {
   Megaphone,
   Moon,
   MapPinned,
+  Repeat2,
+  Wallet,
   Pencil,
   Search,
   Send,
@@ -34,7 +38,11 @@ const MENU = [
   { id: "content", title: "Kontent reja", icon: LayoutGrid },
   { id: "bonus", title: "Bonus tizimi", icon: Gift },
   { id: "expenses", title: "Harajatlar", icon: CreditCard },
+  { id: "finance", title: "Finance dashboard", icon: Wallet },
   { id: "travelPlans", title: "Safar rejasi", icon: MapPinned },
+  { id: "reports", title: "Advanced report", icon: FileBarChart2 },
+  { id: "analytics", title: "Analytics", icon: BarChart3 },
+  { id: "recurring", title: "Recurring", icon: Repeat2 },
   { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: FileBarChart2 },
   { id: "campaigns", title: "Reklama kampaniyalari", icon: Megaphone },
   { id: "uploads", title: "Media kutubxona", icon: Image },
@@ -44,6 +52,8 @@ const MENU = [
   { id: "audit", title: "Audit log", icon: ShieldCheck },
   { id: "profile", title: "Profil", icon: User },
   { id: "settings", title: "Sozlamalar", icon: Settings }
+  ,
+  { id: "aiAssistant", title: "AI yordamchi", icon: Bot }
 ];
 
 const PERMISSION_OPTIONS = [
@@ -57,10 +67,14 @@ const PERMISSION_OPTIONS = [
   { id: "bonus_edit", label: "Bonus tahrirlash" },
   { id: "bonus_delete", label: "Bonus o'chirish" },
   { id: "expenses", label: "Harajatlar" },
+  { id: "finance", label: "Finance dashboard" },
   { id: "expenses_create", label: "Harajat qo'shish" },
   { id: "expenses_edit", label: "Harajat tahrirlash" },
   { id: "expenses_delete", label: "Harajat o'chirish" },
   { id: "travelPlans", label: "Safar rejasi" },
+  { id: "reports", label: "Advanced report" },
+  { id: "analytics", label: "Analytics" },
+  { id: "recurring", label: "Recurring" },
   { id: "travelPlans_create", label: "Safar reja qo'shish" },
   { id: "travelPlans_edit", label: "Safar reja tahrirlash" },
   { id: "travelPlans_delete", label: "Safar reja o'chirish" },
@@ -88,6 +102,8 @@ const PERMISSION_OPTIONS = [
   { id: "audit", label: "Audit log" },
   { id: "profile", label: "Profil" },
   { id: "settings", label: "Sozlamalar" }
+  ,
+  { id: "aiAssistant", label: "AI yordamchi" }
 ];
 
 function getMonthLabel(date = new Date()) {
@@ -462,6 +478,46 @@ function taskStatusClass(status) {
   if (status === "doing") return "status-badge doing";
   if (status === "cancelled") return "status-badge cancelled";
   return "status-badge todo";
+}
+
+function KanbanBoard({ columns = [], rows = [], getColumnId, renderCard, onMove }) {
+  const [dragId, setDragId] = useState(null);
+
+  return (
+    <div className="kanban-board">
+      {columns.map((column) => {
+        const items = rows.filter((row) => getColumnId(row) === column.id);
+        return (
+          <div
+            key={column.id}
+            className={`kanban-column ${column.tone || ""}`}
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => {
+              if (dragId != null) onMove(dragId, column.id);
+              setDragId(null);
+            }}
+          >
+            <div className="kanban-head">
+              <strong>{column.label}</strong>
+              <span>{items.length}</span>
+            </div>
+            <div className="kanban-cards">
+              {items.length ? items.map((row) => (
+                <div
+                  key={row.id}
+                  className="kanban-card"
+                  draggable
+                  onDragStart={() => setDragId(row.id)}
+                >
+                  {renderCard(row)}
+                </div>
+              )) : <div className="kanban-empty">Bo'sh</div>}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 function approvalStatusMeta(status, kind = "content") {
@@ -995,7 +1051,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   );
 }
 
-function ContentPage({ users = [], settings, onToast, reload }) {
+function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
   const [selectedMonth, setSelectedMonth] = useState(getMonthLabel());
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1016,7 +1072,13 @@ function ContentPage({ users = [], settings, onToast, reload }) {
     editor_user_id: "",
     face_voice_user_id: "",
     proposal_count: "",
-    approved_count: ""
+    approved_count: "",
+    branch_ids_json: [],
+    scenario_text: "",
+    shot_list_text: "",
+    preview_url: "",
+    final_url: "",
+    edit_file_url: ""
   };
 
   const [form, setForm] = useState(emptyForm);
@@ -1079,7 +1141,13 @@ function ContentPage({ users = [], settings, onToast, reload }) {
       editor_user_id: row.video_editor_user_id || "",
       face_voice_user_id: row.video_face_user_id || "",
       proposal_count: row.proposal_count ?? "",
-      approved_count: row.approved_count ?? ""
+      approved_count: row.approved_count ?? "",
+      branch_ids_json: Array.isArray(row.branch_ids_json) ? row.branch_ids_json : [],
+      scenario_text: row.scenario_text || "",
+      shot_list_text: row.shot_list_text || "",
+      preview_url: row.preview_url || "",
+      final_url: row.final_url || "",
+      edit_file_url: row.edit_file_url || ""
     });
 
     setBonusMode(!!row.bonus_enabled);
@@ -1120,7 +1188,13 @@ function ContentPage({ users = [], settings, onToast, reload }) {
         bonus_enabled: bonusMode,
         proposal_count: bonusMode ? Number(form.proposal_count || 0) : 0,
         approved_count: bonusMode ? Number(form.approved_count || 0) : 0,
-        notes: ""
+        notes: "",
+        branch_ids_json: form.branch_ids_json || [],
+        scenario_text: form.scenario_text || "",
+        shot_list_text: form.shot_list_text || "",
+        preview_url: form.preview_url || "",
+        final_url: form.final_url || "",
+        edit_file_url: form.edit_file_url || ""
       };
 
       if (editRow?.id) {
@@ -1163,8 +1237,8 @@ function ContentPage({ users = [], settings, onToast, reload }) {
           desc={`${getMonthTitle(selectedMonth)} uchun`}
           right={
             <div className="toolbar-actions">
-              <button type="button" className="btn secondary" onClick={() => setViewMode(viewMode === "table" ? "calendar" : "table")}>
-                {viewMode === "table" ? "Calendar view" : "Table view"}
+              <button type="button" className="btn secondary" onClick={() => setViewMode(viewMode === "table" ? "calendar" : viewMode === "calendar" ? "kanban" : "table")}>
+                {viewMode === "table" ? "Calendar view" : viewMode === "calendar" ? "Kanban view" : "Table view"}
               </button>
               <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>
                 ← Oldingi oy
@@ -1283,6 +1357,22 @@ function ContentPage({ users = [], settings, onToast, reload }) {
             </>
           ) : null}
 
+          <label className="full-col">
+            <span>Filiallar</span>
+            <select
+              multiple
+              value={form.branch_ids_json || []}
+              onChange={(e) => setField("branch_ids_json", Array.from(e.target.selectedOptions).map((item) => Number(item.value)))}
+            >
+              {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+            </select>
+          </label>
+          <label className="full-col"><span>Ssenariy</span><textarea value={form.scenario_text} onChange={(e) => setField("scenario_text", e.target.value)} rows={3} /></label>
+          <label className="full-col"><span>Shot list</span><textarea value={form.shot_list_text} onChange={(e) => setField("shot_list_text", e.target.value)} rows={3} /></label>
+          <label><span>Preview URL</span><input value={form.preview_url} onChange={(e) => setField("preview_url", e.target.value)} /></label>
+          <label><span>Final link</span><input value={form.final_url} onChange={(e) => setField("final_url", e.target.value)} /></label>
+          <label><span>Montaj fayli</span><input value={form.edit_file_url} onChange={(e) => setField("edit_file_url", e.target.value)} /></label>
+
           <button className="btn primary" type="submit" disabled={saving}>
             {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}
           </button>
@@ -1335,7 +1425,7 @@ function ContentPage({ users = [], settings, onToast, reload }) {
           }
         />
 
-        <div className="table-wrap">
+        {viewMode === "table" ? <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -1380,7 +1470,7 @@ function ContentPage({ users = [], settings, onToast, reload }) {
               )}
             </tbody>
           </table>
-        </div> : (
+        </div> : viewMode === "calendar" ? (
           <MiniCalendar
             monthLabel={selectedMonth}
             rows={rows}
@@ -1390,6 +1480,45 @@ function ContentPage({ users = [], settings, onToast, reload }) {
                 {item.title}
               </button>
             )}
+          />
+        ) : (
+          <KanbanBoard
+            columns={[
+              { id: "reja", label: "Reja", tone: "default" },
+              { id: "tasdiqlandi", label: "Tasdiqlandi", tone: "warning" },
+              { id: "jarayonda", label: "Jarayonda", tone: "info" },
+              { id: "yakunlandi", label: "Yakunlandi", tone: "success" }
+            ]}
+            rows={rows.map((item) => ({
+              ...item,
+              status: ["tayyorlanmoqda", "tayyor"].includes(item.status) ? "jarayonda" : ["joylangan"].includes(item.status) ? "yakunlandi" : item.status
+            }))}
+            getColumnId={(row) => row.status}
+            renderCard={(row) => (
+              <>
+                <strong>{row.title}</strong>
+                <span>{formatDate(row.publish_date)}</span>
+                <span>{row.platform || "-"}</span>
+              </>
+            )}
+            onMove={async (id, status) => {
+              const row = rows.find((item) => item.id === id);
+              if (!row) return;
+              try {
+                await api.update("content", id, {
+                  ...row,
+                  assigned_user_id: row.assigned_user_id || null,
+                  video_editor_user_id: row.video_editor_user_id || null,
+                  video_face_user_id: row.video_face_user_id || null,
+                  branch_ids_json: Array.isArray(row.branch_ids_json) ? row.branch_ids_json : [],
+                  status
+                });
+                await loadMonth(selectedMonth);
+                await reload();
+              } catch (err) {
+                onToast(err.message || "Kontent statusini o'zgartirib bo'lmadi", "error");
+              }
+            }}
           />
         )}
       </div>
@@ -2665,8 +2794,8 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
           title={editRow ? "Vazifani tahrirlash" : "Vazifa yaratish"}
           right={
             <div className="toolbar-actions">
-              <button type="button" className="btn secondary" onClick={() => setViewMode(viewMode === "table" ? "calendar" : "table")}>
-                {viewMode === "table" ? "Calendar view" : "Table view"}
+              <button type="button" className="btn secondary" onClick={() => setViewMode(viewMode === "table" ? "calendar" : viewMode === "calendar" ? "kanban" : "table")}>
+                {viewMode === "table" ? "Calendar view" : viewMode === "calendar" ? "Kanban view" : "Table view"}
               </button>
               {editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null}
             </div>
@@ -2717,7 +2846,7 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
 
       <div className="card">
         <SectionTitle title="Vazifalar ro‘yxati" right={<input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />} />
-        <div className="table-wrap">
+        {viewMode === "table" ? <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -2752,7 +2881,53 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
               )}
             </tbody>
           </table>
-        </div>
+        </div> : viewMode === "calendar" ? (
+          <MiniCalendar
+            monthLabel={selectedMonth}
+            rows={filteredTasks}
+            dateKey="due_date"
+            renderItem={(item) => (
+              <button key={item.id} type="button" className={`calendar-pill task ${item.status === "done" ? "done" : ""}`} onClick={() => setViewRow(item)}>
+                {item.title}
+              </button>
+            )}
+          />
+        ) : (
+          <KanbanBoard
+            columns={[
+              { id: "todo", label: "Reja", tone: "default" },
+              { id: "doing", label: "Jarayonda", tone: "info" },
+              { id: "done", label: "Yakunlandi", tone: "success" },
+              { id: "cancelled", label: "Bekor", tone: "danger" }
+            ]}
+            rows={filteredTasks}
+            getColumnId={(row) => row.status}
+            renderCard={(row) => (
+              <>
+                <strong>{row.title}</strong>
+                <span>{formatDate(row.due_date)}</span>
+                <span>{row.assignee_name || "-"}</span>
+              </>
+            )}
+            onMove={async (id, status) => {
+              const row = tasks.find((item) => item.id === id);
+              if (!row) return;
+              try {
+                await api.update("tasks", id, {
+                  title: row.title,
+                  description: row.description || "",
+                  status,
+                  priority: row.priority || "medium",
+                  due_date: formatDate(row.due_date) === "-" ? null : formatDate(row.due_date),
+                  assignee_user_id: row.assignee_user_id || null
+                });
+                await reload();
+              } catch (err) {
+                onToast(err.message || "Vazifa statusini o'zgartirib bo'lmadi", "error");
+              }
+            }}
+          />
+        )}
       </div>
 
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Vazifa tafsiloti">
@@ -3237,6 +3412,8 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
           <label><span>Platforma nomi</span><input value={form.platform_name || ""} onChange={(e) => setField("platform_name", e.target.value)} /></label>
           <label><span>Bo‘lim</span><input value={form.department_name || ""} onChange={(e) => setField("department_name", e.target.value)} /></label>
           <label><span>Bonus stavkasi</span><input type="number" min="0" value={form.bonus_rate || 25000} onChange={(e) => setField("bonus_rate", e.target.value)} /></label>
+          <label><span>Telegram bot token</span><input value={form.telegram_bot_token || ""} onChange={(e) => setField("telegram_bot_token", e.target.value)} /></label>
+          <label><span>Telegram chat ID</span><input value={form.telegram_chat_id || ""} onChange={(e) => setField("telegram_chat_id", e.target.value)} /></label>
           <label><span>Websayt</span><input value={form.website_url || ""} onChange={(e) => setField("website_url", e.target.value)} /></label>
           <label><span>Telegram</span><input value={form.telegram_url || ""} onChange={(e) => setField("telegram_url", e.target.value)} /></label>
           <label><span>Instagram</span><input value={form.instagram_url || ""} onChange={(e) => setField("instagram_url", e.target.value)} /></label>
@@ -3260,6 +3437,20 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
         <button className="btn primary mt16" onClick={() => onSave(form)} disabled={saving}>
           {saving ? "Saqlanmoqda..." : "Saqlash"}
         </button>
+        <button className="btn secondary mt16" onClick={async () => {
+          try {
+            const backup = await api.list("/api/backup/export");
+            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "aloo-backup.json";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+          } catch {}
+        }}>Backup export</button>
       </div>
     </div>
   );
@@ -3451,6 +3642,11 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
     participants_text: "",
     videodek_url: "",
     scenario_text: "",
+    checklist_json: ["kamera", "mikrofon", "chiroq", "transport", "mehmonxona"],
+    budget_amount: 0,
+    transport_text: "",
+    hotel_text: "",
+    deadline_date: "",
     status: "reja",
     notes: ""
   };
@@ -3475,6 +3671,11 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
       participants_text: row.participants_text || "",
       videodek_url: row.videodek_url || "",
       scenario_text: row.scenario_text || "",
+      checklist_json: Array.isArray(row.checklist_json) ? row.checklist_json : ["kamera", "mikrofon", "chiroq", "transport", "mehmonxona"],
+      budget_amount: row.budget_amount || 0,
+      transport_text: row.transport_text || "",
+      hotel_text: row.hotel_text || "",
+      deadline_date: formatDate(row.deadline_date) === "-" ? "" : formatDate(row.deadline_date),
       status: row.status || "reja",
       notes: row.notes || ""
     });
@@ -3537,6 +3738,11 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
           <label><span>Videodek URL</span><input value={form.videodek_url} onChange={(e) => setField("videodek_url", e.target.value)} placeholder="https://..." /></label>
           <label><span>Status</span><select value={form.status} onChange={(e) => setField("status", e.target.value)}><option value="reja">Reja</option><option value="tasdiqlandi">Tasdiqlandi</option><option value="jarayonda">Jarayonda</option><option value="yakunlandi">Yakunlandi</option></select></label>
           <label className="full-col"><span>Ssenariy</span><input value={form.scenario_text} onChange={(e) => setField("scenario_text", e.target.value)} placeholder="Qisqa ssenariy yoki outline" /></label>
+          <label><span>Budget</span><input type="number" min="0" value={form.budget_amount} onChange={(e) => setField("budget_amount", Number(e.target.value))} /></label>
+          <label><span>Transport</span><input value={form.transport_text} onChange={(e) => setField("transport_text", e.target.value)} /></label>
+          <label><span>Mehmonxona</span><input value={form.hotel_text} onChange={(e) => setField("hotel_text", e.target.value)} /></label>
+          <label><span>Deadline</span><input type="date" value={form.deadline_date} onChange={(e) => setField("deadline_date", e.target.value)} /></label>
+          <label className="full-col"><span>Checklist</span><input value={(form.checklist_json || []).join(", ")} onChange={(e) => setField("checklist_json", e.target.value.split(",").map((item) => item.trim()).filter(Boolean))} /></label>
           <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
           <button className="btn primary" type="submit" disabled={saving}>{saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}</button>
         </form>
@@ -3605,11 +3811,190 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
             <div className="full-col"><strong>Ishtirokchilar:</strong> {viewRow.participants_text || "-"}</div>
             <div className="full-col"><strong>Videodek URL:</strong> {viewRow.videodek_url || "-"}</div>
             <div className="full-col"><strong>Ssenariy:</strong> {viewRow.scenario_text || "-"}</div>
+            <div><strong>Budget:</strong> {formatMoney(viewRow.budget_amount || 0)}</div>
+            <div><strong>Transport:</strong> {viewRow.transport_text || "-"}</div>
+            <div><strong>Mehmonxona:</strong> {viewRow.hotel_text || "-"}</div>
+            <div><strong>Deadline:</strong> {formatDate(viewRow.deadline_date)}</div>
             <div className="full-col"><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
+            <div className="full-col"><strong>Checklist:</strong> {(Array.isArray(viewRow.checklist_json) ? viewRow.checklist_json : []).join(", ") || "-"}</div>
           </div>
           <DiscussionPanel entityType="travel_plan" entityId={viewRow.id} onToast={onToast} />
         </> : null}
       </Modal>
+    </div>
+  );
+}
+
+function RecurringPage({ recurringTasks = [], recurringExpenses = [], users = [], onToast, reload }) {
+  const [taskForm, setTaskForm] = useState({ title: "", description: "", frequency: "monthly", day_of_week: 1, day_of_month: 1, priority: "medium", assignee_user_id: "", is_active: true });
+  const [expenseForm, setExpenseForm] = useState({ title: "", vendor_name: "", amount: "", category: "servis", payment_type: "visa", frequency: "monthly", day_of_week: 1, day_of_month: 1, is_active: true });
+
+  return (
+    <div className="page-grid">
+      <div className="two-grid">
+        <div className="card">
+          <SectionTitle title="Recurring tasks" desc="Har hafta yoki oy avtomatik vazifa" />
+          <form className="form-grid" onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              await api.create("recurring-tasks", taskForm);
+              setTaskForm({ title: "", description: "", frequency: "monthly", day_of_week: 1, day_of_month: 1, priority: "medium", assignee_user_id: "", is_active: true });
+              await reload();
+              onToast("Recurring task saqlandi", "success");
+            } catch (err) {
+              onToast(err.message || "Recurring task saqlanmadi", "error");
+            }
+          }}>
+            <label><span>Nomi</span><input value={taskForm.title} onChange={(e) => setTaskForm((p) => ({ ...p, title: e.target.value }))} required /></label>
+            <label><span>Frequency</span><select value={taskForm.frequency} onChange={(e) => setTaskForm((p) => ({ ...p, frequency: e.target.value }))}><option value="weekly">weekly</option><option value="monthly">monthly</option></select></label>
+            <label><span>Hafta kuni</span><input type="number" min="1" max="7" value={taskForm.day_of_week} onChange={(e) => setTaskForm((p) => ({ ...p, day_of_week: Number(e.target.value) }))} /></label>
+            <label><span>Oy kuni</span><input type="number" min="1" max="28" value={taskForm.day_of_month} onChange={(e) => setTaskForm((p) => ({ ...p, day_of_month: Number(e.target.value) }))} /></label>
+            <label><span>Priority</span><select value={taskForm.priority} onChange={(e) => setTaskForm((p) => ({ ...p, priority: e.target.value }))}><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></label>
+            <label><span>Mas'ul</span><select value={taskForm.assignee_user_id} onChange={(e) => setTaskForm((p) => ({ ...p, assignee_user_id: e.target.value }))}><option value="">Tanlang</option>{users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}</select></label>
+            <label className="full-col"><span>Izoh</span><input value={taskForm.description} onChange={(e) => setTaskForm((p) => ({ ...p, description: e.target.value }))} /></label>
+            <button className="btn primary" type="submit">Saqlash</button>
+          </form>
+          <div className="table-wrap"><table><thead><tr><th>Nomi</th><th>Frequency</th><th>Mas'ul</th></tr></thead><tbody>{recurringTasks.length ? recurringTasks.map((row) => <tr key={row.id}><td>{row.title}</td><td>{row.frequency}</td><td>{row.assignee_name || "-"}</td></tr>) : <tr><td colSpan="3" className="empty-cell">Hozircha yo'q</td></tr>}</tbody></table></div>
+        </div>
+
+        <div className="card">
+          <SectionTitle title="Recurring expenses" desc="Canva, Meta, CapCut kabi avtomatik harajat" />
+          <form className="form-grid" onSubmit={async (e) => {
+            e.preventDefault();
+            try {
+              await api.create("recurring-expenses", { ...expenseForm, amount: Number(expenseForm.amount || 0) });
+              setExpenseForm({ title: "", vendor_name: "", amount: "", category: "servis", payment_type: "visa", frequency: "monthly", day_of_week: 1, day_of_month: 1, is_active: true });
+              await reload();
+              onToast("Recurring expense saqlandi", "success");
+            } catch (err) {
+              onToast(err.message || "Recurring expense saqlanmadi", "error");
+            }
+          }}>
+            <label><span>Nomi</span><input value={expenseForm.title} onChange={(e) => setExpenseForm((p) => ({ ...p, title: e.target.value }))} required /></label>
+            <label><span>Xizmat</span><input value={expenseForm.vendor_name} onChange={(e) => setExpenseForm((p) => ({ ...p, vendor_name: e.target.value }))} /></label>
+            <label><span>Amount</span><input type="number" value={expenseForm.amount} onChange={(e) => setExpenseForm((p) => ({ ...p, amount: e.target.value }))} required /></label>
+            <label><span>Frequency</span><select value={expenseForm.frequency} onChange={(e) => setExpenseForm((p) => ({ ...p, frequency: e.target.value }))}><option value="weekly">weekly</option><option value="monthly">monthly</option></select></label>
+            <label><span>Kategoriya</span><select value={expenseForm.category} onChange={(e) => setExpenseForm((p) => ({ ...p, category: e.target.value }))}><option value="servis">servis</option><option value="reklama">reklama</option><option value="safar">safar</option><option value="boshqa">boshqa</option></select></label>
+            <label><span>To'lov</span><select value={expenseForm.payment_type} onChange={(e) => setExpenseForm((p) => ({ ...p, payment_type: e.target.value }))}><option value="visa">visa</option><option value="bank">bank</option><option value="cash">cash</option></select></label>
+            <button className="btn primary" type="submit">Saqlash</button>
+          </form>
+          <div className="table-wrap"><table><thead><tr><th>Nomi</th><th>Frequency</th><th>Summa</th></tr></thead><tbody>{recurringExpenses.length ? recurringExpenses.map((row) => <tr key={row.id}><td>{row.title}</td><td>{row.frequency}</td><td>{formatMoney(row.amount)}</td></tr>) : <tr><td colSpan="3" className="empty-cell">Hozircha yo'q</td></tr>}</tbody></table></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnalyticsPage({ analyticsData }) {
+  const bonusSeries = analyticsData?.bonus_by_month || [];
+  const spendSeries = analyticsData?.spend_by_month || [];
+  const statuses = analyticsData?.content_by_status || [];
+  const branches = analyticsData?.branch_kpi || [];
+  const topPerformers = analyticsData?.top_performers || [];
+  return (
+    <div className="page-grid">
+      <div className="two-grid">
+        <div className="card"><SectionTitle title="Bonus trend" /><div className="bar-chart">{bonusSeries.map((i) => <div key={i.month_label} className="bar-item"><span>{i.month_label}</span><div className="bar-track"><i style={{ width: `${Math.max(Number(i.total) / Math.max(...bonusSeries.map((x) => Number(x.total || 0)), 1) * 100, 8)}%` }} /></div><strong>{formatMoney(i.total)}</strong></div>)}</div></div>
+        <div className="card"><SectionTitle title="Reklama sarfi" /><div className="bar-chart">{spendSeries.map((i) => <div key={i.month_label} className="bar-item"><span>{i.month_label}</span><div className="bar-track branch"><i style={{ width: `${Math.max(Number(i.total) / Math.max(...spendSeries.map((x) => Number(x.total || 0)), 1) * 100, 8)}%` }} /></div><strong>{formatMoney(i.total)}</strong></div>)}</div></div>
+      </div>
+      <div className="two-grid">
+        <div className="card"><SectionTitle title="Kontent statuslari" /><div className="quick-list">{statuses.map((i) => <div key={i.status} className="quick-item">{formatApprovalStatus(i.status)}: <strong>{i.count}</strong></div>)}</div></div>
+        <div className="card"><SectionTitle title="Filial KPI" /><div className="bar-chart">{branches.map((i) => <div key={i.name} className="bar-item"><span>{i.name}</span><div className="bar-track branch"><i style={{ width: `${Math.max((Number(i.content_score || 0) + Number(i.subscriber_growth || 0)) / Math.max(...branches.map((x) => Number(x.content_score || 0) + Number(x.subscriber_growth || 0)), 1) * 100, 8)}%` }} /></div><strong>{Number(i.content_score || 0) + Number(i.subscriber_growth || 0)}</strong></div>)}</div></div>
+      </div>
+      <div className="card"><SectionTitle title="Top performer board" /><div className="table-wrap"><table><thead><tr><th>Hodim</th><th>Bajarilgan vazifa</th><th>Bonus</th></tr></thead><tbody>{topPerformers.length ? topPerformers.map((row, index) => <tr key={`${row.full_name}-${index}`}><td>{row.full_name}</td><td>{row.done_tasks}</td><td>{formatMoney(row.bonus_total)}</td></tr>) : <tr><td colSpan="3" className="empty-cell">Hozircha ma'lumot yo'q</td></tr>}</tbody></table></div></div>
+    </div>
+  );
+}
+
+function FinanceDashboardPage({ expenses = [], campaigns = [], bonusItems = [], travelPlans = [], budgets = [], onToast, reload }) {
+  const currentMonth = getMonthLabel();
+  const [form, setForm] = useState({ month_label: currentMonth, category: "servis", limit_amount: "" });
+  const monthlyExpenses = expenses.filter((i) => formatDate(i.expense_date).startsWith(currentMonth)).reduce((s, i) => s + Number(i.amount || 0), 0);
+  const monthlyAds = campaigns.filter((i) => formatDate(i.start_date).startsWith(currentMonth) || formatDate(i.end_date).startsWith(currentMonth)).reduce((s, i) => s + Number(i.spend || 0), 0);
+  const monthlyBonus = bonusItems.filter((i) => (i.month_label || "").startsWith(currentMonth)).reduce((s, i) => s + Number(i.total_amount || 0), 0);
+  const monthlyTravel = travelPlans.filter((i) => formatDate(i.plan_date).startsWith(currentMonth)).reduce((s, i) => s + Number(i.budget_amount || 0), 0);
+  const activeBudgets = budgets.filter((i) => i.month_label === currentMonth);
+  return (
+    <div className="page-grid">
+      <div className="stats-grid">
+        <StatCard title="Harajatlar" value={formatMoney(monthlyExpenses)} hint={getMonthTitle(currentMonth)} tone="danger" />
+        <StatCard title="Reklama sarfi" value={formatMoney(monthlyAds)} hint={getMonthTitle(currentMonth)} tone="info" />
+        <StatCard title="Bonus" value={formatMoney(monthlyBonus)} hint={getMonthTitle(currentMonth)} tone="warning" />
+        <StatCard title="Safar budjeti" value={formatMoney(monthlyTravel)} hint={getMonthTitle(currentMonth)} tone="success" />
+      </div>
+      <div className="card">
+        <SectionTitle title="Budjet planning" desc={getMonthTitle(currentMonth)} />
+        <form className="form-grid" onSubmit={async (e) => {
+          e.preventDefault();
+          try {
+            await api.create("budgets", { ...form, limit_amount: Number(form.limit_amount || 0) });
+            setForm({ month_label: currentMonth, category: "servis", limit_amount: "" });
+            await reload();
+            onToast("Budjet saqlandi", "success");
+          } catch (err) {
+            onToast(err.message || "Budjet saqlanmadi", "error");
+          }
+        }}>
+          <label><span>Oy</span><input type="month" value={form.month_label} onChange={(e) => setForm((p) => ({ ...p, month_label: e.target.value }))} /></label>
+          <label><span>Kategoriya</span><select value={form.category} onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}><option value="servis">servis</option><option value="reklama">reklama</option><option value="safar">safar</option><option value="bonus">bonus</option></select></label>
+          <label><span>Limit</span><input type="number" value={form.limit_amount} onChange={(e) => setForm((p) => ({ ...p, limit_amount: e.target.value }))} /></label>
+          <button className="btn primary" type="submit">Budjet qo'shish</button>
+        </form>
+        <div className="table-wrap"><table><thead><tr><th>Kategoriya</th><th>Limit</th></tr></thead><tbody>{activeBudgets.length ? activeBudgets.map((row) => <tr key={row.id}><td>{row.category}</td><td>{formatMoney(row.limit_amount)}</td></tr>) : <tr><td colSpan="2" className="empty-cell">Bu oy uchun budjet yo'q</td></tr>}</tbody></table></div>
+      </div>
+    </div>
+  );
+}
+
+function AdvancedReportsPage({ advancedReports }) {
+  const [range, setRange] = useState("monthly");
+  const [data, setData] = useState(advancedReports);
+  useEffect(() => { setData(advancedReports); }, [advancedReports]);
+  async function reloadRange(value) {
+    setRange(value);
+    const result = await api.list("/api/reports/advanced", { range: value }).catch(() => null);
+    setData(result);
+  }
+  return (
+    <div className="page-grid">
+      <div className="card">
+        <SectionTitle title="Advanced report page" right={<select value={range} onChange={(e) => reloadRange(e.target.value)}><option value="daily">daily</option><option value="weekly">weekly</option><option value="monthly">monthly</option></select>} />
+        <div className="three-grid">
+          <div className="chart-card"><div className="chart-title">Filial hisobotlari</div><div className="quick-list">{(data?.reports || []).map((row) => <div key={row.bucket} className="quick-item">{row.bucket}: <strong>{row.reports_count}</strong></div>)}</div></div>
+          <div className="chart-card"><div className="chart-title">Vazifalar</div><div className="quick-list">{(data?.tasks || []).map((row) => <div key={row.bucket} className="quick-item">{row.bucket}: <strong>{row.done_count}/{row.task_total}</strong></div>)}</div></div>
+          <div className="chart-card"><div className="chart-title">Harajatlar</div><div className="quick-list">{(data?.expenses || []).map((row) => <div key={row.bucket} className="quick-item">{row.bucket}: <strong>{formatMoney(row.expense_total)}</strong></div>)}</div></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AiAssistantPage({ branches = [], onToast }) {
+  const [mode, setMode] = useState("ideas");
+  const [prompt, setPrompt] = useState("");
+  const [contentType, setContentType] = useState("reels");
+  const [branchName, setBranchName] = useState("");
+  const [output, setOutput] = useState("");
+  return (
+    <div className="page-grid">
+      <div className="card">
+        <SectionTitle title="AI yordamchi" desc="Sarlavha, caption, ssenariy va g'oya generator" />
+        <div className="form-grid">
+          <label><span>Mode</span><select value={mode} onChange={(e) => setMode(e.target.value)}><option value="ideas">ideas</option><option value="title">title</option><option value="caption">caption</option><option value="script">script</option></select></label>
+          <label><span>Kontent turi</span><select value={contentType} onChange={(e) => setContentType(e.target.value)}><option value="reels">reels</option><option value="video">video</option><option value="story">story</option><option value="post">post</option></select></label>
+          <label><span>Filial</span><select value={branchName} onChange={(e) => setBranchName(e.target.value)}><option value="">Tanlang</option>{branches.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select></label>
+          <label className="full-col"><span>Mavzu</span><textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} /></label>
+          <button className="btn primary" type="button" onClick={async () => {
+            try {
+              const result = await api.create("ai/assist", { mode, prompt, branch_name: branchName, content_type: contentType });
+              setOutput(result?.output || "");
+            } catch (err) {
+              onToast(err.message || "AI yordamchi xatolik berdi", "error");
+            }
+          }}>Generatsiya qilish</button>
+        </div>
+        <div className="ai-output">{output || "Natija shu yerda chiqadi"}</div>
+      </div>
     </div>
   );
 }
@@ -3641,6 +4026,12 @@ function App() {
   const [tasks, setTasks] = useState([]);
   const [threads, setThreads] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [recurringTasks, setRecurringTasks] = useState([]);
+  const [recurringExpenses, setRecurringExpenses] = useState([]);
+  const [budgets, setBudgets] = useState([]);
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [advancedReports, setAdvancedReports] = useState(null);
+  const [topPerformers, setTopPerformers] = useState(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const unreadChatCount = (threads || []).reduce((sum, thread) => sum + Number(thread.unread_count || 0), 0);
 
@@ -3666,7 +4057,13 @@ function App() {
         campaignsRes,
         tasksRes,
         threadsRes,
-        auditLogsRes
+        auditLogsRes,
+        recurringTasksRes,
+        recurringExpensesRes,
+        budgetsRes,
+        analyticsRes,
+        reportsRes,
+        topPerformersRes
       ] = await Promise.all([
         api.dashboard().catch(() => ({})),
         api.settings.get().catch(() => null),
@@ -3682,7 +4079,13 @@ function App() {
         api.list("campaigns").catch(() => []),
         api.list("tasks").catch(() => []),
         api.list("/api/messages/threads").catch(() => []),
-        api.list("audit-logs").catch(() => [])
+        api.list("audit-logs").catch(() => []),
+        api.list("recurring-tasks").catch(() => []),
+        api.list("recurring-expenses").catch(() => []),
+        api.list("budgets").catch(() => []),
+        api.list("/api/analytics/overview").catch(() => null),
+        api.list("/api/reports/advanced", { range: "monthly" }).catch(() => null),
+        api.list("/api/top-performers").catch(() => null)
       ]);
 
       setSummary(dashboardRes || {});
@@ -3700,6 +4103,12 @@ function App() {
       setTasks(tasksRes || []);
       setThreads(threadsRes || []);
       setAuditLogs(auditLogsRes || []);
+      setRecurringTasks(recurringTasksRes || []);
+      setRecurringExpenses(recurringExpensesRes || []);
+      setBudgets(budgetsRes || []);
+      setAnalyticsData(analyticsRes || null);
+      setAdvancedReports(reportsRes || null);
+      setTopPerformers(topPerformersRes || null);
     } catch (err) {
       console.error(err);
     }
@@ -3869,13 +4278,21 @@ function App() {
       />
     );
   } else if (active === "content") {
-    page = <ContentPage users={users} settings={settings} onToast={showToast} reload={reloadData} />;
+    page = <ContentPage users={users} branches={branches} settings={settings} onToast={showToast} reload={reloadData} />;
   } else if (active === "bonus") {
     page = <BonusPage bonusItems={bonusItems} users={users} branches={branches} settings={settings} onToast={showToast} reload={reloadData} />;
   } else if (active === "expenses") {
     page = <ExpensesPage expenses={expenses} onToast={showToast} reload={reloadData} />;
+  } else if (active === "finance") {
+    page = <FinanceDashboardPage expenses={expenses} campaigns={campaigns} bonusItems={bonusItems} travelPlans={travelPlans} budgets={budgets} onToast={showToast} reload={reloadData} />;
   } else if (active === "travelPlans") {
     page = <TravelPlansPage travelPlans={travelPlans} branches={branches} onToast={showToast} reload={reloadData} />;
+  } else if (active === "reports") {
+    page = <AdvancedReportsPage advancedReports={advancedReports} />;
+  } else if (active === "analytics") {
+    page = <AnalyticsPage analyticsData={analyticsData} />;
+  } else if (active === "recurring") {
+    page = <RecurringPage recurringTasks={recurringTasks} recurringExpenses={recurringExpenses} users={users} onToast={showToast} reload={reloadData} />;
   } else if (active === "dailyReports") {
     page = <DailyReportsPage reports={dailyReports} branches={branches} onToast={showToast} reload={reloadData} />;
   } else if (active === "campaigns") {
@@ -3894,6 +4311,8 @@ function App() {
     page = <ProfilePage user={user} onToast={showToast} refreshUser={setUser} />;
   } else if (active === "settings") {
     page = <SettingsPage settings={settings} onSave={saveSettings} saving={savingSettings} theme={theme} setTheme={setTheme} />;
+  } else if (active === "aiAssistant") {
+    page = <AiAssistantPage branches={branches} onToast={showToast} />;
   }
 
   return (
@@ -5753,6 +6172,60 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
 @keyframes panel-in{
   from{opacity:0;transform:translateY(10px)}
   to{opacity:1;transform:translateY(0)}
+}
+.kanban-board{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:16px;
+}
+.kanban-column{
+  border:1px solid var(--line);
+  border-radius:20px;
+  background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(248,250,252,.98));
+  padding:14px;
+  min-height:280px;
+}
+.kanban-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  margin-bottom:12px;
+}
+.kanban-cards{
+  display:grid;
+  gap:12px;
+}
+.kanban-card{
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:var(--panel);
+  padding:12px;
+  box-shadow:0 10px 22px rgba(15,23,42,.05);
+  display:grid;
+  gap:6px;
+  cursor:grab;
+}
+.kanban-empty{
+  border:1px dashed var(--line);
+  border-radius:14px;
+  padding:18px;
+  text-align:center;
+  color:var(--muted);
+}
+.ai-output{
+  margin-top:16px;
+  border:1px solid var(--line);
+  background:var(--soft);
+  border-radius:18px;
+  padding:18px;
+  white-space:pre-wrap;
+  line-height:1.6;
+}
+@media (max-width: 1100px){
+  .kanban-board{grid-template-columns:1fr 1fr}
+}
+@media (max-width: 760px){
+  .kanban-board{grid-template-columns:1fr}
 }
 `;
 
