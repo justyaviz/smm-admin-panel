@@ -124,6 +124,89 @@ async function createNotification(userId, title, body, type = "info") {
   }
 }
 
+async function ensureRuntimeSchema() {
+  const statements = [
+    `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS company_name TEXT NOT NULL DEFAULT 'aloo'`,
+    `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS platform_name TEXT NOT NULL DEFAULT 'SMM jamoasi platformasi'`,
+    `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS department_name TEXT NOT NULL DEFAULT 'SMM department'`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS bonus_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS proposal_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS approved_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS notes TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS plan_month TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS month_label TEXT`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS work_date DATE`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS content_type TEXT NOT NULL DEFAULT 'post'`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS content_title TEXT`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS notes TEXT`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS proposal_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approved_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS proposal_amount NUMERIC(14,2) NOT NULL DEFAULT 0`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approved_amount NUMERIC(14,2) NOT NULL DEFAULT 0`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS total_amount NUMERIC(14,2) NOT NULL DEFAULT 0`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS subscriber_count INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS condition_text TEXT`,
+    `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS notes TEXT`,
+    `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `CREATE TABLE IF NOT EXISTS messages (
+      id SERIAL PRIMARY KEY,
+      sender_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      receiver_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`
+  ];
+
+  try {
+    for (const statement of statements) {
+      await query(statement);
+    }
+
+    await query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'daily_branch_reports' AND column_name = 'calls_count'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'daily_branch_reports' AND column_name = 'subscriber_count'
+        ) THEN
+          ALTER TABLE daily_branch_reports RENAME COLUMN calls_count TO subscriber_count;
+        END IF;
+      END $$;
+    `);
+
+    await query(`
+      DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'daily_branch_reports' AND column_name = 'walkin_count'
+        ) AND NOT EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'daily_branch_reports' AND column_name = 'condition_text'
+        ) THEN
+          ALTER TABLE daily_branch_reports RENAME COLUMN walkin_count TO condition_text;
+        END IF;
+      END $$;
+    `);
+  } catch (err) {
+    console.error("ensureRuntimeSchema error:", err.message);
+  }
+}
+
 async function recomputeBonusFromItems() {
   try {
     await query(`
@@ -2050,6 +2133,8 @@ app.get("/api/export/daily-reports.pdf", authRequired, async (_, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on ${PORT}`);
+ensureRuntimeSchema().finally(() => {
+  app.listen(PORT, () => {
+    console.log(`Server running on ${PORT}`);
+  });
 });
