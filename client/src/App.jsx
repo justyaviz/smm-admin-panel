@@ -22,7 +22,7 @@ import {
   ShieldCheck,
   X
 } from "lucide-react";
-import { api, clearAuth, getCurrentUser, API_BASE } from "./api";
+import { api, clearAuth, getCurrentUser } from "./api";
 
 const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: Home },
@@ -272,7 +272,7 @@ function LoginPage({ onLoggedIn }) {
     <div className="login-page">
       <div className="login-copy">
         <div className="brand-kicker">aloo • yagona platforma</div>
-        <h1>Asalomu alaykum</h1>
+        <h1>Assalomu alaykum</h1>
         <h2>aloo do‘konlar tarmog‘i SMM jamoasi yagona ma’lumotlar platformasiga xush kelibsiz</h2>
         <p>Kirish uchun login va parolingizni kiriting.</p>
       </div>
@@ -427,13 +427,12 @@ function ContentPage({ users = [], onToast, reload }) {
   };
 
   const [form, setForm] = useState(emptyForm);
-
   const isVideo = form.content_type === "video";
 
   async function loadMonth(monthValue = selectedMonth) {
     try {
       setLoading(true);
-      const data = await api.list(`/api/content?month=${monthValue}`);
+      const data = await api.list("content", { month: monthValue });
       const sorted = (data || []).sort((a, b) => {
         const aDate = a.publish_date ? new Date(a.publish_date).getTime() : 0;
         const bDate = b.publish_date ? new Date(b.publish_date).getTime() : 0;
@@ -464,6 +463,7 @@ function ContentPage({ users = [], onToast, reload }) {
   function startEdit(row) {
     setEditRow(row);
     const platforms = String(row.platform || "").split(",").map((x) => x.trim()).filter(Boolean);
+
     setForm({
       title: row.title || "",
       publish_date: formatDate(row.publish_date) === "-" ? "" : formatDate(row.publish_date),
@@ -477,12 +477,25 @@ function ContentPage({ users = [], onToast, reload }) {
       proposal_count: row.proposal_count ?? "",
       approved_count: row.approved_count ?? ""
     });
+
     setBonusMode(!!row.bonus_enabled);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function handleSubmit(e) {
     e.preventDefault();
+
+    if (isVideo) {
+      if (!form.editor_user_id || !form.face_voice_user_id) {
+        onToast("Video uchun 2 ta hodim tanlanishi kerak", "error");
+        return;
+      }
+    } else {
+      if (!form.assigned_user_id) {
+        onToast("Mas’ul shaxsni tanlang", "error");
+        return;
+      }
+    }
 
     if (bonusMode && !form.proposal_count) {
       onToast("Taklif soni majburiy", "error");
@@ -663,7 +676,11 @@ function ContentPage({ users = [], onToast, reload }) {
         <SectionTitle
           title={`${getMonthTitle(selectedMonth)} kontent rejasi`}
           right={
-            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/content.xlsx", `content-${selectedMonth}.xlsx`)}>
+            <button
+              type="button"
+              className="btn secondary"
+              onClick={() => api.exportFile("/api/export/content.xlsx", `content-${selectedMonth}.xlsx`)}
+            >
               Excel export
             </button>
           }
@@ -755,8 +772,11 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
 
   const [form, setForm] = useState(emptyForm);
   const isVideo = form.content_type === "video";
-
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const monthOptions = [...new Set(
+    [getMonthLabel(), ...(bonusItems || []).map((i) => i.month_label || formatDate(i.work_date).slice(0, 7)).filter(Boolean)]
+  )];
 
   const filteredItems = bonusItems.filter((item) =>
     monthFilter ? (item.month_label || formatDate(item.work_date).slice(0, 7)) === monthFilter : true
@@ -767,6 +787,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
   const totalAmount = filteredItems.reduce((sum, item) => sum + Number(item.total_amount || item.amount || 0), 0);
 
   const employeeStatsMap = new Map();
+
   filteredItems.forEach((item) => {
     const add = (name, amount) => {
       if (!name || name === "-") return;
@@ -775,11 +796,10 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
     };
 
     if (item.content_type === "video") {
-      const share = Number(item.total_amount || item.amount || 0);
-      add(item.video_editor_name || item.editor_name, share);
-      add(item.video_face_name || item.second_full_name, share);
+      add(item.video_editor_name || "-", Number(item.total_amount || item.amount || 0));
+      add(item.video_face_name || "-", Number(item.total_amount || item.amount || 0));
     } else {
-      add(item.full_name, Number(item.total_amount || item.amount || 0));
+      add(item.full_name || "-", Number(item.total_amount || item.amount || 0));
     }
   });
 
@@ -810,6 +830,18 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
 
   async function handleSubmit(e) {
     e.preventDefault();
+
+    if (isVideo) {
+      if (!form.editor_user_id || !form.face_voice_user_id) {
+        onToast("Video uchun 2 ta hodim tanlanishi kerak", "error");
+        return;
+      }
+    } else {
+      if (!form.user_id) {
+        onToast("Hodimni tanlang", "error");
+        return;
+      }
+    }
 
     if (!form.proposal_count) {
       onToast("Taklif soni majburiy", "error");
@@ -870,8 +902,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
           right={
             <div className="toolbar-actions">
               <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
-                <option value={getMonthLabel()}>{getMonthTitle(getMonthLabel())}</option>
-                {[...new Set((bonusItems || []).map((i) => i.month_label || formatDate(i.work_date).slice(0, 7)).filter(Boolean))].map((m) => (
+                {monthOptions.map((m) => (
                   <option key={m} value={m}>{getMonthTitle(m)}</option>
                 ))}
               </select>
@@ -1064,6 +1095,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
     stories_count: 0,
     posts_count: 0,
     reels_count: 0,
+    calls_count: 0,
+    walkin_count: 0,
     notes: ""
   };
 
@@ -1087,6 +1120,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
       stories_count: row.stories_count || 0,
       posts_count: row.posts_count || 0,
       reels_count: row.reels_count || 0,
+      calls_count: row.calls_count || 0,
+      walkin_count: row.walkin_count || 0,
       notes: row.notes || ""
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1160,6 +1195,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
           <label><span>Stories</span><input type="number" min="0" value={form.stories_count} onChange={(e) => setField("stories_count", Number(e.target.value))} /></label>
           <label><span>Post</span><input type="number" min="0" value={form.posts_count} onChange={(e) => setField("posts_count", Number(e.target.value))} /></label>
           <label><span>Reels</span><input type="number" min="0" value={form.reels_count} onChange={(e) => setField("reels_count", Number(e.target.value))} /></label>
+          <label><span>Calls</span><input type="number" min="0" value={form.calls_count} onChange={(e) => setField("calls_count", Number(e.target.value))} /></label>
+          <label><span>Walk-in</span><input type="number" min="0" value={form.walkin_count} onChange={(e) => setField("walkin_count", Number(e.target.value))} /></label>
           <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
 
           <button className="btn primary" type="submit" disabled={saving}>
@@ -1182,6 +1219,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
                 <th>Stories</th>
                 <th>Post</th>
                 <th>Reels</th>
+                <th>Calls</th>
+                <th>Walk-in</th>
                 <th>Izoh</th>
                 <th>Amallar</th>
               </tr>
@@ -1195,6 +1234,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
                     <td>{row.stories_count}</td>
                     <td>{row.posts_count}</td>
                     <td>{row.reels_count}</td>
+                    <td>{row.calls_count || 0}</td>
+                    <td>{row.walkin_count || 0}</td>
                     <td>{row.notes || "-"}</td>
                     <td>
                       <IconActions
@@ -1206,7 +1247,7 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="7" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
+                <tr><td colSpan="9" className="empty-cell">Hozircha ma’lumot yo‘q</td></tr>
               )}
             </tbody>
           </table>
@@ -1221,6 +1262,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
             <div><strong>Stories:</strong> {viewRow.stories_count}</div>
             <div><strong>Post:</strong> {viewRow.posts_count}</div>
             <div><strong>Reels:</strong> {viewRow.reels_count}</div>
+            <div><strong>Calls:</strong> {viewRow.calls_count || 0}</div>
+            <div><strong>Walk-in:</strong> {viewRow.walkin_count || 0}</div>
             <div><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
           </div>
         ) : null}
@@ -1423,10 +1466,15 @@ function MediaPage({ uploads = [], onToast, reload }) {
   const [saving, setSaving] = useState(false);
   const [viewRow, setViewRow] = useState(null);
   const [typeFilter, setTypeFilter] = useState("");
+  const [search, setSearch] = useState("");
 
-  const filteredUploads = typeFilter
-    ? uploads.filter((u) => String(u.mime_type || "").toLowerCase().includes(typeFilter))
-    : uploads;
+  const filteredUploads = uploads.filter((u) => {
+    const typeOk = typeFilter ? String(u.mime_type || "").toLowerCase().includes(typeFilter) : true;
+    const searchOk = search
+      ? String(u.original_name || "").toLowerCase().includes(search.toLowerCase())
+      : true;
+    return typeOk && searchOk;
+  });
 
   async function handleUpload(e) {
     e.preventDefault();
@@ -1463,6 +1511,15 @@ function MediaPage({ uploads = [], onToast, reload }) {
     return String(mime || "").startsWith("image/");
   }
 
+  async function copyLink(link) {
+    try {
+      await navigator.clipboard.writeText(link);
+      onToast("Link nusxalandi ✅", "success");
+    } catch {
+      onToast("Linkni nusxalab bo‘lmadi", "error");
+    }
+  }
+
   return (
     <div className="page-grid">
       <div className="card">
@@ -1470,6 +1527,7 @@ function MediaPage({ uploads = [], onToast, reload }) {
           title="Media kutubxona"
           right={
             <div className="toolbar-actions">
+              <input placeholder="Qidiruv..." value={search} onChange={(e) => setSearch(e.target.value)} />
               <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
                 <option value="">Barcha turlar</option>
                 <option value="image">Rasm</option>
@@ -1512,9 +1570,14 @@ function MediaPage({ uploads = [], onToast, reload }) {
                   onEdit={null}
                   onDelete={() => removeRow(row.id)}
                 />
-                <a className="btn tiny secondary" href={row.file_url} target="_blank" rel="noreferrer">
-                  Ochish
-                </a>
+                <div className="table-actions">
+                  <a className="btn tiny secondary" href={row.file_url} target="_blank" rel="noreferrer">
+                    Ochish
+                  </a>
+                  <button type="button" className="btn tiny secondary" onClick={() => copyLink(row.file_url)}>
+                    Copy link
+                  </button>
+                </div>
               </div>
             </div>
           )) : (
@@ -1537,7 +1600,7 @@ function MediaPage({ uploads = [], onToast, reload }) {
               <div><strong>Nomi:</strong> {viewRow.original_name}</div>
               <div><strong>Turi:</strong> {viewRow.mime_type}</div>
               <div><strong>Hajmi:</strong> {viewRow.file_size}</div>
-              <div><strong>Link:</strong> {viewRow.file_url}</div>
+              <div className="full-col"><strong>Link:</strong> {viewRow.file_url}</div>
             </div>
           </div>
         ) : null}
@@ -1705,7 +1768,18 @@ function UsersPage({ users = [], onToast, reload }) {
             <label><span>Profil rasmi linki</span><input value={form.avatar_url} onChange={(e) => setField("avatar_url", e.target.value)} placeholder="https://..." /></label>
           ) : (
             <div className="avatar-preview-box">
-              {form.avatar_url ? <img src={form.avatar_url} alt="avatar" className="avatar-preview" /> : <div className="avatar-empty">Avatar</div>}
+              {form.avatar_url ? (
+                <img
+                  src={form.avatar_url}
+                  alt="avatar"
+                  className="avatar-preview"
+                  onError={(e) => {
+                    e.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : (
+                <div className="avatar-empty">Avatar</div>
+              )}
             </div>
           )}
 
