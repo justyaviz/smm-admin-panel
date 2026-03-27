@@ -2679,7 +2679,33 @@ function App() {
   }
 
   if (booting) {
-    return <div className="loading-screen">Yuklanmoqda...</div>;
+    return (
+      <div className="loading-screen">
+        <div className="loading-orb loading-orb-one" />
+        <div className="loading-orb loading-orb-two" />
+        <div className="loading-grid" />
+        <div className="loading-card">
+          <div className="loading-brand">
+            <img src={settings?.logo_url || LOGIN_LOGO} alt="logo" className="loading-brand-image" />
+            <div>
+              <strong>{settings?.company_name || "aloo"}</strong>
+              <span>{settings?.platform_name || "SMM jamoasi platformasi"}</span>
+            </div>
+          </div>
+          <div className="loading-spinner-wrap">
+            <div className="loading-spinner-ring" />
+            <div className="loading-spinner-dot" />
+          </div>
+          <div className="loading-copy">
+            <h2>Platforma yuklanmoqda</h2>
+            <p>Ma'lumotlar sinxronlanmoqda, biroz kuting...</p>
+          </div>
+          <div className="loading-progress">
+            <span className="loading-progress-bar" />
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (!user) {
@@ -2847,7 +2873,137 @@ input,select,textarea{outline:none}
 a{color:var(--blue);text-decoration:none}
 img{display:block;max-width:100%}
 
-.loading-screen{min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--text)}
+.loading-screen{
+  min-height:100vh;
+  display:grid;
+  place-items:center;
+  background:
+    radial-gradient(circle at 14% 18%, rgba(56,189,248,.24), transparent 24%),
+    radial-gradient(circle at 82% 20%, rgba(99,102,241,.16), transparent 22%),
+    radial-gradient(circle at 70% 78%, rgba(110,231,183,.16), transparent 26%),
+    linear-gradient(135deg,#eef6ff 0%, #f9fbff 42%, #f1fffb 100%);
+  color:var(--text);
+  position:relative;
+  overflow:hidden;
+}
+.loading-orb{
+  position:absolute;
+  border-radius:999px;
+  filter:blur(8px);
+  opacity:.85;
+  pointer-events:none;
+}
+.loading-orb-one{
+  width:260px;
+  height:260px;
+  top:-40px;
+  left:-30px;
+  background:radial-gradient(circle, rgba(56,189,248,.28), transparent 68%);
+  animation:login-float 9s ease-in-out infinite;
+}
+.loading-orb-two{
+  width:320px;
+  height:320px;
+  right:-80px;
+  bottom:-120px;
+  background:radial-gradient(circle, rgba(29,78,216,.22), transparent 68%);
+  animation:login-float 11s ease-in-out infinite reverse;
+}
+.loading-grid{
+  position:absolute;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(37,99,235,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37,99,235,.04) 1px, transparent 1px);
+  background-size:34px 34px;
+  mask-image:radial-gradient(circle at center, black 28%, transparent 90%);
+}
+.loading-card{
+  position:relative;
+  z-index:2;
+  width:min(92vw, 520px);
+  padding:28px;
+  border-radius:32px;
+  background:rgba(255,255,255,.76);
+  border:1px solid rgba(255,255,255,.82);
+  backdrop-filter:blur(18px);
+  box-shadow:0 28px 70px rgba(20,86,140,.14);
+  display:grid;
+  gap:20px;
+  animation:login-card-in .7s cubic-bezier(.2,.9,.2,1);
+}
+.loading-brand{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.loading-brand-image{
+  width:68px;
+  height:68px;
+  object-fit:cover;
+  border-radius:22px;
+  box-shadow:0 16px 32px rgba(29,78,216,.18);
+}
+.loading-brand strong{
+  display:block;
+  font-size:24px;
+  line-height:1;
+  margin-bottom:6px;
+}
+.loading-brand span{
+  color:var(--muted);
+  font-size:13px;
+}
+.loading-spinner-wrap{
+  position:relative;
+  width:84px;
+  height:84px;
+  margin:4px auto;
+}
+.loading-spinner-ring{
+  position:absolute;
+  inset:0;
+  border-radius:999px;
+  border:5px solid rgba(29,78,216,.12);
+  border-top-color:#1d4ed8;
+  border-right-color:#38bdf8;
+  animation:login-spin 1.1s linear infinite;
+}
+.loading-spinner-dot{
+  position:absolute;
+  inset:18px;
+  border-radius:999px;
+  background:radial-gradient(circle at 30% 30%, #6ee7b7, #38bdf8 65%, #1d4ed8);
+  box-shadow:0 0 24px rgba(56,189,248,.4);
+  animation:pulse-glow 1.8s ease-in-out infinite;
+}
+.loading-copy{
+  text-align:center;
+}
+.loading-copy h2{
+  margin:0 0 8px;
+  font-size:30px;
+  letter-spacing:-.03em;
+}
+.loading-copy p{
+  margin:0;
+  color:var(--muted);
+  font-size:15px;
+}
+.loading-progress{
+  height:12px;
+  border-radius:999px;
+  background:rgba(22,144,245,.08);
+  overflow:hidden;
+}
+.loading-progress-bar{
+  display:block;
+  height:100%;
+  width:38%;
+  border-radius:999px;
+  background:linear-gradient(90deg, #1d4ed8, #38bdf8, #6ee7b7);
+  animation:loading-progress 1.8s ease-in-out infinite;
+}
 
 .login-page{
   min-height:100vh;
@@ -3805,6 +3961,14 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   10%{opacity:.45}
   50%{opacity:.8}
   100%{transform:translate3d(20px,-110vh,0) scale(1.15);opacity:0}
+}
+@keyframes pulse-glow{
+  0%,100%{transform:scale(.92);opacity:.82}
+  50%{transform:scale(1.06);opacity:1}
+}
+@keyframes loading-progress{
+  0%{transform:translateX(-115%)}
+  100%{transform:translateX(340%)}
 }
 @keyframes login-shine{
   0%{transform:translateX(0) translateY(0)}
