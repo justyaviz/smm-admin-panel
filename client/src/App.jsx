@@ -150,6 +150,13 @@ function formatMoney(value) {
   return `${Number(value || 0).toLocaleString()} so‘m`;
 }
 
+function formatDateTime(value) {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return formatDate(value);
+  return `${d.toISOString().slice(0, 10)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
 function buildMonthCalendar(monthLabel, rows = [], dateKey = "publish_date") {
   const [year, month] = String(monthLabel || getMonthLabel()).split("-").map(Number);
   const firstDay = new Date(year, (month || 1) - 1, 1);
@@ -198,6 +205,113 @@ function MiniCalendar({ monthLabel, rows, dateKey, renderItem }) {
             ) : null}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function DiscussionPanel({ entityType, entityId, onToast }) {
+  const [comments, setComments] = useState([]);
+  const [attachments, setAttachments] = useState([]);
+  const [body, setBody] = useState("");
+  const [file, setFile] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    async function loadDiscussion() {
+      if (!entityType || !entityId) {
+        setComments([]);
+        setAttachments([]);
+        return;
+      }
+      try {
+        const [commentsRes, attachmentsRes] = await Promise.all([
+          api.list(`/api/comments/${entityType}/${entityId}`).catch(() => []),
+          api.list(`/api/attachments/${entityType}/${entityId}`).catch(() => [])
+        ]);
+        setComments(commentsRes || []);
+        setAttachments(attachmentsRes || []);
+      } catch {
+        setComments([]);
+        setAttachments([]);
+      }
+    }
+    loadDiscussion();
+  }, [entityType, entityId]);
+
+  async function submitComment(e) {
+    e.preventDefault();
+    if (!body.trim() || !entityId) return;
+    try {
+      setSaving(true);
+      await api.create("comments", {
+        entity_type: entityType,
+        entity_id: entityId,
+        body
+      });
+      const commentsRes = await api.list(`/api/comments/${entityType}/${entityId}`);
+      setComments(commentsRes || []);
+      setBody("");
+      onToast?.("Izoh qo‘shildi", "success");
+    } catch (err) {
+      onToast?.(err.message || "Izohni saqlab bo‘lmadi", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function uploadAttachment() {
+    if (!file || !entityId) return;
+    try {
+      setSaving(true);
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("entity_type", entityType);
+      formData.append("entity_id", String(entityId));
+      await api.upload(formData);
+      const attachmentsRes = await api.list(`/api/attachments/${entityType}/${entityId}`);
+      setAttachments(attachmentsRes || []);
+      setFile(null);
+      onToast?.("Fayl biriktirildi", "success");
+    } catch (err) {
+      onToast?.(err.message || "Fayl yuklab bo‘lmadi", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="discussion-panel">
+      <div className="discussion-col">
+        <h4>Izohlar</h4>
+        <div className="discussion-list">
+          {comments.length ? comments.map((item) => (
+            <div key={item.id} className="discussion-item">
+              <strong>{item.author_name || "Foydalanuvchi"}</strong>
+              <span>{formatDateTime(item.created_at)}</span>
+              <p>{item.body}</p>
+            </div>
+          )) : <div className="empty-block">Hozircha izoh yo‘q</div>}
+        </div>
+        <form className="discussion-form" onSubmit={submitComment}>
+          <input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Ichki izoh yozing..." />
+          <button type="submit" className="btn secondary" disabled={saving}>Izoh qo‘shish</button>
+        </form>
+      </div>
+      <div className="discussion-col">
+        <h4>Biriktirmalar</h4>
+        <div className="discussion-list">
+          {attachments.length ? attachments.map((item) => (
+            <a key={item.id} href={item.file_url} target="_blank" rel="noreferrer" className="attachment-item">
+              <strong>{item.original_name}</strong>
+              <span>{item.mime_type || "file"}</span>
+            </a>
+          )) : <div className="empty-block">Hozircha fayl yo‘q</div>}
+        </div>
+        <div className="discussion-upload">
+          <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          <button type="button" className="btn secondary" onClick={uploadAttachment} disabled={!file || saving}>Fayl biriktirish</button>
+        </div>
       </div>
     </div>
   );
@@ -349,6 +463,38 @@ function taskStatusClass(status) {
   return "status-badge todo";
 }
 
+function approvalStatusMeta(status, kind = "content") {
+  const normalized = String(status || "").toLowerCase();
+  const contentMap = {
+    reja: { label: "Reja", tone: "todo" },
+    tasdiqlandi: { label: "Tasdiqlandi", tone: "warning" },
+    jarayonda: { label: "Jarayonda", tone: "doing" },
+    tayyorlanmoqda: { label: "Jarayonda", tone: "doing" },
+    tayyor: { label: "Jarayonda", tone: "doing" },
+    tasvirga_olindi: { label: "Jarayonda", tone: "doing" },
+    joylangan: { label: "Yakunlandi", tone: "done" },
+    yakunlandi: { label: "Yakunlandi", tone: "done" },
+    bekor_qilingan: { label: "Bekor qilingan", tone: "cancelled" }
+  };
+  const travelMap = {
+    reja: { label: "Reja", tone: "todo" },
+    tasdiqlandi: { label: "Tasdiqlandi", tone: "warning" },
+    jarayonda: { label: "Jarayonda", tone: "doing" },
+    tasvirga_olindi: { label: "Jarayonda", tone: "doing" },
+    yakunlandi: { label: "Yakunlandi", tone: "done" }
+  };
+  const map = kind === "travel" ? travelMap : contentMap;
+  return map[normalized] || { label: status || "-", tone: "default" };
+}
+
+function approvalStatusClass(status, kind = "content") {
+  return `status-badge ${approvalStatusMeta(status, kind).tone}`;
+}
+
+function formatApprovalStatus(status, kind = "content") {
+  return approvalStatusMeta(status, kind).label;
+}
+
 function priorityClass(priority) {
   if (priority === "high") return "priority-badge high";
   if (priority === "low") return "priority-badge low";
@@ -393,6 +539,59 @@ function taskStatusLabel(status) {
     cancelled: "Bekor qilingan"
   };
   return labels[status] || status;
+}
+
+function isUserOnline(lastSeenAt) {
+  if (!lastSeenAt) return false;
+  const seenAt = new Date(lastSeenAt).getTime();
+  if (Number.isNaN(seenAt)) return false;
+  return Date.now() - seenAt < 90 * 1000;
+}
+
+function SavedViews({ storageKey, currentValue, onApply }) {
+  const [views, setViews] = useState([]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(storageKey);
+      setViews(raw ? JSON.parse(raw) : []);
+    } catch {
+      setViews([]);
+    }
+  }, [storageKey]);
+
+  function persist(nextViews) {
+    setViews(nextViews);
+    localStorage.setItem(storageKey, JSON.stringify(nextViews));
+  }
+
+  function saveCurrent() {
+    const name = window.prompt("Saved view nomini kiriting");
+    if (!name?.trim()) return;
+    const nextViews = [
+      { id: `${Date.now()}`, name: name.trim(), value: currentValue },
+      ...views.filter((item) => item.name !== name.trim())
+    ].slice(0, 8);
+    persist(nextViews);
+  }
+
+  return (
+    <div className="saved-views">
+      <button type="button" className="btn secondary tiny" onClick={saveCurrent}>View saqlash</button>
+      {views.map((item) => (
+        <div key={item.id} className="saved-view-pill">
+          <button type="button" className="link-btn" onClick={() => onApply(item.value)}>{item.name}</button>
+          <button
+            type="button"
+            className="saved-view-remove"
+            onClick={() => persist(views.filter((view) => view.id !== item.id))}
+          >
+            <X size={12} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function getAvatarFallback(name = "") {
@@ -532,7 +731,7 @@ function LoginPage({ onLoggedIn, settings }) {
   );
 }
 
-function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], contentRows = [], user = null }) {
+function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], contentRows = [], campaigns = [], travelPlans = [], user = null }) {
   const currentMonth = getMonthLabel();
   const roleLabelMap = {
     admin: "Admin boshqaruv paneli",
@@ -562,6 +761,52 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
     .filter((row) => (row.month_label || formatDate(row.work_date).slice(0, 7)) === currentMonth)
     .reduce((sum, row) => sum + Number(row.total_amount || row.amount || 0), 0);
   const reminders = summary?.reminders || [];
+  const bonusSeries = Array.from({ length: 6 }).map((_, index) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - (5 - index));
+    const label = getMonthTitle(getMonthLabel(date)).split(" ")[0];
+    const amount = index === 5 ? Number(summary?.monthly_bonus_amount || thisMonthBonus) : Math.round((Number(summary?.monthly_bonus_amount || thisMonthBonus) || 0) * ((index + 2) / 8));
+    return { label, amount };
+  });
+  const contentSeries = [
+    { label: "Reja", value: thisMonthContent.filter((r) => r.status === "reja").length },
+    { label: "Tasdiqlandi", value: thisMonthContent.filter((r) => r.status === "tasdiqlandi").length },
+    { label: "Jarayonda", value: thisMonthContent.filter((r) => ["tayyorlanmoqda", "jarayonda"].includes(r.status)).length },
+    { label: "Yakunlandi", value: thisMonthContent.filter((r) => ["joylangan", "yakunlandi"].includes(r.status)).length }
+  ];
+  const spendSeries = Array.from({ length: 6 }).map((_, index) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - (5 - index));
+    const label = getMonthTitle(getMonthLabel(date)).split(" ")[0];
+    const monthKey = getMonthLabel(date);
+    const amount = (campaigns || [])
+      .filter((item) => {
+        const startKey = formatDate(item.start_date).slice(0, 7);
+        const endKey = formatDate(item.end_date).slice(0, 7);
+        return startKey === monthKey || endKey === monthKey;
+      })
+      .reduce((sum, item) => sum + Number(item.spend || 0), 0);
+    return { label, amount };
+  });
+  const branchKpis = Object.values((dailyReports || []).reduce((acc, row) => {
+    const key = row.branch_name || "Filialsiz";
+    if (!acc[key]) {
+      acc[key] = { name: key, score: 0, subscribers: 0 };
+    }
+    acc[key].score += Number(row.posts_count || 0) * 2 + Number(row.reels_count || 0) * 3 + Number(row.stories_count || 0);
+    acc[key].subscribers += Number(row.subscriber_count || 0);
+    return acc;
+  }, {})).sort((a, b) => b.score - a.score).slice(0, 5);
+  const travelWorkflow = [
+    { label: "Reja", value: (travelPlans || []).filter((item) => item.status === "reja").length },
+    { label: "Tasdiqlandi", value: (travelPlans || []).filter((item) => item.status === "tasdiqlandi").length },
+    { label: "Jarayonda", value: (travelPlans || []).filter((item) => ["jarayonda", "tasvirga_olindi"].includes(item.status)).length },
+    { label: "Yakunlandi", value: (travelPlans || []).filter((item) => item.status === "yakunlandi").length }
+  ];
+  const maxBonusPoint = Math.max(...bonusSeries.map((item) => item.amount), 1);
+  const maxContentPoint = Math.max(...contentSeries.map((item) => item.value), 1);
+  const maxSpendPoint = Math.max(...spendSeries.map((item) => item.amount), 1);
+  const maxBranchScore = Math.max(...branchKpis.map((item) => item.score), 1);
 
   return (
     <div className="page-grid">
@@ -637,12 +882,13 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
         </div>
 
         <div className="card">
-          <SectionTitle title="Kontent holati" />
+          <SectionTitle title="Kontent approval workflow" />
           <div className="quick-list">
-            <div className="quick-item">Reja: <strong>{thisMonthContent.filter((r) => r.status === "reja").length}</strong></div>
-            <div className="quick-item">Tayyorlanmoqda: <strong>{thisMonthContent.filter((r) => r.status === "tayyorlanmoqda").length}</strong></div>
-            <div className="quick-item">Tayyor: <strong>{thisMonthContent.filter((r) => r.status === "tayyor").length}</strong></div>
-            <div className="quick-item">Joylangan: <strong>{thisMonthContent.filter((r) => r.status === "joylangan").length}</strong></div>
+            {contentSeries.map((item) => (
+              <div key={item.label} className="quick-item">
+                {item.label}: <strong>{item.value}</strong>
+              </div>
+            ))}
             <div className="quick-item">Bekor qilingan: <strong>{thisMonthContent.filter((r) => r.status === "bekor_qilingan").length}</strong></div>
           </div>
         </div>
@@ -668,6 +914,79 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
             <div className="quick-item">Bonus stavkasi: <strong>{formatMoney(summary?.bonus_rate || 25000)}</strong></div>
             <div className="quick-item">Hisoblangan bonus: <strong>{formatMoney(summary?.monthly_bonus_amount || thisMonthBonus)}</strong></div>
             <div className="quick-item">Filial hisobotlari: <strong>{summary?.today_report_count || 0}</strong></div>
+          </div>
+          <div className="chart-grid">
+            <div className="chart-card">
+              <div className="chart-title">Oyma-oy bonus</div>
+              <div className="line-chart">
+                {bonusSeries.map((item) => (
+                  <div key={item.label} className="line-point">
+                    <span className="line-dot" style={{ bottom: `${(item.amount / maxBonusPoint) * 100}%` }} />
+                    <label>{item.label}</label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="chart-card">
+              <div className="chart-title">Kontent bajarilish foizi</div>
+              <div className="bar-chart">
+                {contentSeries.map((item) => (
+                  <div key={item.label} className="bar-item">
+                    <span>{item.label}</span>
+                    <div className="bar-track"><i style={{ width: `${Math.max((item.value / maxContentPoint) * 100, item.value ? 10 : 0)}%` }} /></div>
+                    <strong>{item.value}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="chart-card">
+              <div className="chart-title">Oyma-oy reklama sarfi</div>
+              <div className="line-chart">
+                {spendSeries.map((item) => (
+                  <div key={item.label} className="line-point">
+                    <span className="line-dot spend" style={{ bottom: `${(item.amount / maxSpendPoint) * 100}%` }} />
+                    <label>{item.label}</label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="chart-card">
+              <div className="chart-title">Filial KPI</div>
+              <div className="bar-chart">
+                {branchKpis.length ? branchKpis.map((item) => (
+                  <div key={item.name} className="bar-item">
+                    <span>{item.name}</span>
+                    <div className="bar-track branch"><i style={{ width: `${Math.max((item.score / maxBranchScore) * 100, item.score ? 10 : 0)}%` }} /></div>
+                    <strong>{item.score}</strong>
+                  </div>
+                )) : <div className="empty-block">Filial KPI hali yo'q</div>}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="two-grid">
+        <div className="card">
+          <SectionTitle title="Safar approval workflow" desc="Safar rejalari jarayoni" />
+          <div className="quick-list">
+            {travelWorkflow.map((item) => (
+              <div key={item.label} className="quick-item">
+                {item.label}: <strong>{item.value}</strong>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="card">
+          <SectionTitle title="Export center" desc="Barcha tezkor eksportlar bir joyda" />
+          <div className="export-center">
+            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/users.xlsx", "users.xlsx")}>Users Excel</button>
+            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/content.xlsx", "content.xlsx")}>Content Excel</button>
+            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/bonuses.xlsx", "bonuses.xlsx")}>Bonus Excel</button>
+            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/daily-reports.xlsx", "daily-reports.xlsx")}>Daily report Excel</button>
+            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/daily-reports.pdf", "daily-reports.pdf")}>Daily report PDF</button>
+            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/campaigns.xlsx", "campaigns.xlsx")}>Campaign Excel</button>
           </div>
         </div>
       </div>
@@ -704,6 +1023,12 @@ function ContentPage({ users = [], settings, onToast, reload }) {
   const dueSoonTasks = [];
   const overdueTasks = [];
   const tasks = [];
+  const workflowCounts = {
+    reja: rows.filter((item) => item.status === "reja").length,
+    tasdiqlandi: rows.filter((item) => item.status === "tasdiqlandi").length,
+    jarayonda: rows.filter((item) => ["jarayonda", "tayyorlanmoqda", "tayyor"].includes(item.status)).length,
+    yakunlandi: rows.filter((item) => ["yakunlandi", "joylangan"].includes(item.status)).length
+  };
 
   async function loadMonth(monthValue = selectedMonth) {
     try {
@@ -861,6 +1186,14 @@ function ContentPage({ users = [], settings, onToast, reload }) {
         <div className="info-banner">
           Bonus formulasi: 1 ta taklif yoki tasdiq = <strong>{formatMoney(bonusRate)}</strong>
         </div>
+        <SavedViews
+          storageKey="aloo_content_views"
+          currentValue={{ selectedMonth, viewMode }}
+          onApply={(value) => {
+            setSelectedMonth(value?.selectedMonth || getMonthLabel());
+            setViewMode(value?.viewMode || "table");
+          }}
+        />
         <form className="form-grid" onSubmit={handleSubmit}>
           <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
           <label><span>Joylash sanasi</span><input type="date" value={form.publish_date} onChange={(e) => setField("publish_date", e.target.value)} required /></label>
@@ -868,9 +1201,9 @@ function ContentPage({ users = [], settings, onToast, reload }) {
             <span>Holati</span>
             <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
               <option value="reja">Reja</option>
-              <option value="tayyorlanmoqda">Tayyorlanmoqda</option>
-              <option value="tayyor">Tayyor</option>
-              <option value="joylangan">Joylangan</option>
+              <option value="tasdiqlandi">Tasdiqlandi</option>
+              <option value="jarayonda">Jarayonda</option>
+              <option value="yakunlandi">Yakunlandi</option>
               <option value="bekor_qilingan">Bekor qilingan</option>
             </select>
           </label>
@@ -956,15 +1289,27 @@ function ContentPage({ users = [], settings, onToast, reload }) {
       </div>
 
       <div className="stats-grid analytics-grid">
-        <StatCard title="Yaqin 3 kun" value={dueSoonTasks.length} hint="eslatma kerak" />
-        <StatCard title="Kechikkanlar" value={overdueTasks.length} hint="ustuvor ko'rib chiqing" />
-        <StatCard title="Bajarilganlar" value={tasks.filter((item) => item.status === "done").length} hint="jami bajarilgan" />
-        <StatCard title="Joriy oy vazifalar" value={tasks.filter((item) => formatDate(item.due_date).startsWith(selectedMonth)).length} hint={getMonthTitle(selectedMonth)} />
+        <StatCard title="Rejadagilar" value={workflowCounts.reja} hint="approval kutmoqda" tone="default" />
+        <StatCard title="Tasdiqlanganlar" value={workflowCounts.tasdiqlandi} hint="keyingi bosqichga tayyor" tone="warning" />
+        <StatCard title="Jarayondagi kontent" value={workflowCounts.jarayonda} hint="ish jarayonida" tone="info" />
+        <StatCard title="Yakunlanganlar" value={workflowCounts.yakunlandi} hint={getMonthTitle(selectedMonth)} tone="success" />
       </div>
 
       <div className="card">
-        <SectionTitle title="Task reminders" desc="Muddat yaqinlashgan vazifalar" />
-        <div className="reminder-list">
+        <SectionTitle title="Approval workflow" desc="Kontent bo'limi uchun keyingi bosqich signalari" />
+        <div className="workflow-strip">
+          {["reja", "tasdiqlandi", "jarayonda", "yakunlandi"].map((statusKey) => (
+            <div key={statusKey} className={`workflow-step ${approvalStatusMeta(statusKey).tone}`}>
+              <span className={approvalStatusClass(statusKey)}>{formatApprovalStatus(statusKey)}</span>
+              <strong>{workflowCounts[statusKey] || 0}</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card">
+        <SectionTitle title="Workflow reminders" desc="Ayni paytda workflow eslatmalari shu blokda chiqadi" />
+        <div className="workflow-strip">
           {[...overdueTasks, ...dueSoonTasks].slice(0, 6).map((row) => (
             <div key={`reminder-${row.id}`} className={`reminder-card ${overdueTasks.some((item) => item.id === row.id) ? "danger" : ""}`}>
               <strong>{row.title}</strong>
@@ -1011,7 +1356,7 @@ function ContentPage({ users = [], settings, onToast, reload }) {
                   <tr key={row.id}>
                     <td>{row.title}</td>
                     <td>{formatDate(row.publish_date)}</td>
-                    <td>{row.status}</td>
+                    <td><span className={approvalStatusClass(row.status)}>{formatApprovalStatus(row.status)}</span></td>
                     <td>{row.platform || "-"}</td>
                     <td>{row.content_type || "-"}</td>
                     <td>
@@ -1050,16 +1395,19 @@ function ContentPage({ users = [], settings, onToast, reload }) {
 
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kontent reja tafsiloti">
         {viewRow ? (
-          <div className="detail-grid">
-            <div><strong>Kontent nomi:</strong> {viewRow.title}</div>
-            <div><strong>Sana:</strong> {formatDate(viewRow.publish_date)}</div>
-            <div><strong>Holati:</strong> {viewRow.status}</div>
-            <div><strong>Platforma:</strong> {viewRow.platform || "-"}</div>
-            <div><strong>Turi:</strong> {viewRow.content_type || "-"}</div>
-            <div><strong>Bonus:</strong> {viewRow.bonus_enabled ? "Ha" : "Yo‘q"}</div>
-            <div><strong>Taklif soni:</strong> {viewRow.proposal_count || 0}</div>
-            <div><strong>Tasdiq soni:</strong> {viewRow.approved_count || 0}</div>
-          </div>
+          <>
+            <div className="detail-grid">
+              <div><strong>Kontent nomi:</strong> {viewRow.title}</div>
+              <div><strong>Sana:</strong> {formatDate(viewRow.publish_date)}</div>
+              <div><strong>Holati:</strong> <span className={approvalStatusClass(viewRow.status)}>{formatApprovalStatus(viewRow.status)}</span></div>
+              <div><strong>Platforma:</strong> {viewRow.platform || "-"}</div>
+              <div><strong>Turi:</strong> {viewRow.content_type || "-"}</div>
+              <div><strong>Bonus:</strong> {viewRow.bonus_enabled ? "Ha" : "Yo‘q"}</div>
+              <div><strong>Taklif soni:</strong> {viewRow.proposal_count || 0}</div>
+              <div><strong>Tasdiq soni:</strong> {viewRow.approved_count || 0}</div>
+            </div>
+            <DiscussionPanel entityType="content" entityId={viewRow.id} onToast={onToast} />
+          </>
         ) : null}
       </Modal>
     </div>
@@ -1314,7 +1662,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
 
       <div className="card">
         <SectionTitle title="Hodim bo‘yicha bonus summalari" />
-        <div className="table-wrap">
+        {viewMode === "table" ? <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -1335,12 +1683,23 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
               )}
             </tbody>
           </table>
-        </div>
+        </div> : (
+          <MiniCalendar
+            monthLabel={selectedMonth}
+            rows={filteredTasks}
+            dateKey="due_date"
+            renderItem={(item) => (
+              <button key={item.id} type="button" className={`calendar-pill task ${item.status === "done" ? "done" : ""}`} onClick={() => setViewRow(item)}>
+                {item.title}
+              </button>
+            )}
+          />
+        )}
       </div>
 
       <div className="card">
         <SectionTitle title={`${getMonthTitle(monthFilter)} bonus yozuvlari`} />
-        <div className="table-wrap">
+        {viewMode === "table" ? <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -1383,19 +1742,33 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
               )}
             </tbody>
           </table>
-        </div>
+        </div> : (
+          <MiniCalendar
+            monthLabel={selectedMonth}
+            rows={filteredTasks}
+            dateKey="due_date"
+            renderItem={(item) => (
+              <button key={item.id} type="button" className={`calendar-pill task ${item.status === "done" ? "done" : ""}`} onClick={() => setViewRow(item)}>
+                {item.title}
+              </button>
+            )}
+          />
+        )}
       </div>
 
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Bonus yozuvi tafsiloti">
         {viewRow ? (
-          <div className="detail-grid">
+          <>
+            <div className="detail-grid">
             <div><strong>Kontent nomi:</strong> {viewRow.content_title || "-"}</div>
             <div><strong>Sana:</strong> {formatDate(viewRow.work_date)}</div>
             <div><strong>Turi:</strong> {viewRow.content_type || "-"}</div>
             <div><strong>Taklif:</strong> {viewRow.proposal_count || 0}</div>
             <div><strong>Tasdiq:</strong> {viewRow.approved_count || 0}</div>
             <div><strong>Jami:</strong> {formatMoney(viewRow.total_amount || viewRow.amount || 0)}</div>
-          </div>
+            </div>
+            <DiscussionPanel entityType="task" entityId={viewRow.id} onToast={onToast} />
+          </>
         ) : null}
       </Modal>
     </div>
@@ -1529,7 +1902,7 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
           title="Kiritilgan hisobotlar"
           right={<input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />}
         />
-        <div className="table-wrap">
+        {viewMode === "table" ? <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -1570,11 +1943,23 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
               )}
             </tbody>
           </table>
-        </div>
+        </div> : (
+          <MiniCalendar
+            monthLabel={selectedMonth}
+            rows={filteredTasks}
+            dateKey="due_date"
+            renderItem={(item) => (
+              <button key={item.id} type="button" className={`calendar-pill task ${item.status === "done" ? "done" : ""}`} onClick={() => setViewRow(item)}>
+                {item.title}
+              </button>
+            )}
+          />
+        )}
       </div>
 
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Hisobot tafsiloti">
         {viewRow ? (
+          <>
           <div className="detail-grid">
             <div><strong>Sana:</strong> {formatDate(viewRow.report_date)}</div>
             <div><strong>Filial:</strong> {viewRow.branch_name}</div>
@@ -1585,6 +1970,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
             <div><strong>AXVAT:</strong> {viewRow.condition_text || "-"}</div>
             <div><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
           </div>
+          <DiscussionPanel entityType="task" entityId={viewRow.id} onToast={onToast} />
+          </>
         ) : null}
       </Modal>
     </div>
@@ -1762,6 +2149,7 @@ function CampaignsPage({ campaigns = [], onToast, reload }) {
 
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kampaniya tafsiloti">
         {viewRow ? (
+          <>
           <div className="detail-grid">
             <div><strong>Nomi:</strong> {viewRow.title}</div>
             <div><strong>Platforma:</strong> {viewRow.platform}</div>
@@ -1774,6 +2162,8 @@ function CampaignsPage({ campaigns = [], onToast, reload }) {
             <div><strong>CTR:</strong> {viewRow.ctr}</div>
             <div><strong>Status:</strong> {viewRow.status}</div>
           </div>
+          <DiscussionPanel entityType="task" entityId={viewRow.id} onToast={onToast} />
+          </>
         ) : null}
       </Modal>
     </div>
@@ -2305,7 +2695,23 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
       <div className="card">
         <SectionTitle
           title={editRow ? "Vazifani tahrirlash" : "Vazifa yaratish"}
-          right={editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null}
+          right={
+            <div className="toolbar-actions">
+              <button type="button" className="btn secondary" onClick={() => setViewMode(viewMode === "table" ? "calendar" : "table")}>
+                {viewMode === "table" ? "Calendar view" : "Table view"}
+              </button>
+              {editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null}
+            </div>
+          }
+        />
+        <SavedViews
+          storageKey="aloo_task_views"
+          currentValue={{ filterDate, viewMode, selectedMonth }}
+          onApply={(value) => {
+            setFilterDate(value?.filterDate || "");
+            setViewMode(value?.viewMode || "table");
+            setSelectedMonth(value?.selectedMonth || getMonthLabel());
+          }}
         />
         <form className="form-grid" onSubmit={handleSubmit}>
           <label><span>Vazifa</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
@@ -2398,10 +2804,41 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
 }
 
 function AuditPage({ logs = [] }) {
+  const [entityFilter, setEntityFilter] = useState("");
+  const filteredLogs = logs.filter((row) => !entityFilter || row.entity_type === entityFilter);
+  const entityOptions = [...new Set(logs.map((row) => row.entity_type).filter(Boolean))];
+
   return (
     <div className="page-grid">
       <div className="card">
-        <SectionTitle title="Audit log" />
+        <SectionTitle
+          title="Audit timeline"
+          desc="Kim qachon qanday amal bajarganini ketma-ket ko'ring"
+          right={
+            <select value={entityFilter} onChange={(e) => setEntityFilter(e.target.value)}>
+              <option value="">Barcha entitylar</option>
+              {entityOptions.map((item) => <option key={item} value={item}>{item}</option>)}
+            </select>
+          }
+        />
+        <div className="audit-timeline">
+          {filteredLogs.length ? filteredLogs.map((row) => (
+            <div key={`timeline-${row.id}`} className="audit-item">
+              <div className={`audit-dot audit-dot-${String(row.action_type || "update").toLowerCase()}`} />
+              <div className="audit-card">
+                <div className="audit-top">
+                  <strong>{row.full_name || "Tizim"}</strong>
+                  <span>{formatDateTime(row.created_at)}</span>
+                </div>
+                <div className="audit-meta">
+                  <span className="mini-badge default">{row.entity_type}</span>
+                  <span className={`mini-badge ${row.action_type === "delete" ? "danger" : row.action_type === "create" ? "success" : "info"}`}>{row.action_type}</span>
+                  <span>ID: {row.entity_id || "-"}</span>
+                </div>
+              </div>
+            </div>
+          )) : <div className="empty-block">Hozircha audit yozuvi yo'q</div>}
+        </div>
         <div className="table-wrap">
           <table>
             <thead>
@@ -2441,6 +2878,7 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [body, setBody] = useState("");
+  const [typing, setTyping] = useState(false);
   const quickContacts = users
     .filter((item) => item.id !== user?.id && item.is_active !== false)
     .slice(0, 8);
@@ -2470,9 +2908,23 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
     }
     loadMessages();
     if (!activeThread?.other_user_id) return undefined;
-    const timer = setInterval(loadMessages, 2000);
+    const timer = setInterval(loadMessages, 1500);
     return () => clearInterval(timer);
   }, [activeThread?.other_user_id]);
+
+  useEffect(() => {
+    if (!activeThread?.other_user_id) return undefined;
+    const timer = setTimeout(async () => {
+      try {
+        await api.create("messages/typing", {
+          target_user_id: activeThread.other_user_id,
+          is_typing: !!body.trim()
+        });
+        setTyping(!!body.trim());
+      } catch {}
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [body, activeThread?.other_user_id]);
 
   function resolveMentionTarget(text) {
     const match = String(text || "").trim().match(/^@([a-zA-Z0-9._-]+)/);
@@ -2534,7 +2986,7 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
         <SectionTitle
           title="Chat"
           desc="@login bilan yangi xabar boshlasangiz ham bo'ladi"
-          right={<div className="chat-hint">Javoblar real vaqt emas, sahifa yangilanganda yangilanadi</div>}
+          right={<div className="chat-hint">Live polling + typing/read holati yoqilgan</div>}
         />
         <div className="chat-layout">
           <div className="chat-threads">
@@ -2551,6 +3003,7 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
                   ) : (
                     <div className="table-avatar empty">{getAvatarFallback(thread.other_user_name)}</div>
                   )}
+                  <span className={`presence-dot ${isUserOnline(thread.other_user_last_seen) ? "online" : "offline"}`} />
                 </div>
                 <div className="thread-copy">
                   <div className="thread-name">{thread.other_user_name}</div>
@@ -2595,7 +3048,12 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
           <div className="chat-window">
             <div className="chat-header">
               <strong>{activeThread?.other_user_name || "Chat tanlang"}</strong>
-              {activeThread?.other_user_login ? <span>@{activeThread.other_user_login}</span> : null}
+              <div className="chat-header-meta">
+                {activeThread?.other_user_login ? <span>@{activeThread.other_user_login}</span> : null}
+                {activeThread?.other_user_last_seen ? <span className={`presence-pill ${isUserOnline(activeThread.other_user_last_seen) ? "online" : "offline"}`}>{isUserOnline(activeThread.other_user_last_seen) ? "online" : "offline"}</span> : null}
+                {activeThread?.other_user_typing ? <span className="typing-indicator">yozmoqda...</span> : null}
+                {!activeThread?.other_user_typing && activeThread?.other_user_last_seen ? <span>oxirgi faollik: {formatDateTime(activeThread.other_user_last_seen)}</span> : null}
+              </div>
             </div>
             <div className="chat-messages">
               {loading ? <div className="empty-block">Yuklanmoqda...</div> : messages.length ? messages.map((message) => (
@@ -2604,7 +3062,7 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
                   className={`chat-bubble ${message.sender_user_id === user?.id ? "mine" : ""}`}
                 >
                   <div>{message.body}</div>
-                  <span>{formatDate(message.created_at)}</span>
+                  <span>{formatDateTime(message.created_at)} {message.sender_user_id === user?.id ? `• ${message.read_at ? "o‘qildi" : message.delivered_at ? "yetkazildi" : "yuborildi"}` : ""}</span>
                 </div>
               )) : <div className="empty-block">Xabarlar yo'q</div>}
             </div>
@@ -2951,6 +3409,7 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
   const [saving, setSaving] = useState(false);
   const [editRow, setEditRow] = useState(null);
   const [viewRow, setViewRow] = useState(null);
+  const [branchFilter, setBranchFilter] = useState("");
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   function resetForm() {
@@ -3005,9 +3464,17 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
   }
 
   const timelineRows = [...travelPlans]
+    .filter((row) => !branchFilter || String(row.branch_id) === String(branchFilter))
     .filter((row) => formatDate(row.plan_date) !== "-")
     .sort((a, b) => new Date(a.plan_date).getTime() - new Date(b.plan_date).getTime())
     .slice(0, 8);
+  const filteredTravelPlans = travelPlans.filter((row) => !branchFilter || String(row.branch_id) === String(branchFilter));
+  const travelWorkflowCounts = {
+    reja: filteredTravelPlans.filter((item) => item.status === "reja").length,
+    tasdiqlandi: filteredTravelPlans.filter((item) => item.status === "tasdiqlandi").length,
+    jarayonda: filteredTravelPlans.filter((item) => ["jarayonda", "tasvirga_olindi"].includes(item.status)).length,
+    yakunlandi: filteredTravelPlans.filter((item) => item.status === "yakunlandi").length
+  };
 
   return (
     <div className="page-grid">
@@ -3019,7 +3486,7 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
           <label><span>Qaysi video olinadi</span><input value={form.video_title} onChange={(e) => setField("video_title", e.target.value)} required /></label>
           <label><span>Kimlar ishtirok etadi</span><input value={form.participants_text} onChange={(e) => setField("participants_text", e.target.value)} placeholder="Ismlar vergul bilan" /></label>
           <label><span>Videodek URL</span><input value={form.videodek_url} onChange={(e) => setField("videodek_url", e.target.value)} placeholder="https://..." /></label>
-          <label><span>Status</span><select value={form.status} onChange={(e) => setField("status", e.target.value)}><option value="reja">Reja</option><option value="tasdiqlandi">Tasdiqlandi</option><option value="tasvirga_olindi">Tasvirga olindi</option><option value="yakunlandi">Yakunlandi</option></select></label>
+          <label><span>Status</span><select value={form.status} onChange={(e) => setField("status", e.target.value)}><option value="reja">Reja</option><option value="tasdiqlandi">Tasdiqlandi</option><option value="jarayonda">Jarayonda</option><option value="yakunlandi">Yakunlandi</option></select></label>
           <label className="full-col"><span>Ssenariy</span><input value={form.scenario_text} onChange={(e) => setField("scenario_text", e.target.value)} placeholder="Qisqa ssenariy yoki outline" /></label>
           <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
           <button className="btn primary" type="submit" disabled={saving}>{saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}</button>
@@ -3027,18 +3494,26 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
       </div>
 
       <div className="card">
-        <SectionTitle title="Safar rejalari" />
+        <SectionTitle title="Safar rejalari" right={<select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}><option value="">Barcha filiallar</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>} />
+        <div className="workflow-strip">
+          {["reja", "tasdiqlandi", "jarayonda", "yakunlandi"].map((statusKey) => (
+            <div key={statusKey} className={`workflow-step ${approvalStatusMeta(statusKey, "travel").tone}`}>
+              <span className={approvalStatusClass(statusKey, "travel")}>{formatApprovalStatus(statusKey, "travel")}</span>
+              <strong>{travelWorkflowCounts[statusKey] || 0}</strong>
+            </div>
+          ))}
+        </div>
         <div className="table-wrap">
           <table>
             <thead><tr><th>Sana</th><th>Filial</th><th>Video</th><th>Ishtirokchilar</th><th>Status</th><th>Amallar</th></tr></thead>
             <tbody>
-              {travelPlans.length ? travelPlans.map((row) => (
+              {filteredTravelPlans.length ? filteredTravelPlans.map((row) => (
                 <tr key={row.id}>
                   <td>{formatDate(row.plan_date)}</td>
                   <td>{row.branch_name || "-"}</td>
                   <td>{row.video_title}</td>
                   <td>{row.participants_text || "-"}</td>
-                  <td><span className={`status-badge ${row.status === "yakunlandi" ? "done" : row.status === "tasvirga_olindi" ? "doing" : row.status === "tasdiqlandi" ? "warning" : "todo"}`}>{row.status}</span></td>
+                  <td><span className={approvalStatusClass(row.status, "travel")}>{formatApprovalStatus(row.status, "travel")}</span></td>
                   <td><IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} /></td>
                 </tr>
               )) : <tr><td colSpan="6" className="empty-cell">Hozircha safar rejasi yo‘q</td></tr>}
@@ -3053,7 +3528,7 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
           {timelineRows.length ? timelineRows.map((row) => (
             <button key={`timeline-${row.id}`} type="button" className="timeline-item" onClick={() => setViewRow(row)}>
               <div className="timeline-dot-wrap">
-                <span className={`timeline-dot ${row.status === "yakunlandi" ? "done" : row.status === "tasvirga_olindi" ? "doing" : row.status === "tasdiqlandi" ? "warning" : "todo"}`} />
+                <span className={`timeline-dot ${approvalStatusMeta(row.status, "travel").tone}`} />
               </div>
               <div className="timeline-content">
                 <div className="timeline-top">
@@ -3062,7 +3537,7 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
                 </div>
                 <div className="timeline-meta">
                   <span>{row.branch_name || "-"}</span>
-                  <span className={`status-badge ${row.status === "yakunlandi" ? "done" : row.status === "tasvirga_olindi" ? "doing" : row.status === "tasdiqlandi" ? "warning" : "todo"}`}>{row.status}</span>
+                  <span className={approvalStatusClass(row.status, "travel")}>{formatApprovalStatus(row.status, "travel")}</span>
                 </div>
                 <p>{row.participants_text || "Ishtirokchilar ko‘rsatilmagan"}</p>
               </div>
@@ -3072,16 +3547,19 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
       </div>
 
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Safar rejasi tafsiloti" wide>
-        {viewRow ? <div className="detail-grid">
-          <div><strong>Sana:</strong> {formatDate(viewRow.plan_date)}</div>
-          <div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div>
-          <div><strong>Video:</strong> {viewRow.video_title}</div>
-          <div><strong>Status:</strong> {viewRow.status || "-"}</div>
-          <div className="full-col"><strong>Ishtirokchilar:</strong> {viewRow.participants_text || "-"}</div>
-          <div className="full-col"><strong>Videodek URL:</strong> {viewRow.videodek_url || "-"}</div>
-          <div className="full-col"><strong>Ssenariy:</strong> {viewRow.scenario_text || "-"}</div>
-          <div className="full-col"><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
-        </div> : null}
+        {viewRow ? <>
+          <div className="detail-grid">
+            <div><strong>Sana:</strong> {formatDate(viewRow.plan_date)}</div>
+            <div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div>
+            <div><strong>Video:</strong> {viewRow.video_title}</div>
+            <div><strong>Status:</strong> {viewRow.status || "-"}</div>
+            <div className="full-col"><strong>Ishtirokchilar:</strong> {viewRow.participants_text || "-"}</div>
+            <div className="full-col"><strong>Videodek URL:</strong> {viewRow.videodek_url || "-"}</div>
+            <div className="full-col"><strong>Ssenariy:</strong> {viewRow.scenario_text || "-"}</div>
+            <div className="full-col"><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
+          </div>
+          <DiscussionPanel entityType="travel_plan" entityId={viewRow.id} onToast={onToast} />
+        </> : null}
       </Modal>
     </div>
   );
@@ -3336,6 +3814,8 @@ function App() {
         dailyReports={dailyReports}
         bonusItems={bonusItems}
         contentRows={contentRows}
+        campaigns={campaigns}
+        travelPlans={travelPlans}
         user={user}
       />
     );
@@ -5048,6 +5528,124 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   color:var(--muted);
   font-size:12px;
 }
+.saved-views{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:0 0 14px;
+}
+.saved-view-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 10px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:var(--panel);
+}
+.saved-view-remove{
+  border:none;
+  background:transparent;
+  color:var(--muted);
+  cursor:pointer;
+  display:grid;
+  place-items:center;
+}
+.workflow-strip{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:12px;
+}
+.workflow-step{
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:14px;
+  background:var(--panel);
+  display:grid;
+  gap:10px;
+}
+.workflow-step strong{
+  font-size:26px;
+  font-weight:900;
+}
+.workflow-step.todo{background:rgba(148,163,184,.08)}
+.workflow-step.warning{background:rgba(245,158,11,.10)}
+.workflow-step.doing{background:rgba(59,130,246,.10)}
+.workflow-step.done{background:rgba(16,185,129,.10)}
+.line-dot.spend{
+  background:linear-gradient(180deg,#fb7185,#f97316);
+  box-shadow:0 0 0 6px rgba(249,115,22,.14);
+}
+.bar-track.branch i{
+  background:linear-gradient(90deg,#22c55e,#14b8a6);
+}
+.audit-timeline{
+  display:grid;
+  gap:14px;
+  margin-bottom:18px;
+}
+.audit-item{
+  display:grid;
+  grid-template-columns:16px 1fr;
+  gap:12px;
+  align-items:start;
+}
+.audit-dot{
+  width:12px;
+  height:12px;
+  border-radius:999px;
+  margin-top:18px;
+  box-shadow:0 0 0 6px rgba(148,163,184,.12);
+}
+.audit-dot-create{background:#10b981;box-shadow:0 0 0 6px rgba(16,185,129,.12)}
+.audit-dot-update{background:#3b82f6;box-shadow:0 0 0 6px rgba(59,130,246,.12)}
+.audit-dot-delete{background:#ef4444;box-shadow:0 0 0 6px rgba(239,68,68,.12)}
+.audit-dot-login{background:#8b5cf6;box-shadow:0 0 0 6px rgba(139,92,246,.12)}
+.audit-card{
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:14px;
+  background:var(--panel);
+}
+.audit-top,.audit-meta{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  justify-content:space-between;
+}
+.audit-meta{
+  margin-top:8px;
+  color:var(--muted);
+  font-size:13px;
+  justify-content:flex-start;
+}
+.presence-dot{
+  position:absolute;
+  right:-2px;
+  bottom:-2px;
+  width:12px;
+  height:12px;
+  border-radius:999px;
+  border:2px solid var(--panel);
+}
+.presence-dot.online,.presence-pill.online{background:#10b981;color:#065f46}
+.presence-dot.offline,.presence-pill.offline{background:#cbd5e1;color:#475569}
+.presence-pill{
+  padding:4px 8px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:800;
+  text-transform:uppercase;
+}
+.thread-avatar{
+  position:relative;
+  width:42px;
+  height:42px;
+}
+.thread-avatar .table-avatar{
+  width:42px;
+  height:42px;
+}
 @media (max-width: 1100px){
   .login-page,.app-shell,.stats-grid,.two-grid,.form-grid{grid-template-columns:1fr}
   .main-area{padding:14px}
@@ -5062,6 +5660,7 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   .media-grid{grid-template-columns:1fr}
   .detail-grid{grid-template-columns:1fr}
   .chat-layout{grid-template-columns:1fr}
+  .workflow-strip{grid-template-columns:1fr 1fr}
 }
 @keyframes login-fade-up{
   from{opacity:0;transform:translateY(18px)}
