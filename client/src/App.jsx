@@ -336,14 +336,29 @@ function LoginPage({ onLoggedIn }) {
 
   return (
     <div className="login-page">
+      <div className="login-orb orb-one" />
+      <div className="login-orb orb-two" />
+      <div className="login-grid-line" />
+
       <div className="login-copy">
         <div className="brand-kicker">aloo • yagona platforma</div>
         <h1>Assalomu alaykum</h1>
         <h2>aloo do‘konlar tarmog‘i SMM jamoasi yagona ma’lumotlar platformasiga xush kelibsiz</h2>
         <p>Kirish uchun login va parolingizni kiriting.</p>
+        <div className="login-feature-row">
+          <div className="login-feature-card">
+            <strong>Kontent</strong>
+            <span>Reja, bonus va ijro jarayonlari bir joyda.</span>
+          </div>
+          <div className="login-feature-card">
+            <strong>Jamoa</strong>
+            <span>Chat, vazifa va hisobotlar bir panelda boshqariladi.</span>
+          </div>
+        </div>
       </div>
 
       <form className="login-card" onSubmit={submit}>
+        <div className="login-card-shine" />
         <div className="small-label">Kirish</div>
         <div className="login-title">Xush kelibsiz</div>
 
@@ -2778,44 +2793,153 @@ img{display:block;max-width:100%}
   grid-template-columns:1.1fr .9fr;
   gap:32px;
   padding:40px;
-  background:var(--bg);
+  position:relative;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 15% 20%, rgba(56,189,248,.14), transparent 28%),
+    radial-gradient(circle at 78% 78%, rgba(29,78,216,.12), transparent 24%),
+    linear-gradient(135deg,#eef6ff 0%, #f8fbff 38%, #eef9f7 100%);
 }
-.login-copy{display:flex;flex-direction:column;justify-content:center}
+.login-copy{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  position:relative;
+  z-index:2;
+  animation:login-fade-up .7s ease;
+}
 .brand-kicker{
   display:inline-flex;
   width:max-content;
   padding:10px 16px;
   border-radius:999px;
-  background:rgba(22,144,245,.08);
-  border:1px solid rgba(22,144,245,.12);
+  background:rgba(255,255,255,.64);
+  backdrop-filter:blur(10px);
+  border:1px solid rgba(22,144,245,.18);
   color:var(--blue);
   font-size:12px;
   text-transform:uppercase;
   letter-spacing:.16em;
+  box-shadow:0 14px 30px rgba(22,144,245,.08);
 }
-.login-copy h1{font-size:64px;margin:18px 0 0}
-.login-copy h2{font-size:30px;line-height:1.15;margin:12px 0 0;max-width:700px}
+.login-copy h1{
+  font-size:68px;
+  margin:18px 0 0;
+  line-height:.98;
+  letter-spacing:-.04em;
+}
+.login-copy h2{
+  font-size:32px;
+  line-height:1.12;
+  margin:18px 0 0;
+  max-width:760px;
+}
 .login-copy p{color:var(--muted);font-size:18px;max-width:620px;line-height:1.6}
+.login-feature-row{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,220px));
+  gap:14px;
+  margin-top:28px;
+}
+.login-feature-card{
+  padding:16px 18px;
+  border-radius:22px;
+  background:rgba(255,255,255,.58);
+  border:1px solid rgba(255,255,255,.75);
+  backdrop-filter:blur(14px);
+  box-shadow:0 18px 36px rgba(30,41,59,.06);
+  animation:login-float 5s ease-in-out infinite;
+}
+.login-feature-card:nth-child(2){animation-delay:-2.2s}
+.login-feature-card strong{display:block;font-size:16px;margin-bottom:6px}
+.login-feature-card span{color:var(--muted);font-size:14px;line-height:1.5}
 .login-card{
   align-self:center;
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:28px;
-  padding:28px;
+  position:relative;
+  z-index:2;
+  overflow:hidden;
+  background:rgba(255,255,255,.68);
+  backdrop-filter:blur(18px);
+  border:1px solid rgba(255,255,255,.72);
+  border-radius:34px;
+  padding:30px;
   display:grid;
   gap:16px;
-  box-shadow:0 16px 32px rgba(20,86,140,.08);
+  box-shadow:0 24px 60px rgba(20,86,140,.12);
+  animation:login-card-in .75s cubic-bezier(.2,.9,.2,1);
+}
+.login-card-shine{
+  position:absolute;
+  inset:-20% auto auto -30%;
+  width:180px;
+  height:180px;
+  background:radial-gradient(circle, rgba(255,255,255,.72), transparent 70%);
+  opacity:.85;
+  animation:login-shine 7s linear infinite;
+  pointer-events:none;
 }
 .small-label{font-size:12px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
 .login-title{font-size:30px;font-weight:800}
 .login-card label{display:grid;gap:8px}
 .login-card label span{font-size:13px;color:var(--muted)}
 .login-card input{
-  background:var(--soft);
-  border:1px solid var(--line);
+  background:rgba(248,251,255,.9);
+  border:1px solid rgba(22,144,245,.12);
   color:var(--text);
-  border-radius:16px;
-  padding:14px 16px;
+  border-radius:18px;
+  padding:15px 16px;
+  transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+}
+.login-card input:focus{
+  border-color:rgba(22,144,245,.35);
+  box-shadow:0 0 0 4px rgba(22,144,245,.10);
+  transform:translateY(-1px);
+}
+.login-card .btn.primary{
+  position:relative;
+  overflow:hidden;
+  min-height:54px;
+}
+.login-card .btn.primary::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(120deg, transparent 20%, rgba(255,255,255,.28) 50%, transparent 80%);
+  transform:translateX(-130%);
+  animation:button-shimmer 2.8s infinite;
+}
+.login-orb{
+  position:absolute;
+  border-radius:50%;
+  filter:blur(10px);
+  opacity:.9;
+  pointer-events:none;
+}
+.orb-one{
+  width:280px;
+  height:280px;
+  top:-60px;
+  right:22%;
+  background:radial-gradient(circle, rgba(56,189,248,.30), rgba(29,78,216,.10) 60%, transparent 72%);
+  animation:login-float 7s ease-in-out infinite;
+}
+.orb-two{
+  width:360px;
+  height:360px;
+  left:-80px;
+  bottom:-120px;
+  background:radial-gradient(circle, rgba(110,231,183,.28), rgba(56,189,248,.08) 58%, transparent 74%);
+  animation:login-float 9s ease-in-out infinite reverse;
+}
+.login-grid-line{
+  position:absolute;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(37,99,235,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(37,99,235,.04) 1px, transparent 1px);
+  background-size:34px 34px;
+  mask-image:radial-gradient(circle at center, black 36%, transparent 88%);
+  pointer-events:none;
 }
 
 .app-shell{
@@ -3507,10 +3631,32 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   .hero-banner h1{font-size:34px}
   .login-copy h1{font-size:46px}
   .login-copy h2{font-size:24px}
+  .login-feature-row{grid-template-columns:1fr}
   .permission-grid{grid-template-columns:1fr}
   .media-grid{grid-template-columns:1fr}
   .detail-grid{grid-template-columns:1fr}
   .chat-layout{grid-template-columns:1fr}
+}
+@keyframes login-fade-up{
+  from{opacity:0;transform:translateY(18px)}
+  to{opacity:1;transform:translateY(0)}
+}
+@keyframes login-card-in{
+  from{opacity:0;transform:translateY(24px) scale(.97)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+@keyframes login-float{
+  0%,100%{transform:translateY(0) translateX(0)}
+  50%{transform:translateY(-14px) translateX(8px)}
+}
+@keyframes login-shine{
+  0%{transform:translateX(0) translateY(0)}
+  50%{transform:translateX(180%) translateY(26%)}
+  100%{transform:translateX(360%) translateY(0)}
+}
+@keyframes button-shimmer{
+  0%{transform:translateX(-130%)}
+  55%,100%{transform:translateX(130%)}
 }
 @keyframes panel-in{
   from{opacity:0;transform:translateY(10px)}
