@@ -1,5 +1,6 @@
 export const API_BASE =
   import.meta.env.VITE_API_BASE || "http://localhost:8080";
+export const SOCKET_BASE = API_BASE;
 
 export function getCurrentUser() {
   try {
@@ -17,6 +18,10 @@ export function clearAuth() {
 
 function getToken() {
   return localStorage.getItem("aloo_token");
+}
+
+export function getAuthToken() {
+  return getToken();
 }
 
 function authHeaders() {
