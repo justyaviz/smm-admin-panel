@@ -1334,7 +1334,7 @@ function ContentPage({ users = [], settings, onToast, reload }) {
           }
         />
 
-        {viewMode === "table" ? <div className="table-wrap">
+        <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -1662,7 +1662,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
 
       <div className="card">
         <SectionTitle title="Hodim bo‘yicha bonus summalari" />
-        {viewMode === "table" ? <div className="table-wrap">
+        <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -1683,23 +1683,12 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
               )}
             </tbody>
           </table>
-        </div> : (
-          <MiniCalendar
-            monthLabel={selectedMonth}
-            rows={filteredTasks}
-            dateKey="due_date"
-            renderItem={(item) => (
-              <button key={item.id} type="button" className={`calendar-pill task ${item.status === "done" ? "done" : ""}`} onClick={() => setViewRow(item)}>
-                {item.title}
-              </button>
-            )}
-          />
-        )}
+        </div>
       </div>
 
       <div className="card">
         <SectionTitle title={`${getMonthTitle(monthFilter)} bonus yozuvlari`} />
-        {viewMode === "table" ? <div className="table-wrap">
+        <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -1742,18 +1731,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
               )}
             </tbody>
           </table>
-        </div> : (
-          <MiniCalendar
-            monthLabel={selectedMonth}
-            rows={filteredTasks}
-            dateKey="due_date"
-            renderItem={(item) => (
-              <button key={item.id} type="button" className={`calendar-pill task ${item.status === "done" ? "done" : ""}`} onClick={() => setViewRow(item)}>
-                {item.title}
-              </button>
-            )}
-          />
-        )}
+        </div>
       </div>
 
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Bonus yozuvi tafsiloti">
@@ -1767,7 +1745,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
             <div><strong>Tasdiq:</strong> {viewRow.approved_count || 0}</div>
             <div><strong>Jami:</strong> {formatMoney(viewRow.total_amount || viewRow.amount || 0)}</div>
             </div>
-            <DiscussionPanel entityType="task" entityId={viewRow.id} onToast={onToast} />
+            <DiscussionPanel entityType="bonus_item" entityId={viewRow.id} onToast={onToast} />
           </>
         ) : null}
       </Modal>
@@ -1902,7 +1880,7 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
           title="Kiritilgan hisobotlar"
           right={<input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />}
         />
-        {viewMode === "table" ? <div className="table-wrap">
+        <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -1943,18 +1921,7 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
               )}
             </tbody>
           </table>
-        </div> : (
-          <MiniCalendar
-            monthLabel={selectedMonth}
-            rows={filteredTasks}
-            dateKey="due_date"
-            renderItem={(item) => (
-              <button key={item.id} type="button" className={`calendar-pill task ${item.status === "done" ? "done" : ""}`} onClick={() => setViewRow(item)}>
-                {item.title}
-              </button>
-            )}
-          />
-        )}
+        </div>
       </div>
 
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Hisobot tafsiloti">
@@ -1970,7 +1937,7 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
             <div><strong>AXVAT:</strong> {viewRow.condition_text || "-"}</div>
             <div><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
           </div>
-          <DiscussionPanel entityType="task" entityId={viewRow.id} onToast={onToast} />
+          <DiscussionPanel entityType="daily_report" entityId={viewRow.id} onToast={onToast} />
           </>
         ) : null}
       </Modal>
