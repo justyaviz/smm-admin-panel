@@ -334,6 +334,7 @@ function SectionTitle({ title, desc, right }) {
 function StatCard({ title, value, hint, tone = "default" }) {
   return (
     <div className={`stat-card stat-card-${tone}`}>
+      <span className={`stat-card-indicator stat-card-indicator-${tone}`} />
       <div className="stat-card-title">{title}</div>
       <div className="stat-card-value">{value}</div>
       {hint ? <div className="stat-card-hint">{hint}</div> : null}
@@ -352,6 +353,27 @@ function priorityClass(priority) {
   if (priority === "high") return "priority-badge high";
   if (priority === "low") return "priority-badge low";
   return "priority-badge medium";
+}
+
+function expenseCategoryClass(category) {
+  if (category === "reklama") return "mini-badge info";
+  if (category === "safar") return "mini-badge warning";
+  if (category === "servis") return "mini-badge success";
+  return "mini-badge default";
+}
+
+function paymentTypeClass(paymentType) {
+  if (paymentType === "visa") return "mini-badge danger";
+  if (paymentType === "bank") return "mini-badge info";
+  if (paymentType === "cash") return "mini-badge warning";
+  return "mini-badge default";
+}
+
+function taskRowClass(status) {
+  if (status === "done") return "table-row-success";
+  if (status === "doing") return "table-row-info";
+  if (status === "cancelled") return "table-row-danger";
+  return "table-row-warning";
 }
 
 function taskStatusLabel(status) {
@@ -2313,7 +2335,7 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
             <tbody>
               {filteredTasks.length ? (
                 filteredTasks.map((row) => (
-                  <tr key={row.id}>
+                  <tr key={row.id} className={taskRowClass(row.status)}>
                     <td>{row.title}</td>
                     <td><span className={taskStatusClass(row.status)}>{taskStatusLabel(row.status)}</span></td>
                     <td><span className={priorityClass(row.priority)}>{row.priority}</span></td>
@@ -2729,6 +2751,7 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
   const [saving, setSaving] = useState(false);
   const [editRow, setEditRow] = useState(null);
   const [viewRow, setViewRow] = useState(null);
+  const [monthFilter, setMonthFilter] = useState(getMonthLabel());
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   function resetForm() {
@@ -2784,7 +2807,21 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
     }
   }
 
-  const totalAmount = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const monthOptions = [...new Set([getMonthLabel(), ...expenses.map((item) => formatDate(item.expense_date).slice(0, 7)).filter((item) => item && item !== "-")])];
+  const filteredExpenses = expenses.filter((item) => !monthFilter || formatDate(item.expense_date).startsWith(monthFilter));
+  const totalAmount = filteredExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const categoryTotals = [
+    { key: "servis", label: "Servis" },
+    { key: "reklama", label: "Reklama" },
+    { key: "safar", label: "Safar" },
+    { key: "boshqa", label: "Boshqa" }
+  ].map((item) => ({
+    ...item,
+    amount: filteredExpenses
+      .filter((row) => (row.category || "boshqa") === item.key)
+      .reduce((sum, row) => sum + Number(row.amount || 0), 0)
+  }));
+  const maxCategoryAmount = Math.max(...categoryTotals.map((item) => item.amount), 1);
 
   return (
     <div className="page-grid">
@@ -2805,26 +2842,56 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
       </div>
 
       <div className="stats-grid">
-        <StatCard title="Jami harajat" value={formatMoney(totalAmount)} hint="kiritilgan yozuvlar" />
-        <StatCard title="Yozuvlar soni" value={expenses.length} hint="barcha harajatlar" />
+        <StatCard title="Jami harajat" value={formatMoney(totalAmount)} hint={getMonthTitle(monthFilter)} tone="danger" />
+        <StatCard title="Yozuvlar soni" value={filteredExpenses.length} hint="filtrlangan yozuvlar" tone="info" />
       </div>
 
       <div className="card">
-        <SectionTitle title="Harajatlar ro‘yxati" />
+        <SectionTitle
+          title="Oy bo‘yicha harajatlar"
+          desc="Kategoriya kesimida tezkor ko‘rinish"
+          right={
+            <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
+              {monthOptions.map((item) => <option key={item} value={item}>{getMonthTitle(item)}</option>)}
+            </select>
+          }
+        />
+        <div className="expense-chart">
+          {categoryTotals.map((item) => (
+            <div key={item.key} className="expense-bar-card">
+              <div className="expense-bar-head">
+                <strong>{item.label}</strong>
+                <span>{formatMoney(item.amount)}</span>
+              </div>
+              <div className="expense-bar-track">
+                <span className={`expense-bar-fill ${item.key}`} style={{ width: `${Math.max((item.amount / maxCategoryAmount) * 100, item.amount ? 12 : 0)}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card">
+        <SectionTitle title="Harajatlar ro‘yxati" desc={getMonthTitle(monthFilter)} />
         <div className="table-wrap">
           <table>
-            <thead><tr><th>Sana</th><th>Nomi</th><th>Xizmat</th><th>To‘lov</th><th>Summa</th><th>Amallar</th></tr></thead>
+            <thead><tr><th>Sana</th><th>Nomi</th><th>Xizmat</th><th>Holat</th><th>Summa</th><th>Amallar</th></tr></thead>
             <tbody>
-              {expenses.length ? expenses.map((row) => (
+              {filteredExpenses.length ? filteredExpenses.map((row) => (
                 <tr key={row.id}>
                   <td>{formatDate(row.expense_date)}</td>
                   <td>{row.title}</td>
                   <td>{row.vendor_name || "-"}</td>
-                  <td>{row.payment_type || "-"}</td>
+                  <td>
+                    <div className="table-badge-stack">
+                      <span className={expenseCategoryClass(row.category)}>{row.category || "boshqa"}</span>
+                      <span className={paymentTypeClass(row.payment_type)}>{row.payment_type || "-"}</span>
+                    </div>
+                  </td>
                   <td>{Number(row.amount || 0).toLocaleString()} {row.currency || "UZS"}</td>
                   <td><IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} /></td>
                 </tr>
-              )) : <tr><td colSpan="6" className="empty-cell">Hozircha harajat yo‘q</td></tr>}
+              )) : <tr><td colSpan="6" className="empty-cell">Bu oy uchun harajat yo‘q</td></tr>}
             </tbody>
           </table>
         </div>
@@ -2914,6 +2981,11 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
     }
   }
 
+  const timelineRows = [...travelPlans]
+    .filter((row) => formatDate(row.plan_date) !== "-")
+    .sort((a, b) => new Date(a.plan_date).getTime() - new Date(b.plan_date).getTime())
+    .slice(0, 8);
+
   return (
     <div className="page-grid">
       <div className="card">
@@ -2943,12 +3015,36 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
                   <td>{row.branch_name || "-"}</td>
                   <td>{row.video_title}</td>
                   <td>{row.participants_text || "-"}</td>
-                  <td><span className={`status-badge ${row.status === "yakunlandi" ? "done" : row.status === "tasvirga_olindi" ? "doing" : "todo"}`}>{row.status}</span></td>
+                  <td><span className={`status-badge ${row.status === "yakunlandi" ? "done" : row.status === "tasvirga_olindi" ? "doing" : row.status === "tasdiqlandi" ? "warning" : "todo"}`}>{row.status}</span></td>
                   <td><IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} /></td>
                 </tr>
               )) : <tr><td colSpan="6" className="empty-cell">Hozircha safar rejasi yo‘q</td></tr>}
             </tbody>
           </table>
+        </div>
+      </div>
+
+      <div className="card">
+        <SectionTitle title="Safar timeline" desc="Yaqin safar va suratga olish rejasi" />
+        <div className="travel-timeline">
+          {timelineRows.length ? timelineRows.map((row) => (
+            <button key={`timeline-${row.id}`} type="button" className="timeline-item" onClick={() => setViewRow(row)}>
+              <div className="timeline-dot-wrap">
+                <span className={`timeline-dot ${row.status === "yakunlandi" ? "done" : row.status === "tasvirga_olindi" ? "doing" : row.status === "tasdiqlandi" ? "warning" : "todo"}`} />
+              </div>
+              <div className="timeline-content">
+                <div className="timeline-top">
+                  <strong>{row.video_title}</strong>
+                  <span>{formatDate(row.plan_date)}</span>
+                </div>
+                <div className="timeline-meta">
+                  <span>{row.branch_name || "-"}</span>
+                  <span className={`status-badge ${row.status === "yakunlandi" ? "done" : row.status === "tasvirga_olindi" ? "doing" : row.status === "tasdiqlandi" ? "warning" : "todo"}`}>{row.status}</span>
+                </div>
+                <p>{row.participants_text || "Ishtirokchilar ko‘rsatilmagan"}</p>
+              </div>
+            </button>
+          )) : <div className="empty-block">Hozircha timeline uchun safar rejasi yo‘q</div>}
         </div>
       </div>
 
@@ -3875,6 +3971,20 @@ img{display:block;max-width:100%}
   position:relative;
   overflow:hidden;
 }
+.stat-card-indicator{
+  position:absolute;
+  top:16px;
+  right:16px;
+  width:11px;
+  height:11px;
+  border-radius:999px;
+  box-shadow:0 0 0 6px rgba(255,255,255,.45);
+}
+.stat-card-indicator-default{background:#94a3b8;box-shadow:0 0 0 6px rgba(148,163,184,.12), 0 0 18px rgba(148,163,184,.22)}
+.stat-card-indicator-success{background:#10b981;box-shadow:0 0 0 6px rgba(16,185,129,.14), 0 0 20px rgba(16,185,129,.28)}
+.stat-card-indicator-warning{background:#f59e0b;box-shadow:0 0 0 6px rgba(245,158,11,.14), 0 0 20px rgba(245,158,11,.28)}
+.stat-card-indicator-danger{background:#ef4444;box-shadow:0 0 0 6px rgba(239,68,68,.14), 0 0 20px rgba(239,68,68,.30)}
+.stat-card-indicator-info{background:#3b82f6;box-shadow:0 0 0 6px rgba(59,130,246,.14), 0 0 20px rgba(59,130,246,.30)}
 .stat-card::after{
   content:"";
   position:absolute;
@@ -4117,6 +4227,10 @@ th,td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left;vert
 th{background:rgba(22,144,245,.05);color:var(--muted)}
 .empty-cell{text-align:center;color:var(--muted);padding:24px}
 .table-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.table-row-success{background:linear-gradient(90deg, rgba(16,185,129,.08), transparent 55%)}
+.table-row-info{background:linear-gradient(90deg, rgba(59,130,246,.08), transparent 55%)}
+.table-row-warning{background:linear-gradient(90deg, rgba(245,158,11,.08), transparent 55%)}
+.table-row-danger{background:linear-gradient(90deg, rgba(239,68,68,.08), transparent 55%)}
 
 .error-box{
   background:rgba(239,90,90,.10);
@@ -4266,24 +4380,220 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   width:16px;
   height:16px;
 }
-.status-badge,.priority-badge{
+.status-badge,.priority-badge,.mini-badge{
   display:inline-flex;
   align-items:center;
   justify-content:center;
   min-width:92px;
-  padding:6px 10px;
+  padding:7px 12px;
   border-radius:999px;
   font-size:12px;
   font-weight:800;
   text-transform:capitalize;
+  letter-spacing:.02em;
+  border:1px solid transparent;
+  position:relative;
+  overflow:hidden;
 }
-.status-badge.todo{background:rgba(148,163,184,.18);color:#64748b}
-.status-badge.doing{background:rgba(59,130,246,.14);color:#2563eb}
-.status-badge.done{background:rgba(34,197,94,.14);color:#16a34a}
-.status-badge.cancelled{background:rgba(239,68,68,.14);color:#dc2626}
-.priority-badge.low{background:rgba(34,197,94,.14);color:#16a34a}
-.priority-badge.medium{background:rgba(245,158,11,.14);color:#d97706}
-.priority-badge.high{background:rgba(239,68,68,.14);color:#dc2626}
+.status-badge::before,.priority-badge::before,.mini-badge::before{
+  content:"";
+  width:7px;
+  height:7px;
+  border-radius:999px;
+  margin-right:8px;
+  flex:0 0 auto;
+}
+.status-badge.todo{
+  background:linear-gradient(135deg, rgba(148,163,184,.18), rgba(255,255,255,.95));
+  color:#64748b;
+  border-color:rgba(148,163,184,.22);
+}
+.status-badge.todo::before{background:#94a3b8;box-shadow:0 0 12px rgba(148,163,184,.35)}
+.status-badge.doing{
+  background:linear-gradient(135deg, rgba(59,130,246,.16), rgba(255,255,255,.96));
+  color:#2563eb;
+  border-color:rgba(59,130,246,.24);
+}
+.status-badge.doing::before{background:#3b82f6;box-shadow:0 0 12px rgba(59,130,246,.35)}
+.status-badge.warning{
+  background:linear-gradient(135deg, rgba(245,158,11,.16), rgba(255,255,255,.96));
+  color:#b45309;
+  border-color:rgba(245,158,11,.24);
+}
+.status-badge.warning::before{background:#f59e0b;box-shadow:0 0 12px rgba(245,158,11,.35)}
+.status-badge.done{
+  background:linear-gradient(135deg, rgba(34,197,94,.16), rgba(255,255,255,.96));
+  color:#15803d;
+  border-color:rgba(34,197,94,.22);
+}
+.status-badge.done::before{background:#22c55e;box-shadow:0 0 12px rgba(34,197,94,.35)}
+.status-badge.cancelled{
+  background:linear-gradient(135deg, rgba(239,68,68,.16), rgba(255,255,255,.96));
+  color:#dc2626;
+  border-color:rgba(239,68,68,.22);
+}
+.status-badge.cancelled::before{background:#ef4444;box-shadow:0 0 12px rgba(239,68,68,.35)}
+.priority-badge.low{
+  background:linear-gradient(135deg, rgba(34,197,94,.14), rgba(255,255,255,.96));
+  color:#16a34a;
+  border-color:rgba(34,197,94,.22);
+}
+.priority-badge.low::before{background:#22c55e}
+.priority-badge.medium{
+  background:linear-gradient(135deg, rgba(245,158,11,.14), rgba(255,255,255,.96));
+  color:#d97706;
+  border-color:rgba(245,158,11,.24);
+}
+.priority-badge.medium::before{background:#f59e0b}
+.priority-badge.high{
+  background:linear-gradient(135deg, rgba(239,68,68,.14), rgba(255,255,255,.96));
+  color:#dc2626;
+  border-color:rgba(239,68,68,.22);
+}
+.priority-badge.high::before{background:#ef4444}
+.mini-badge{
+  min-width:auto;
+  padding:7px 11px;
+}
+.mini-badge.default{
+  background:linear-gradient(135deg, rgba(148,163,184,.18), rgba(255,255,255,.96));
+  color:#64748b;
+  border-color:rgba(148,163,184,.22);
+}
+.mini-badge.default::before{background:#94a3b8}
+.mini-badge.success{
+  background:linear-gradient(135deg, rgba(16,185,129,.16), rgba(255,255,255,.96));
+  color:#047857;
+  border-color:rgba(16,185,129,.22);
+}
+.mini-badge.success::before{background:#10b981}
+.mini-badge.warning{
+  background:linear-gradient(135deg, rgba(245,158,11,.16), rgba(255,255,255,.96));
+  color:#b45309;
+  border-color:rgba(245,158,11,.24);
+}
+.mini-badge.warning::before{background:#f59e0b}
+.mini-badge.danger{
+  background:linear-gradient(135deg, rgba(239,68,68,.16), rgba(255,255,255,.96));
+  color:#b91c1c;
+  border-color:rgba(239,68,68,.22);
+}
+.mini-badge.danger::before{background:#ef4444}
+.mini-badge.info{
+  background:linear-gradient(135deg, rgba(59,130,246,.16), rgba(255,255,255,.96));
+  color:#1d4ed8;
+  border-color:rgba(59,130,246,.24);
+}
+.mini-badge.info::before{background:#3b82f6}
+.table-badge-stack{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.expense-chart{
+  display:grid;
+  gap:14px;
+}
+.expense-bar-card{
+  padding:16px 18px;
+  border-radius:18px;
+  background:var(--soft);
+  border:1px solid var(--line);
+}
+.expense-bar-head{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+.expense-bar-head span{
+  color:var(--muted);
+  font-size:13px;
+}
+.expense-bar-track{
+  height:12px;
+  border-radius:999px;
+  overflow:hidden;
+  background:rgba(148,163,184,.12);
+}
+.expense-bar-fill{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  min-width:0;
+  transition:width .35s ease;
+}
+.expense-bar-fill.servis{background:linear-gradient(90deg, #10b981, #6ee7b7)}
+.expense-bar-fill.reklama{background:linear-gradient(90deg, #3b82f6, #7dd3fc)}
+.expense-bar-fill.safar{background:linear-gradient(90deg, #f59e0b, #fde68a)}
+.expense-bar-fill.boshqa{background:linear-gradient(90deg, #94a3b8, #cbd5e1)}
+.travel-timeline{
+  display:grid;
+  gap:14px;
+}
+.timeline-item{
+  display:grid;
+  grid-template-columns:28px 1fr;
+  gap:14px;
+  padding:16px 18px;
+  border-radius:20px;
+  border:1px solid var(--line);
+  background:linear-gradient(135deg, rgba(255,255,255,.96), rgba(248,250,252,.92));
+  text-align:left;
+  cursor:pointer;
+  transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.timeline-item:hover{
+  transform:translateY(-2px);
+  box-shadow:0 18px 32px rgba(15,23,42,.06);
+  border-color:rgba(59,130,246,.22);
+}
+.timeline-dot-wrap{
+  position:relative;
+  display:flex;
+  justify-content:center;
+}
+.timeline-dot-wrap::after{
+  content:"";
+  position:absolute;
+  top:18px;
+  bottom:-18px;
+  width:2px;
+  background:linear-gradient(180deg, rgba(148,163,184,.34), transparent);
+}
+.timeline-item:last-child .timeline-dot-wrap::after{display:none}
+.timeline-dot{
+  width:14px;
+  height:14px;
+  border-radius:999px;
+  margin-top:6px;
+  box-shadow:0 0 0 6px rgba(255,255,255,.9);
+}
+.timeline-dot.todo{background:#94a3b8}
+.timeline-dot.warning{background:#f59e0b}
+.timeline-dot.doing{background:#3b82f6}
+.timeline-dot.done{background:#10b981}
+.timeline-content{
+  display:grid;
+  gap:8px;
+}
+.timeline-top,.timeline-meta{
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+  align-items:center;
+  flex-wrap:wrap;
+}
+.timeline-top span{
+  color:var(--muted);
+  font-size:13px;
+}
+.timeline-content p{
+  margin:0;
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.5;
+}
 
 .icon-actions{
   display:flex;
