@@ -143,8 +143,113 @@ async function createNotification(userId, title, body, type = "info", category =
       `,
       [userId || null, title, body, type, category, actionUrl]
     );
+    await sendTelegramMessage(`[${category}] ${title}\n${body}`);
   } catch (err) {
     console.error("notification error:", err.message);
+  }
+}
+
+async function getSettingsRow() {
+  try {
+    const result = await query(`SELECT * FROM app_settings ORDER BY id ASC LIMIT 1`);
+    return result.rows[0] || null;
+  } catch {
+    return null;
+  }
+}
+
+async function sendTelegramMessage(text) {
+  try {
+    const settings = await getSettingsRow();
+    if (!settings?.telegram_bot_token || !settings?.telegram_chat_id) return;
+
+    await fetch(`https://api.telegram.org/bot${settings.telegram_bot_token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: settings.telegram_chat_id,
+        text
+      })
+    });
+  } catch (err) {
+    console.error("telegram send error:", err.message);
+  }
+}
+
+async function runRecurringAutomation() {
+  try {
+    await query(
+      `
+      INSERT INTO tasks (title, description, status, priority, due_date, assignee_user_id, created_by, recurrence_key)
+      SELECT
+        rt.title,
+        COALESCE(rt.description, ''),
+        'todo',
+        COALESCE(rt.priority, 'medium'),
+        CASE
+          WHEN rt.frequency = 'weekly' THEN CURRENT_DATE + ((COALESCE(rt.day_of_week, 1) - EXTRACT(ISODOW FROM CURRENT_DATE)::int + 7) % 7)
+          ELSE DATE_TRUNC('month', CURRENT_DATE)::date + (COALESCE(rt.day_of_month, 1) - 1)
+        END,
+        rt.assignee_user_id,
+        rt.created_by,
+        CASE
+          WHEN rt.frequency = 'weekly' THEN CONCAT('task:', rt.id, ':', TO_CHAR(CURRENT_DATE, 'IYYY-IW'))
+          ELSE CONCAT('task:', rt.id, ':', TO_CHAR(CURRENT_DATE, 'YYYY-MM'))
+        END
+      FROM recurring_tasks rt
+      WHERE rt.is_active = TRUE
+        AND NOT EXISTS (
+          SELECT 1
+          FROM tasks t
+          WHERE t.recurrence_key = (
+            CASE
+              WHEN rt.frequency = 'weekly' THEN CONCAT('task:', rt.id, ':', TO_CHAR(CURRENT_DATE, 'IYYY-IW'))
+              ELSE CONCAT('task:', rt.id, ':', TO_CHAR(CURRENT_DATE, 'YYYY-MM'))
+            END
+          )
+        )
+      RETURNING id
+      `
+    ).catch(() => null);
+
+    await query(
+      `
+      INSERT INTO expenses (expense_date, title, vendor_name, card_holder, amount, currency, category, payment_type, notes, created_by, recurrence_key)
+      SELECT
+        CASE
+          WHEN re.frequency = 'weekly' THEN CURRENT_DATE + ((COALESCE(re.day_of_week, 1) - EXTRACT(ISODOW FROM CURRENT_DATE)::int + 7) % 7)
+          ELSE DATE_TRUNC('month', CURRENT_DATE)::date + (COALESCE(re.day_of_month, 1) - 1)
+        END,
+        re.title,
+        COALESCE(re.vendor_name, ''),
+        COALESCE(re.card_holder, ''),
+        COALESCE(re.amount, 0),
+        COALESCE(re.currency, 'UZS'),
+        COALESCE(re.category, 'servis'),
+        COALESCE(re.payment_type, 'visa'),
+        COALESCE(re.notes, ''),
+        re.created_by,
+        CASE
+          WHEN re.frequency = 'weekly' THEN CONCAT('expense:', re.id, ':', TO_CHAR(CURRENT_DATE, 'IYYY-IW'))
+          ELSE CONCAT('expense:', re.id, ':', TO_CHAR(CURRENT_DATE, 'YYYY-MM'))
+        END
+      FROM recurring_expenses re
+      WHERE re.is_active = TRUE
+        AND NOT EXISTS (
+          SELECT 1
+          FROM expenses e
+          WHERE e.recurrence_key = (
+            CASE
+              WHEN re.frequency = 'weekly' THEN CONCAT('expense:', re.id, ':', TO_CHAR(CURRENT_DATE, 'IYYY-IW'))
+              ELSE CONCAT('expense:', re.id, ':', TO_CHAR(CURRENT_DATE, 'YYYY-MM'))
+            END
+          )
+        )
+      RETURNING id
+      `
+    ).catch(() => null);
+  } catch (err) {
+    console.error("recurring automation error:", err.message);
   }
 }
 
@@ -206,6 +311,8 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS department_name TEXT NOT NULL DEFAULT 'SMM department'`,
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS logo_url TEXT`,
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS bonus_rate NUMERIC(14,2) NOT NULL DEFAULT 25000`,
+    `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS telegram_bot_token TEXT`,
+    `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS telegram_chat_id TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS bonus_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
@@ -214,6 +321,12 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS notes TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS plan_month TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS branch_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS scenario_text TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS shot_list_text TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS preview_url TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS final_url TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS edit_file_url TEXT`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS month_label TEXT`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS work_date DATE`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL`,
@@ -247,6 +360,12 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url TEXT`,
     `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS entity_type TEXT`,
     `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS entity_id INTEGER`,
+    `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_key TEXT`,
+    `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS checklist_json JSONB NOT NULL DEFAULT '[]'::jsonb`,
+    `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS budget_amount NUMERIC(14,2) NOT NULL DEFAULT 0`,
+    `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS transport_text TEXT`,
+    `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS hotel_text TEXT`,
+    `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS deadline_date DATE`,
     `CREATE TABLE IF NOT EXISTS expenses (
       id SERIAL PRIMARY KEY,
       expense_date DATE,
@@ -259,6 +378,7 @@ async function ensureRuntimeSchema() {
       payment_type TEXT NOT NULL DEFAULT 'visa',
       notes TEXT,
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      recurrence_key TEXT,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
@@ -270,6 +390,11 @@ async function ensureRuntimeSchema() {
       participants_text TEXT,
       videodek_url TEXT,
       scenario_text TEXT,
+      checklist_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      budget_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      transport_text TEXT,
+      hotel_text TEXT,
+      deadline_date DATE,
       status TEXT NOT NULL DEFAULT 'reja',
       notes TEXT,
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -292,8 +417,51 @@ async function ensureRuntimeSchema() {
       author_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
+    `CREATE TABLE IF NOT EXISTS recurring_tasks (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      frequency TEXT NOT NULL DEFAULT 'monthly',
+      day_of_week INTEGER,
+      day_of_month INTEGER,
+      priority TEXT NOT NULL DEFAULT 'medium',
+      assignee_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS recurring_expenses (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      vendor_name TEXT,
+      card_holder TEXT,
+      amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'UZS',
+      category TEXT NOT NULL DEFAULT 'servis',
+      payment_type TEXT NOT NULL DEFAULT 'visa',
+      frequency TEXT NOT NULL DEFAULT 'monthly',
+      day_of_week INTEGER,
+      day_of_month INTEGER,
+      notes TEXT,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS budgets (
+      id SERIAL PRIMARY KEY,
+      month_label TEXT NOT NULL,
+      category TEXT NOT NULL,
+      limit_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP`,
     `ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP`,
+    `ALTER TABLE tasks ADD COLUMN IF NOT EXISTS recurrence_key TEXT`,
     `CREATE TABLE IF NOT EXISTS typing_states (
       user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       target_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -783,6 +951,7 @@ app.post("/api/auth/change-password", authRequired, async (req, res) => {
 
 app.get("/api/dashboard/summary", authRequired, async (req, res) => {
   try {
+    await runRecurringAutomation();
     const currentMonth = getMonthLabel();
     const reminderSql =
       req.user.role === "admin" || req.user.role === "manager"
@@ -986,6 +1155,8 @@ app.put("/api/settings", authRequired, async (req, res) => {
       department_name,
       logo_url,
       bonus_rate,
+      telegram_bot_token,
+      telegram_chat_id,
       website_url,
       telegram_url,
       instagram_url,
@@ -1006,6 +1177,8 @@ app.put("/api/settings", authRequired, async (req, res) => {
           department_name,
           logo_url,
           bonus_rate,
+          telegram_bot_token,
+          telegram_chat_id,
           website_url,
           telegram_url,
           instagram_url,
@@ -1013,7 +1186,7 @@ app.put("/api/settings", authRequired, async (req, res) => {
           facebook_url,
           tiktok_url
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
         `,
         [
           company_name || "aloo",
@@ -1021,6 +1194,8 @@ app.put("/api/settings", authRequired, async (req, res) => {
           department_name || "",
           logo_url || "",
           Number(bonus_rate || 25000),
+          telegram_bot_token || "",
+          telegram_chat_id || "",
           website_url || "",
           telegram_url || "",
           instagram_url || "",
@@ -1039,14 +1214,16 @@ app.put("/api/settings", authRequired, async (req, res) => {
           department_name = $3,
           logo_url = $4,
           bonus_rate = $5,
-          website_url = $6,
-          telegram_url = $7,
-          instagram_url = $8,
-          youtube_url = $9,
-          facebook_url = $10,
-          tiktok_url = $11,
+          telegram_bot_token = $6,
+          telegram_chat_id = $7,
+          website_url = $8,
+          telegram_url = $9,
+          instagram_url = $10,
+          youtube_url = $11,
+          facebook_url = $12,
+          tiktok_url = $13,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $12
+        WHERE id = $14
         `,
         [
           company_name || "aloo",
@@ -1054,6 +1231,8 @@ app.put("/api/settings", authRequired, async (req, res) => {
           department_name || "",
           logo_url || "",
           Number(bonus_rate || 25000),
+          telegram_bot_token || "",
+          telegram_chat_id || "",
           website_url || "",
           telegram_url || "",
           instagram_url || "",
@@ -1389,7 +1568,13 @@ app.post("/api/content", authRequired, async (req, res) => {
       bonus_enabled,
       proposal_count,
       approved_count,
-      notes
+      notes,
+      branch_ids_json,
+      scenario_text,
+      shot_list_text,
+      preview_url,
+      final_url,
+      edit_file_url
     } = req.body;
 
     const publishDate = formatDateOnly(publish_date);
@@ -1415,10 +1600,16 @@ app.post("/api/content", authRequired, async (req, res) => {
         proposal_count,
         approved_count,
         notes,
+        branch_ids_json,
+        scenario_text,
+        shot_list_text,
+        preview_url,
+        final_url,
+        edit_file_url,
         plan_month,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
       RETURNING *
       `,
       [
@@ -1434,6 +1625,12 @@ app.post("/api/content", authRequired, async (req, res) => {
         Number(proposal_count || 0),
         Number(approved_count || 0),
         notes || "",
+        JSON.stringify(Array.isArray(branch_ids_json) ? branch_ids_json : []),
+        scenario_text || "",
+        shot_list_text || "",
+        preview_url || "",
+        final_url || "",
+        edit_file_url || "",
         planMonth,
         req.user.id
       ]
@@ -1487,7 +1684,13 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
       bonus_enabled,
       proposal_count,
       approved_count,
-      notes
+      notes,
+      branch_ids_json,
+      scenario_text,
+      shot_list_text,
+      preview_url,
+      final_url,
+      edit_file_url
     } = req.body;
 
     const publishDate = formatDateOnly(publish_date);
@@ -1514,9 +1717,15 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
         proposal_count = $10,
         approved_count = $11,
         notes = $12,
-        plan_month = $13,
+        branch_ids_json = $13,
+        scenario_text = $14,
+        shot_list_text = $15,
+        preview_url = $16,
+        final_url = $17,
+        edit_file_url = $18,
+        plan_month = $19,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $14
+      WHERE id = $20
       RETURNING *
       `,
       [
@@ -1532,6 +1741,12 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
         Number(proposal_count || 0),
         Number(approved_count || 0),
         notes || "",
+        JSON.stringify(Array.isArray(branch_ids_json) ? branch_ids_json : []),
+        scenario_text || "",
+        shot_list_text || "",
+        preview_url || "",
+        final_url || "",
+        edit_file_url || "",
         planMonth,
         req.params.id
       ]
@@ -2785,6 +3000,11 @@ app.post("/api/travel-plans", authRequired, async (req, res) => {
       participants_text,
       videodek_url,
       scenario_text,
+      checklist_json,
+      budget_amount,
+      transport_text,
+      hotel_text,
+      deadline_date,
       status,
       notes
     } = req.body;
@@ -2799,11 +3019,16 @@ app.post("/api/travel-plans", authRequired, async (req, res) => {
         participants_text,
         videodek_url,
         scenario_text,
+        checklist_json,
+        budget_amount,
+        transport_text,
+        hotel_text,
+        deadline_date,
         status,
         notes,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       RETURNING *
       `,
       [
@@ -2813,6 +3038,11 @@ app.post("/api/travel-plans", authRequired, async (req, res) => {
         participants_text || "",
         videodek_url || "",
         scenario_text || "",
+        JSON.stringify(Array.isArray(checklist_json) ? checklist_json : []),
+        Number(budget_amount || 0),
+        transport_text || "",
+        hotel_text || "",
+        normalizeDateOnly(deadline_date),
         status || "reja",
         notes || "",
         req.user.id
@@ -2841,6 +3071,11 @@ app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
       participants_text,
       videodek_url,
       scenario_text,
+      checklist_json,
+      budget_amount,
+      transport_text,
+      hotel_text,
+      deadline_date,
       status,
       notes
     } = req.body;
@@ -2857,10 +3092,15 @@ app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
         participants_text = $4,
         videodek_url = $5,
         scenario_text = $6,
-        status = $7,
-        notes = $8,
+        checklist_json = $7,
+        budget_amount = $8,
+        transport_text = $9,
+        hotel_text = $10,
+        deadline_date = $11,
+        status = $12,
+        notes = $13,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $9
+      WHERE id = $14
       RETURNING *
       `,
       [
@@ -2870,6 +3110,11 @@ app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
         participants_text || "",
         videodek_url || "",
         scenario_text || "",
+        JSON.stringify(Array.isArray(checklist_json) ? checklist_json : []),
+        Number(budget_amount || 0),
+        transport_text || "",
+        hotel_text || "",
+        normalizeDateOnly(deadline_date),
         status || "reja",
         notes || "",
         req.params.id
@@ -2903,6 +3148,235 @@ app.delete("/api/travel-plans/:id", authRequired, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: `Safar rejasini o‘chirib bo‘lmadi: ${err.message}` });
+  }
+});
+
+/* RECURRING / BUDGET / ANALYTICS / AI */
+
+app.get("/api/recurring-tasks", authRequired, async (_, res) => {
+  try {
+    const result = await query(`SELECT rt.*, u.full_name AS assignee_name FROM recurring_tasks rt LEFT JOIN users u ON u.id = rt.assignee_user_id ORDER BY rt.id DESC`);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Takrorlanuvchi vazifalarni olib bo'lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/recurring-tasks", authRequired, async (req, res) => {
+  try {
+    const { title, description, frequency, day_of_week, day_of_month, priority, assignee_user_id, is_active } = req.body;
+    const inserted = await query(
+      `INSERT INTO recurring_tasks (title, description, frequency, day_of_week, day_of_month, priority, assignee_user_id, is_active, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [title, description || "", frequency || "monthly", day_of_week || null, day_of_month || null, priority || "medium", assignee_user_id || null, is_active !== false, req.user.id]
+    );
+    res.json(inserted.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Takrorlanuvchi vazifani saqlab bo'lmadi: ${err.message}` });
+  }
+});
+
+app.put("/api/recurring-tasks/:id", authRequired, async (req, res) => {
+  try {
+    const { title, description, frequency, day_of_week, day_of_month, priority, assignee_user_id, is_active } = req.body;
+    const updated = await query(
+      `UPDATE recurring_tasks SET title=$1, description=$2, frequency=$3, day_of_week=$4, day_of_month=$5, priority=$6, assignee_user_id=$7, is_active=$8, updated_at=CURRENT_TIMESTAMP WHERE id=$9 RETURNING *`,
+      [title, description || "", frequency || "monthly", day_of_week || null, day_of_month || null, priority || "medium", assignee_user_id || null, is_active !== false, req.params.id]
+    );
+    res.json(updated.rows[0] || null);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Takrorlanuvchi vazifani yangilab bo'lmadi: ${err.message}` });
+  }
+});
+
+app.delete("/api/recurring-tasks/:id", authRequired, async (req, res) => {
+  try {
+    await query(`DELETE FROM recurring_tasks WHERE id = $1`, [req.params.id]);
+    res.json({ message: "Takrorlanuvchi vazifa o'chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Takrorlanuvchi vazifani o'chirib bo'lmadi: ${err.message}` });
+  }
+});
+
+app.get("/api/recurring-expenses", authRequired, async (_, res) => {
+  try {
+    const result = await query(`SELECT * FROM recurring_expenses ORDER BY id DESC`);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Takrorlanuvchi harajatlarni olib bo'lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/recurring-expenses", authRequired, async (req, res) => {
+  try {
+    const { title, vendor_name, card_holder, amount, currency, category, payment_type, frequency, day_of_week, day_of_month, notes, is_active } = req.body;
+    const inserted = await query(
+      `INSERT INTO recurring_expenses (title, vendor_name, card_holder, amount, currency, category, payment_type, frequency, day_of_week, day_of_month, notes, is_active, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
+      [title, vendor_name || "", card_holder || "", Number(amount || 0), currency || "UZS", category || "servis", payment_type || "visa", frequency || "monthly", day_of_week || null, day_of_month || null, notes || "", is_active !== false, req.user.id]
+    );
+    res.json(inserted.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Takrorlanuvchi harajatni saqlab bo'lmadi: ${err.message}` });
+  }
+});
+
+app.put("/api/recurring-expenses/:id", authRequired, async (req, res) => {
+  try {
+    const { title, vendor_name, card_holder, amount, currency, category, payment_type, frequency, day_of_week, day_of_month, notes, is_active } = req.body;
+    const updated = await query(
+      `UPDATE recurring_expenses SET title=$1, vendor_name=$2, card_holder=$3, amount=$4, currency=$5, category=$6, payment_type=$7, frequency=$8, day_of_week=$9, day_of_month=$10, notes=$11, is_active=$12, updated_at=CURRENT_TIMESTAMP WHERE id=$13 RETURNING *`,
+      [title, vendor_name || "", card_holder || "", Number(amount || 0), currency || "UZS", category || "servis", payment_type || "visa", frequency || "monthly", day_of_week || null, day_of_month || null, notes || "", is_active !== false, req.params.id]
+    );
+    res.json(updated.rows[0] || null);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Takrorlanuvchi harajatni yangilab bo'lmadi: ${err.message}` });
+  }
+});
+
+app.delete("/api/recurring-expenses/:id", authRequired, async (req, res) => {
+  try {
+    await query(`DELETE FROM recurring_expenses WHERE id = $1`, [req.params.id]);
+    res.json({ message: "Takrorlanuvchi harajat o'chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Takrorlanuvchi harajatni o'chirib bo'lmadi: ${err.message}` });
+  }
+});
+
+app.get("/api/budgets", authRequired, async (_, res) => {
+  try {
+    const result = await query(`SELECT * FROM budgets ORDER BY month_label DESC, id DESC`);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Budjetlarni olib bo'lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/budgets", authRequired, async (req, res) => {
+  try {
+    const { month_label, category, limit_amount, notes } = req.body;
+    const inserted = await query(
+      `INSERT INTO budgets (month_label, category, limit_amount, notes, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [month_label || getMonthLabel(), category || "servis", Number(limit_amount || 0), notes || "", req.user.id]
+    );
+    res.json(inserted.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Budjetni saqlab bo'lmadi: ${err.message}` });
+  }
+});
+
+app.put("/api/budgets/:id", authRequired, async (req, res) => {
+  try {
+    const { month_label, category, limit_amount, notes } = req.body;
+    const updated = await query(
+      `UPDATE budgets SET month_label=$1, category=$2, limit_amount=$3, notes=$4, updated_at=CURRENT_TIMESTAMP WHERE id=$5 RETURNING *`,
+      [month_label || getMonthLabel(), category || "servis", Number(limit_amount || 0), notes || "", req.params.id]
+    );
+    res.json(updated.rows[0] || null);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Budjetni yangilab bo'lmadi: ${err.message}` });
+  }
+});
+
+app.delete("/api/budgets/:id", authRequired, async (req, res) => {
+  try {
+    await query(`DELETE FROM budgets WHERE id = $1`, [req.params.id]);
+    res.json({ message: "Budjet o'chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Budjetni o'chirib bo'lmadi: ${err.message}` });
+  }
+});
+
+app.get("/api/analytics/overview", authRequired, async (_, res) => {
+  try {
+    await runRecurringAutomation();
+    const [bonusByMonth, spendByMonth, contentByStatus, branchKpi, topUsers, budgetsRes, expenseTotals] = await Promise.all([
+      query(`SELECT month_label, COALESCE(SUM(total_amount),0)::numeric AS total FROM bonus_items GROUP BY month_label ORDER BY month_label DESC LIMIT 6`),
+      query(`SELECT to_char(COALESCE(start_date,end_date,CURRENT_DATE), 'YYYY-MM') AS month_label, COALESCE(SUM(spend),0)::numeric AS total FROM campaigns GROUP BY 1 ORDER BY 1 DESC LIMIT 6`),
+      query(`SELECT status, COUNT(*)::int AS count FROM content_items GROUP BY status ORDER BY status`),
+      query(`SELECT b.name, COALESCE(SUM(d.stories_count + d.posts_count + d.reels_count),0)::int AS content_score, COALESCE(SUM(d.subscriber_count),0)::int AS subscriber_growth FROM branches b LEFT JOIN daily_branch_reports d ON d.branch_id = b.id GROUP BY b.id, b.name ORDER BY content_score DESC, subscriber_growth DESC LIMIT 8`),
+      query(`SELECT u.full_name, COUNT(t.id)::int AS done_tasks, COALESCE(SUM(bi.total_amount),0)::numeric AS bonus_total FROM users u LEFT JOIN tasks t ON t.assignee_user_id = u.id AND t.status = 'done' LEFT JOIN bonus_items bi ON bi.user_id = u.id GROUP BY u.id, u.full_name ORDER BY done_tasks DESC, bonus_total DESC LIMIT 8`),
+      query(`SELECT month_label, category, limit_amount FROM budgets ORDER BY month_label DESC, id DESC LIMIT 24`),
+      query(`SELECT category, COALESCE(SUM(amount),0)::numeric AS total FROM expenses GROUP BY category ORDER BY total DESC`)
+    ]);
+    res.json({ bonus_by_month: bonusByMonth.rows, spend_by_month: spendByMonth.rows, content_by_status: contentByStatus.rows, branch_kpi: branchKpi.rows, top_performers: topUsers.rows, budgets: budgetsRes.rows, expense_totals: expenseTotals.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Analyticsni olib bo'lmadi: ${err.message}` });
+  }
+});
+
+app.get("/api/reports/advanced", authRequired, async (req, res) => {
+  try {
+    const range = String(req.query.range || "monthly");
+    const bucket = range === "daily" ? "YYYY-MM-DD" : range === "weekly" ? "IYYY-IW" : "YYYY-MM";
+    const [reportsRes, tasksRes, expensesRes] = await Promise.all([
+      query(`SELECT to_char(report_date, '${bucket}') AS bucket, COUNT(*)::int AS reports_count, COALESCE(SUM(stories_count + posts_count + reels_count),0)::int AS content_total FROM daily_branch_reports GROUP BY 1 ORDER BY 1 DESC LIMIT 20`),
+      query(`SELECT to_char(due_date, '${bucket}') AS bucket, COUNT(*)::int AS task_total, COUNT(*) FILTER (WHERE status='done')::int AS done_count FROM tasks WHERE due_date IS NOT NULL GROUP BY 1 ORDER BY 1 DESC LIMIT 20`),
+      query(`SELECT to_char(expense_date, '${bucket}') AS bucket, COALESCE(SUM(amount),0)::numeric AS expense_total FROM expenses WHERE expense_date IS NOT NULL GROUP BY 1 ORDER BY 1 DESC LIMIT 20`)
+    ]);
+    res.json({ reports: reportsRes.rows, tasks: tasksRes.rows, expenses: expensesRes.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Advanced reportni olib bo'lmadi: ${err.message}` });
+  }
+});
+
+app.get("/api/top-performers", authRequired, async (_, res) => {
+  try {
+    const [employees, branchesRes] = await Promise.all([
+      query(`SELECT u.full_name, COUNT(t.id)::int AS done_tasks, COALESCE(SUM(bi.total_amount),0)::numeric AS bonus_total FROM users u LEFT JOIN tasks t ON t.assignee_user_id = u.id AND t.status='done' LEFT JOIN bonus_items bi ON bi.user_id = u.id GROUP BY u.id, u.full_name ORDER BY done_tasks DESC, bonus_total DESC LIMIT 5`),
+      query(`SELECT b.name, COALESCE(SUM(d.stories_count + d.posts_count + d.reels_count),0)::int AS content_total, COALESCE(SUM(d.subscriber_count),0)::int AS subscriber_total FROM branches b LEFT JOIN daily_branch_reports d ON d.branch_id = b.id GROUP BY b.id, b.name ORDER BY content_total DESC, subscriber_total DESC LIMIT 5`)
+    ]);
+    res.json({ employees: employees.rows, branches: branchesRes.rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Top performerlarni olib bo'lmadi: ${err.message}` });
+  }
+});
+
+app.get("/api/backup/export", authRequired, rolesAllowed("admin"), async (_, res) => {
+  try {
+    const tables = ["users", "tasks", "content_items", "bonus_items", "daily_branch_reports", "expenses", "travel_plans", "campaigns", "budgets"];
+    const payload = {};
+    for (const table of tables) {
+      payload[table] = (await query(`SELECT * FROM ${table}`)).rows;
+    }
+    res.json(payload);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Backup export bo'lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/ai/assist", authRequired, async (req, res) => {
+  try {
+    const { mode, prompt, branch_name, content_type } = req.body;
+    const clean = String(prompt || "").trim();
+    const branch = branch_name ? ` ${branch_name}` : "";
+    const type = content_type ? ` ${content_type}` : "";
+    const templates = {
+      title: `Bugungi${branch}${type} uchun jalb qiluvchi sarlavha: "${clean || "Yangi kontent"}"`,
+      caption: `${branch || "Brend"} uchun qisqa caption:\n1. E'tiborli kirish\n2. Foydali asosiy gap\n3. Kuchli CTA`,
+      script: `Ssenariy drafti:\n1. Hook\n2. Muammo\n3. Yechim\n4. Natija\n5. CTA\nMavzu: ${clean || "Mahsulot taqdimoti"}`,
+      ideas: `Kontent g'oyalari:\n- Mijoz hikoyasi\n- Filial ichki lavhasi\n- Oldin/keyin format\n- Top 3 maslahat\n- Trendga mos reels`
+    };
+    res.json({ mode: mode || "ideas", output: templates[mode || "ideas"] || templates.ideas });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `AI yordamchi javob qaytara olmadi: ${err.message}` });
   }
 });
 
