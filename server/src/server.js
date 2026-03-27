@@ -120,14 +120,14 @@ async function logAction(userId, actionType, entityType, entityId = null, meta =
   }
 }
 
-async function createNotification(userId, title, body, type = "info") {
+async function createNotification(userId, title, body, type = "info", category = "system", actionUrl = null) {
   try {
     await query(
       `
-      INSERT INTO notifications (user_id, title, body, type)
-      VALUES ($1, $2, $3, $4)
+      INSERT INTO notifications (user_id, title, body, type, category, action_url)
+      VALUES ($1, $2, $3, $4, $5, $6)
       `,
-      [userId || null, title, body, type]
+      [userId || null, title, body, type, category, actionUrl]
     );
   } catch (err) {
     console.error("notification error:", err.message);
@@ -177,6 +177,11 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'system'`,
+    `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url TEXT`,
+    `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS entity_type TEXT`,
+    `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS entity_id INTEGER`,
     `CREATE TABLE IF NOT EXISTS expenses (
       id SERIAL PRIMARY KEY,
       expense_date DATE,
@@ -212,6 +217,14 @@ async function ensureRuntimeSchema() {
       receiver_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       body TEXT NOT NULL,
       is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS comments (
+      id SERIAL PRIMARY KEY,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER NOT NULL,
+      body TEXT NOT NULL,
+      author_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`
   ];
@@ -461,6 +474,11 @@ app.post("/api/auth/login", async (req, res) => {
 
 app.get("/api/auth/me", authRequired, async (req, res) => {
   try {
+    await query(
+      `UPDATE users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [req.user.id]
+    );
+
     const result = await query(
       `
       SELECT
@@ -667,6 +685,109 @@ app.get("/api/dashboard/summary", authRequired, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Dashboard ma’lumotini olib bo‘lmadi" });
+  }
+});
+
+/* SEARCH */
+
+app.get("/api/search", authRequired, async (req, res) => {
+  try {
+    const q = String(req.query.q || "").trim().toLowerCase();
+
+    if (!q) {
+      return res.json({
+        users: [],
+        content: [],
+        tasks: [],
+        bonuses: [],
+        chats: [],
+        travel_plans: []
+      });
+    }
+
+    const like = `%${q}%`;
+
+    const [usersRes, contentRes, tasksRes, bonusesRes, chatsRes, travelRes] = await Promise.all([
+      query(
+        `
+        SELECT id, full_name, login, phone, role
+        FROM users
+        WHERE
+          LOWER(COALESCE(full_name, '')) LIKE $1
+          OR LOWER(COALESCE(login, '')) LIKE $1
+          OR LOWER(COALESCE(phone, '')) LIKE $1
+        ORDER BY id DESC
+        LIMIT 8
+        `,
+        [like]
+      ),
+      query(
+        `
+        SELECT id, title, status, publish_date
+        FROM content_items
+        WHERE LOWER(COALESCE(title, '')) LIKE $1
+        ORDER BY publish_date DESC NULLS LAST, id DESC
+        LIMIT 8
+        `,
+        [like]
+      ),
+      query(
+        `
+        SELECT id, title, status, due_date
+        FROM tasks
+        WHERE LOWER(COALESCE(title, '')) LIKE $1
+        ORDER BY due_date DESC NULLS LAST, id DESC
+        LIMIT 8
+        `,
+        [like]
+      ),
+      query(
+        `
+        SELECT id, content_title, content_type, work_date, total_amount
+        FROM bonus_items
+        WHERE LOWER(COALESCE(content_title, '')) LIKE $1
+        ORDER BY work_date DESC NULLS LAST, id DESC
+        LIMIT 8
+        `,
+        [like]
+      ),
+      query(
+        `
+        SELECT id, body, created_at, sender_user_id, receiver_user_id
+        FROM messages
+        WHERE LOWER(COALESCE(body, '')) LIKE $1
+        ORDER BY created_at DESC
+        LIMIT 8
+        `,
+        [like]
+      ),
+      query(
+        `
+        SELECT tp.id, tp.video_title, tp.status, tp.plan_date, b.name AS branch_name
+        FROM travel_plans tp
+        LEFT JOIN branches b ON b.id = tp.branch_id
+        WHERE
+          LOWER(COALESCE(tp.video_title, '')) LIKE $1
+          OR LOWER(COALESCE(tp.participants_text, '')) LIKE $1
+          OR LOWER(COALESCE(tp.scenario_text, '')) LIKE $1
+        ORDER BY tp.plan_date DESC NULLS LAST, tp.id DESC
+        LIMIT 8
+        `,
+        [like]
+      )
+    ]);
+
+    res.json({
+      users: usersRes.rows,
+      content: contentRes.rows,
+      tasks: tasksRes.rows,
+      bonuses: bonusesRes.rows,
+      chats: chatsRes.rows,
+      travel_plans: travelRes.rows
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Global qidiruvda xatolik: ${err.message}` });
   }
 });
 
@@ -1974,6 +2095,9 @@ app.post("/api/uploads", authRequired, upload.single("file"), async (req, res) =
       return res.status(400).json({ message: "Fayl topilmadi" });
     }
 
+    const entityType = req.body?.entity_type || null;
+    const entityId = req.body?.entity_id ? Number(req.body.entity_id) : null;
+
     const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
 
     const inserted = await query(
@@ -1985,9 +2109,11 @@ app.post("/api/uploads", authRequired, upload.single("file"), async (req, res) =
         mime_type,
         file_size,
         file_url,
-        uploaded_by
+        uploaded_by,
+        entity_type,
+        entity_id
       )
-      VALUES ($1,$2,$3,$4,$5,$6)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
       RETURNING *
       `,
       [
@@ -1996,17 +2122,37 @@ app.post("/api/uploads", authRequired, upload.single("file"), async (req, res) =
         req.file.mimetype,
         req.file.size,
         fileUrl,
-        req.user.id
+        req.user.id,
+        entityType,
+        entityId
       ]
     );
 
-    await createNotification(req.user.id, "Fayl yuklandi", req.file.originalname, "success");
+    await createNotification(req.user.id, "Fayl yuklandi", req.file.originalname, "success", "attachment");
     await logAction(req.user.id, "upload", "uploads", inserted.rows[0].id, {});
 
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Upload xatoligi" });
+  }
+});
+
+app.get("/api/attachments/:entityType/:entityId", authRequired, async (req, res) => {
+  try {
+    const result = await query(
+      `
+      SELECT *
+      FROM uploads
+      WHERE entity_type = $1 AND entity_id = $2
+      ORDER BY id DESC
+      `,
+      [req.params.entityType, Number(req.params.entityId)]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Biriktirmalarni olib bo‘lmadi: ${err.message}` });
   }
 });
 
@@ -2486,6 +2632,65 @@ app.delete("/api/travel-plans/:id", authRequired, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: `Safar rejasini o‘chirib bo‘lmadi: ${err.message}` });
+  }
+});
+
+/* COMMENTS */
+
+app.get("/api/comments/:entityType/:entityId", authRequired, async (req, res) => {
+  try {
+    const result = await query(
+      `
+      SELECT
+        c.*,
+        u.full_name AS author_name,
+        u.avatar_url AS author_avatar
+      FROM comments c
+      LEFT JOIN users u ON u.id = c.author_user_id
+      WHERE c.entity_type = $1 AND c.entity_id = $2
+      ORDER BY c.id ASC
+      `,
+      [req.params.entityType, Number(req.params.entityId)]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Izohlarni olib bo‘lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/comments", authRequired, async (req, res) => {
+  try {
+    const { entity_type, entity_id, body } = req.body;
+
+    if (!entity_type || !entity_id || !body?.trim()) {
+      return res.status(400).json({ message: "Entity va izoh matni majburiy" });
+    }
+
+    const inserted = await query(
+      `
+      INSERT INTO comments (entity_type, entity_id, body, author_user_id)
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+      `,
+      [entity_type, Number(entity_id), body.trim(), req.user.id]
+    );
+
+    await logAction(req.user.id, "comment", entity_type, Number(entity_id), {});
+    res.json(inserted.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Izohni saqlab bo‘lmadi: ${err.message}` });
+  }
+});
+
+app.delete("/api/comments/:id", authRequired, async (req, res) => {
+  try {
+    await query(`DELETE FROM comments WHERE id = $1`, [req.params.id]);
+    res.json({ message: "Izoh o‘chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Izohni o‘chirib bo‘lmadi: ${err.message}` });
   }
 });
 
