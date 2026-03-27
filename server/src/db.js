@@ -1,9 +1,15 @@
-export const pool = new Pool({
+import pkg from "pg";
+const { Pool } = pkg;
+
+const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl:
-    process.env.DATABASE_URL &&
-    (process.env.DATABASE_URL.includes("railway.app") ||
-      process.env.DATABASE_URL.includes("proxy.rlwy.net"))
-      ? { rejectUnauthorized: false }
-      : false
+  ssl: process.env.DATABASE_URL
+    ? { rejectUnauthorized: false }
+    : false
 });
+
+// asosiy query function
+export const query = (text, params) => pool.query(text, params);
+
+// pool ham kerak bo‘lsa
+export default pool;
