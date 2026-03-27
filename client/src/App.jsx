@@ -301,7 +301,7 @@ function NotificationsDrawer({ open, onClose, notifications = [], onRead, onRead
                 <div className="notif-title">{item.title}</div>
                 <div className="notif-body">{item.body}</div>
                 <div className="notif-footer">
-                  <span>{item.type}</span>
+                  <span className={notificationCategoryClass(item.category || item.type)}>{item.category || item.type}</span>
                   {!item.is_read ? (
                     <button type="button" className="link-btn" onClick={() => onRead(item.id)}>
                       O‘qildi
@@ -366,6 +366,15 @@ function paymentTypeClass(paymentType) {
   if (paymentType === "visa") return "mini-badge danger";
   if (paymentType === "bank") return "mini-badge info";
   if (paymentType === "cash") return "mini-badge warning";
+  return "mini-badge default";
+}
+
+function notificationCategoryClass(category) {
+  if (category === "chat") return "mini-badge info";
+  if (category === "task" || category === "reminder") return "mini-badge warning";
+  if (category === "bonus") return "mini-badge success";
+  if (category === "approval") return "mini-badge danger";
+  if (category === "attachment") return "mini-badge default";
   return "mini-badge default";
 }
 
@@ -523,8 +532,22 @@ function LoginPage({ onLoggedIn, settings }) {
   );
 }
 
-function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], contentRows = [] }) {
+function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], contentRows = [], user = null }) {
   const currentMonth = getMonthLabel();
+  const roleLabelMap = {
+    admin: "Admin boshqaruv paneli",
+    manager: "Manager nazorat paneli",
+    mobilograf: "Mobilograf ish maydoni",
+    editor: "Editor ish maydoni",
+    viewer: "Kuzatuv paneli"
+  };
+  const heroTitle = roleLabelMap[user?.role] || "aloo SMM jamoasi platformasi";
+  const heroText =
+    user?.role === "mobilograf"
+      ? "Bugungi vazifalar, safar rejalari va kontent topshiriqlari bir joyda."
+      : user?.role === "editor"
+        ? "Tasdiqlash, montaj va kontent jarayonlarini bir ekranda kuzating."
+        : "Kontent reja, bonus, filial hisobotlari va media boshqaruvi bitta joyda.";
 
   const thisMonthContent = (contentRows || []).filter((row) => {
     if (!row.publish_date) return false;
@@ -545,8 +568,8 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
       <div className="hero-banner">
         <div>
           <div className="small-label">Boshqaruv markazi</div>
-          <h1>aloo SMM jamoasi platformasi</h1>
-          <p>Kontent reja, bonus, filial hisobotlari va media boshqaruvi bitta joyda.</p>
+          <h1>{heroTitle}</h1>
+          <p>{heroText}</p>
         </div>
       </div>
 
@@ -3072,6 +3095,9 @@ function App() {
   const [toast, setToast] = useState(null);
   const [search, setSearch] = useState("");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [globalSearch, setGlobalSearch] = useState("");
+  const [globalResults, setGlobalResults] = useState(null);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const [summary, setSummary] = useState({});
   const [settings, setSettings] = useState(null);
@@ -3185,6 +3211,24 @@ function App() {
     return () => clearInterval(timer);
   }, [user?.id, active]);
 
+  useEffect(() => {
+    if (!user?.id || !globalSearch.trim()) {
+      setGlobalResults(null);
+      return undefined;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        const result = await api.list("/api/search", { q: globalSearch.trim() });
+        setGlobalResults(result);
+      } catch {
+        setGlobalResults(null);
+      }
+    }, 250);
+
+    return () => clearTimeout(timer);
+  }, [globalSearch, user?.id]);
+
   const allowedMenu = useMemo(() => {
     if (user?.role === "admin") return MENU;
     const permissions = safePermissions(user?.permissions_json);
@@ -3292,6 +3336,7 @@ function App() {
         dailyReports={dailyReports}
         bonusItems={bonusItems}
         contentRows={contentRows}
+        user={user}
       />
     );
   } else if (active === "content") {
@@ -3374,6 +3419,50 @@ function App() {
             </div>
 
             <div className="topbar-right">
+              <div className={`global-search ${searchOpen ? "open" : ""}`}>
+                <Search size={16} />
+                <input
+                  value={globalSearch}
+                  onFocus={() => setSearchOpen(true)}
+                  onChange={(e) => setGlobalSearch(e.target.value)}
+                  placeholder="Global qidiruv..."
+                />
+                {searchOpen && globalSearch.trim() ? (
+                  <div className="global-search-panel">
+                    {[
+                      { key: "users", label: "Hodimlar", items: globalResults?.users || [] },
+                      { key: "content", label: "Kontent", items: globalResults?.content || [] },
+                      { key: "tasks", label: "Vazifalar", items: globalResults?.tasks || [] },
+                      { key: "bonuses", label: "Bonus", items: globalResults?.bonuses || [] },
+                      { key: "travel_plans", label: "Safar rejasi", items: globalResults?.travel_plans || [] },
+                      { key: "chats", label: "Chat", items: globalResults?.chats || [] }
+                    ].map((group) => (
+                      <div key={group.key} className="global-search-group">
+                        <strong>{group.label}</strong>
+                        {group.items.length ? group.items.slice(0, 3).map((item) => (
+                          <button
+                            key={`${group.key}-${item.id}`}
+                            type="button"
+                            className="global-search-item"
+                            onClick={() => {
+                              setSearchOpen(false);
+                              setGlobalSearch("");
+                              if (group.key === "users") setActive("users");
+                              else if (group.key === "content") setActive("content");
+                              else if (group.key === "tasks") setActive("tasks");
+                              else if (group.key === "bonuses") setActive("bonus");
+                              else if (group.key === "travel_plans") setActive("travelPlans");
+                              else if (group.key === "chats") setActive("chat");
+                            }}
+                          >
+                            <span>{item.full_name || item.title || item.content_title || item.video_title || item.body}</span>
+                          </button>
+                        )) : <span className="global-search-empty">Topilmadi</span>}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
               <button className="notif-pill" type="button" onClick={() => setActive("chat")}>
                 <MessageCircle size={16} />
                 {unreadChatCount}
@@ -3394,7 +3483,9 @@ function App() {
             </div>
           </div>
 
-          {page}
+          <div className="page-layer" onClick={() => setSearchOpen(false)}>
+            {page}
+          </div>
         </main>
       </div>
 
@@ -3919,6 +4010,62 @@ img{display:block;max-width:100%}
 }
 .topbar h1{margin:8px 0 0;font-size:34px}
 .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.global-search{
+  position:relative;
+  min-width:280px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  background:var(--soft);
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:12px 14px;
+}
+.global-search input{
+  border:none;
+  outline:none;
+  background:transparent;
+  width:100%;
+  color:var(--text);
+}
+.global-search-panel{
+  position:absolute;
+  top:calc(100% + 10px);
+  left:0;
+  width:min(560px, 92vw);
+  padding:14px;
+  border-radius:20px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.96);
+  backdrop-filter:blur(16px);
+  box-shadow:0 22px 46px rgba(15,23,42,.12);
+  display:grid;
+  gap:12px;
+  z-index:25;
+}
+.global-search-group{
+  display:grid;
+  gap:8px;
+}
+.global-search-group strong{
+  font-size:12px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+.global-search-item{
+  border:1px solid var(--line);
+  background:var(--soft);
+  color:var(--text);
+  border-radius:12px;
+  padding:10px 12px;
+  text-align:left;
+  cursor:pointer;
+}
+.global-search-empty{
+  color:var(--muted);
+  font-size:13px;
+}
 
 .theme-toggle,.notif-pill,.user-chip{
   border:1px solid var(--line);
@@ -4333,6 +4480,7 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
 .notif-title{font-weight:800}
 .notif-body{margin-top:6px;color:var(--muted)}
 .notif-footer{margin-top:10px;display:flex;justify-content:space-between;gap:10px;align-items:center}
+.page-layer{display:grid}
 .empty-block{
   padding:18px;
   border:1px dashed var(--line);
