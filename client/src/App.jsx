@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Bell,
+  CreditCard,
   Eye,
   FileBarChart2,
   FolderKanban,
@@ -12,6 +13,7 @@ import {
   MessageCircle,
   Megaphone,
   Moon,
+  MapPinned,
   Pencil,
   Search,
   Send,
@@ -30,6 +32,8 @@ const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: Home },
   { id: "content", title: "Kontent reja", icon: LayoutGrid },
   { id: "bonus", title: "Bonus tizimi", icon: Gift },
+  { id: "expenses", title: "Harajatlar", icon: CreditCard },
+  { id: "travelPlans", title: "Safar rejasi", icon: MapPinned },
   { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: FileBarChart2 },
   { id: "campaigns", title: "Reklama kampaniyalari", icon: Megaphone },
   { id: "uploads", title: "Media kutubxona", icon: Image },
@@ -51,6 +55,14 @@ const PERMISSION_OPTIONS = [
   { id: "bonus_create", label: "Bonus qo'shish" },
   { id: "bonus_edit", label: "Bonus tahrirlash" },
   { id: "bonus_delete", label: "Bonus o'chirish" },
+  { id: "expenses", label: "Harajatlar" },
+  { id: "expenses_create", label: "Harajat qo'shish" },
+  { id: "expenses_edit", label: "Harajat tahrirlash" },
+  { id: "expenses_delete", label: "Harajat o'chirish" },
+  { id: "travelPlans", label: "Safar rejasi" },
+  { id: "travelPlans_create", label: "Safar reja qo'shish" },
+  { id: "travelPlans_edit", label: "Safar reja tahrirlash" },
+  { id: "travelPlans_delete", label: "Safar reja o'chirish" },
   { id: "dailyReports", label: "Kunlik filial hisobotlari" },
   { id: "dailyReports_create", label: "Hisobot qo'shish" },
   { id: "dailyReports_edit", label: "Hisobot tahrirlash" },
@@ -319,9 +331,9 @@ function SectionTitle({ title, desc, right }) {
   );
 }
 
-function StatCard({ title, value, hint }) {
+function StatCard({ title, value, hint, tone = "default" }) {
   return (
-    <div className="stat-card">
+    <div className={`stat-card stat-card-${tone}`}>
       <div className="stat-card-title">{title}</div>
       <div className="stat-card-value">{value}</div>
       {hint ? <div className="stat-card-hint">{hint}</div> : null}
@@ -521,29 +533,33 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
           title="Kontent reja bajarilishi"
           value={`${progress}%`}
           hint={`${postedCount} / ${totalPlan} joylangan`}
+          tone={progress >= 70 ? "success" : progress >= 40 ? "warning" : "danger"}
         />
         <StatCard
           title="Joriy oy bonus puli"
           value={formatMoney(thisMonthBonus)}
           hint={getMonthTitle(currentMonth)}
+          tone="info"
         />
         <StatCard
           title="Bugungi filial hisobotlari"
           value={summary?.today_report_count || 0}
           hint="bugungi ma’lumot"
+          tone={(summary?.today_report_count || 0) > 0 ? "success" : "default"}
         />
         <StatCard
           title="Faol vazifalar"
           value={summary?.task_count || 0}
           hint="umumiy vazifalar"
+          tone="default"
         />
       </div>
 
       <div className="stats-grid analytics-grid">
-        <StatCard title="Kunlik vazifa progress" value={`${summary?.daily_task_progress || 0}%`} hint={`${summary?.daily_task_done || 0} / ${summary?.daily_task_total || 0}`} />
-        <StatCard title="Kechikkan vazifalar" value={summary?.overdue_task_count || 0} hint="darhol ko'rib chiqing" />
-        <StatCard title="3 kun ichidagi vazifalar" value={summary?.due_soon_task_count || 0} hint="eslatma kerak" />
-        <StatCard title="Oy reklama sarfi" value={formatMoney(summary?.monthly_campaign_spend || 0)} hint={getMonthTitle(currentMonth)} />
+        <StatCard title="Kunlik vazifa progress" value={`${summary?.daily_task_progress || 0}%`} hint={`${summary?.daily_task_done || 0} / ${summary?.daily_task_total || 0}`} tone={(summary?.daily_task_progress || 0) >= 70 ? "success" : (summary?.daily_task_progress || 0) >= 40 ? "warning" : "danger"} />
+        <StatCard title="Kechikkan vazifalar" value={summary?.overdue_task_count || 0} hint="darhol ko'rib chiqing" tone={(summary?.overdue_task_count || 0) > 0 ? "danger" : "success"} />
+        <StatCard title="3 kun ichidagi vazifalar" value={summary?.due_soon_task_count || 0} hint="eslatma kerak" tone={(summary?.due_soon_task_count || 0) > 0 ? "warning" : "success"} />
+        <StatCard title="Oy reklama sarfi" value={formatMoney(summary?.monthly_campaign_spend || 0)} hint={getMonthTitle(currentMonth)} tone="info" />
       </div>
 
       <div className="two-grid">
@@ -592,7 +608,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
           <SectionTitle title="Task Reminders" desc="Yaqinlashayotgan va kechikkan vazifalar" />
           <div className="reminder-list">
             {reminders.length ? reminders.map((item) => (
-              <div key={item.id} className={`reminder-card ${formatDate(item.due_date) < formatDate(new Date()) ? "danger" : ""}`}>
+              <div key={item.id} className={`reminder-card ${formatDate(item.due_date) < formatDate(new Date()) ? "danger" : "warning"}`}>
                 <strong>{item.title}</strong>
                 <span>{formatDate(item.due_date)} • {taskStatusLabel(item.status)}</span>
               </div>
@@ -1253,15 +1269,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
 
       <div className="card">
         <SectionTitle title="Hodim bo‘yicha bonus summalari" />
-        <div className="toolbar-actions mb12">
-          <button type="button" className="btn secondary" onClick={() => setViewMode(viewMode === "table" ? "calendar" : "table")}>
-            {viewMode === "table" ? "Calendar view" : "Table view"}
-          </button>
-          <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>Oldingi oy</button>
-          <div className="summary-pill"><strong>{getMonthTitle(selectedMonth)}</strong></div>
-          <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>Keyingi oy</button>
-        </div>
-        {viewMode === "table" ? <div className="table-wrap">
+        <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -1282,18 +1290,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
               )}
             </tbody>
           </table>
-        </div> : (
-          <MiniCalendar
-            monthLabel={selectedMonth}
-            rows={tasks.filter((item) => formatDate(item.due_date) !== "-")}
-            dateKey="due_date"
-            renderItem={(item) => (
-              <button key={item.id} type="button" className={`calendar-pill task ${item.status === "done" ? "done" : ""}`} onClick={() => setViewRow(item)}>
-                {item.title}
-              </button>
-            )}
-          />
-        )}
+        </div>
       </div>
 
       <div className="card">
@@ -2716,6 +2713,261 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
   );
 }
 
+function ExpensesPage({ expenses = [], onToast, reload }) {
+  const emptyForm = {
+    expense_date: "",
+    title: "",
+    vendor_name: "",
+    card_holder: "",
+    amount: "",
+    currency: "UZS",
+    category: "servis",
+    payment_type: "visa",
+    notes: ""
+  };
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const [editRow, setEditRow] = useState(null);
+  const [viewRow, setViewRow] = useState(null);
+  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  function resetForm() {
+    setForm(emptyForm);
+    setEditRow(null);
+  }
+
+  function startEdit(row) {
+    setEditRow(row);
+    setForm({
+      expense_date: formatDate(row.expense_date) === "-" ? "" : formatDate(row.expense_date),
+      title: row.title || "",
+      vendor_name: row.vendor_name || "",
+      card_holder: row.card_holder || "",
+      amount: row.amount || "",
+      currency: row.currency || "UZS",
+      category: row.category || "servis",
+      payment_type: row.payment_type || "visa",
+      notes: row.notes || ""
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    try {
+      setSaving(true);
+      const payload = { ...form, amount: Number(form.amount || 0) };
+      if (editRow?.id) {
+        await api.update("expenses", editRow.id, payload);
+        onToast("Harajat yangilandi", "success");
+      } else {
+        await api.create("expenses", payload);
+        onToast("Harajat saqlandi", "success");
+      }
+      await reload();
+      resetForm();
+    } catch (err) {
+      onToast(err.message || "Harajatni saqlab bo‘lmadi", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeRow(id) {
+    if (!window.confirm("Rostdan ham o‘chirilsinmi?")) return;
+    try {
+      await api.remove("expenses", id);
+      await reload();
+      onToast("Harajat o‘chirildi", "success");
+    } catch (err) {
+      onToast(err.message || "Harajatni o‘chirib bo‘lmadi", "error");
+    }
+  }
+
+  const totalAmount = expenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+
+  return (
+    <div className="page-grid">
+      <div className="card">
+        <SectionTitle title={editRow ? "Harajatni tahrirlash" : "Harajat qo‘shish"} right={editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null} />
+        <form className="form-grid" onSubmit={handleSubmit}>
+          <label><span>Sana</span><input type="date" value={form.expense_date} onChange={(e) => setField("expense_date", e.target.value)} required /></label>
+          <label><span>Nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
+          <label><span>Xizmat yoki ilova</span><input value={form.vendor_name} onChange={(e) => setField("vendor_name", e.target.value)} placeholder="Canva, Meta, CapCut..." /></label>
+          <label><span>Karta egasi</span><input value={form.card_holder} onChange={(e) => setField("card_holder", e.target.value)} placeholder="Visa karta egasi" /></label>
+          <label><span>Summa</span><input type="number" min="0" value={form.amount} onChange={(e) => setField("amount", e.target.value)} required /></label>
+          <label><span>Valyuta</span><select value={form.currency} onChange={(e) => setField("currency", e.target.value)}><option value="UZS">UZS</option><option value="USD">USD</option></select></label>
+          <label><span>Kategoriya</span><select value={form.category} onChange={(e) => setField("category", e.target.value)}><option value="servis">Servis</option><option value="reklama">Reklama</option><option value="safar">Safar</option><option value="boshqa">Boshqa</option></select></label>
+          <label><span>To‘lov turi</span><select value={form.payment_type} onChange={(e) => setField("payment_type", e.target.value)}><option value="visa">Visa karta</option><option value="cash">Naqd</option><option value="bank">Bank</option></select></label>
+          <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
+          <button className="btn primary" type="submit" disabled={saving}>{saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}</button>
+        </form>
+      </div>
+
+      <div className="stats-grid">
+        <StatCard title="Jami harajat" value={formatMoney(totalAmount)} hint="kiritilgan yozuvlar" />
+        <StatCard title="Yozuvlar soni" value={expenses.length} hint="barcha harajatlar" />
+      </div>
+
+      <div className="card">
+        <SectionTitle title="Harajatlar ro‘yxati" />
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Sana</th><th>Nomi</th><th>Xizmat</th><th>To‘lov</th><th>Summa</th><th>Amallar</th></tr></thead>
+            <tbody>
+              {expenses.length ? expenses.map((row) => (
+                <tr key={row.id}>
+                  <td>{formatDate(row.expense_date)}</td>
+                  <td>{row.title}</td>
+                  <td>{row.vendor_name || "-"}</td>
+                  <td>{row.payment_type || "-"}</td>
+                  <td>{Number(row.amount || 0).toLocaleString()} {row.currency || "UZS"}</td>
+                  <td><IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} /></td>
+                </tr>
+              )) : <tr><td colSpan="6" className="empty-cell">Hozircha harajat yo‘q</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Harajat tafsiloti">
+        {viewRow ? <div className="detail-grid">
+          <div><strong>Sana:</strong> {formatDate(viewRow.expense_date)}</div>
+          <div><strong>Nomi:</strong> {viewRow.title}</div>
+          <div><strong>Xizmat:</strong> {viewRow.vendor_name || "-"}</div>
+          <div><strong>Karta egasi:</strong> {viewRow.card_holder || "-"}</div>
+          <div><strong>Summa:</strong> {Number(viewRow.amount || 0).toLocaleString()} {viewRow.currency || "UZS"}</div>
+          <div><strong>Kategoriya:</strong> {viewRow.category || "-"}</div>
+          <div><strong>To‘lov turi:</strong> {viewRow.payment_type || "-"}</div>
+          <div className="full-col"><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
+        </div> : null}
+      </Modal>
+    </div>
+  );
+}
+
+function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
+  const emptyForm = {
+    plan_date: "",
+    branch_id: "",
+    video_title: "",
+    participants_text: "",
+    videodek_url: "",
+    scenario_text: "",
+    status: "reja",
+    notes: ""
+  };
+  const [form, setForm] = useState(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const [editRow, setEditRow] = useState(null);
+  const [viewRow, setViewRow] = useState(null);
+  const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  function resetForm() {
+    setForm(emptyForm);
+    setEditRow(null);
+  }
+
+  function startEdit(row) {
+    setEditRow(row);
+    setForm({
+      plan_date: formatDate(row.plan_date) === "-" ? "" : formatDate(row.plan_date),
+      branch_id: row.branch_id || "",
+      video_title: row.video_title || "",
+      participants_text: row.participants_text || "",
+      videodek_url: row.videodek_url || "",
+      scenario_text: row.scenario_text || "",
+      status: row.status || "reja",
+      notes: row.notes || ""
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    try {
+      setSaving(true);
+      if (editRow?.id) {
+        await api.update("travel-plans", editRow.id, form);
+        onToast("Safar rejasi yangilandi", "success");
+      } else {
+        await api.create("travel-plans", form);
+        onToast("Safar rejasi saqlandi", "success");
+      }
+      await reload();
+      resetForm();
+    } catch (err) {
+      onToast(err.message || "Safar rejasini saqlab bo‘lmadi", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeRow(id) {
+    if (!window.confirm("Rostdan ham o‘chirilsinmi?")) return;
+    try {
+      await api.remove("travel-plans", id);
+      await reload();
+      onToast("Safar rejasi o‘chirildi", "success");
+    } catch (err) {
+      onToast(err.message || "Safar rejasini o‘chirib bo‘lmadi", "error");
+    }
+  }
+
+  return (
+    <div className="page-grid">
+      <div className="card">
+        <SectionTitle title={editRow ? "Safar rejasini tahrirlash" : "Safar rejasi qo‘shish"} right={editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null} />
+        <form className="form-grid" onSubmit={handleSubmit}>
+          <label><span>Sana</span><input type="date" value={form.plan_date} onChange={(e) => setField("plan_date", e.target.value)} required /></label>
+          <label><span>Filial</span><select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)} required><option value="">Tanlang</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
+          <label><span>Qaysi video olinadi</span><input value={form.video_title} onChange={(e) => setField("video_title", e.target.value)} required /></label>
+          <label><span>Kimlar ishtirok etadi</span><input value={form.participants_text} onChange={(e) => setField("participants_text", e.target.value)} placeholder="Ismlar vergul bilan" /></label>
+          <label><span>Videodek URL</span><input value={form.videodek_url} onChange={(e) => setField("videodek_url", e.target.value)} placeholder="https://..." /></label>
+          <label><span>Status</span><select value={form.status} onChange={(e) => setField("status", e.target.value)}><option value="reja">Reja</option><option value="tasdiqlandi">Tasdiqlandi</option><option value="tasvirga_olindi">Tasvirga olindi</option><option value="yakunlandi">Yakunlandi</option></select></label>
+          <label className="full-col"><span>Ssenariy</span><input value={form.scenario_text} onChange={(e) => setField("scenario_text", e.target.value)} placeholder="Qisqa ssenariy yoki outline" /></label>
+          <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
+          <button className="btn primary" type="submit" disabled={saving}>{saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}</button>
+        </form>
+      </div>
+
+      <div className="card">
+        <SectionTitle title="Safar rejalari" />
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Sana</th><th>Filial</th><th>Video</th><th>Ishtirokchilar</th><th>Status</th><th>Amallar</th></tr></thead>
+            <tbody>
+              {travelPlans.length ? travelPlans.map((row) => (
+                <tr key={row.id}>
+                  <td>{formatDate(row.plan_date)}</td>
+                  <td>{row.branch_name || "-"}</td>
+                  <td>{row.video_title}</td>
+                  <td>{row.participants_text || "-"}</td>
+                  <td><span className={`status-badge ${row.status === "yakunlandi" ? "done" : row.status === "tasvirga_olindi" ? "doing" : "todo"}`}>{row.status}</span></td>
+                  <td><IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} /></td>
+                </tr>
+              )) : <tr><td colSpan="6" className="empty-cell">Hozircha safar rejasi yo‘q</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Safar rejasi tafsiloti" wide>
+        {viewRow ? <div className="detail-grid">
+          <div><strong>Sana:</strong> {formatDate(viewRow.plan_date)}</div>
+          <div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div>
+          <div><strong>Video:</strong> {viewRow.video_title}</div>
+          <div><strong>Status:</strong> {viewRow.status || "-"}</div>
+          <div className="full-col"><strong>Ishtirokchilar:</strong> {viewRow.participants_text || "-"}</div>
+          <div className="full-col"><strong>Videodek URL:</strong> {viewRow.videodek_url || "-"}</div>
+          <div className="full-col"><strong>Ssenariy:</strong> {viewRow.scenario_text || "-"}</div>
+          <div className="full-col"><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
+        </div> : null}
+      </Modal>
+    </div>
+  );
+}
+
 function App() {
   const [booting, setBooting] = useState(true);
   const [user, setUser] = useState(getCurrentUser());
@@ -2731,6 +2983,8 @@ function App() {
   const [users, setUsers] = useState([]);
   const [branches, setBranches] = useState([]);
   const [bonusItems, setBonusItems] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [travelPlans, setTravelPlans] = useState([]);
   const [uploads, setUploads] = useState([]);
   const [contentRows, setContentRows] = useState([]);
   const [dailyReports, setDailyReports] = useState([]);
@@ -2755,6 +3009,8 @@ function App() {
         usersRes,
         branchesRes,
         bonusItemsRes,
+        expensesRes,
+        travelPlansRes,
         uploadsRes,
         contentRes,
         dailyReportsRes,
@@ -2769,6 +3025,8 @@ function App() {
         api.list("users").catch(() => []),
         api.list("branches").catch(() => []),
         api.list("bonus-items").catch(() => []),
+        api.list("expenses").catch(() => []),
+        api.list("travel-plans").catch(() => []),
         api.list("uploads").catch(() => []),
         api.list("content").catch(() => []),
         api.list("daily-reports").catch(() => []),
@@ -2784,6 +3042,8 @@ function App() {
       setUsers(usersRes || []);
       setBranches(branchesRes || []);
       setBonusItems(bonusItemsRes || []);
+      setExpenses(expensesRes || []);
+      setTravelPlans(travelPlansRes || []);
       setUploads(uploadsRes || []);
       setContentRows(contentRes || []);
       setDailyReports(dailyReportsRes || []);
@@ -2942,6 +3202,10 @@ function App() {
     page = <ContentPage users={users} settings={settings} onToast={showToast} reload={reloadData} />;
   } else if (active === "bonus") {
     page = <BonusPage bonusItems={bonusItems} users={users} branches={branches} settings={settings} onToast={showToast} reload={reloadData} />;
+  } else if (active === "expenses") {
+    page = <ExpensesPage expenses={expenses} onToast={showToast} reload={reloadData} />;
+  } else if (active === "travelPlans") {
+    page = <TravelPlansPage travelPlans={travelPlans} branches={branches} onToast={showToast} reload={reloadData} />;
   } else if (active === "dailyReports") {
     page = <DailyReportsPage reports={dailyReports} branches={branches} onToast={showToast} reload={reloadData} />;
   } else if (active === "campaigns") {
@@ -3607,6 +3871,65 @@ img{display:block;max-width:100%}
 .stat-card-title{font-size:14px;color:var(--muted)}
 .stat-card-value{font-size:36px;font-weight:900;margin-top:10px}
 .stat-card-hint{font-size:13px;color:var(--muted);margin-top:8px}
+.stat-card{
+  position:relative;
+  overflow:hidden;
+}
+.stat-card::after{
+  content:"";
+  position:absolute;
+  inset:auto -20% -45% auto;
+  width:150px;
+  height:150px;
+  border-radius:999px;
+  filter:blur(6px);
+  opacity:.7;
+  pointer-events:none;
+}
+.stat-card-default{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.96)),
+    var(--panel);
+}
+.stat-card-default::after{
+  background:radial-gradient(circle, rgba(59,130,246,.10), transparent 70%);
+}
+.stat-card-success{
+  background:linear-gradient(135deg, rgba(16,185,129,.12), rgba(255,255,255,.98) 44%, rgba(16,185,129,.06));
+  border-color:rgba(16,185,129,.25);
+  box-shadow:0 18px 40px rgba(16,185,129,.08);
+}
+.stat-card-success::after{
+  background:radial-gradient(circle, rgba(16,185,129,.18), transparent 70%);
+}
+.stat-card-success .stat-card-value{color:#047857}
+.stat-card-warning{
+  background:linear-gradient(135deg, rgba(245,158,11,.15), rgba(255,255,255,.98) 42%, rgba(251,191,36,.08));
+  border-color:rgba(245,158,11,.26);
+  box-shadow:0 18px 40px rgba(245,158,11,.08);
+}
+.stat-card-warning::after{
+  background:radial-gradient(circle, rgba(245,158,11,.18), transparent 70%);
+}
+.stat-card-warning .stat-card-value{color:#b45309}
+.stat-card-danger{
+  background:linear-gradient(135deg, rgba(239,68,68,.16), rgba(255,255,255,.98) 42%, rgba(248,113,113,.08));
+  border-color:rgba(239,68,68,.24);
+  box-shadow:0 18px 40px rgba(239,68,68,.10);
+}
+.stat-card-danger::after{
+  background:radial-gradient(circle, rgba(239,68,68,.18), transparent 70%);
+}
+.stat-card-danger .stat-card-value{color:#b91c1c}
+.stat-card-info{
+  background:linear-gradient(135deg, rgba(59,130,246,.14), rgba(255,255,255,.98) 42%, rgba(125,211,252,.08));
+  border-color:rgba(59,130,246,.24);
+  box-shadow:0 18px 40px rgba(59,130,246,.08);
+}
+.stat-card-info::after{
+  background:radial-gradient(circle, rgba(59,130,246,.18), transparent 70%);
+}
+.stat-card-info .stat-card-value{color:#1d4ed8}
 .analytics-grid{grid-template-columns:repeat(4,1fr)}
 
 .two-grid{
@@ -3652,6 +3975,12 @@ img{display:block;max-width:100%}
   background:linear-gradient(135deg, rgba(225,29,72,.08), rgba(255,255,255,.95));
   border-color:rgba(225,29,72,.22);
 }
+.reminder-card.warning{
+  background:linear-gradient(135deg, rgba(245,158,11,.10), rgba(255,255,255,.96));
+  border-color:rgba(245,158,11,.24);
+}
+.reminder-card.danger strong{color:#b91c1c}
+.reminder-card.warning strong{color:#b45309}
 .reminder-card span{color:var(--muted);font-size:13px}
 .calendar-card{
   display:grid;
