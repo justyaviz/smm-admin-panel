@@ -35,6 +35,8 @@ CREATE TABLE users (
   password_hash TEXT NOT NULL,
   role TEXT NOT NULL DEFAULT 'viewer',
   avatar_url TEXT,
+  department_role TEXT,
+  permissions_json JSONB NOT NULL DEFAULT '[]'::jsonb,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -64,13 +66,19 @@ CREATE TABLE social_accounts (
 CREATE TABLE content_items (
   id SERIAL PRIMARY KEY,
   title TEXT NOT NULL,
-  platform TEXT NOT NULL,
-  content_type TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'draft',
+  platform TEXT NOT NULL DEFAULT '',
+  content_type TEXT NOT NULL DEFAULT 'post',
+  status TEXT NOT NULL DEFAULT 'reja',
   publish_date DATE,
-  assignee_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+  bonus_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+  proposal_count INTEGER NOT NULL DEFAULT 0,
+  approved_count INTEGER NOT NULL DEFAULT 0,
   notes TEXT,
+  plan_month TEXT,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -100,24 +108,29 @@ CREATE TABLE campaigns (
   leads INTEGER NOT NULL DEFAULT 0,
   sales INTEGER NOT NULL DEFAULT 0,
   ctr NUMERIC(8,2) NOT NULL DEFAULT 0,
+  revenue_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
   cpa NUMERIC(14,2) NOT NULL DEFAULT 0,
   roi NUMERIC(14,2) NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'active',
   notes TEXT,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE daily_branch_reports (
   id SERIAL PRIMARY KEY,
   report_date DATE NOT NULL,
   branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
-  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   stories_count INTEGER NOT NULL DEFAULT 0,
   posts_count INTEGER NOT NULL DEFAULT 0,
   reels_count INTEGER NOT NULL DEFAULT 0,
+  calls_count INTEGER NOT NULL DEFAULT 0,
+  walkin_count INTEGER NOT NULL DEFAULT 0,
   notes TEXT,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE (report_date, branch_id, user_id)
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (report_date, branch_id)
 );
 
 CREATE TABLE bonuses (
@@ -134,16 +147,23 @@ CREATE TABLE bonuses (
 
 CREATE TABLE bonus_items (
   id SERIAL PRIMARY KEY,
-  bonus_id INTEGER NOT NULL REFERENCES bonuses(id) ON DELETE CASCADE,
+  month_label TEXT NOT NULL,
   work_date DATE NOT NULL,
   branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
-  content_type TEXT NOT NULL,
+  content_type TEXT NOT NULL DEFAULT 'post',
   content_title TEXT,
   notes TEXT,
-  units INTEGER NOT NULL DEFAULT 0,
-  unit_price NUMERIC(14,2) NOT NULL DEFAULT 25000,
-  amount NUMERIC(14,2) NOT NULL DEFAULT 0,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  proposal_count INTEGER NOT NULL DEFAULT 0,
+  approved_count INTEGER NOT NULL DEFAULT 0,
+  proposal_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+  approved_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+  total_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE uploads (
@@ -179,6 +199,14 @@ CREATE TABLE audit_logs (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE INDEX idx_content_publish_date ON content_items(publish_date);
+CREATE INDEX idx_content_plan_month ON content_items(plan_month);
+CREATE INDEX idx_bonus_items_work_date ON bonus_items(work_date);
+CREATE INDEX idx_bonus_items_month_label ON bonus_items(month_label);
+CREATE INDEX idx_daily_reports_date ON daily_branch_reports(report_date);
+CREATE INDEX idx_tasks_due_date ON tasks(due_date);
+CREATE INDEX idx_notifications_user_read ON notifications(user_id, is_read);
+
 INSERT INTO app_settings (
   company_name,
   platform_name,
@@ -197,6 +225,8 @@ INSERT INTO users (
   login,
   password_hash,
   role,
+  department_role,
+  permissions_json,
   is_active
 ) VALUES (
   'Asosiy administrator',
@@ -204,6 +234,8 @@ INSERT INTO users (
   'admin',
   '$2b$10$1w2I1nA5P0nXkHfA4fRrU.6s7n2lTnV5h2g7xqN1pJt4m4Xw5D8sG',
   'admin',
+  'Administrator',
+  '["dashboard","content","bonus","dailyReports","campaigns","uploads","users","tasks","audit","profile","settings"]'::jsonb,
   TRUE
 );
 
