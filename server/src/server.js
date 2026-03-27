@@ -134,6 +134,32 @@ async function createNotification(userId, title, body, type = "info", category =
   }
 }
 
+function getApprovalNotificationMeta(status, label) {
+  const normalized = String(status || "").toLowerCase();
+  if (normalized === "tasdiqlandi") {
+    return {
+      title: `${label} tasdiqlandi`,
+      body: `${label} keyingi bosqichga o'tdi`,
+      type: "info"
+    };
+  }
+  if (normalized === "jarayonda" || normalized === "tayyorlanmoqda" || normalized === "tasvirga_olindi") {
+    return {
+      title: `${label} jarayonda`,
+      body: `${label} ustida ish boshlandi`,
+      type: "warning"
+    };
+  }
+  if (normalized === "yakunlandi" || normalized === "joylangan") {
+    return {
+      title: `${label} yakunlandi`,
+      body: `${label} bo'yicha ish tugallandi`,
+      type: "success"
+    };
+  }
+  return null;
+}
+
 async function ensureRuntimeSchema() {
   const statements = [
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS company_name TEXT NOT NULL DEFAULT 'aloo'`,
@@ -226,6 +252,15 @@ async function ensureRuntimeSchema() {
       body TEXT NOT NULL,
       author_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP`,
+    `ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP`,
+    `CREATE TABLE IF NOT EXISTS typing_states (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      target_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      is_typing BOOLEAN NOT NULL DEFAULT FALSE,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, target_user_id)
     )`
   ];
 
@@ -1274,8 +1309,15 @@ app.post("/api/content", authRequired, async (req, res) => {
         null,
         "Bonusga o‘tkazildi",
         `${row.title} bonus tizimiga qo‘shildi`,
-        "success"
+        "success",
+        "bonus",
+        "/content"
       );
+    }
+
+    const approvalMeta = getApprovalNotificationMeta(row.status, row.title);
+    if (approvalMeta) {
+      await createNotification(null, approvalMeta.title, approvalMeta.body, approvalMeta.type, "approval", "/content");
     }
 
     await logAction(req.user.id, "create", "content_items", row.id, { title: row.title });
@@ -1310,6 +1352,7 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
 
     const publishDate = formatDateOnly(publish_date);
     const planMonth = publishDate ? publishDate.slice(0, 7) : getMonthLabel();
+    const previous = await client.query(`SELECT status FROM content_items WHERE id = $1 LIMIT 1`, [req.params.id]);
 
     const finalAssignedUserId = content_type === "video" ? null : assigned_user_id || null;
     const finalEditorUserId = content_type === "video" ? video_editor_user_id || null : null;
@@ -1363,6 +1406,13 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
 
     await upsertBonusFromContentRow(client, row, req.user.id);
     await client.query("COMMIT");
+
+    if (previous.rows[0]?.status !== row.status) {
+      const approvalMeta = getApprovalNotificationMeta(row.status, row.title);
+      if (approvalMeta) {
+        await createNotification(null, approvalMeta.title, approvalMeta.body, approvalMeta.type, "approval", "/content");
+      }
+    }
 
     await logAction(req.user.id, "update", "content_items", Number(req.params.id), {
       title: row.title
@@ -2229,6 +2279,15 @@ app.post("/api/notifications/read-all", authRequired, async (req, res) => {
 
 app.get("/api/messages/threads", authRequired, async (req, res) => {
   try {
+    await query(
+      `
+      UPDATE messages
+      SET delivered_at = CURRENT_TIMESTAMP
+      WHERE receiver_user_id = $1 AND delivered_at IS NULL
+      `,
+      [req.user.id]
+    );
+
     const result = await query(
       `
       SELECT
@@ -2244,13 +2303,19 @@ app.get("/api/messages/threads", authRequired, async (req, res) => {
         END AS other_user_id,
         u.full_name AS other_user_name,
         u.login AS other_user_login,
-        u.avatar_url AS other_user_avatar
+        u.avatar_url AS other_user_avatar,
+        u.last_seen_at AS other_user_last_seen,
+        ts.is_typing AS other_user_typing
       FROM messages m
       JOIN users u
         ON u.id = CASE
           WHEN m.sender_user_id = $1 THEN m.receiver_user_id
           ELSE m.sender_user_id
         END
+      LEFT JOIN typing_states ts
+        ON ts.user_id = u.id
+        AND ts.target_user_id = $1
+        AND ts.updated_at > CURRENT_TIMESTAMP - INTERVAL '15 second'
       WHERE m.sender_user_id = $1 OR m.receiver_user_id = $1
       ORDER BY m.created_at DESC
       `,
@@ -2266,6 +2331,8 @@ app.get("/api/messages/threads", authRequired, async (req, res) => {
           other_user_name: row.other_user_name,
           other_user_login: row.other_user_login,
           other_user_avatar: row.other_user_avatar,
+          other_user_last_seen: row.other_user_last_seen,
+          other_user_typing: !!row.other_user_typing,
           last_message: row.body,
           last_message_time: row.created_at,
           unread_count: 0
@@ -2306,6 +2373,8 @@ app.get("/api/messages/thread/:otherUserId", authRequired, async (req, res) => {
       `
       UPDATE messages
       SET is_read = TRUE
+        , read_at = CURRENT_TIMESTAMP
+        , delivered_at = COALESCE(delivered_at, CURRENT_TIMESTAMP)
       WHERE sender_user_id = $1 AND receiver_user_id = $2 AND is_read = FALSE
       `,
       [otherUserId, req.user.id]
@@ -2337,8 +2406,8 @@ app.post("/api/messages", authRequired, async (req, res) => {
 
     const inserted = await query(
       `
-      INSERT INTO messages (sender_user_id, receiver_user_id, body)
-      VALUES ($1, $2, $3)
+      INSERT INTO messages (sender_user_id, receiver_user_id, body, delivered_at)
+      VALUES ($1, $2, $3, NULL)
       RETURNING *
       `,
       [req.user.id, receiver_user_id, body.trim()]
@@ -2348,13 +2417,38 @@ app.post("/api/messages", authRequired, async (req, res) => {
       receiver_user_id,
       "Yangi xabar",
       `${req.user.full_name} sizga xabar yubordi`,
-      "info"
+      "info",
+      "chat"
     );
 
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: `Xabar yuborib bo‘lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/messages/typing", authRequired, async (req, res) => {
+  try {
+    const { target_user_id, is_typing } = req.body;
+    if (!target_user_id) {
+      return res.status(400).json({ message: "Qabul qiluvchi majburiy" });
+    }
+
+    await query(
+      `
+      INSERT INTO typing_states (user_id, target_user_id, is_typing, updated_at)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+      ON CONFLICT (user_id, target_user_id)
+      DO UPDATE SET is_typing = EXCLUDED.is_typing, updated_at = CURRENT_TIMESTAMP
+      `,
+      [req.user.id, Number(target_user_id), !!is_typing]
+    );
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Typing holatini saqlab bo‘lmadi: ${err.message}` });
   }
 });
 
@@ -2562,6 +2656,11 @@ app.post("/api/travel-plans", authRequired, async (req, res) => {
       ]
     );
 
+    const approvalMeta = getApprovalNotificationMeta(inserted.rows[0].status, inserted.rows[0].video_title);
+    if (approvalMeta) {
+      await createNotification(null, approvalMeta.title, approvalMeta.body, approvalMeta.type, "approval", "/travel-plans");
+    }
+
     await logAction(req.user.id, "create", "travel_plans", inserted.rows[0].id, { video_title });
     res.json(inserted.rows[0]);
   } catch (err) {
@@ -2582,6 +2681,8 @@ app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
       status,
       notes
     } = req.body;
+
+    const previous = await query(`SELECT status FROM travel_plans WHERE id = $1 LIMIT 1`, [req.params.id]);
 
     const updated = await query(
       `
@@ -2614,6 +2715,13 @@ app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
 
     if (!updated.rows.length) {
       return res.status(404).json({ message: "Safar rejasi topilmadi" });
+    }
+
+    if (previous.rows[0]?.status !== updated.rows[0].status) {
+      const approvalMeta = getApprovalNotificationMeta(updated.rows[0].status, updated.rows[0].video_title);
+      if (approvalMeta) {
+        await createNotification(null, approvalMeta.title, approvalMeta.body, approvalMeta.type, "approval", "/travel-plans");
+      }
     }
 
     await logAction(req.user.id, "update", "travel_plans", Number(req.params.id), { video_title });
