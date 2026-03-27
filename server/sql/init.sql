@@ -1,3 +1,4 @@
+DROP TABLE IF EXISTS messages CASCADE;
 DROP TABLE IF EXISTS audit_logs CASCADE;
 DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS uploads CASCADE;
@@ -124,8 +125,8 @@ CREATE TABLE daily_branch_reports (
   stories_count INTEGER NOT NULL DEFAULT 0,
   posts_count INTEGER NOT NULL DEFAULT 0,
   reels_count INTEGER NOT NULL DEFAULT 0,
-  calls_count INTEGER NOT NULL DEFAULT 0,
-  walkin_count INTEGER NOT NULL DEFAULT 0,
+  subscriber_count INTEGER NOT NULL DEFAULT 0,
+  condition_text TEXT,
   notes TEXT,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -189,6 +190,15 @@ CREATE TABLE notifications (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE messages (
+  id SERIAL PRIMARY KEY,
+  sender_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  receiver_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  body TEXT NOT NULL,
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE audit_logs (
   id SERIAL PRIMARY KEY,
   user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
@@ -198,14 +208,6 @@ CREATE TABLE audit_logs (
   meta JSONB,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
-CREATE INDEX idx_content_publish_date ON content_items(publish_date);
-CREATE INDEX idx_content_plan_month ON content_items(plan_month);
-CREATE INDEX idx_bonus_items_work_date ON bonus_items(work_date);
-CREATE INDEX idx_bonus_items_month_label ON bonus_items(month_label);
-CREATE INDEX idx_daily_reports_date ON daily_branch_reports(report_date);
-CREATE INDEX idx_tasks_due_date ON tasks(due_date);
-CREATE INDEX idx_notifications_user_read ON notifications(user_id, is_read);
 
 INSERT INTO app_settings (
   company_name,
@@ -235,7 +237,7 @@ INSERT INTO users (
   '$2b$10$1w2I1nA5P0nXkHfA4fRrU.6s7n2lTnV5h2g7xqN1pJt4m4Xw5D8sG',
   'admin',
   'Administrator',
-  '["dashboard","content","bonus","dailyReports","campaigns","uploads","users","tasks","audit","profile","settings"]'::jsonb,
+  '["dashboard","content","bonus","dailyReports","campaigns","uploads","users","tasks","audit","profile","settings","chat","content_create","content_edit","content_delete","bonus_create","bonus_edit","bonus_delete","dailyReports_create","dailyReports_edit","dailyReports_delete","campaigns_create","campaigns_edit","campaigns_delete","uploads_create","uploads_delete","users_create","users_edit","users_delete","tasks_create","tasks_edit","tasks_delete"]'::jsonb,
   TRUE
 );
 
