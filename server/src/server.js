@@ -259,7 +259,9 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
     proposalAmount,
     approvedAmount,
     totalAmount,
-    row.content_type === "video" ? null : row.assigned_user_id || null,
+    row.content_type === "video"
+      ? row.video_editor_user_id || row.video_face_user_id || row.assigned_user_id || null
+      : row.assigned_user_id || null,
     row.content_type === "video" ? row.video_editor_user_id || null : null,
     row.content_type === "video" ? row.video_face_user_id || null : null
   ];
@@ -1042,7 +1044,7 @@ app.post("/api/content", authRequired, async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ message: "Kontent qo‘shib bo‘lmadi" });
+    res.status(500).json({ message: `Kontent qo‘shib bo‘lmadi: ${err.message}` });
   } finally {
     client.release();
   }
@@ -1131,7 +1133,7 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ message: "Kontentni yangilab bo‘lmadi" });
+    res.status(500).json({ message: `Kontentni yangilab bo‘lmadi: ${err.message}` });
   } finally {
     client.release();
   }
@@ -1252,7 +1254,9 @@ app.post("/api/bonus-items", authRequired, async (req, res) => {
         proposalAmount,
         approvedAmount,
         totalAmount,
-        content_type === "video" ? null : user_id || null,
+        content_type === "video"
+          ? video_editor_user_id || video_face_user_id || user_id || null
+          : user_id || null,
         content_type === "video" ? video_editor_user_id || null : null,
         content_type === "video" ? video_face_user_id || null : null,
         branch_id || null,
@@ -1267,7 +1271,7 @@ app.post("/api/bonus-items", authRequired, async (req, res) => {
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Bonus hisobotini qo‘shib bo‘lmadi" });
+    res.status(500).json({ message: `Bonus hisobotini qo‘shib bo‘lmadi: ${err.message}` });
   }
 });
 
@@ -1324,7 +1328,9 @@ app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
         proposalAmount,
         approvedAmount,
         totalAmount,
-        content_type === "video" ? null : user_id || null,
+        content_type === "video"
+          ? video_editor_user_id || video_face_user_id || user_id || null
+          : user_id || null,
         content_type === "video" ? video_editor_user_id || null : null,
         content_type === "video" ? video_face_user_id || null : null,
         branch_id || null,
@@ -1343,7 +1349,7 @@ app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Bonus hisobotini yangilab bo‘lmadi" });
+    res.status(500).json({ message: `Bonus hisobotini yangilab bo‘lmadi: ${err.message}` });
   }
 });
 
