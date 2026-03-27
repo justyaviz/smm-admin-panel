@@ -1261,7 +1261,7 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
           <label><span>Post</span><input type="number" min="0" value={form.posts_count} onChange={(e) => setField("posts_count", Number(e.target.value))} /></label>
           <label><span>Reels</span><input type="number" min="0" value={form.reels_count} onChange={(e) => setField("reels_count", Number(e.target.value))} /></label>
           <label><span>Obunachi soni</span><input type="number" min="0" value={form.subscriber_count} onChange={(e) => setField("subscriber_count", Number(e.target.value))} /></label>
-          <label><span>Ahvol</span><input value={form.condition_text} onChange={(e) => setField("condition_text", e.target.value)} /></label>
+          <label><span>AXVAT</span><input value={form.condition_text} onChange={(e) => setField("condition_text", e.target.value)} /></label>
           <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
 
           <button className="btn primary" type="submit" disabled={saving}>
@@ -1285,7 +1285,7 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
                 <th>Post</th>
                 <th>Reels</th>
                 <th>Obunachi soni</th>
-                <th>Ahvol</th>
+                <th>AXVAT</th>
                 <th>Izoh</th>
                 <th>Amallar</th>
               </tr>
@@ -1328,7 +1328,7 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
             <div><strong>Post:</strong> {viewRow.posts_count}</div>
             <div><strong>Reels:</strong> {viewRow.reels_count}</div>
             <div><strong>Obunachi soni:</strong> {viewRow.subscriber_count || 0}</div>
-            <div><strong>Ahvol:</strong> {viewRow.condition_text || "-"}</div>
+            <div><strong>AXVAT:</strong> {viewRow.condition_text || "-"}</div>
             <div><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
           </div>
         ) : null}
