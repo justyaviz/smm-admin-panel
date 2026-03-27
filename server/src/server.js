@@ -78,8 +78,18 @@ function monthLabelFromDate(dateValue) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function calcMoney(count) {
-  return Number(count || 0) * 25000;
+async function getBonusRate() {
+  try {
+    const result = await query(`SELECT bonus_rate FROM app_settings ORDER BY id ASC LIMIT 1`);
+    return Number(result.rows[0]?.bonus_rate || 25000);
+  } catch {
+    return 25000;
+  }
+}
+
+async function calcMoney(count) {
+  const rate = await getBonusRate();
+  return Number(count || 0) * rate;
 }
 
 function calcCpa(spend, leads) {
@@ -130,6 +140,7 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS platform_name TEXT NOT NULL DEFAULT 'SMM jamoasi platformasi'`,
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS department_name TEXT NOT NULL DEFAULT 'SMM department'`,
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS logo_url TEXT`,
+    `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS bonus_rate NUMERIC(14,2) NOT NULL DEFAULT 25000`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS bonus_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
@@ -217,12 +228,13 @@ async function ensureRuntimeSchema() {
 
 async function recomputeBonusFromItems() {
   try {
+    const bonusRate = await getBonusRate();
     await query(`
       UPDATE bonus_items
       SET
-        proposal_amount = COALESCE(proposal_count, 0) * 25000,
-        approved_amount = COALESCE(approved_count, 0) * 25000,
-        total_amount = (COALESCE(proposal_count, 0) + COALESCE(approved_count, 0)) * 25000,
+        proposal_amount = COALESCE(proposal_count, 0) * ${bonusRate},
+        approved_amount = COALESCE(approved_count, 0) * ${bonusRate},
+        total_amount = (COALESCE(proposal_count, 0) + COALESCE(approved_count, 0)) * ${bonusRate},
         updated_at = CURRENT_TIMESTAMP
     `);
   } catch (err) {
@@ -248,8 +260,8 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
 
   const proposalCount = Number(row.proposal_count || 0);
   const approvedCount = Number(row.approved_count || 0);
-  const proposalAmount = calcMoney(proposalCount);
-  const approvedAmount = calcMoney(approvedCount);
+  const proposalAmount = await calcMoney(proposalCount);
+  const approvedAmount = await calcMoney(approvedCount);
   const totalAmount = proposalAmount + approvedAmount;
 
   const existing = await db.query(
@@ -547,22 +559,81 @@ app.post("/api/auth/change-password", authRequired, async (req, res) => {
 
 /* DASHBOARD */
 
-app.get("/api/dashboard/summary", authRequired, async (_, res) => {
+app.get("/api/dashboard/summary", authRequired, async (req, res) => {
   try {
-    const [contentCount, taskCount, campaignCount, userCount, todayReports] = await Promise.all([
+    const currentMonth = getMonthLabel();
+    const reminderSql =
+      req.user.role === "admin" || req.user.role === "manager"
+        ? `
+        SELECT id, title, due_date, status, priority
+        FROM tasks
+        WHERE status <> 'done' AND due_date IS NOT NULL AND due_date <= CURRENT_DATE + INTERVAL '3 day'
+        ORDER BY due_date ASC, id DESC
+        LIMIT 5
+        `
+        : `
+        SELECT id, title, due_date, status, priority
+        FROM tasks
+        WHERE assignee_user_id = $1
+          AND status <> 'done'
+          AND due_date IS NOT NULL
+          AND due_date <= CURRENT_DATE + INTERVAL '3 day'
+        ORDER BY due_date ASC, id DESC
+        LIMIT 5
+        `;
+
+    const overdueSql =
+      req.user.role === "admin" || req.user.role === "manager"
+        ? `SELECT COUNT(*)::int AS count FROM tasks WHERE status <> 'done' AND due_date < CURRENT_DATE`
+        : `SELECT COUNT(*)::int AS count FROM tasks WHERE assignee_user_id = $1 AND status <> 'done' AND due_date < CURRENT_DATE`;
+
+    const dueSoonSql =
+      req.user.role === "admin" || req.user.role === "manager"
+        ? `SELECT COUNT(*)::int AS count FROM tasks WHERE status <> 'done' AND due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 day'`
+        : `SELECT COUNT(*)::int AS count FROM tasks WHERE assignee_user_id = $1 AND status <> 'done' AND due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 day'`;
+
+    const [contentCount, taskCount, campaignCount, userCount, todayReports, taskProgress, overdueTasks, dueSoonTasks, monthlyContent, monthlyBonus, campaignSpend, reminders, bonusRate] = await Promise.all([
       query(`SELECT COUNT(*)::int AS count FROM content_items`),
       query(`SELECT COUNT(*)::int AS count FROM tasks`),
       query(`SELECT COUNT(*)::int AS count FROM campaigns`),
       query(`SELECT COUNT(*)::int AS count FROM users WHERE is_active = TRUE`),
-      query(`SELECT COUNT(*)::int AS count FROM daily_branch_reports WHERE report_date = CURRENT_DATE`)
+      query(`SELECT COUNT(*)::int AS count FROM daily_branch_reports WHERE report_date = CURRENT_DATE`),
+      query(
+        `
+        SELECT
+          COUNT(*)::int AS total,
+          COUNT(*) FILTER (WHERE status = 'done')::int AS done_count
+        FROM tasks
+        `
+      ),
+      req.user.role === "admin" || req.user.role === "manager" ? query(overdueSql) : query(overdueSql, [req.user.id]),
+      req.user.role === "admin" || req.user.role === "manager" ? query(dueSoonSql) : query(dueSoonSql, [req.user.id]),
+      query(`SELECT COUNT(*)::int AS count FROM content_items WHERE plan_month = $1`, [currentMonth]),
+      query(`SELECT COALESCE(SUM(total_amount), 0)::numeric AS amount FROM bonus_items WHERE month_label = $1`, [currentMonth]),
+      query(`SELECT COALESCE(SUM(spend), 0)::numeric AS amount FROM campaigns WHERE to_char(start_date, 'YYYY-MM') = $1 OR to_char(end_date, 'YYYY-MM') = $1`, [currentMonth]),
+      req.user.role === "admin" || req.user.role === "manager" ? query(reminderSql) : query(reminderSql, [req.user.id]),
+      query(`SELECT COALESCE(bonus_rate, 25000)::numeric AS rate FROM app_settings ORDER BY id ASC LIMIT 1`)
     ]);
+
+    const totalTasks = Number(taskProgress.rows[0]?.total || 0);
+    const doneTasks = Number(taskProgress.rows[0]?.done_count || 0);
 
     res.json({
       content_count: contentCount.rows[0].count,
       task_count: taskCount.rows[0].count,
       campaign_count: campaignCount.rows[0].count,
       user_count: userCount.rows[0].count,
-      today_report_count: todayReports.rows[0].count
+      today_report_count: todayReports.rows[0].count,
+      daily_task_total: totalTasks,
+      daily_task_done: doneTasks,
+      daily_task_progress: totalTasks ? Math.round((doneTasks / totalTasks) * 100) : 0,
+      overdue_task_count: Number(overdueTasks.rows[0]?.count || 0),
+      due_soon_task_count: Number(dueSoonTasks.rows[0]?.count || 0),
+      monthly_content_count: Number(monthlyContent.rows[0]?.count || 0),
+      monthly_bonus_amount: Number(monthlyBonus.rows[0]?.amount || 0),
+      monthly_campaign_spend: Number(campaignSpend.rows[0]?.amount || 0),
+      bonus_rate: Number(bonusRate.rows[0]?.rate || 25000),
+      reminders: reminders.rows || []
     });
   } catch (err) {
     console.error(err);
@@ -589,6 +660,7 @@ app.put("/api/settings", authRequired, async (req, res) => {
       platform_name,
       department_name,
       logo_url,
+      bonus_rate,
       website_url,
       telegram_url,
       instagram_url,
@@ -608,6 +680,7 @@ app.put("/api/settings", authRequired, async (req, res) => {
           platform_name,
           department_name,
           logo_url,
+          bonus_rate,
           website_url,
           telegram_url,
           instagram_url,
@@ -615,13 +688,14 @@ app.put("/api/settings", authRequired, async (req, res) => {
           facebook_url,
           tiktok_url
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
         `,
         [
           company_name || "aloo",
           platform_name || "",
           department_name || "",
           logo_url || "",
+          Number(bonus_rate || 25000),
           website_url || "",
           telegram_url || "",
           instagram_url || "",
@@ -639,20 +713,22 @@ app.put("/api/settings", authRequired, async (req, res) => {
           platform_name = $2,
           department_name = $3,
           logo_url = $4,
-          website_url = $5,
-          telegram_url = $6,
-          instagram_url = $7,
-          youtube_url = $8,
-          facebook_url = $9,
-          tiktok_url = $10,
+          bonus_rate = $5,
+          website_url = $6,
+          telegram_url = $7,
+          instagram_url = $8,
+          youtube_url = $9,
+          facebook_url = $10,
+          tiktok_url = $11,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $11
+        WHERE id = $12
         `,
         [
           company_name || "aloo",
           platform_name || "",
           department_name || "",
           logo_url || "",
+          Number(bonus_rate || 25000),
           website_url || "",
           telegram_url || "",
           instagram_url || "",
@@ -1231,8 +1307,8 @@ app.post("/api/bonus-items", authRequired, async (req, res) => {
     const dateOnly = formatDateOnly(work_date);
     const month = month_label || getMonthLabel(dateOnly || new Date());
 
-    const proposalAmount = calcMoney(proposal_count);
-    const approvedAmount = calcMoney(approved_count);
+    const proposalAmount = await calcMoney(proposal_count);
+    const approvedAmount = await calcMoney(approved_count);
     const totalAmount = proposalAmount + approvedAmount;
 
     const inserted = await query(
@@ -1306,8 +1382,8 @@ app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
     const dateOnly = formatDateOnly(work_date);
     const month = month_label || getMonthLabel(dateOnly || new Date());
 
-    const proposalAmount = calcMoney(proposal_count);
-    const approvedAmount = calcMoney(approved_count);
+    const proposalAmount = await calcMoney(proposal_count);
+    const approvedAmount = await calcMoney(approved_count);
     const totalAmount = proposalAmount + approvedAmount;
 
     const updated = await query(
