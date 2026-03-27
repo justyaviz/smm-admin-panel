@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bell,
   CreditCard,
@@ -26,7 +26,8 @@ import {
   ShieldCheck,
   X
 } from "lucide-react";
-import { api, clearAuth, getCurrentUser } from "./api";
+import { io } from "socket.io-client";
+import { api, clearAuth, getAuthToken, getCurrentUser, SOCKET_BASE } from "./api";
 
 const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: Home },
@@ -2845,10 +2846,12 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [body, setBody] = useState("");
-  const [typing, setTyping] = useState(false);
+  const socketRef = useRef(null);
   const quickContacts = users
     .filter((item) => item.id !== user?.id && item.is_active !== false)
     .slice(0, 8);
+  const resolvedActiveThread =
+    threads.find((item) => item.other_user_id === activeThread?.other_user_id) || activeThread;
 
   useEffect(() => {
     if (!activeThread && threads.length) {
@@ -2857,15 +2860,90 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
   }, [threads, activeThread]);
 
   useEffect(() => {
+    const token = getAuthToken();
+    if (!token || !user?.id) return undefined;
+
+    const socket = io(SOCKET_BASE, {
+      transports: ["websocket", "polling"],
+      auth: { token }
+    });
+
+    socketRef.current = socket;
+
+    socket.on("connect", () => {
+      reload();
+    });
+
+    socket.on("presence:update", () => {
+      reload();
+    });
+
+    socket.on("chat:typing", (payload) => {
+      if (Number(payload?.user_id) === Number(resolvedActiveThread?.other_user_id)) {
+        reload();
+      }
+    });
+
+    socket.on("chat:new_message", (payload) => {
+      const otherUserId =
+        Number(payload?.sender_user_id) === Number(user?.id)
+          ? Number(payload?.receiver_user_id)
+          : Number(payload?.sender_user_id);
+
+      if (Number(otherUserId) === Number(resolvedActiveThread?.other_user_id)) {
+        setMessages((prev) => (
+          prev.some((item) => item.id === payload.id) ? prev : [...prev, payload]
+        ));
+        socket.emit("chat:thread:open", { other_user_id: otherUserId });
+      }
+
+      reload();
+    });
+
+    socket.on("chat:message_status", (payload) => {
+      setMessages((prev) =>
+        prev.map((item) => (
+          item.id === payload.id
+            ? {
+                ...item,
+                delivered_at: payload.delivered_at || item.delivered_at,
+                read_at: payload.read_at || item.read_at
+              }
+            : item
+        ))
+      );
+      reload();
+    });
+
+    socket.on("chat:read", (payload) => {
+      const ids = new Set(payload?.message_ids || []);
+      setMessages((prev) =>
+        prev.map((item) => (
+          ids.has(item.id)
+            ? { ...item, read_at: payload.read_at || item.read_at }
+            : item
+        ))
+      );
+      reload();
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [user?.id, resolvedActiveThread?.other_user_id]);
+
+  useEffect(() => {
     async function loadMessages() {
-      if (!activeThread?.other_user_id) {
+      if (!resolvedActiveThread?.other_user_id) {
         setMessages([]);
         return;
       }
       try {
         setLoading(true);
-        const data = await api.list(`/api/messages/thread/${activeThread.other_user_id}`);
+        const data = await api.list(`/api/messages/thread/${resolvedActiveThread.other_user_id}`);
         setMessages(data || []);
+        socketRef.current?.emit("chat:thread:open", { other_user_id: resolvedActiveThread.other_user_id });
         await reload();
       } catch (err) {
         onToast(err.message || "Xabarlarni olib bo'lmadi", "error");
@@ -2874,24 +2952,23 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
       }
     }
     loadMessages();
-    if (!activeThread?.other_user_id) return undefined;
-    const timer = setInterval(loadMessages, 1500);
+    if (!resolvedActiveThread?.other_user_id) return undefined;
+    const timer = setInterval(loadMessages, 10000);
     return () => clearInterval(timer);
-  }, [activeThread?.other_user_id]);
+  }, [resolvedActiveThread?.other_user_id]);
 
   useEffect(() => {
-    if (!activeThread?.other_user_id) return undefined;
-    const timer = setTimeout(async () => {
-      try {
-        await api.create("messages/typing", {
-          target_user_id: activeThread.other_user_id,
-          is_typing: !!body.trim()
-        });
-        setTyping(!!body.trim());
-      } catch {}
-    }, 250);
+    if (!resolvedActiveThread?.other_user_id) return undefined;
+    const timer = setTimeout(() => {
+      const payload = {
+        target_user_id: resolvedActiveThread.other_user_id,
+        is_typing: !!body.trim()
+      };
+      socketRef.current?.emit("chat:typing", payload);
+      api.create("messages/typing", payload).catch(() => {});
+    }, 180);
     return () => clearTimeout(timer);
-  }, [body, activeThread?.other_user_id]);
+  }, [body, resolvedActiveThread?.other_user_id]);
 
   function resolveMentionTarget(text) {
     const match = String(text || "").trim().match(/^@([a-zA-Z0-9._-]+)/);
@@ -2914,7 +2991,7 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
     if (!trimmed) return;
 
     const mentionTarget = resolveMentionTarget(trimmed);
-    const receiverId = activeThread?.other_user_id || mentionTarget?.id;
+    const receiverId = resolvedActiveThread?.other_user_id || mentionTarget?.id;
     if (!receiverId) {
       onToast("Xabar uchun @login yozing yoki chat tanlang", "error");
       return;
@@ -2922,24 +2999,28 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
 
     try {
       setSending(true);
-      await api.create("messages", {
+      const message = await api.create("messages", {
         receiver_user_id: receiverId,
         body: trimmed
       });
       setBody("");
+      socketRef.current?.emit("chat:typing", {
+        target_user_id: receiverId,
+        is_typing: false
+      });
       const targetThread =
-        activeThread?.other_user_id === receiverId
-          ? activeThread
+        resolvedActiveThread?.other_user_id === receiverId
+          ? resolvedActiveThread
           : threads.find((item) => item.other_user_id === receiverId) || {
               other_user_id: receiverId,
               other_user_name: mentionTarget?.full_name || "Yangi chat",
               other_user_login: mentionTarget?.login || ""
             };
       setActiveThread(targetThread);
-      const data = await api.list(`/api/messages/thread/${receiverId}`);
-      setMessages(data || []);
+      setMessages((prev) => (
+        prev.some((item) => item.id === message.id) ? prev : [...prev, message]
+      ));
       await reload();
-      onToast("Xabar yuborildi", "success");
     } catch (err) {
       onToast(err.message || "Xabar yuborib bo'lmadi", "error");
     } finally {
@@ -2953,7 +3034,7 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
         <SectionTitle
           title="Chat"
           desc="@login bilan yangi xabar boshlasangiz ham bo'ladi"
-          right={<div className="chat-hint">Live polling + typing/read holati yoqilgan</div>}
+          right={<div className="chat-hint">Socket.IO live chat, typing, online, delivered/read</div>}
         />
         <div className="chat-layout">
           <div className="chat-threads">
@@ -2961,7 +3042,7 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
               <button
                 key={thread.other_user_id}
                 type="button"
-                className={`thread-card ${activeThread?.other_user_id === thread.other_user_id ? "active" : ""}`}
+                className={`thread-card ${resolvedActiveThread?.other_user_id === thread.other_user_id ? "active" : ""}`}
                 onClick={() => setActiveThread(thread)}
               >
                 <div className="thread-avatar">
@@ -2992,7 +3073,8 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
                         setActiveThread({
                           other_user_id: contact.id,
                           other_user_name: contact.full_name,
-                          other_user_login: contact.login || ""
+                          other_user_login: contact.login || "",
+                          other_user_last_seen: contact.last_seen_at
                         });
                         setBody((prev) => prev || `@${contact.login || contact.phone || ""} `);
                       }}
@@ -3014,12 +3096,12 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
 
           <div className="chat-window">
             <div className="chat-header">
-              <strong>{activeThread?.other_user_name || "Chat tanlang"}</strong>
+              <strong>{resolvedActiveThread?.other_user_name || "Chat tanlang"}</strong>
               <div className="chat-header-meta">
-                {activeThread?.other_user_login ? <span>@{activeThread.other_user_login}</span> : null}
-                {activeThread?.other_user_last_seen ? <span className={`presence-pill ${isUserOnline(activeThread.other_user_last_seen) ? "online" : "offline"}`}>{isUserOnline(activeThread.other_user_last_seen) ? "online" : "offline"}</span> : null}
-                {activeThread?.other_user_typing ? <span className="typing-indicator">yozmoqda...</span> : null}
-                {!activeThread?.other_user_typing && activeThread?.other_user_last_seen ? <span>oxirgi faollik: {formatDateTime(activeThread.other_user_last_seen)}</span> : null}
+                {resolvedActiveThread?.other_user_login ? <span>@{resolvedActiveThread.other_user_login}</span> : null}
+                {resolvedActiveThread?.other_user_last_seen ? <span className={`presence-pill ${isUserOnline(resolvedActiveThread.other_user_last_seen) ? "online" : "offline"}`}>{isUserOnline(resolvedActiveThread.other_user_last_seen) ? "online" : "offline"}</span> : null}
+                {resolvedActiveThread?.other_user_typing ? <span className="typing-indicator">yozmoqda...</span> : null}
+                {!resolvedActiveThread?.other_user_typing && resolvedActiveThread?.other_user_last_seen ? <span>oxirgi faollik: {formatDateTime(resolvedActiveThread.other_user_last_seen)}</span> : null}
               </div>
             </div>
             <div className="chat-messages">
