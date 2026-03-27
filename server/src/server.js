@@ -6,7 +6,7 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { query } from "./db.js";
+import { getClient, query } from "./db.js";
 import { authRequired, rolesAllowed, signToken } from "./auth.js";
 import { sendExcel, sendSimplePdf } from "./exports.js";
 
@@ -139,7 +139,7 @@ async function recomputeBonusFromItems() {
   }
 }
 
-async function upsertBonusFromContentRow(row, actorUserId = null) {
+async function upsertBonusFromContentRow(db, row, actorUserId = null) {
   const workDate = normalizeDateOnly(row.publish_date);
   const monthLabel = row.plan_month || monthLabelFromDate(workDate);
 
@@ -148,7 +148,7 @@ async function upsertBonusFromContentRow(row, actorUserId = null) {
   }
 
   if (!row.bonus_enabled) {
-    await query(
+    await db.query(
       `DELETE FROM bonus_items WHERE content_title = $1 AND work_date = $2`,
       [row.title, workDate]
     );
@@ -161,7 +161,7 @@ async function upsertBonusFromContentRow(row, actorUserId = null) {
   const approvedAmount = calcMoney(approvedCount);
   const totalAmount = proposalAmount + approvedAmount;
 
-  const existing = await query(
+  const existing = await db.query(
     `SELECT id FROM bonus_items WHERE content_title = $1 AND work_date = $2 LIMIT 1`,
     [row.title, workDate]
   );
@@ -182,7 +182,7 @@ async function upsertBonusFromContentRow(row, actorUserId = null) {
   ];
 
   if (existing.rows.length) {
-    await query(
+    await db.query(
       `
       UPDATE bonus_items
       SET
@@ -204,7 +204,7 @@ async function upsertBonusFromContentRow(row, actorUserId = null) {
       [...values, existing.rows[0].id]
     );
   } else {
-    await query(
+    await db.query(
       `
       INSERT INTO bonus_items
       (
@@ -361,7 +361,7 @@ app.put("/api/auth/profile", authRequired, async (req, res) => {
   try {
     const { full_name, phone, login, avatar_url, department_role } = req.body;
 
-    const updated = await query(
+    const updated = await client.query(
       `
       UPDATE users
       SET
@@ -635,7 +635,7 @@ app.post("/api/users", authRequired, async (req, res) => {
     const hashed = await bcrypt.hash(password, 10);
     const permissions = Array.isArray(permissions_json) ? permissions_json : [];
 
-    const inserted = await query(
+    const inserted = await client.query(
       `
       INSERT INTO users
       (
@@ -875,7 +875,9 @@ app.get("/api/content", authRequired, async (req, res) => {
 });
 
 app.post("/api/content", authRequired, async (req, res) => {
+  const client = await getClient();
   try {
+    await client.query("BEGIN");
     const {
       title,
       publish_date,
@@ -898,7 +900,7 @@ app.post("/api/content", authRequired, async (req, res) => {
     const finalEditorUserId = content_type === "video" ? video_editor_user_id || null : null;
     const finalFaceUserId = content_type === "video" ? video_face_user_id || null : null;
 
-    const inserted = await query(
+    const inserted = await client.query(
       `
       INSERT INTO content_items
       (
@@ -940,7 +942,8 @@ app.post("/api/content", authRequired, async (req, res) => {
 
     const row = inserted.rows[0];
 
-    await upsertBonusFromContentRow(row, req.user.id);
+    await upsertBonusFromContentRow(client, row, req.user.id);
+    await client.query("COMMIT");
 
     if (row.bonus_enabled) {
       await createNotification(
@@ -954,13 +957,18 @@ app.post("/api/content", authRequired, async (req, res) => {
     await logAction(req.user.id, "create", "content_items", row.id, { title: row.title });
     res.json(row);
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error(err);
     res.status(500).json({ message: "Kontent qo‘shib bo‘lmadi" });
+  } finally {
+    client.release();
   }
 });
 
 app.put("/api/content/:id", authRequired, async (req, res) => {
+  const client = await getClient();
   try {
+    await client.query("BEGIN");
     const {
       title,
       publish_date,
@@ -983,7 +991,7 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
     const finalEditorUserId = content_type === "video" ? video_editor_user_id || null : null;
     const finalFaceUserId = content_type === "video" ? video_face_user_id || null : null;
 
-    const updated = await query(
+    const updated = await client.query(
       `
       UPDATE content_items
       SET
@@ -1023,12 +1031,14 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
     );
 
     if (!updated.rows.length) {
+      await client.query("ROLLBACK");
       return res.status(404).json({ message: "Kontent topilmadi" });
     }
 
     const row = updated.rows[0];
 
-    await upsertBonusFromContentRow(row, req.user.id);
+    await upsertBonusFromContentRow(client, row, req.user.id);
+    await client.query("COMMIT");
 
     await logAction(req.user.id, "update", "content_items", Number(req.params.id), {
       title: row.title
@@ -1036,8 +1046,11 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
 
     res.json(row);
   } catch (err) {
+    await client.query("ROLLBACK");
     console.error(err);
     res.status(500).json({ message: "Kontentni yangilab bo‘lmadi" });
+  } finally {
+    client.release();
   }
 });
 
@@ -1300,8 +1313,8 @@ app.post("/api/daily-reports", authRequired, async (req, res) => {
       stories_count,
       posts_count,
       reels_count,
-      calls_count,
-      walkin_count,
+      subscriber_count,
+      condition_text,
       notes
     } = req.body;
 
@@ -1314,8 +1327,8 @@ app.post("/api/daily-reports", authRequired, async (req, res) => {
         stories_count,
         posts_count,
         reels_count,
-        calls_count,
-        walkin_count,
+        subscriber_count,
+        condition_text,
         notes,
         created_by
       )
@@ -1328,8 +1341,8 @@ app.post("/api/daily-reports", authRequired, async (req, res) => {
         Number(stories_count || 0),
         Number(posts_count || 0),
         Number(reels_count || 0),
-        Number(calls_count || 0),
-        Number(walkin_count || 0),
+        Number(subscriber_count || 0),
+        condition_text || "",
         notes || "",
         req.user.id
       ]
@@ -1353,8 +1366,8 @@ app.put("/api/daily-reports/:id", authRequired, async (req, res) => {
       stories_count,
       posts_count,
       reels_count,
-      calls_count,
-      walkin_count,
+      subscriber_count,
+      condition_text,
       notes
     } = req.body;
 
@@ -1367,8 +1380,8 @@ app.put("/api/daily-reports/:id", authRequired, async (req, res) => {
         stories_count = $3,
         posts_count = $4,
         reels_count = $5,
-        calls_count = $6,
-        walkin_count = $7,
+        subscriber_count = $6,
+        condition_text = $7,
         notes = $8,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $9
@@ -1380,8 +1393,8 @@ app.put("/api/daily-reports/:id", authRequired, async (req, res) => {
         Number(stories_count || 0),
         Number(posts_count || 0),
         Number(reels_count || 0),
-        Number(calls_count || 0),
-        Number(walkin_count || 0),
+        Number(subscriber_count || 0),
+        condition_text || "",
         notes || "",
         req.params.id
       ]
@@ -1580,6 +1593,7 @@ app.get("/api/tasks", authRequired, async (req, res) => {
   try {
     const { date } = req.query;
     const params = [];
+    let index = 1;
 
     let sql = `
       SELECT
@@ -1587,10 +1601,17 @@ app.get("/api/tasks", authRequired, async (req, res) => {
         u.full_name AS assignee_name
       FROM tasks t
       LEFT JOIN users u ON u.id = t.assignee_user_id
+      WHERE 1=1
     `;
 
+    if (req.user.role !== "admin" && req.user.role !== "manager") {
+      sql += ` AND t.assignee_user_id = $${index} `;
+      params.push(req.user.id);
+      index++;
+    }
+
     if (date) {
-      sql += ` WHERE t.due_date = $1 `;
+      sql += ` AND t.due_date = $${index} `;
       params.push(formatDateOnly(date));
     }
 
@@ -1607,6 +1628,10 @@ app.get("/api/tasks", authRequired, async (req, res) => {
 app.post("/api/tasks", authRequired, async (req, res) => {
   try {
     const { title, description, status, priority, due_date, assignee_user_id } = req.body;
+    const finalAssigneeUserId =
+      req.user.role === "admin" || req.user.role === "manager"
+        ? assignee_user_id || null
+        : req.user.id;
 
     const inserted = await query(
       `
@@ -1629,7 +1654,7 @@ app.post("/api/tasks", authRequired, async (req, res) => {
         status || "todo",
         priority || "medium",
         formatDateOnly(due_date),
-        assignee_user_id || null,
+        finalAssigneeUserId,
         req.user.id
       ]
     );
@@ -1645,9 +1670,13 @@ app.post("/api/tasks", authRequired, async (req, res) => {
 app.put("/api/tasks/:id", authRequired, async (req, res) => {
   try {
     const { title, description, status, priority, due_date, assignee_user_id } = req.body;
-
-    const updated = await query(
-      `
+    const finalAssigneeUserId =
+      req.user.role === "admin" || req.user.role === "manager"
+        ? assignee_user_id || null
+        : req.user.id;
+    const isPrivileged = req.user.role === "admin" || req.user.role === "manager";
+    const updateSql = isPrivileged
+      ? `
       UPDATE tasks
       SET
         title = $1,
@@ -1659,17 +1688,34 @@ app.put("/api/tasks/:id", authRequired, async (req, res) => {
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $7
       RETURNING *
-      `,
-      [
-        title,
-        description || "",
-        status || "todo",
-        priority || "medium",
-        formatDateOnly(due_date),
-        assignee_user_id || null,
-        req.params.id
-      ]
-    );
+      `
+      : `
+      UPDATE tasks
+      SET
+        title = $1,
+        description = $2,
+        status = $3,
+        priority = $4,
+        due_date = $5,
+        assignee_user_id = $6,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7 AND assignee_user_id = $8
+      RETURNING *
+      `;
+    const updateParams = [
+      title,
+      description || "",
+      status || "todo",
+      priority || "medium",
+      formatDateOnly(due_date),
+      finalAssigneeUserId,
+      req.params.id
+    ];
+    if (!isPrivileged) {
+      updateParams.push(req.user.id);
+    }
+
+    const updated = await query(updateSql, updateParams);
 
     if (!updated.rows.length) {
       return res.status(404).json({ message: "Vazifa topilmadi" });
@@ -1685,7 +1731,16 @@ app.put("/api/tasks/:id", authRequired, async (req, res) => {
 
 app.delete("/api/tasks/:id", authRequired, async (req, res) => {
   try {
-    await query(`DELETE FROM tasks WHERE id = $1`, [req.params.id]);
+    const isPrivileged = req.user.role === "admin" || req.user.role === "manager";
+    const deleted = isPrivileged
+      ? await query(`DELETE FROM tasks WHERE id = $1 RETURNING id`, [req.params.id])
+      : await query(
+          `DELETE FROM tasks WHERE id = $1 AND assignee_user_id = $2 RETURNING id`,
+          [req.params.id, req.user.id]
+        );
+    if (!deleted.rows.length) {
+      return res.status(404).json({ message: "Vazifa topilmadi" });
+    }
     await logAction(req.user.id, "delete", "tasks", Number(req.params.id), {});
     res.json({ message: "Vazifa o‘chirildi" });
   } catch (err) {
@@ -1927,8 +1982,8 @@ app.get("/api/export/daily-reports.xlsx", authRequired, async (_, res) => {
           stories_count,
           posts_count,
           reels_count,
-          calls_count,
-          walkin_count,
+          subscriber_count,
+          condition_text,
           notes
         FROM daily_branch_reports
         ORDER BY report_date DESC
@@ -1981,8 +2036,8 @@ app.get("/api/export/daily-reports.pdf", authRequired, async (_, res) => {
           stories_count,
           posts_count,
           reels_count,
-          calls_count,
-          walkin_count
+          subscriber_count,
+          condition_text
         FROM daily_branch_reports
         ORDER BY report_date DESC
       `)
