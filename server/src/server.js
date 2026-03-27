@@ -1974,6 +1974,139 @@ app.post("/api/notifications/read-all", authRequired, async (req, res) => {
   }
 });
 
+/* MESSAGES / CHAT */
+
+app.get("/api/messages/threads", authRequired, async (req, res) => {
+  try {
+    const result = await query(
+      `
+      SELECT
+        m.id,
+        m.body,
+        m.created_at,
+        m.is_read,
+        m.sender_user_id,
+        m.receiver_user_id,
+        CASE
+          WHEN m.sender_user_id = $1 THEN m.receiver_user_id
+          ELSE m.sender_user_id
+        END AS other_user_id,
+        u.full_name AS other_user_name,
+        u.login AS other_user_login,
+        u.avatar_url AS other_user_avatar
+      FROM messages m
+      JOIN users u
+        ON u.id = CASE
+          WHEN m.sender_user_id = $1 THEN m.receiver_user_id
+          ELSE m.sender_user_id
+        END
+      WHERE m.sender_user_id = $1 OR m.receiver_user_id = $1
+      ORDER BY m.created_at DESC
+      `,
+      [req.user.id]
+    );
+
+    const threadsMap = new Map();
+
+    for (const row of result.rows) {
+      if (!threadsMap.has(row.other_user_id)) {
+        threadsMap.set(row.other_user_id, {
+          other_user_id: row.other_user_id,
+          other_user_name: row.other_user_name,
+          other_user_login: row.other_user_login,
+          other_user_avatar: row.other_user_avatar,
+          last_message: row.body,
+          last_message_time: row.created_at,
+          unread_count: 0
+        });
+      }
+
+      if (row.receiver_user_id === req.user.id && !row.is_read) {
+        const current = threadsMap.get(row.other_user_id);
+        current.unread_count += 1;
+      }
+    }
+
+    res.json([...threadsMap.values()]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Chatlarni olib bo‘lmadi: ${err.message}` });
+  }
+});
+
+app.get("/api/messages/thread/:otherUserId", authRequired, async (req, res) => {
+  try {
+    const otherUserId = Number(req.params.otherUserId);
+
+    const result = await query(
+      `
+      SELECT *
+      FROM messages
+      WHERE
+        (sender_user_id = $1 AND receiver_user_id = $2)
+        OR
+        (sender_user_id = $2 AND receiver_user_id = $1)
+      ORDER BY created_at ASC
+      `,
+      [req.user.id, otherUserId]
+    );
+
+    await query(
+      `
+      UPDATE messages
+      SET is_read = TRUE
+      WHERE sender_user_id = $1 AND receiver_user_id = $2 AND is_read = FALSE
+      `,
+      [otherUserId, req.user.id]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Xabarlarni olib bo‘lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/messages", authRequired, async (req, res) => {
+  try {
+    const { receiver_user_id, body } = req.body;
+
+    if (!receiver_user_id || !body?.trim()) {
+      return res.status(400).json({ message: "Qabul qiluvchi va xabar majburiy" });
+    }
+
+    const receiver = await query(
+      `SELECT id, full_name FROM users WHERE id = $1 AND is_active = TRUE LIMIT 1`,
+      [receiver_user_id]
+    );
+
+    if (!receiver.rows.length) {
+      return res.status(404).json({ message: "Qabul qiluvchi hodim topilmadi" });
+    }
+
+    const inserted = await query(
+      `
+      INSERT INTO messages (sender_user_id, receiver_user_id, body)
+      VALUES ($1, $2, $3)
+      RETURNING *
+      `,
+      [req.user.id, receiver_user_id, body.trim()]
+    );
+
+    await createNotification(
+      receiver_user_id,
+      "Yangi xabar",
+      `${req.user.full_name} sizga xabar yubordi`,
+      "info"
+    );
+
+    res.json(inserted.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Xabar yuborib bo‘lmadi: ${err.message}` });
+  }
+});
+
 /* AUDIT */
 
 app.get("/api/audit-logs", authRequired, async (_, res) => {
