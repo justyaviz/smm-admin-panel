@@ -182,7 +182,7 @@ function IconActions({ onView, onEdit, onDelete }) {
 function Toast({ toast, onClose }) {
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(onClose, 2200);
+    const timer = setTimeout(onClose, 2800);
     return () => clearTimeout(timer);
   }, [toast, onClose]);
 
@@ -190,7 +190,11 @@ function Toast({ toast, onClose }) {
 
   return (
     <div className={`toast toast-${toast.type || "success"}`}>
-      <span>{toast.message}</span>
+      <div className="toast-glow" />
+      <div className="toast-copy">
+        <strong>{toast.type === "error" ? "Xatolik" : "Bajarildi"}</strong>
+        <span>{toast.message}</span>
+      </div>
       <button type="button" onClick={onClose}>
         <X size={16} />
       </button>
@@ -1804,7 +1808,11 @@ function UsersPage({ users = [], onToast, reload }) {
         <form className="form-grid" onSubmit={handleSubmit}>
           <label><span>Ism</span><input value={form.full_name} onChange={(e) => setField("full_name", e.target.value)} required /></label>
           <label><span>Telefon</span><input value={form.phone} onChange={(e) => setField("phone", e.target.value)} required /></label>
-          <label><span>Login</span><input value={form.login} onChange={(e) => setField("login", e.target.value)} /></label>
+          <label>
+            <span>Login</span>
+            <input value={form.login} onChange={(e) => setField("login", e.target.value)} />
+            <small className="field-note">Chatda yozish uchun `@{form.login || "username"}` ishlatiladi.</small>
+          </label>
 
           {!editingId ? (
             <label><span>Parol</span><input type="password" value={form.password} onChange={(e) => setField("password", e.target.value)} required /></label>
@@ -2191,6 +2199,9 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
       }
     }
     loadMessages();
+    if (!activeThread?.other_user_id) return undefined;
+    const timer = setInterval(loadMessages, 2000);
+    return () => clearInterval(timer);
   }, [activeThread?.other_user_id]);
 
   function resolveMentionTarget(text) {
@@ -2525,6 +2536,15 @@ function App() {
     init();
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    const intervalMs = active === "chat" ? 2500 : 7000;
+    const timer = setInterval(() => {
+      reloadData();
+    }, intervalMs);
+    return () => clearInterval(timer);
+  }, [user?.id, active]);
+
   const allowedMenu = useMemo(() => {
     if (user?.role === "admin") return MENU;
     const permissions = safePermissions(user?.permissions_json);
@@ -2639,8 +2659,8 @@ function App() {
           <div className="brand-block">
             <div className="brand-mark">a</div>
             <div>
-              <div className="brand-name">aloo</div>
-              <div className="brand-desc">SMM jamoasi platformasi</div>
+              <div className="brand-name">{settings?.company_name || "aloo"}</div>
+              <div className="brand-desc">{settings?.platform_name || "SMM jamoasi platformasi"}</div>
             </div>
           </div>
 
@@ -2675,7 +2695,7 @@ function App() {
         <main className="main-area">
           <div className="topbar">
             <div>
-              <div className="small-label">aloo platforma</div>
+              <div className="small-label">{(settings?.company_name || "aloo")} platforma</div>
               <h1>{MENU.find((m) => m.id === active)?.title || "Bosh sahifa"}</h1>
             </div>
 
@@ -2903,6 +2923,12 @@ img{display:block;max-width:100%}
   border:1px solid var(--line);
   border-radius:24px;
   padding:22px;
+  animation:panel-in .4s ease;
+  transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.card:hover,.stat-card:hover{
+  transform:translateY(-2px);
+  box-shadow:0 18px 36px rgba(15,23,42,.06);
 }
 .hero-banner h1{font-size:44px;line-height:1.05;margin:10px 0}
 .hero-banner p{color:var(--muted);font-size:17px;max-width:720px}
@@ -2944,6 +2970,7 @@ img{display:block;max-width:100%}
 }
 .form-grid label{display:grid;gap:8px}
 .form-grid label span{font-size:13px;color:var(--muted)}
+.field-note{font-size:12px;color:var(--muted)}
 .form-grid input,.form-grid select,.form-grid textarea{
   background:var(--soft);
   border:1px solid var(--line);
@@ -3020,17 +3047,50 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
 .toast{
   position:fixed;
   right:20px;bottom:20px;
-  min-width:240px;
-  display:flex;justify-content:space-between;align-items:center;gap:12px;
-  padding:14px 16px;
-  border-radius:16px;
+  min-width:320px;
+  display:flex;justify-content:space-between;align-items:center;gap:14px;
+  padding:16px 18px;
+  border-radius:22px;
   color:#fff;
   z-index:9999;
-  box-shadow:0 18px 36px rgba(0,0,0,.22);
+  box-shadow:0 24px 50px rgba(0,0,0,.25);
+  overflow:hidden;
+  animation:toast-in .35s ease;
 }
-.toast-success{background:linear-gradient(135deg,#22b35d,#52da90)}
-.toast-error{background:linear-gradient(135deg,#ef5a5a,#ff9c9c)}
-.toast button{background:transparent;border:0;color:#fff;cursor:pointer}
+.toast-success{background:linear-gradient(135deg,#0f9b5f,#4fd1c5)}
+.toast-error{background:linear-gradient(135deg,#ef4444,#fb7185)}
+.toast-glow{
+  position:absolute;
+  inset:auto -40px -40px auto;
+  width:140px;
+  height:140px;
+  border-radius:50%;
+  background:rgba(255,255,255,.18);
+  filter:blur(8px);
+}
+.toast-copy{
+  position:relative;
+  z-index:1;
+  display:grid;
+  gap:4px;
+}
+.toast-copy strong{font-size:13px;letter-spacing:.08em;text-transform:uppercase}
+.toast-copy span{font-size:15px}
+.toast button{
+  position:relative;
+  z-index:1;
+  background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.18);
+  color:#fff;
+  cursor:pointer;
+  width:34px;
+  height:34px;
+  border-radius:12px;
+}
+@keyframes toast-in{
+  from{transform:translateY(24px) scale(.94);opacity:0}
+  to{transform:translateY(0) scale(1);opacity:1}
+}
 
 .drawer{
   position:fixed;
@@ -3422,6 +3482,10 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   .media-grid{grid-template-columns:1fr}
   .detail-grid{grid-template-columns:1fr}
   .chat-layout{grid-template-columns:1fr}
+}
+@keyframes panel-in{
+  from{opacity:0;transform:translateY(10px)}
+  to{opacity:1;transform:translateY(0)}
 }
 `;
 
