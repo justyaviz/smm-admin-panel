@@ -9,10 +9,12 @@ import {
   Image,
   LayoutGrid,
   LogOut,
+  MessageCircle,
   Megaphone,
   Moon,
   Pencil,
   Search,
+  Send,
   Settings,
   SunMedium,
   Trash2,
@@ -33,6 +35,7 @@ const MENU = [
   { id: "uploads", title: "Media kutubxona", icon: Image },
   { id: "users", title: "Hodimlar", icon: UsersIcon },
   { id: "tasks", title: "Vazifalar", icon: FolderKanban },
+  { id: "chat", title: "Chat", icon: MessageCircle },
   { id: "audit", title: "Audit log", icon: ShieldCheck },
   { id: "profile", title: "Profil", icon: User },
   { id: "settings", title: "Sozlamalar", icon: Settings }
@@ -41,12 +44,34 @@ const MENU = [
 const PERMISSION_OPTIONS = [
   { id: "dashboard", label: "Bosh sahifa" },
   { id: "content", label: "Kontent reja" },
+  { id: "content_create", label: "Kontent qo'shish" },
+  { id: "content_edit", label: "Kontent tahrirlash" },
+  { id: "content_delete", label: "Kontent o'chirish" },
   { id: "bonus", label: "Bonus tizimi" },
+  { id: "bonus_create", label: "Bonus qo'shish" },
+  { id: "bonus_edit", label: "Bonus tahrirlash" },
+  { id: "bonus_delete", label: "Bonus o'chirish" },
   { id: "dailyReports", label: "Kunlik filial hisobotlari" },
+  { id: "dailyReports_create", label: "Hisobot qo'shish" },
+  { id: "dailyReports_edit", label: "Hisobot tahrirlash" },
+  { id: "dailyReports_delete", label: "Hisobot o'chirish" },
   { id: "campaigns", label: "Reklama kampaniyalari" },
+  { id: "campaigns_create", label: "Kampaniya qo'shish" },
+  { id: "campaigns_edit", label: "Kampaniya tahrirlash" },
+  { id: "campaigns_delete", label: "Kampaniya o'chirish" },
   { id: "uploads", label: "Media kutubxona" },
+  { id: "uploads_create", label: "Fayl yuklash" },
+  { id: "uploads_delete", label: "Fayl o'chirish" },
   { id: "users", label: "Hodimlar" },
+  { id: "users_create", label: "Hodim qo'shish" },
+  { id: "users_edit", label: "Hodim tahrirlash" },
+  { id: "users_delete", label: "Hodim o'chirish" },
   { id: "tasks", label: "Vazifalar" },
+  { id: "tasks_create", label: "Vazifa qo'shish" },
+  { id: "tasks_edit", label: "Vazifa tahrirlash" },
+  { id: "tasks_delete", label: "Vazifa o'chirish" },
+  { id: "chat", label: "Chat" },
+  { id: "chat_send", label: "Xabar yuborish" },
   { id: "audit", label: "Audit log" },
   { id: "profile", label: "Profil" },
   { id: "settings", label: "Sozlamalar" }
@@ -245,6 +270,43 @@ function StatCard({ title, value, hint }) {
       {hint ? <div className="stat-card-hint">{hint}</div> : null}
     </div>
   );
+}
+
+function taskStatusClass(status) {
+  if (status === "done") return "status-badge done";
+  if (status === "doing") return "status-badge doing";
+  if (status === "cancelled") return "status-badge cancelled";
+  return "status-badge todo";
+}
+
+function priorityClass(priority) {
+  if (priority === "high") return "priority-badge high";
+  if (priority === "low") return "priority-badge low";
+  return "priority-badge medium";
+}
+
+function taskStatusLabel(status) {
+  const labels = {
+    todo: "Rejada",
+    doing: "Bajarilmoqda",
+    done: "Bajarilgan",
+    cancelled: "Bekor qilingan"
+  };
+  return labels[status] || status;
+}
+
+function getAvatarFallback(name = "") {
+  return String(name || "?").trim().slice(0, 1).toUpperCase() || "?";
+}
+
+function hasPermission(user, permission) {
+  if (user?.role === "admin") return true;
+  return safePermissions(user?.permissions_json).includes(permission);
+}
+
+function canManagePage(user, pageKey, action) {
+  if (user?.role === "admin") return true;
+  return hasPermission(user, pageKey) || hasPermission(user, `${pageKey}_${action}`);
 }
 
 function LoginPage({ onLoggedIn }) {
@@ -504,7 +566,6 @@ function ContentPage({ users = [], onToast, reload }) {
 
     try {
       setSaving(true);
-
       const payload = {
         title: form.title,
         publish_date: form.publish_date || null,
@@ -1095,8 +1156,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
     stories_count: 0,
     posts_count: 0,
     reels_count: 0,
-    calls_count: 0,
-    walkin_count: 0,
+    subscriber_count: 0,
+    condition_text: "",
     notes: ""
   };
 
@@ -1120,8 +1181,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
       stories_count: row.stories_count || 0,
       posts_count: row.posts_count || 0,
       reels_count: row.reels_count || 0,
-      calls_count: row.calls_count || 0,
-      walkin_count: row.walkin_count || 0,
+      subscriber_count: row.subscriber_count || 0,
+      condition_text: row.condition_text || "",
       notes: row.notes || ""
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1195,8 +1256,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
           <label><span>Stories</span><input type="number" min="0" value={form.stories_count} onChange={(e) => setField("stories_count", Number(e.target.value))} /></label>
           <label><span>Post</span><input type="number" min="0" value={form.posts_count} onChange={(e) => setField("posts_count", Number(e.target.value))} /></label>
           <label><span>Reels</span><input type="number" min="0" value={form.reels_count} onChange={(e) => setField("reels_count", Number(e.target.value))} /></label>
-          <label><span>Calls</span><input type="number" min="0" value={form.calls_count} onChange={(e) => setField("calls_count", Number(e.target.value))} /></label>
-          <label><span>Walk-in</span><input type="number" min="0" value={form.walkin_count} onChange={(e) => setField("walkin_count", Number(e.target.value))} /></label>
+          <label><span>Obunachi soni</span><input type="number" min="0" value={form.subscriber_count} onChange={(e) => setField("subscriber_count", Number(e.target.value))} /></label>
+          <label><span>Ahvol</span><input value={form.condition_text} onChange={(e) => setField("condition_text", e.target.value)} /></label>
           <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
 
           <button className="btn primary" type="submit" disabled={saving}>
@@ -1219,8 +1280,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
                 <th>Stories</th>
                 <th>Post</th>
                 <th>Reels</th>
-                <th>Calls</th>
-                <th>Walk-in</th>
+                <th>Obunachi soni</th>
+                <th>Ahvol</th>
                 <th>Izoh</th>
                 <th>Amallar</th>
               </tr>
@@ -1234,8 +1295,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
                     <td>{row.stories_count}</td>
                     <td>{row.posts_count}</td>
                     <td>{row.reels_count}</td>
-                    <td>{row.calls_count || 0}</td>
-                    <td>{row.walkin_count || 0}</td>
+                    <td>{row.subscriber_count || 0}</td>
+                    <td>{row.condition_text || "-"}</td>
                     <td>{row.notes || "-"}</td>
                     <td>
                       <IconActions
@@ -1262,8 +1323,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
             <div><strong>Stories:</strong> {viewRow.stories_count}</div>
             <div><strong>Post:</strong> {viewRow.posts_count}</div>
             <div><strong>Reels:</strong> {viewRow.reels_count}</div>
-            <div><strong>Calls:</strong> {viewRow.calls_count || 0}</div>
-            <div><strong>Walk-in:</strong> {viewRow.walkin_count || 0}</div>
+            <div><strong>Obunachi soni:</strong> {viewRow.subscriber_count || 0}</div>
+            <div><strong>Ahvol:</strong> {viewRow.condition_text || "-"}</div>
             <div><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
           </div>
         ) : null}
@@ -1878,11 +1939,12 @@ function UsersPage({ users = [], onToast, reload }) {
   );
 }
 
-function TasksPage({ tasks = [], users = [], onToast, reload }) {
+function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
   const [saving, setSaving] = useState(false);
   const [filterDate, setFilterDate] = useState("");
   const [viewRow, setViewRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
+  const isPrivileged = user?.role === "admin" || user?.role === "manager";
 
   const emptyForm = {
     title: "",
@@ -1890,7 +1952,7 @@ function TasksPage({ tasks = [], users = [], onToast, reload }) {
     status: "todo",
     priority: "medium",
     due_date: "",
-    assignee_user_id: ""
+    assignee_user_id: isPrivileged ? "" : user?.id || ""
   };
 
   const [form, setForm] = useState(emptyForm);
@@ -1901,7 +1963,10 @@ function TasksPage({ tasks = [], users = [], onToast, reload }) {
     : tasks;
 
   function resetForm() {
-    setForm(emptyForm);
+    setForm({
+      ...emptyForm,
+      assignee_user_id: isPrivileged ? "" : user?.id || ""
+    });
     setEditRow(null);
   }
 
@@ -1913,20 +1978,30 @@ function TasksPage({ tasks = [], users = [], onToast, reload }) {
       status: row.status || "todo",
       priority: row.priority || "medium",
       due_date: formatDate(row.due_date) === "-" ? "" : formatDate(row.due_date),
-      assignee_user_id: row.assignee_user_id || ""
+      assignee_user_id: isPrivileged ? row.assignee_user_id || "" : user?.id || row.assignee_user_id || ""
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
+
+  useEffect(() => {
+    if (!isPrivileged) {
+      setForm((prev) => ({ ...prev, assignee_user_id: user?.id || "" }));
+    }
+  }, [isPrivileged, user]);
 
   async function handleSubmit(e) {
     e.preventDefault();
     try {
       setSaving(true);
+      const payload = {
+        ...form,
+        assignee_user_id: isPrivileged ? form.assignee_user_id || null : user?.id || null
+      };
       if (editRow?.id) {
-        await api.update("tasks", editRow.id, form);
+        await api.update("tasks", editRow.id, payload);
         onToast("Vazifa yangilandi ✅", "success");
       } else {
-        await api.create("tasks", form);
+        await api.create("tasks", payload);
         onToast("Vazifa saqlandi ✅", "success");
       }
       await reload();
@@ -1962,9 +2037,10 @@ function TasksPage({ tasks = [], users = [], onToast, reload }) {
           <label>
             <span>Status</span>
             <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
-              <option value="todo">todo</option>
-              <option value="doing">doing</option>
-              <option value="done">done</option>
+              <option value="todo">Rejada</option>
+              <option value="doing">Bajarilmoqda</option>
+              <option value="done">Bajarilgan</option>
+              <option value="cancelled">Bekor qilingan</option>
             </select>
           </label>
           <label>
@@ -2009,8 +2085,8 @@ function TasksPage({ tasks = [], users = [], onToast, reload }) {
                 filteredTasks.map((row) => (
                   <tr key={row.id}>
                     <td>{row.title}</td>
-                    <td>{row.status}</td>
-                    <td>{row.priority}</td>
+                    <td><span className={taskStatusClass(row.status)}>{taskStatusLabel(row.status)}</span></td>
+                    <td><span className={priorityClass(row.priority)}>{row.priority}</span></td>
                     <td>{formatDate(row.due_date)}</td>
                     <td>{row.assignee_name || "-"}</td>
                     <td>
@@ -2034,8 +2110,8 @@ function TasksPage({ tasks = [], users = [], onToast, reload }) {
         {viewRow ? (
           <div className="detail-grid">
             <div><strong>Vazifa:</strong> {viewRow.title}</div>
-            <div><strong>Status:</strong> {viewRow.status}</div>
-            <div><strong>Muhimlik:</strong> {viewRow.priority}</div>
+            <div><strong>Status:</strong> <span className={taskStatusClass(viewRow.status)}>{taskStatusLabel(viewRow.status)}</span></div>
+            <div><strong>Muhimlik:</strong> <span className={priorityClass(viewRow.priority)}>{viewRow.priority}</span></div>
             <div><strong>Muddat:</strong> {formatDate(viewRow.due_date)}</div>
             <div><strong>Mas’ul:</strong> {viewRow.assignee_name || "-"}</div>
             <div className="full-col"><strong>Izoh:</strong> {viewRow.description || "-"}</div>
@@ -2078,6 +2154,151 @@ function AuditPage({ logs = [] }) {
               )}
             </tbody>
           </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChatPage({ user, users = [], threads = [], onToast, reload }) {
+  const [activeThread, setActiveThread] = useState(null);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [body, setBody] = useState("");
+
+  useEffect(() => {
+    if (!activeThread && threads.length) {
+      setActiveThread(threads[0]);
+    }
+  }, [threads, activeThread]);
+
+  useEffect(() => {
+    async function loadMessages() {
+      if (!activeThread?.other_user_id) {
+        setMessages([]);
+        return;
+      }
+      try {
+        setLoading(true);
+        const data = await api.list(`/api/messages/thread/${activeThread.other_user_id}`);
+        setMessages(data || []);
+        await reload();
+      } catch (err) {
+        onToast(err.message || "Xabarlarni olib bo'lmadi", "error");
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadMessages();
+  }, [activeThread?.other_user_id]);
+
+  function resolveMentionTarget(text) {
+    const match = String(text || "").trim().match(/^@([a-zA-Z0-9._-]+)/);
+    if (!match) return null;
+    return users.find((item) => item.login && item.login.toLowerCase() === match[1].toLowerCase()) || null;
+  }
+
+  async function sendMessage(e) {
+    e.preventDefault();
+    const trimmed = body.trim();
+    if (!trimmed) return;
+
+    const mentionTarget = resolveMentionTarget(trimmed);
+    const receiverId = activeThread?.other_user_id || mentionTarget?.id;
+    if (!receiverId) {
+      onToast("Xabar uchun @login yozing yoki chat tanlang", "error");
+      return;
+    }
+
+    try {
+      setSending(true);
+      await api.create("messages", {
+        receiver_user_id: receiverId,
+        body: trimmed
+      });
+      setBody("");
+      const targetThread =
+        activeThread?.other_user_id === receiverId
+          ? activeThread
+          : threads.find((item) => item.other_user_id === receiverId) || {
+              other_user_id: receiverId,
+              other_user_name: mentionTarget?.full_name || "Yangi chat",
+              other_user_login: mentionTarget?.login || ""
+            };
+      setActiveThread(targetThread);
+      const data = await api.list(`/api/messages/thread/${receiverId}`);
+      setMessages(data || []);
+      await reload();
+      onToast("Xabar yuborildi", "success");
+    } catch (err) {
+      onToast(err.message || "Xabar yuborib bo'lmadi", "error");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="page-grid">
+      <div className="card chat-page">
+        <SectionTitle
+          title="Chat"
+          desc="@login bilan yangi xabar boshlasangiz ham bo'ladi"
+          right={<div className="chat-hint">Javoblar real vaqt emas, sahifa yangilanganda yangilanadi</div>}
+        />
+        <div className="chat-layout">
+          <div className="chat-threads">
+            {threads.length ? threads.map((thread) => (
+              <button
+                key={thread.other_user_id}
+                type="button"
+                className={`thread-card ${activeThread?.other_user_id === thread.other_user_id ? "active" : ""}`}
+                onClick={() => setActiveThread(thread)}
+              >
+                <div className="thread-avatar">
+                  {thread.other_user_avatar ? (
+                    <img src={thread.other_user_avatar} alt={thread.other_user_name} className="table-avatar" />
+                  ) : (
+                    <div className="table-avatar empty">{getAvatarFallback(thread.other_user_name)}</div>
+                  )}
+                </div>
+                <div className="thread-copy">
+                  <div className="thread-name">{thread.other_user_name}</div>
+                  <div className="thread-preview">{thread.last_message || "Xabar yo'q"}</div>
+                </div>
+                {thread.unread_count ? <span className="count-badge">{thread.unread_count}</span> : null}
+              </button>
+            )) : <div className="empty-block">Hozircha chat yo'q</div>}
+          </div>
+
+          <div className="chat-window">
+            <div className="chat-header">
+              <strong>{activeThread?.other_user_name || "Chat tanlang"}</strong>
+              {activeThread?.other_user_login ? <span>@{activeThread.other_user_login}</span> : null}
+            </div>
+            <div className="chat-messages">
+              {loading ? <div className="empty-block">Yuklanmoqda...</div> : messages.length ? messages.map((message) => (
+                <div
+                  key={message.id}
+                  className={`chat-bubble ${message.sender_user_id === user?.id ? "mine" : ""}`}
+                >
+                  <div>{message.body}</div>
+                  <span>{formatDate(message.created_at)}</span>
+                </div>
+              )) : <div className="empty-block">Xabarlar yo'q</div>}
+            </div>
+            <form className="chat-form" onSubmit={sendMessage}>
+              <input
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                placeholder="Xabar yozing yoki @login bilan boshlang"
+              />
+              <button type="submit" className="btn primary" disabled={sending}>
+                <Send size={16} />
+                {sending ? "Yuborilmoqda..." : "Yuborish"}
+              </button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
@@ -2222,8 +2443,10 @@ function App() {
   const [dailyReports, setDailyReports] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [threads, setThreads] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [savingSettings, setSavingSettings] = useState(false);
+  const unreadChatCount = (threads || []).reduce((sum, thread) => sum + Number(thread.unread_count || 0), 0);
 
   useEffect(() => {
     localStorage.setItem("aloo_theme", theme);
@@ -2244,6 +2467,7 @@ function App() {
         dailyReportsRes,
         campaignsRes,
         tasksRes,
+        threadsRes,
         auditLogsRes
       ] = await Promise.all([
         api.dashboard().catch(() => ({})),
@@ -2257,6 +2481,7 @@ function App() {
         api.list("daily-reports").catch(() => []),
         api.list("campaigns").catch(() => []),
         api.list("tasks").catch(() => []),
+        api.list("/api/messages/threads").catch(() => []),
         api.list("audit-logs").catch(() => [])
       ]);
 
@@ -2271,6 +2496,7 @@ function App() {
       setDailyReports(dailyReportsRes || []);
       setCampaigns(campaignsRes || []);
       setTasks(tasksRes || []);
+      setThreads(threadsRes || []);
       setAuditLogs(auditLogsRes || []);
     } catch (err) {
       console.error(err);
@@ -2297,7 +2523,7 @@ function App() {
     }
 
     init();
-  }, []);
+  }, [user?.id]);
 
   const allowedMenu = useMemo(() => {
     if (user?.role === "admin") return MENU;
@@ -2395,7 +2621,9 @@ function App() {
   } else if (active === "users") {
     page = <UsersPage users={users} onToast={showToast} reload={reloadData} />;
   } else if (active === "tasks") {
-    page = <TasksPage tasks={tasks} users={users} onToast={showToast} reload={reloadData} />;
+    page = <TasksPage tasks={tasks} users={users} user={user} onToast={showToast} reload={reloadData} />;
+  } else if (active === "chat") {
+    page = <ChatPage user={user} users={users} threads={threads} onToast={showToast} reload={reloadData} />;
   } else if (active === "audit") {
     page = <AuditPage logs={auditLogs} />;
   } else if (active === "profile") {
@@ -2452,13 +2680,21 @@ function App() {
             </div>
 
             <div className="topbar-right">
+              <button className="notif-pill" type="button" onClick={() => setActive("chat")}>
+                <MessageCircle size={16} />
+                {unreadChatCount}
+              </button>
               <button className="notif-pill" type="button" onClick={() => setDrawerOpen(true)}>
                 <Bell size={16} />
                 {(notifications || []).filter((n) => !n.is_read).length}
               </button>
               <ThemeToggle theme={theme} setTheme={setTheme} />
               <button type="button" className="user-chip" onClick={() => setActive("profile")}>
-                <User size={16} />
+                {user?.avatar_url ? (
+                  <img src={user.avatar_url} alt={user.full_name} className="topbar-avatar" />
+                ) : (
+                  <div className="topbar-avatar fallback">{getAvatarFallback(user?.full_name)}</div>
+                )}
                 <span>{user?.full_name || "Foydalanuvchi"}</span>
               </button>
             </div>
@@ -2646,6 +2882,20 @@ img{display:block;max-width:100%}
   display:flex;align-items:center;gap:8px;
 }
 .notif-pill,.user-chip{cursor:pointer}
+.topbar-avatar{
+  width:28px;
+  height:28px;
+  border-radius:50%;
+  object-fit:cover;
+  border:1px solid var(--line);
+}
+.topbar-avatar.fallback{
+  display:grid;
+  place-items:center;
+  background:var(--panel);
+  font-size:12px;
+  font-weight:800;
+}
 
 .page-grid{display:grid;gap:18px;margin-top:18px}
 .hero-banner,.card,.stat-card{
@@ -2874,6 +3124,24 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   width:16px;
   height:16px;
 }
+.status-badge,.priority-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:92px;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:800;
+  text-transform:capitalize;
+}
+.status-badge.todo{background:rgba(148,163,184,.18);color:#64748b}
+.status-badge.doing{background:rgba(59,130,246,.14);color:#2563eb}
+.status-badge.done{background:rgba(34,197,94,.14);color:#16a34a}
+.status-badge.cancelled{background:rgba(239,68,68,.14);color:#dc2626}
+.priority-badge.low{background:rgba(34,197,94,.14);color:#16a34a}
+.priority-badge.medium{background:rgba(245,158,11,.14);color:#d97706}
+.priority-badge.high{background:rgba(239,68,68,.14);color:#dc2626}
 
 .icon-actions{
   display:flex;
@@ -3033,6 +3301,116 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   width:72px;
   height:72px;
 }
+.count-badge{
+  min-width:22px;
+  height:22px;
+  border-radius:999px;
+  padding:0 6px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  background:var(--blue);
+  color:#fff;
+  font-size:12px;
+  font-weight:800;
+}
+.chat-page{padding-bottom:24px}
+.chat-layout{
+  display:grid;
+  grid-template-columns:320px 1fr;
+  gap:16px;
+}
+.chat-threads{
+  display:grid;
+  gap:10px;
+  align-content:start;
+}
+.thread-card{
+  width:100%;
+  border:1px solid var(--line);
+  background:var(--soft);
+  color:var(--text);
+  border-radius:16px;
+  padding:12px;
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  gap:12px;
+  align-items:center;
+  cursor:pointer;
+}
+.thread-card.active{
+  border-color:rgba(22,144,245,.45);
+  box-shadow:0 0 0 2px rgba(22,144,245,.10);
+}
+.thread-copy{min-width:0}
+.thread-name{font-weight:800}
+.thread-preview{
+  margin-top:4px;
+  font-size:13px;
+  color:var(--muted);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.chat-window{
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:var(--soft);
+  display:grid;
+  grid-template-rows:auto 1fr auto;
+  min-height:520px;
+}
+.chat-header{
+  padding:14px 16px;
+  border-bottom:1px solid var(--line);
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  color:var(--muted);
+}
+.chat-messages{
+  padding:16px;
+  overflow:auto;
+  display:grid;
+  gap:10px;
+  align-content:start;
+}
+.chat-bubble{
+  max-width:min(520px, 100%);
+  padding:12px 14px;
+  border-radius:16px 16px 16px 4px;
+  background:var(--panel);
+  border:1px solid var(--line);
+}
+.chat-bubble.mine{
+  margin-left:auto;
+  border-radius:16px 16px 4px 16px;
+  background:rgba(22,144,245,.10);
+}
+.chat-bubble span{
+  display:block;
+  margin-top:6px;
+  color:var(--muted);
+  font-size:12px;
+}
+.chat-form{
+  border-top:1px solid var(--line);
+  padding:14px;
+  display:flex;
+  gap:10px;
+}
+.chat-form input{
+  flex:1;
+  background:var(--panel);
+  border:1px solid var(--line);
+  color:var(--text);
+  border-radius:14px;
+  padding:12px 14px;
+}
+.chat-hint{
+  color:var(--muted);
+  font-size:12px;
+}
 @media (max-width: 1100px){
   .login-page,.app-shell,.stats-grid,.two-grid,.form-grid{grid-template-columns:1fr}
   .main-area{padding:14px}
@@ -3043,6 +3421,7 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   .permission-grid{grid-template-columns:1fr}
   .media-grid{grid-template-columns:1fr}
   .detail-grid{grid-template-columns:1fr}
+  .chat-layout{grid-template-columns:1fr}
 }
 `;
 
