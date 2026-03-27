@@ -2234,6 +2234,9 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [body, setBody] = useState("");
+  const quickContacts = users
+    .filter((item) => item.id !== user?.id && item.is_active !== false)
+    .slice(0, 8);
 
   useEffect(() => {
     if (!activeThread && threads.length) {
@@ -2267,7 +2270,16 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
   function resolveMentionTarget(text) {
     const match = String(text || "").trim().match(/^@([a-zA-Z0-9._-]+)/);
     if (!match) return null;
-    return users.find((item) => item.login && item.login.toLowerCase() === match[1].toLowerCase()) || null;
+    const queryText = match[1].toLowerCase();
+    return (
+      users.find((item) => item.login && item.login.toLowerCase() === queryText) ||
+      users.find((item) => item.phone && String(item.phone).toLowerCase() === queryText) ||
+      users.find((item) =>
+        item.full_name &&
+        item.full_name.toLowerCase().replace(/\s+/g, "").includes(queryText.replace(/\s+/g, ""))
+      ) ||
+      null
+    );
   }
 
   async function sendMessage(e) {
@@ -2339,7 +2351,38 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
                 </div>
                 {thread.unread_count ? <span className="count-badge">{thread.unread_count}</span> : null}
               </button>
-            )) : <div className="empty-block">Hozircha chat yo'q</div>}
+            )) : (
+              <div className="chat-empty-state">
+                <div className="empty-block">Hozircha chat yo'q</div>
+                <div className="chat-empty-copy">Quyidagilardan biriga yozishni boshlang</div>
+                <div className="chat-contact-list">
+                  {quickContacts.map((contact) => (
+                    <button
+                      key={contact.id}
+                      type="button"
+                      className="chat-contact-chip"
+                      onClick={() => {
+                        setActiveThread({
+                          other_user_id: contact.id,
+                          other_user_name: contact.full_name,
+                          other_user_login: contact.login || ""
+                        });
+                        setBody((prev) => prev || `@${contact.login || contact.phone || ""} `);
+                      }}
+                    >
+                      <span className="chat-contact-avatar">
+                        {contact.avatar_url ? (
+                          <img src={contact.avatar_url} alt={contact.full_name} className="table-avatar" />
+                        ) : (
+                          <span className="table-avatar empty">{getAvatarFallback(contact.full_name)}</span>
+                        )}
+                      </span>
+                      <span>{contact.full_name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="chat-window">
@@ -3842,6 +3885,43 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   display:grid;
   gap:10px;
   align-content:start;
+}
+.chat-empty-state{
+  display:grid;
+  gap:12px;
+}
+.chat-empty-copy{
+  color:var(--muted);
+  font-size:13px;
+  padding:0 4px;
+}
+.chat-contact-list{
+  display:grid;
+  gap:10px;
+}
+.chat-contact-chip{
+  width:100%;
+  border:1px solid var(--line);
+  background:linear-gradient(180deg, rgba(255,255,255,.94), rgba(241,247,255,.8));
+  color:var(--text);
+  border-radius:16px;
+  padding:10px 12px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  cursor:pointer;
+  transition:transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.chat-contact-chip:hover{
+  transform:translateY(-1px);
+  border-color:rgba(22,144,245,.26);
+  box-shadow:0 12px 24px rgba(29,78,216,.08);
+}
+.chat-contact-avatar{
+  width:34px;
+  height:34px;
+  display:grid;
+  place-items:center;
 }
 .thread-card{
   width:100%;
