@@ -129,6 +129,7 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS company_name TEXT NOT NULL DEFAULT 'aloo'`,
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS platform_name TEXT NOT NULL DEFAULT 'SMM jamoasi platformasi'`,
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS department_name TEXT NOT NULL DEFAULT 'SMM department'`,
+    `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS logo_url TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS bonus_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
@@ -154,10 +155,17 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE bonus_items ALTER COLUMN bonus_id DROP NOT NULL`,
     `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS subscriber_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS condition_text TEXT`,
     `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS notes TEXT`,
     `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS department_role TEXT`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS permissions_json JSONB NOT NULL DEFAULT '[]'::jsonb`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
     `CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
       sender_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -564,7 +572,7 @@ app.get("/api/dashboard/summary", authRequired, async (_, res) => {
 
 /* SETTINGS */
 
-app.get("/api/settings", authRequired, async (_, res) => {
+app.get("/api/settings", async (_, res) => {
   try {
     const result = await query(`SELECT * FROM app_settings ORDER BY id ASC LIMIT 1`);
     res.json(result.rows[0] || null);
@@ -580,6 +588,7 @@ app.put("/api/settings", authRequired, async (req, res) => {
       company_name,
       platform_name,
       department_name,
+      logo_url,
       website_url,
       telegram_url,
       instagram_url,
@@ -598,6 +607,7 @@ app.put("/api/settings", authRequired, async (req, res) => {
           company_name,
           platform_name,
           department_name,
+          logo_url,
           website_url,
           telegram_url,
           instagram_url,
@@ -605,12 +615,13 @@ app.put("/api/settings", authRequired, async (req, res) => {
           facebook_url,
           tiktok_url
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
         `,
         [
           company_name || "aloo",
           platform_name || "",
           department_name || "",
+          logo_url || "",
           website_url || "",
           telegram_url || "",
           instagram_url || "",
@@ -627,19 +638,21 @@ app.put("/api/settings", authRequired, async (req, res) => {
           company_name = $1,
           platform_name = $2,
           department_name = $3,
-          website_url = $4,
-          telegram_url = $5,
-          instagram_url = $6,
-          youtube_url = $7,
-          facebook_url = $8,
-          tiktok_url = $9,
+          logo_url = $4,
+          website_url = $5,
+          telegram_url = $6,
+          instagram_url = $7,
+          youtube_url = $8,
+          facebook_url = $9,
+          tiktok_url = $10,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $10
+        WHERE id = $11
         `,
         [
           company_name || "aloo",
           platform_name || "",
           department_name || "",
+          logo_url || "",
           website_url || "",
           telegram_url || "",
           instagram_url || "",
@@ -720,7 +733,7 @@ app.post("/api/users", authRequired, async (req, res) => {
     const hashed = await bcrypt.hash(password, 10);
     const permissions = Array.isArray(permissions_json) ? permissions_json : [];
 
-    const inserted = await client.query(
+    const inserted = await query(
       `
       INSERT INTO users
       (
@@ -771,7 +784,7 @@ app.post("/api/users", authRequired, async (req, res) => {
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Hodim yaratishda xatolik" });
+    res.status(500).json({ message: `Hodim yaratishda xatolik: ${err.message}` });
   }
 });
 
@@ -841,7 +854,7 @@ app.put("/api/users/:id", authRequired, async (req, res) => {
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Hodimni yangilashda xatolik" });
+    res.status(500).json({ message: `Hodimni yangilashda xatolik: ${err.message}` });
   }
 });
 
