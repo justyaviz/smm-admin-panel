@@ -177,6 +177,35 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `CREATE TABLE IF NOT EXISTS expenses (
+      id SERIAL PRIMARY KEY,
+      expense_date DATE,
+      title TEXT NOT NULL,
+      vendor_name TEXT,
+      card_holder TEXT,
+      amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'UZS',
+      category TEXT,
+      payment_type TEXT NOT NULL DEFAULT 'visa',
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS travel_plans (
+      id SERIAL PRIMARY KEY,
+      plan_date DATE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      video_title TEXT NOT NULL,
+      participants_text TEXT,
+      videodek_url TEXT,
+      scenario_text TEXT,
+      status TEXT NOT NULL DEFAULT 'reja',
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE TABLE IF NOT EXISTS messages (
       id SERIAL PRIMARY KEY,
       sender_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -2180,6 +2209,283 @@ app.post("/api/messages", authRequired, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: `Xabar yuborib bo‘lmadi: ${err.message}` });
+  }
+});
+
+/* EXPENSES */
+
+app.get("/api/expenses", authRequired, async (_, res) => {
+  try {
+    const result = await query(
+      `
+      SELECT *
+      FROM expenses
+      ORDER BY expense_date DESC NULLS LAST, id DESC
+      `
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Harajatlarni olib bo‘lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/expenses", authRequired, async (req, res) => {
+  try {
+    const {
+      expense_date,
+      title,
+      vendor_name,
+      card_holder,
+      amount,
+      currency,
+      category,
+      payment_type,
+      notes
+    } = req.body;
+
+    const inserted = await query(
+      `
+      INSERT INTO expenses
+      (
+        expense_date,
+        title,
+        vendor_name,
+        card_holder,
+        amount,
+        currency,
+        category,
+        payment_type,
+        notes,
+        created_by
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      RETURNING *
+      `,
+      [
+        normalizeDateOnly(expense_date),
+        title,
+        vendor_name || "",
+        card_holder || "",
+        Number(amount || 0),
+        currency || "UZS",
+        category || "",
+        payment_type || "visa",
+        notes || "",
+        req.user.id
+      ]
+    );
+
+    await logAction(req.user.id, "create", "expenses", inserted.rows[0].id, { title, amount });
+    res.json(inserted.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Harajatni saqlab bo‘lmadi: ${err.message}` });
+  }
+});
+
+app.put("/api/expenses/:id", authRequired, async (req, res) => {
+  try {
+    const {
+      expense_date,
+      title,
+      vendor_name,
+      card_holder,
+      amount,
+      currency,
+      category,
+      payment_type,
+      notes
+    } = req.body;
+
+    const updated = await query(
+      `
+      UPDATE expenses
+      SET
+        expense_date = $1,
+        title = $2,
+        vendor_name = $3,
+        card_holder = $4,
+        amount = $5,
+        currency = $6,
+        category = $7,
+        payment_type = $8,
+        notes = $9,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $10
+      RETURNING *
+      `,
+      [
+        normalizeDateOnly(expense_date),
+        title,
+        vendor_name || "",
+        card_holder || "",
+        Number(amount || 0),
+        currency || "UZS",
+        category || "",
+        payment_type || "visa",
+        notes || "",
+        req.params.id
+      ]
+    );
+
+    if (!updated.rows.length) {
+      return res.status(404).json({ message: "Harajat topilmadi" });
+    }
+
+    await logAction(req.user.id, "update", "expenses", Number(req.params.id), { title, amount });
+    res.json(updated.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Harajatni yangilab bo‘lmadi: ${err.message}` });
+  }
+});
+
+app.delete("/api/expenses/:id", authRequired, async (req, res) => {
+  try {
+    await query(`DELETE FROM expenses WHERE id = $1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "expenses", Number(req.params.id), {});
+    res.json({ message: "Harajat o‘chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Harajatni o‘chirib bo‘lmadi: ${err.message}` });
+  }
+});
+
+/* TRAVEL PLANS */
+
+app.get("/api/travel-plans", authRequired, async (_, res) => {
+  try {
+    const result = await query(
+      `
+      SELECT
+        tp.*,
+        b.name AS branch_name
+      FROM travel_plans tp
+      LEFT JOIN branches b ON b.id = tp.branch_id
+      ORDER BY tp.plan_date DESC NULLS LAST, tp.id DESC
+      `
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Safar rejasini olib bo‘lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/travel-plans", authRequired, async (req, res) => {
+  try {
+    const {
+      plan_date,
+      branch_id,
+      video_title,
+      participants_text,
+      videodek_url,
+      scenario_text,
+      status,
+      notes
+    } = req.body;
+
+    const inserted = await query(
+      `
+      INSERT INTO travel_plans
+      (
+        plan_date,
+        branch_id,
+        video_title,
+        participants_text,
+        videodek_url,
+        scenario_text,
+        status,
+        notes,
+        created_by
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      RETURNING *
+      `,
+      [
+        normalizeDateOnly(plan_date),
+        branch_id || null,
+        video_title,
+        participants_text || "",
+        videodek_url || "",
+        scenario_text || "",
+        status || "reja",
+        notes || "",
+        req.user.id
+      ]
+    );
+
+    await logAction(req.user.id, "create", "travel_plans", inserted.rows[0].id, { video_title });
+    res.json(inserted.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Safar rejasini saqlab bo‘lmadi: ${err.message}` });
+  }
+});
+
+app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
+  try {
+    const {
+      plan_date,
+      branch_id,
+      video_title,
+      participants_text,
+      videodek_url,
+      scenario_text,
+      status,
+      notes
+    } = req.body;
+
+    const updated = await query(
+      `
+      UPDATE travel_plans
+      SET
+        plan_date = $1,
+        branch_id = $2,
+        video_title = $3,
+        participants_text = $4,
+        videodek_url = $5,
+        scenario_text = $6,
+        status = $7,
+        notes = $8,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $9
+      RETURNING *
+      `,
+      [
+        normalizeDateOnly(plan_date),
+        branch_id || null,
+        video_title,
+        participants_text || "",
+        videodek_url || "",
+        scenario_text || "",
+        status || "reja",
+        notes || "",
+        req.params.id
+      ]
+    );
+
+    if (!updated.rows.length) {
+      return res.status(404).json({ message: "Safar rejasi topilmadi" });
+    }
+
+    await logAction(req.user.id, "update", "travel_plans", Number(req.params.id), { video_title });
+    res.json(updated.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Safar rejasini yangilab bo‘lmadi: ${err.message}` });
+  }
+});
+
+app.delete("/api/travel-plans/:id", authRequired, async (req, res) => {
+  try {
+    await query(`DELETE FROM travel_plans WHERE id = $1`, [req.params.id]);
+    await logAction(req.user.id, "delete", "travel_plans", Number(req.params.id), {});
+    res.json({ message: "Safar rejasi o‘chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Safar rejasini o‘chirib bo‘lmadi: ${err.message}` });
   }
 });
 
