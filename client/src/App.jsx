@@ -331,11 +331,12 @@ const LOGIN_LOGO =
     </svg>
   `);
 
-function LoginPage({ onLoggedIn }) {
+function LoginPage({ onLoggedIn, settings }) {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const logoSrc = settings?.logo_url || LOGIN_LOGO;
 
   async function submit(e) {
     e.preventDefault();
@@ -354,6 +355,19 @@ function LoginPage({ onLoggedIn }) {
 
   return (
     <div className="login-page">
+      <div className="login-particles">
+        {Array.from({ length: 18 }).map((_, index) => (
+          <span
+            key={index}
+            className="login-particle"
+            style={{
+              left: `${6 + index * 5.1}%`,
+              animationDelay: `${index * 0.6}s`,
+              animationDuration: `${12 + (index % 5) * 2.3}s`
+            }}
+          />
+        ))}
+      </div>
       <div className="login-orb orb-one" />
       <div className="login-orb orb-two" />
       <div className="login-grid-line" />
@@ -361,10 +375,10 @@ function LoginPage({ onLoggedIn }) {
       <div className="login-copy">
         <div className="brand-kicker">aloo • yagona platforma</div>
         <div className="login-logo-lockup">
-          <img src={LOGIN_LOGO} alt="aloo logo" className="login-logo-image" />
+          <img src={logoSrc} alt="aloo logo" className="login-logo-image" />
           <div className="login-logo-copy">
-            <strong>aloo SMM</strong>
-            <span>Yagona boshqaruv platformasi</span>
+            <strong>{settings?.company_name || "aloo SMM"}</strong>
+            <span>{settings?.platform_name || "Yagona boshqaruv platformasi"}</span>
           </div>
         </div>
         <h1>Assalomu alaykum</h1>
@@ -2472,6 +2486,19 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
           <label><span>Facebook</span><input value={form.facebook_url || ""} onChange={(e) => setField("facebook_url", e.target.value)} /></label>
           <label><span>TikTok</span><input value={form.tiktok_url || ""} onChange={(e) => setField("tiktok_url", e.target.value)} /></label>
         </div>
+        <div className="settings-logo-preview">
+          <label className="full-col">
+            <span>Logo rasmi linki</span>
+            <input value={form.logo_url || ""} onChange={(e) => setField("logo_url", e.target.value)} placeholder="https://... yoki upload link" />
+          </label>
+          <div className="settings-logo-card">
+            <img src={form.logo_url || LOGIN_LOGO} alt="Logo preview" className="settings-logo-image" />
+            <div>
+              <strong>{form.company_name || "aloo"}</strong>
+              <span>{form.platform_name || "SMM jamoasi platformasi"}</span>
+            </div>
+          </div>
+        </div>
         <button className="btn primary mt16" onClick={() => onSave(form)} disabled={saving}>
           {saving ? "Saqlanmoqda..." : "Saqlash"}
         </button>
@@ -2563,6 +2590,8 @@ function App() {
   useEffect(() => {
     async function init() {
       if (!user) {
+        const publicSettings = await api.settings.get().catch(() => null);
+        setSettings(publicSettings);
         setBooting(false);
         return;
       }
@@ -2656,7 +2685,7 @@ function App() {
   if (!user) {
     return (
       <>
-        <LoginPage onLoggedIn={setUser} />
+        <LoginPage onLoggedIn={setUser} settings={settings} />
         <Toast toast={toast} onClose={() => setToast(null)} />
         <style>{styles}</style>
       </>
@@ -2703,7 +2732,9 @@ function App() {
       <div className="app-shell">
         <aside className="sidebar">
           <div className="brand-block">
-            <div className="brand-mark">a</div>
+            <div className="brand-mark">
+              <img src={settings?.logo_url || LOGIN_LOGO} alt="logo" className="brand-mark-image" />
+            </div>
             <div>
               <div className="brand-name">{settings?.company_name || "aloo"}</div>
               <div className="brand-desc">{settings?.platform_name || "SMM jamoasi platformasi"}</div>
@@ -2821,7 +2852,7 @@ img{display:block;max-width:100%}
 .login-page{
   min-height:100vh;
   display:grid;
-  grid-template-columns:1.1fr .9fr;
+  grid-template-columns:1.15fr .85fr;
   gap:32px;
   padding:40px;
   position:relative;
@@ -2831,6 +2862,23 @@ img{display:block;max-width:100%}
     radial-gradient(circle at 86% 20%, rgba(99,102,241,.18), transparent 22%),
     radial-gradient(circle at 78% 78%, rgba(29,78,216,.16), transparent 24%),
     linear-gradient(135deg,#eaf4ff 0%, #f8fbff 34%, #eef9f7 66%, #ecfeff 100%);
+}
+.login-particles{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  overflow:hidden;
+}
+.login-particle{
+  position:absolute;
+  bottom:-40px;
+  width:6px;
+  height:6px;
+  border-radius:999px;
+  background:linear-gradient(135deg, rgba(56,189,248,.65), rgba(110,231,183,.35));
+  box-shadow:0 0 18px rgba(56,189,248,.35);
+  opacity:.45;
+  animation:particle-rise linear infinite;
 }
 .login-copy{
   display:flex;
@@ -2912,6 +2960,8 @@ img{display:block;max-width:100%}
 .login-feature-card span{color:var(--muted);font-size:14px;line-height:1.5}
 .login-card{
   align-self:center;
+  justify-self:end;
+  width:min(100%, 560px);
   position:relative;
   z-index:2;
   overflow:hidden;
@@ -3047,9 +3097,25 @@ img{display:block;max-width:100%}
     linear-gradient(135deg,#1d4ed8,#38bdf8 55%,#6ee7b7);
   color:#fff;display:grid;place-items:center;font-size:26px;font-weight:900;
   box-shadow:0 16px 30px rgba(29,78,216,.22);
+  overflow:hidden;
 }
+.brand-mark-image{width:100%;height:100%;object-fit:cover}
 .brand-name{font-size:24px;font-weight:800}
 .brand-desc{font-size:12px;color:var(--muted)}
+.settings-logo-preview{margin-top:18px;display:grid;gap:14px}
+.settings-logo-card{
+  display:flex;align-items:center;gap:14px;
+  padding:16px 18px;border-radius:20px;
+  background:linear-gradient(135deg, rgba(255,255,255,.88), rgba(235,246,255,.84));
+  border:1px solid var(--line);
+  box-shadow:0 16px 34px rgba(29,78,216,.08);
+}
+.settings-logo-card strong{display:block;font-size:18px;margin-bottom:4px}
+.settings-logo-card span{color:var(--muted);font-size:13px}
+.settings-logo-image{
+  width:62px;height:62px;object-fit:cover;border-radius:18px;
+  box-shadow:0 14px 28px rgba(29,78,216,.18);
+}
 
 .sidebar-search{
   display:flex;align-items:center;gap:10px;
@@ -3733,6 +3799,12 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
 @keyframes login-float{
   0%,100%{transform:translateY(0) translateX(0)}
   50%{transform:translateY(-14px) translateX(8px)}
+}
+@keyframes particle-rise{
+  0%{transform:translate3d(0,0,0) scale(.7);opacity:0}
+  10%{opacity:.45}
+  50%{opacity:.8}
+  100%{transform:translate3d(20px,-110vh,0) scale(1.15);opacity:0}
 }
 @keyframes login-shine{
   0%{transform:translateX(0) translateY(0)}
