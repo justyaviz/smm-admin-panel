@@ -58,8 +58,23 @@ function formatDateOnly(value) {
   return d.toISOString().slice(0, 10);
 }
 
+function normalizeDateOnly(value) {
+  return formatDateOnly(value);
+}
+
 function getMonthLabel(date = new Date()) {
   const d = new Date(date);
+  if (Number.isNaN(d.getTime())) {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  }
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function monthLabelFromDate(dateValue) {
+  if (!dateValue) return getMonthLabel();
+  const d = new Date(dateValue);
+  if (Number.isNaN(d.getTime())) return getMonthLabel();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
@@ -116,10 +131,101 @@ async function recomputeBonusFromItems() {
       SET
         proposal_amount = COALESCE(proposal_count, 0) * 25000,
         approved_amount = COALESCE(approved_count, 0) * 25000,
-        total_amount = (COALESCE(proposal_count, 0) + COALESCE(approved_count, 0)) * 25000
+        total_amount = (COALESCE(proposal_count, 0) + COALESCE(approved_count, 0)) * 25000,
+        updated_at = CURRENT_TIMESTAMP
     `);
   } catch (err) {
     console.error("recomputeBonusFromItems error:", err.message);
+  }
+}
+
+async function upsertBonusFromContentRow(row, actorUserId = null) {
+  const workDate = normalizeDateOnly(row.publish_date);
+  const monthLabel = row.plan_month || monthLabelFromDate(workDate);
+
+  if (!workDate) {
+    return;
+  }
+
+  if (!row.bonus_enabled) {
+    await query(
+      `DELETE FROM bonus_items WHERE content_title = $1 AND work_date = $2`,
+      [row.title, workDate]
+    );
+    return;
+  }
+
+  const proposalCount = Number(row.proposal_count || 0);
+  const approvedCount = Number(row.approved_count || 0);
+  const proposalAmount = calcMoney(proposalCount);
+  const approvedAmount = calcMoney(approvedCount);
+  const totalAmount = proposalAmount + approvedAmount;
+
+  const existing = await query(
+    `SELECT id FROM bonus_items WHERE content_title = $1 AND work_date = $2 LIMIT 1`,
+    [row.title, workDate]
+  );
+
+  const values = [
+    monthLabel,
+    workDate,
+    row.content_type || "post",
+    row.title || "",
+    proposalCount,
+    approvedCount,
+    proposalAmount,
+    approvedAmount,
+    totalAmount,
+    row.content_type === "video" ? null : row.assigned_user_id || null,
+    row.content_type === "video" ? row.video_editor_user_id || null : null,
+    row.content_type === "video" ? row.video_face_user_id || null : null
+  ];
+
+  if (existing.rows.length) {
+    await query(
+      `
+      UPDATE bonus_items
+      SET
+        month_label = $1,
+        work_date = $2,
+        content_type = $3,
+        content_title = $4,
+        proposal_count = $5,
+        approved_count = $6,
+        proposal_amount = $7,
+        approved_amount = $8,
+        total_amount = $9,
+        user_id = $10,
+        video_editor_user_id = $11,
+        video_face_user_id = $12,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $13
+      `,
+      [...values, existing.rows[0].id]
+    );
+  } else {
+    await query(
+      `
+      INSERT INTO bonus_items
+      (
+        month_label,
+        work_date,
+        content_type,
+        content_title,
+        proposal_count,
+        approved_count,
+        proposal_amount,
+        approved_amount,
+        total_amount,
+        user_id,
+        video_editor_user_id,
+        video_face_user_id,
+        created_by
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      `,
+      [...values, actorUserId]
+    );
   }
 }
 
@@ -788,6 +894,10 @@ app.post("/api/content", authRequired, async (req, res) => {
     const publishDate = formatDateOnly(publish_date);
     const planMonth = publishDate ? publishDate.slice(0, 7) : getMonthLabel();
 
+    const finalAssignedUserId = content_type === "video" ? null : assigned_user_id || null;
+    const finalEditorUserId = content_type === "video" ? video_editor_user_id || null : null;
+    const finalFaceUserId = content_type === "video" ? video_face_user_id || null : null;
+
     const inserted = await query(
       `
       INSERT INTO content_items
@@ -816,9 +926,9 @@ app.post("/api/content", authRequired, async (req, res) => {
         status || "reja",
         platform || "",
         content_type || "post",
-        assigned_user_id || null,
-        video_editor_user_id || null,
-        video_face_user_id || null,
+        finalAssignedUserId,
+        finalEditorUserId,
+        finalFaceUserId,
         !!bonus_enabled,
         Number(proposal_count || 0),
         Number(approved_count || 0),
@@ -830,48 +940,9 @@ app.post("/api/content", authRequired, async (req, res) => {
 
     const row = inserted.rows[0];
 
-    if (row.bonus_enabled && Number(row.proposal_count || 0) > 0) {
-      const proposalAmount = calcMoney(row.proposal_count);
-      const approvedAmount = calcMoney(row.approved_count);
-      const totalAmount = proposalAmount + approvedAmount;
+    await upsertBonusFromContentRow(row, req.user.id);
 
-      await query(
-        `
-        INSERT INTO bonus_items
-        (
-          month_label,
-          work_date,
-          content_type,
-          content_title,
-          proposal_count,
-          approved_count,
-          proposal_amount,
-          approved_amount,
-          total_amount,
-          user_id,
-          video_editor_user_id,
-          video_face_user_id,
-          created_by
-        )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-        `,
-        [
-          row.plan_month,
-          row.publish_date,
-          row.content_type,
-          row.title,
-          Number(row.proposal_count || 0),
-          Number(row.approved_count || 0),
-          proposalAmount,
-          approvedAmount,
-          totalAmount,
-          row.content_type === "video" ? null : row.assigned_user_id || null,
-          row.content_type === "video" ? row.video_editor_user_id || null : null,
-          row.content_type === "video" ? row.video_face_user_id || null : null,
-          req.user.id
-        ]
-      );
-
+    if (row.bonus_enabled) {
       await createNotification(
         null,
         "Bonusga o‘tkazildi",
@@ -908,6 +979,10 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
     const publishDate = formatDateOnly(publish_date);
     const planMonth = publishDate ? publishDate.slice(0, 7) : getMonthLabel();
 
+    const finalAssignedUserId = content_type === "video" ? null : assigned_user_id || null;
+    const finalEditorUserId = content_type === "video" ? video_editor_user_id || null : null;
+    const finalFaceUserId = content_type === "video" ? video_face_user_id || null : null;
+
     const updated = await query(
       `
       UPDATE content_items
@@ -935,9 +1010,9 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
         status || "reja",
         platform || "",
         content_type || "post",
-        assigned_user_id || null,
-        video_editor_user_id || null,
-        video_face_user_id || null,
+        finalAssignedUserId,
+        finalEditorUserId,
+        finalFaceUserId,
         !!bonus_enabled,
         Number(proposal_count || 0),
         Number(approved_count || 0),
@@ -953,90 +1028,7 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
 
     const row = updated.rows[0];
 
-    if (row.bonus_enabled) {
-      const proposalAmount = calcMoney(row.proposal_count);
-      const approvedAmount = calcMoney(row.approved_count);
-      const totalAmount = proposalAmount + approvedAmount;
-
-      const existingBonus = await query(
-        `SELECT id FROM bonus_items WHERE content_title = $1 AND work_date = $2 LIMIT 1`,
-        [row.title, row.publish_date]
-      );
-
-      if (existingBonus.rows.length) {
-        await query(
-          `
-          UPDATE bonus_items
-          SET
-            month_label = $1,
-            work_date = $2,
-            content_type = $3,
-            content_title = $4,
-            proposal_count = $5,
-            approved_count = $6,
-            proposal_amount = $7,
-            approved_amount = $8,
-            total_amount = $9,
-            user_id = $10,
-            video_editor_user_id = $11,
-            video_face_user_id = $12
-          WHERE id = $13
-          `,
-          [
-            row.plan_month,
-            row.publish_date,
-            row.content_type,
-            row.title,
-            Number(row.proposal_count || 0),
-            Number(row.approved_count || 0),
-            proposalAmount,
-            approvedAmount,
-            totalAmount,
-            row.content_type === "video" ? null : row.assigned_user_id || null,
-            row.content_type === "video" ? row.video_editor_user_id || null : null,
-            row.content_type === "video" ? row.video_face_user_id || null : null,
-            existingBonus.rows[0].id
-          ]
-        );
-      } else if (Number(row.proposal_count || 0) > 0) {
-        await query(
-          `
-          INSERT INTO bonus_items
-          (
-            month_label,
-            work_date,
-            content_type,
-            content_title,
-            proposal_count,
-            approved_count,
-            proposal_amount,
-            approved_amount,
-            total_amount,
-            user_id,
-            video_editor_user_id,
-            video_face_user_id,
-            created_by
-          )
-          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
-          `,
-          [
-            row.plan_month,
-            row.publish_date,
-            row.content_type,
-            row.title,
-            Number(row.proposal_count || 0),
-            Number(row.approved_count || 0),
-            proposalAmount,
-            approvedAmount,
-            totalAmount,
-            row.content_type === "video" ? null : row.assigned_user_id || null,
-            row.content_type === "video" ? row.video_editor_user_id || null : null,
-            row.content_type === "video" ? row.video_face_user_id || null : null,
-            req.user.id
-          ]
-        );
-      }
-    }
+    await upsertBonusFromContentRow(row, req.user.id);
 
     await logAction(req.user.id, "update", "content_items", Number(req.params.id), {
       title: row.title
@@ -1051,7 +1043,27 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
 
 app.delete("/api/content/:id", authRequired, async (req, res) => {
   try {
+    const found = await query(
+      `SELECT id, title, publish_date FROM content_items WHERE id = $1 LIMIT 1`,
+      [req.params.id]
+    );
+
+    if (!found.rows.length) {
+      return res.status(404).json({ message: "Kontent topilmadi" });
+    }
+
+    const row = found.rows[0];
+    const dateOnly = normalizeDateOnly(row.publish_date);
+
     await query(`DELETE FROM content_items WHERE id = $1`, [req.params.id]);
+
+    if (dateOnly) {
+      await query(
+        `DELETE FROM bonus_items WHERE content_title = $1 AND work_date = $2`,
+        [row.title, dateOnly]
+      );
+    }
+
     await logAction(req.user.id, "delete", "content_items", Number(req.params.id), {});
     res.json({ message: "Kontent o‘chirildi" });
   } catch (err) {
@@ -1201,7 +1213,8 @@ app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
         user_id = $10,
         video_editor_user_id = $11,
         video_face_user_id = $12,
-        branch_id = $13
+        branch_id = $13,
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = $14
       RETURNING *
       `,
@@ -1251,18 +1264,27 @@ app.delete("/api/bonus-items/:id", authRequired, async (req, res) => {
 
 /* DAILY REPORTS */
 
-app.get("/api/daily-reports", authRequired, async (_, res) => {
+app.get("/api/daily-reports", authRequired, async (req, res) => {
   try {
-    const result = await query(
-      `
+    const { date } = req.query;
+    const params = [];
+
+    let sql = `
       SELECT
         d.*,
         b.name AS branch_name
       FROM daily_branch_reports d
       LEFT JOIN branches b ON b.id = d.branch_id
-      ORDER BY d.report_date DESC, d.id DESC
-      `
-    );
+    `;
+
+    if (date) {
+      sql += ` WHERE d.report_date = $1 `;
+      params.push(normalizeDateOnly(date));
+    }
+
+    sql += ` ORDER BY d.report_date DESC, d.id DESC`;
+
+    const result = await query(sql, params);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -1272,7 +1294,16 @@ app.get("/api/daily-reports", authRequired, async (_, res) => {
 
 app.post("/api/daily-reports", authRequired, async (req, res) => {
   try {
-    const { report_date, branch_id, stories_count, posts_count, reels_count, notes } = req.body;
+    const {
+      report_date,
+      branch_id,
+      stories_count,
+      posts_count,
+      reels_count,
+      calls_count,
+      walkin_count,
+      notes
+    } = req.body;
 
     const inserted = await query(
       `
@@ -1280,23 +1311,27 @@ app.post("/api/daily-reports", authRequired, async (req, res) => {
       (
         report_date,
         branch_id,
-        user_id,
         stories_count,
         posts_count,
         reels_count,
-        notes
+        calls_count,
+        walkin_count,
+        notes,
+        created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
       RETURNING *
       `,
       [
         formatDateOnly(report_date),
-        branch_id,
-        req.user.id,
+        branch_id || null,
         Number(stories_count || 0),
         Number(posts_count || 0),
         Number(reels_count || 0),
-        notes || ""
+        Number(calls_count || 0),
+        Number(walkin_count || 0),
+        notes || "",
+        req.user.id
       ]
     );
 
@@ -1312,7 +1347,16 @@ app.post("/api/daily-reports", authRequired, async (req, res) => {
 
 app.put("/api/daily-reports/:id", authRequired, async (req, res) => {
   try {
-    const { report_date, branch_id, stories_count, posts_count, reels_count, notes } = req.body;
+    const {
+      report_date,
+      branch_id,
+      stories_count,
+      posts_count,
+      reels_count,
+      calls_count,
+      walkin_count,
+      notes
+    } = req.body;
 
     const updated = await query(
       `
@@ -1323,16 +1367,21 @@ app.put("/api/daily-reports/:id", authRequired, async (req, res) => {
         stories_count = $3,
         posts_count = $4,
         reels_count = $5,
-        notes = $6
-      WHERE id = $7
+        calls_count = $6,
+        walkin_count = $7,
+        notes = $8,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $9
       RETURNING *
       `,
       [
         formatDateOnly(report_date),
-        branch_id,
+        branch_id || null,
         Number(stories_count || 0),
         Number(posts_count || 0),
         Number(reels_count || 0),
+        Number(calls_count || 0),
+        Number(walkin_count || 0),
         notes || "",
         req.params.id
       ]
@@ -1478,7 +1527,8 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
         cpa = $11,
         roi = $12,
         status = $13,
-        notes = $14
+        notes = $14,
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = $15
       RETURNING *
       `,
@@ -1526,18 +1576,27 @@ app.delete("/api/campaigns/:id", authRequired, async (req, res) => {
 
 /* TASKS */
 
-app.get("/api/tasks", authRequired, async (_, res) => {
+app.get("/api/tasks", authRequired, async (req, res) => {
   try {
-    const result = await query(
-      `
+    const { date } = req.query;
+    const params = [];
+
+    let sql = `
       SELECT
         t.*,
         u.full_name AS assignee_name
       FROM tasks t
       LEFT JOIN users u ON u.id = t.assignee_user_id
-      ORDER BY t.id DESC
-      `
-    );
+    `;
+
+    if (date) {
+      sql += ` WHERE t.due_date = $1 `;
+      params.push(formatDateOnly(date));
+    }
+
+    sql += ` ORDER BY t.due_date DESC NULLS LAST, t.id DESC`;
+
+    const result = await query(sql, params);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -1596,7 +1655,8 @@ app.put("/api/tasks/:id", authRequired, async (req, res) => {
         status = $3,
         priority = $4,
         due_date = $5,
-        assignee_user_id = $6
+        assignee_user_id = $6,
+        updated_at = CURRENT_TIMESTAMP
       WHERE id = $7
       RETURNING *
       `,
@@ -1817,7 +1877,8 @@ app.get("/api/export/content.xlsx", authRequired, async (_, res) => {
           content_type,
           bonus_enabled,
           proposal_count,
-          approved_count
+          approved_count,
+          plan_month
         FROM content_items
         ORDER BY id DESC
       `)
@@ -1866,6 +1927,8 @@ app.get("/api/export/daily-reports.xlsx", authRequired, async (_, res) => {
           stories_count,
           posts_count,
           reels_count,
+          calls_count,
+          walkin_count,
           notes
         FROM daily_branch_reports
         ORDER BY report_date DESC
@@ -1917,7 +1980,9 @@ app.get("/api/export/daily-reports.pdf", authRequired, async (_, res) => {
           branch_id,
           stories_count,
           posts_count,
-          reels_count
+          reels_count,
+          calls_count,
+          walkin_count
         FROM daily_branch_reports
         ORDER BY report_date DESC
       `)
