@@ -138,6 +138,59 @@ function formatMoney(value) {
   return `${Number(value || 0).toLocaleString()} so‘m`;
 }
 
+function buildMonthCalendar(monthLabel, rows = [], dateKey = "publish_date") {
+  const [year, month] = String(monthLabel || getMonthLabel()).split("-").map(Number);
+  const firstDay = new Date(year, (month || 1) - 1, 1);
+  const lastDate = new Date(year, month || 1, 0).getDate();
+  const startWeekday = (firstDay.getDay() + 6) % 7;
+  const cells = [];
+  const itemsByDate = new Map();
+
+  rows.forEach((row) => {
+    const rawDate = formatDate(row[dateKey]);
+    if (rawDate === "-" || !rawDate.startsWith(`${year}-${String(month).padStart(2, "0")}`)) return;
+    if (!itemsByDate.has(rawDate)) itemsByDate.set(rawDate, []);
+    itemsByDate.get(rawDate).push(row);
+  });
+
+  for (let i = 0; i < startWeekday; i += 1) cells.push({ key: `empty-${i}`, empty: true });
+
+  for (let day = 1; day <= lastDate; day += 1) {
+    const date = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    cells.push({ key: date, date, day, items: itemsByDate.get(date) || [] });
+  }
+
+  return cells;
+}
+
+function MiniCalendar({ monthLabel, rows, dateKey, renderItem }) {
+  const weekDays = ["Du", "Se", "Cho", "Pay", "Ju", "Sha", "Yak"];
+  const cells = buildMonthCalendar(monthLabel, rows, dateKey);
+
+  return (
+    <div className="calendar-card">
+      <div className="calendar-weekdays">
+        {weekDays.map((day) => <div key={day}>{day}</div>)}
+      </div>
+      <div className="calendar-grid">
+        {cells.map((cell) => (
+          <div key={cell.key} className={`calendar-cell ${cell.empty ? "empty" : ""}`}>
+            {!cell.empty ? (
+              <>
+                <div className="calendar-day">{cell.day}</div>
+                <div className="calendar-items">
+                  {cell.items.slice(0, 3).map((item) => renderItem(item))}
+                  {cell.items.length > 3 ? <span className="calendar-more">+{cell.items.length - 3} ta</span> : null}
+                </div>
+              </>
+            ) : null}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Modal({ open, onClose, title, children, wide = false }) {
   if (!open) return null;
 
@@ -451,6 +504,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   const thisMonthBonus = (bonusItems || [])
     .filter((row) => (row.month_label || formatDate(row.work_date).slice(0, 7)) === currentMonth)
     .reduce((sum, row) => sum + Number(row.total_amount || row.amount || 0), 0);
+  const reminders = summary?.reminders || [];
 
   return (
     <div className="page-grid">
@@ -483,6 +537,13 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
           value={summary?.task_count || 0}
           hint="umumiy vazifalar"
         />
+      </div>
+
+      <div className="stats-grid analytics-grid">
+        <StatCard title="Kunlik vazifa progress" value={`${summary?.daily_task_progress || 0}%`} hint={`${summary?.daily_task_done || 0} / ${summary?.daily_task_total || 0}`} />
+        <StatCard title="Kechikkan vazifalar" value={summary?.overdue_task_count || 0} hint="darhol ko'rib chiqing" />
+        <StatCard title="3 kun ichidagi vazifalar" value={summary?.due_soon_task_count || 0} hint="eslatma kerak" />
+        <StatCard title="Oy reklama sarfi" value={formatMoney(summary?.monthly_campaign_spend || 0)} hint={getMonthTitle(currentMonth)} />
       </div>
 
       <div className="two-grid">
@@ -525,11 +586,35 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
           </div>
         </div>
       </div>
+
+      <div className="two-grid">
+        <div className="card">
+          <SectionTitle title="Task Reminders" desc="Yaqinlashayotgan va kechikkan vazifalar" />
+          <div className="reminder-list">
+            {reminders.length ? reminders.map((item) => (
+              <div key={item.id} className={`reminder-card ${formatDate(item.due_date) < formatDate(new Date()) ? "danger" : ""}`}>
+                <strong>{item.title}</strong>
+                <span>{formatDate(item.due_date)} • {taskStatusLabel(item.status)}</span>
+              </div>
+            )) : <div className="empty-block">Hozircha eslatma yo'q</div>}
+          </div>
+        </div>
+
+        <div className="card">
+          <SectionTitle title="Analytics" desc="Joriy oy bo'yicha tezkor ko'rsatkichlar" />
+          <div className="quick-list">
+            <div className="quick-item">Kontentlar soni: <strong>{summary?.monthly_content_count || 0}</strong></div>
+            <div className="quick-item">Bonus stavkasi: <strong>{formatMoney(summary?.bonus_rate || 25000)}</strong></div>
+            <div className="quick-item">Hisoblangan bonus: <strong>{formatMoney(summary?.monthly_bonus_amount || thisMonthBonus)}</strong></div>
+            <div className="quick-item">Filial hisobotlari: <strong>{summary?.today_report_count || 0}</strong></div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
 
-function ContentPage({ users = [], onToast, reload }) {
+function ContentPage({ users = [], settings, onToast, reload }) {
   const [selectedMonth, setSelectedMonth] = useState(getMonthLabel());
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -537,6 +622,7 @@ function ContentPage({ users = [], onToast, reload }) {
   const [bonusMode, setBonusMode] = useState(false);
   const [viewRow, setViewRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
+  const [viewMode, setViewMode] = useState("table");
 
   const emptyForm = {
     title: "",
@@ -554,6 +640,9 @@ function ContentPage({ users = [], onToast, reload }) {
 
   const [form, setForm] = useState(emptyForm);
   const isVideo = form.content_type === "video";
+  const dueSoonTasks = [];
+  const overdueTasks = [];
+  const tasks = [];
 
   async function loadMonth(monthValue = selectedMonth) {
     try {
@@ -585,6 +674,8 @@ function ContentPage({ users = [], onToast, reload }) {
     setBonusMode(false);
     setEditRow(null);
   }
+
+  const bonusRate = Number(settings?.bonus_rate || 25000);
 
   function startEdit(row) {
     setEditRow(row);
@@ -685,6 +776,9 @@ function ContentPage({ users = [], onToast, reload }) {
           desc={`${getMonthTitle(selectedMonth)} uchun`}
           right={
             <div className="toolbar-actions">
+              <button type="button" className="btn secondary" onClick={() => setViewMode(viewMode === "table" ? "calendar" : "table")}>
+                {viewMode === "table" ? "Calendar view" : "Table view"}
+              </button>
               <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>
                 ← Oldingi oy
               </button>
@@ -703,6 +797,9 @@ function ContentPage({ users = [], onToast, reload }) {
           }
         />
 
+        <div className="info-banner">
+          Bonus formulasi: 1 ta taklif yoki tasdiq = <strong>{formatMoney(bonusRate)}</strong>
+        </div>
         <form className="form-grid" onSubmit={handleSubmit}>
           <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
           <label><span>Joylash sanasi</span><input type="date" value={form.publish_date} onChange={(e) => setField("publish_date", e.target.value)} required /></label>
@@ -797,6 +894,26 @@ function ContentPage({ users = [], onToast, reload }) {
         </form>
       </div>
 
+      <div className="stats-grid analytics-grid">
+        <StatCard title="Yaqin 3 kun" value={dueSoonTasks.length} hint="eslatma kerak" />
+        <StatCard title="Kechikkanlar" value={overdueTasks.length} hint="ustuvor ko'rib chiqing" />
+        <StatCard title="Bajarilganlar" value={tasks.filter((item) => item.status === "done").length} hint="jami bajarilgan" />
+        <StatCard title="Joriy oy vazifalar" value={tasks.filter((item) => formatDate(item.due_date).startsWith(selectedMonth)).length} hint={getMonthTitle(selectedMonth)} />
+      </div>
+
+      <div className="card">
+        <SectionTitle title="Task reminders" desc="Muddat yaqinlashgan vazifalar" />
+        <div className="reminder-list">
+          {[...overdueTasks, ...dueSoonTasks].slice(0, 6).map((row) => (
+            <div key={`reminder-${row.id}`} className={`reminder-card ${overdueTasks.some((item) => item.id === row.id) ? "danger" : ""}`}>
+              <strong>{row.title}</strong>
+              <span>{formatDate(row.due_date)} • {taskStatusLabel(row.status)}</span>
+            </div>
+          ))}
+          {!overdueTasks.length && !dueSoonTasks.length ? <div className="empty-block">Hozircha eslatma yo'q</div> : null}
+        </div>
+      </div>
+
       <div className="card">
         <SectionTitle
           title={`${getMonthTitle(selectedMonth)} kontent rejasi`}
@@ -811,7 +928,7 @@ function ContentPage({ users = [], onToast, reload }) {
           }
         />
 
-        <div className="table-wrap">
+        {viewMode === "table" ? <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -856,7 +973,18 @@ function ContentPage({ users = [], onToast, reload }) {
               )}
             </tbody>
           </table>
-        </div>
+        </div> : (
+          <MiniCalendar
+            monthLabel={selectedMonth}
+            rows={rows}
+            dateKey="publish_date"
+            renderItem={(item) => (
+              <button key={item.id} type="button" className={`calendar-pill ${item.bonus_enabled ? "bonus" : ""}`} onClick={() => setViewRow(item)}>
+                {item.title}
+              </button>
+            )}
+          />
+        )}
       </div>
 
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kontent reja tafsiloti">
@@ -877,7 +1005,7 @@ function ContentPage({ users = [], onToast, reload }) {
   );
 }
 
-function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload }) {
+function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToast, reload }) {
   const [monthFilter, setMonthFilter] = useState(getMonthLabel());
   const [saving, setSaving] = useState(false);
   const [viewRow, setViewRow] = useState(null);
@@ -898,6 +1026,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
   const [form, setForm] = useState(emptyForm);
   const isVideo = form.content_type === "video";
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const bonusRate = Number(settings?.bonus_rate || 25000);
 
   const monthOptions = [...new Set(
     [getMonthLabel(), ...(bonusItems || []).map((i) => i.month_label || formatDate(i.work_date).slice(0, 7)).filter(Boolean)]
@@ -1049,6 +1178,10 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
           }
         />
 
+        <div className="info-banner">
+          Bonus formulasi: 1 ta taklif yoki tasdiq = <strong>{formatMoney(bonusRate)}</strong>
+        </div>
+
         <div className="stats-grid">
           <StatCard title="Taklif summasi" value={formatMoney(totalProposalAmount)} hint="joriy oy" />
           <StatCard title="Tasdiq summasi" value={formatMoney(totalApprovedAmount)} hint="joriy oy" />
@@ -1120,7 +1253,15 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
 
       <div className="card">
         <SectionTitle title="Hodim bo‘yicha bonus summalari" />
-        <div className="table-wrap">
+        <div className="toolbar-actions mb12">
+          <button type="button" className="btn secondary" onClick={() => setViewMode(viewMode === "table" ? "calendar" : "table")}>
+            {viewMode === "table" ? "Calendar view" : "Table view"}
+          </button>
+          <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>Oldingi oy</button>
+          <div className="summary-pill"><strong>{getMonthTitle(selectedMonth)}</strong></div>
+          <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>Keyingi oy</button>
+        </div>
+        {viewMode === "table" ? <div className="table-wrap">
           <table>
             <thead>
               <tr>
@@ -1141,7 +1282,18 @@ function BonusPage({ bonusItems = [], users = [], branches = [], onToast, reload
               )}
             </tbody>
           </table>
-        </div>
+        </div> : (
+          <MiniCalendar
+            monthLabel={selectedMonth}
+            rows={tasks.filter((item) => formatDate(item.due_date) !== "-")}
+            dateKey="due_date"
+            renderItem={(item) => (
+              <button key={item.id} type="button" className={`calendar-pill task ${item.status === "done" ? "done" : ""}`} onClick={() => setViewRow(item)}>
+                {item.title}
+              </button>
+            )}
+          />
+        )}
       </div>
 
       <div className="card">
@@ -2012,6 +2164,8 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
   const [filterDate, setFilterDate] = useState("");
   const [viewRow, setViewRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
+  const [viewMode, setViewMode] = useState("table");
+  const [selectedMonth, setSelectedMonth] = useState(getMonthLabel());
   const isPrivileged = user?.role === "admin" || user?.role === "manager";
 
   const emptyForm = {
@@ -2029,6 +2183,17 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
   const filteredTasks = filterDate
     ? tasks.filter((row) => formatDate(row.due_date) === filterDate)
     : tasks;
+  const dueSoonTasks = (tasks || []).filter((row) => {
+    const due = formatDate(row.due_date);
+    if (due === "-" || row.status === "done") return false;
+    const today = formatDate(new Date());
+    const max = formatDate(new Date(Date.now() + 3 * 24 * 60 * 60 * 1000));
+    return due >= today && due <= max;
+  });
+  const overdueTasks = (tasks || []).filter((row) => {
+    const due = formatDate(row.due_date);
+    return due !== "-" && row.status !== "done" && due < formatDate(new Date());
+  });
 
   function resetForm() {
     setForm({
@@ -2522,6 +2687,7 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
           <label><span>Kompaniya nomi</span><input value={form.company_name || ""} onChange={(e) => setField("company_name", e.target.value)} /></label>
           <label><span>Platforma nomi</span><input value={form.platform_name || ""} onChange={(e) => setField("platform_name", e.target.value)} /></label>
           <label><span>Bo‘lim</span><input value={form.department_name || ""} onChange={(e) => setField("department_name", e.target.value)} /></label>
+          <label><span>Bonus stavkasi</span><input type="number" min="0" value={form.bonus_rate || 25000} onChange={(e) => setField("bonus_rate", e.target.value)} /></label>
           <label><span>Websayt</span><input value={form.website_url || ""} onChange={(e) => setField("website_url", e.target.value)} /></label>
           <label><span>Telegram</span><input value={form.telegram_url || ""} onChange={(e) => setField("telegram_url", e.target.value)} /></label>
           <label><span>Instagram</span><input value={form.instagram_url || ""} onChange={(e) => setField("instagram_url", e.target.value)} /></label>
@@ -2538,7 +2704,7 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
             <img src={form.logo_url || LOGIN_LOGO} alt="Logo preview" className="settings-logo-image" />
             <div>
               <strong>{form.company_name || "aloo"}</strong>
-              <span>{form.platform_name || "SMM jamoasi platformasi"}</span>
+              <span>{form.platform_name || "SMM jamoasi platformasi"} • {formatMoney(form.bonus_rate || 25000)}</span>
             </div>
           </div>
         </div>
@@ -2773,9 +2939,9 @@ function App() {
       />
     );
   } else if (active === "content") {
-    page = <ContentPage users={users} onToast={showToast} reload={reloadData} />;
+    page = <ContentPage users={users} settings={settings} onToast={showToast} reload={reloadData} />;
   } else if (active === "bonus") {
-    page = <BonusPage bonusItems={bonusItems} users={users} branches={branches} onToast={showToast} reload={reloadData} />;
+    page = <BonusPage bonusItems={bonusItems} users={users} branches={branches} settings={settings} onToast={showToast} reload={reloadData} />;
   } else if (active === "dailyReports") {
     page = <DailyReportsPage reports={dailyReports} branches={branches} onToast={showToast} reload={reloadData} />;
   } else if (active === "campaigns") {
@@ -3441,6 +3607,7 @@ img{display:block;max-width:100%}
 .stat-card-title{font-size:14px;color:var(--muted)}
 .stat-card-value{font-size:36px;font-weight:900;margin-top:10px}
 .stat-card-hint{font-size:13px;color:var(--muted);margin-top:8px}
+.analytics-grid{grid-template-columns:repeat(4,1fr)}
 
 .two-grid{
   display:grid;
@@ -3463,6 +3630,91 @@ img{display:block;max-width:100%}
 .section-title-row h2{margin:0;font-size:26px}
 .section-title-row p{margin:8px 0 0;color:var(--muted)}
 .toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
+.mb12{margin-bottom:12px}
+.info-banner{
+  margin-bottom:14px;
+  padding:14px 16px;
+  border-radius:16px;
+  background:linear-gradient(135deg, rgba(29,78,216,.08), rgba(56,189,248,.08), rgba(110,231,183,.08));
+  border:1px solid rgba(29,78,216,.14);
+  color:var(--text);
+}
+.reminder-list{display:grid;gap:12px}
+.reminder-card{
+  padding:14px 16px;
+  border-radius:16px;
+  background:var(--soft);
+  border:1px solid var(--line);
+  display:grid;
+  gap:6px;
+}
+.reminder-card.danger{
+  background:linear-gradient(135deg, rgba(225,29,72,.08), rgba(255,255,255,.95));
+  border-color:rgba(225,29,72,.22);
+}
+.reminder-card span{color:var(--muted);font-size:13px}
+.calendar-card{
+  display:grid;
+  gap:10px;
+}
+.calendar-weekdays,.calendar-grid{
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:8px;
+}
+.calendar-weekdays div{
+  padding:8px 0;
+  text-align:center;
+  color:var(--muted);
+  font-size:12px;
+  font-weight:700;
+}
+.calendar-cell{
+  min-height:120px;
+  padding:10px;
+  border-radius:18px;
+  background:var(--soft);
+  border:1px solid var(--line);
+  display:grid;
+  align-content:start;
+  gap:8px;
+}
+.calendar-cell.empty{
+  opacity:.35;
+}
+.calendar-day{
+  font-weight:800;
+  font-size:13px;
+}
+.calendar-items{
+  display:grid;
+  gap:6px;
+}
+.calendar-pill{
+  width:100%;
+  text-align:left;
+  border:0;
+  border-radius:12px;
+  padding:8px 10px;
+  background:linear-gradient(135deg, rgba(255,255,255,.98), rgba(225,238,255,.95));
+  color:var(--text);
+  cursor:pointer;
+  font-size:12px;
+}
+.calendar-pill.bonus{
+  background:linear-gradient(135deg, rgba(34,197,94,.12), rgba(110,231,183,.2));
+}
+.calendar-pill.task{
+  background:linear-gradient(135deg, rgba(29,78,216,.1), rgba(56,189,248,.16));
+}
+.calendar-pill.task.done{
+  background:linear-gradient(135deg, rgba(34,197,94,.14), rgba(187,247,208,.18));
+}
+.calendar-more{
+  color:var(--muted);
+  font-size:12px;
+  padding:0 2px;
+}
 
 .form-grid{
   display:grid;
