@@ -10,6 +10,7 @@ const pool = new Pool({
 
 // asosiy query function
 export const query = (text, params) => pool.query(text, params);
+export const getClient = () => pool.connect();
 
 // pool ham kerak bo‘lsa
 export default pool;
