@@ -5,7 +5,10 @@ import bcrypt from "bcryptjs";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
+import http from "http";
+import jwt from "jsonwebtoken";
 import { fileURLToPath } from "url";
+import { Server as SocketIOServer } from "socket.io";
 import { getClient, query } from "./db.js";
 import { authRequired, rolesAllowed, signToken } from "./auth.js";
 import { sendExcel, sendSimplePdf } from "./exports.js";
@@ -14,6 +17,7 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 8080;
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,6 +43,16 @@ app.use(
 
 app.use(express.json());
 app.use("/uploads", express.static(uploadsDir));
+
+const httpServer = http.createServer(app);
+const io = new SocketIOServer(httpServer, {
+  cors: {
+    origin: allowedOrigins,
+    credentials: true
+  }
+});
+
+const userSockets = new Map();
 
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, uploadsDir),
@@ -132,6 +146,31 @@ async function createNotification(userId, title, body, type = "info", category =
   } catch (err) {
     console.error("notification error:", err.message);
   }
+}
+
+function emitToUser(userId, eventName, payload) {
+  if (!userId) return;
+  io.to(`user:${userId}`).emit(eventName, payload);
+}
+
+async function markUserPresence(userId, online) {
+  if (!userId) return;
+  try {
+    await query(
+      `UPDATE users SET last_seen_at = CURRENT_TIMESTAMP WHERE id = $1`,
+      [userId]
+    );
+  } catch (err) {
+    console.error("presence update error:", err.message);
+  }
+
+  const payload = {
+    user_id: Number(userId),
+    online: !!online,
+    last_seen_at: new Date().toISOString()
+  };
+
+  io.emit("presence:update", payload);
 }
 
 function getApprovalNotificationMeta(status, label) {
@@ -413,6 +452,107 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
 
 app.get("/", (_, res) => {
   res.json({ ok: true, service: "aloo-smm-server" });
+});
+
+io.use((socket, next) => {
+  try {
+    const rawToken = socket.handshake.auth?.token || socket.handshake.headers.authorization || "";
+    const token = String(rawToken).startsWith("Bearer ")
+      ? String(rawToken).slice(7)
+      : String(rawToken || "");
+
+    if (!token) {
+      return next(new Error("Token required"));
+    }
+
+    const decoded = jwt.verify(token, JWT_SECRET);
+    socket.user = decoded;
+    return next();
+  } catch {
+    return next(new Error("Token invalid"));
+  }
+});
+
+io.on("connection", async (socket) => {
+  const userId = Number(socket.user?.id);
+  if (!userId) {
+    socket.disconnect(true);
+    return;
+  }
+
+  socket.join(`user:${userId}`);
+
+  if (!userSockets.has(userId)) userSockets.set(userId, new Set());
+  userSockets.get(userId).add(socket.id);
+  await markUserPresence(userId, true);
+
+  socket.on("chat:typing", async (payload = {}) => {
+    const targetUserId = Number(payload.target_user_id || 0);
+    if (!targetUserId) return;
+
+    try {
+      await query(
+        `
+        INSERT INTO typing_states (user_id, target_user_id, is_typing, updated_at)
+        VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+        ON CONFLICT (user_id, target_user_id)
+        DO UPDATE SET is_typing = EXCLUDED.is_typing, updated_at = CURRENT_TIMESTAMP
+        `,
+        [userId, targetUserId, !!payload.is_typing]
+      );
+      emitToUser(targetUserId, "chat:typing", {
+        user_id: userId,
+        target_user_id: targetUserId,
+        is_typing: !!payload.is_typing
+      });
+    } catch (err) {
+      console.error("socket typing error:", err.message);
+    }
+  });
+
+  socket.on("chat:thread:open", async (payload = {}) => {
+    const otherUserId = Number(payload.other_user_id || 0);
+    if (!otherUserId) return;
+
+    try {
+      const updated = await query(
+        `
+        UPDATE messages
+        SET is_read = TRUE,
+            read_at = CURRENT_TIMESTAMP,
+            delivered_at = COALESCE(delivered_at, CURRENT_TIMESTAMP)
+        WHERE sender_user_id = $1
+          AND receiver_user_id = $2
+          AND is_read = FALSE
+        RETURNING id, sender_user_id, receiver_user_id, read_at
+        `,
+        [otherUserId, userId]
+      );
+
+      if (updated.rows.length) {
+        emitToUser(otherUserId, "chat:read", {
+          by_user_id: userId,
+          message_ids: updated.rows.map((row) => row.id),
+          read_at: updated.rows[0].read_at
+        });
+      }
+    } catch (err) {
+      console.error("socket read error:", err.message);
+    }
+  });
+
+  socket.on("disconnect", async () => {
+    const sockets = userSockets.get(userId);
+    if (sockets) {
+      sockets.delete(socket.id);
+      if (!sockets.size) {
+        userSockets.delete(userId);
+        await markUserPresence(userId, false);
+      }
+    } else {
+      await markUserPresence(userId, false);
+    }
+  });
 });
 
 /* AUTH */
@@ -2369,16 +2509,25 @@ app.get("/api/messages/thread/:otherUserId", authRequired, async (req, res) => {
       [req.user.id, otherUserId]
     );
 
-    await query(
+    const readResult = await query(
       `
       UPDATE messages
       SET is_read = TRUE
         , read_at = CURRENT_TIMESTAMP
         , delivered_at = COALESCE(delivered_at, CURRENT_TIMESTAMP)
       WHERE sender_user_id = $1 AND receiver_user_id = $2 AND is_read = FALSE
+      RETURNING id, read_at
       `,
       [otherUserId, req.user.id]
     );
+
+    if (readResult.rows.length) {
+      emitToUser(otherUserId, "chat:read", {
+        by_user_id: req.user.id,
+        message_ids: readResult.rows.map((row) => row.id),
+        read_at: readResult.rows[0].read_at
+      });
+    }
 
     res.json(result.rows);
   } catch (err) {
@@ -2404,13 +2553,14 @@ app.post("/api/messages", authRequired, async (req, res) => {
       return res.status(404).json({ message: "Qabul qiluvchi hodim topilmadi" });
     }
 
+    const receiverOnline = userSockets.has(Number(receiver_user_id));
     const inserted = await query(
       `
       INSERT INTO messages (sender_user_id, receiver_user_id, body, delivered_at)
-      VALUES ($1, $2, $3, NULL)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
       `,
-      [req.user.id, receiver_user_id, body.trim()]
+      [req.user.id, receiver_user_id, body.trim(), receiverOnline ? new Date().toISOString() : null]
     );
 
     await createNotification(
@@ -2420,6 +2570,13 @@ app.post("/api/messages", authRequired, async (req, res) => {
       "info",
       "chat"
     );
+
+    emitToUser(receiver_user_id, "chat:new_message", inserted.rows[0]);
+    emitToUser(req.user.id, "chat:message_status", {
+      id: inserted.rows[0].id,
+      delivered_at: inserted.rows[0].delivered_at,
+      read_at: inserted.rows[0].read_at || null
+    });
 
     res.json(inserted.rows[0]);
   } catch (err) {
@@ -2444,6 +2601,12 @@ app.post("/api/messages/typing", authRequired, async (req, res) => {
       `,
       [req.user.id, Number(target_user_id), !!is_typing]
     );
+
+    emitToUser(Number(target_user_id), "chat:typing", {
+      user_id: req.user.id,
+      target_user_id: Number(target_user_id),
+      is_typing: !!is_typing
+    });
 
     res.json({ ok: true });
   } catch (err) {
@@ -2981,7 +3144,7 @@ app.get("/api/export/daily-reports.pdf", authRequired, async (_, res) => {
 });
 
 ensureRuntimeSchema().finally(() => {
-  app.listen(PORT, () => {
+  httpServer.listen(PORT, () => {
     console.log(`Server running on ${PORT}`);
   });
 });
