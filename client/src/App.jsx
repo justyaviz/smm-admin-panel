@@ -313,6 +313,24 @@ function canManagePage(user, pageKey, action) {
   return hasPermission(user, pageKey) || hasPermission(user, `${pageKey}_${action}`);
 }
 
+const LOGIN_LOGO =
+  'data:image/svg+xml;utf8,' +
+  encodeURIComponent(`
+    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#1d4ed8"/>
+          <stop offset="55%" stop-color="#38bdf8"/>
+          <stop offset="100%" stop-color="#6ee7b7"/>
+        </linearGradient>
+      </defs>
+      <rect x="10" y="10" width="140" height="140" rx="42" fill="url(#g)"/>
+      <circle cx="58" cy="56" r="16" fill="rgba(255,255,255,0.32)"/>
+      <path d="M79 43c18 0 33 15 33 33S97 109 79 109 46 94 46 76s15-33 33-33Z" fill="rgba(255,255,255,0.16)"/>
+      <path d="M84.8 110H68.7l4.9-14.5H60.7L83.5 50h16.4l-5.2 15.6h13.4z" fill="white"/>
+    </svg>
+  `);
+
 function LoginPage({ onLoggedIn }) {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
@@ -342,6 +360,13 @@ function LoginPage({ onLoggedIn }) {
 
       <div className="login-copy">
         <div className="brand-kicker">aloo • yagona platforma</div>
+        <div className="login-logo-lockup">
+          <img src={LOGIN_LOGO} alt="aloo logo" className="login-logo-image" />
+          <div className="login-logo-copy">
+            <strong>aloo SMM</strong>
+            <span>Yagona boshqaruv platformasi</span>
+          </div>
+        </div>
         <h1>Assalomu alaykum</h1>
         <h2>aloo do‘konlar tarmog‘i SMM jamoasi yagona ma’lumotlar platformasiga xush kelibsiz</h2>
         <p>Kirish uchun login va parolingizni kiriting.</p>
@@ -359,6 +384,12 @@ function LoginPage({ onLoggedIn }) {
 
       <form className="login-card" onSubmit={submit}>
         <div className="login-card-shine" />
+        {loading ? (
+          <div className="login-loading">
+            <div className="login-loader-ring" />
+            <span>Kirish tekshirilmoqda...</span>
+          </div>
+        ) : null}
         <div className="small-label">Kirish</div>
         <div className="login-title">Xush kelibsiz</div>
 
@@ -2796,9 +2827,10 @@ img{display:block;max-width:100%}
   position:relative;
   overflow:hidden;
   background:
-    radial-gradient(circle at 15% 20%, rgba(56,189,248,.14), transparent 28%),
-    radial-gradient(circle at 78% 78%, rgba(29,78,216,.12), transparent 24%),
-    linear-gradient(135deg,#eef6ff 0%, #f8fbff 38%, #eef9f7 100%);
+    radial-gradient(circle at 12% 18%, rgba(56,189,248,.24), transparent 26%),
+    radial-gradient(circle at 86% 20%, rgba(99,102,241,.18), transparent 22%),
+    radial-gradient(circle at 78% 78%, rgba(29,78,216,.16), transparent 24%),
+    linear-gradient(135deg,#eaf4ff 0%, #f8fbff 34%, #eef9f7 66%, #ecfeff 100%);
 }
 .login-copy{
   display:flex;
@@ -2835,6 +2867,31 @@ img{display:block;max-width:100%}
   max-width:760px;
 }
 .login-copy p{color:var(--muted);font-size:18px;max-width:620px;line-height:1.6}
+.login-logo-lockup{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  margin-top:26px;
+  margin-bottom:4px;
+}
+.login-logo-image{
+  width:78px;
+  height:78px;
+  border-radius:26px;
+  box-shadow:0 18px 34px rgba(29,78,216,.18);
+}
+.login-logo-copy{
+  display:grid;
+  gap:4px;
+}
+.login-logo-copy strong{
+  font-size:22px;
+  line-height:1;
+}
+.login-logo-copy span{
+  color:var(--muted);
+  font-size:14px;
+}
 .login-feature-row{
   display:grid;
   grid-template-columns:repeat(2,minmax(0,220px));
@@ -2891,8 +2948,8 @@ img{display:block;max-width:100%}
   transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
 }
 .login-card input:focus{
-  border-color:rgba(22,144,245,.35);
-  box-shadow:0 0 0 4px rgba(22,144,245,.10);
+  border-color:rgba(22,144,245,.45);
+  box-shadow:0 0 0 4px rgba(22,144,245,.12), 0 14px 30px rgba(56,189,248,.12);
   transform:translateY(-1px);
 }
 .login-card .btn.primary{
@@ -2940,6 +2997,32 @@ img{display:block;max-width:100%}
   background-size:34px 34px;
   mask-image:radial-gradient(circle at center, black 36%, transparent 88%);
   pointer-events:none;
+}
+.login-loading{
+  position:absolute;
+  inset:0;
+  background:rgba(255,255,255,.58);
+  backdrop-filter:blur(8px);
+  z-index:4;
+  display:grid;
+  place-items:center;
+  gap:12px;
+  text-align:center;
+  color:var(--text);
+}
+.login-loading span{
+  font-size:14px;
+  color:var(--muted);
+}
+.login-loader-ring{
+  width:58px;
+  height:58px;
+  border-radius:50%;
+  border:4px solid rgba(29,78,216,.12);
+  border-top-color:#1d4ed8;
+  border-right-color:#38bdf8;
+  animation:login-spin 1s linear infinite;
+  box-shadow:0 0 0 8px rgba(56,189,248,.08);
 }
 
 .app-shell{
@@ -3631,6 +3714,8 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   .hero-banner h1{font-size:34px}
   .login-copy h1{font-size:46px}
   .login-copy h2{font-size:24px}
+  .login-logo-lockup{margin-top:18px}
+  .login-logo-image{width:64px;height:64px}
   .login-feature-row{grid-template-columns:1fr}
   .permission-grid{grid-template-columns:1fr}
   .media-grid{grid-template-columns:1fr}
@@ -3653,6 +3738,10 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   0%{transform:translateX(0) translateY(0)}
   50%{transform:translateX(180%) translateY(26%)}
   100%{transform:translateX(360%) translateY(0)}
+}
+@keyframes login-spin{
+  from{transform:rotate(0deg)}
+  to{transform:rotate(360deg)}
 }
 @keyframes button-shimmer{
   0%{transform:translateX(-130%)}
