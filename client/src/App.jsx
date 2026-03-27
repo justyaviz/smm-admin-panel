@@ -2679,7 +2679,9 @@ function App() {
                   type="button"
                   onClick={() => setActive(item.id)}
                 >
-                  <Icon size={16} />
+                  <span className="menu-icon-wrap">
+                    <Icon size={16} />
+                  </span>
                   <span>{item.title}</span>
                 </button>
               );
@@ -2832,16 +2834,19 @@ img{display:block;max-width:100%}
 }
 .brand-block{display:flex;align-items:center;gap:12px}
 .brand-mark{
-  width:52px;height:52px;border-radius:18px;
-  background:linear-gradient(135deg,var(--blue),#62d2ff);
+  width:56px;height:56px;border-radius:20px;
+  background:
+    radial-gradient(circle at 30% 30%, rgba(255,255,255,.35), transparent 38%),
+    linear-gradient(135deg,#1d4ed8,#38bdf8 55%,#6ee7b7);
   color:#fff;display:grid;place-items:center;font-size:26px;font-weight:900;
+  box-shadow:0 16px 30px rgba(29,78,216,.22);
 }
 .brand-name{font-size:24px;font-weight:800}
 .brand-desc{font-size:12px;color:var(--muted)}
 
 .sidebar-search{
   display:flex;align-items:center;gap:10px;
-  background:var(--soft);
+  background:linear-gradient(180deg, rgba(255,255,255,.92), var(--soft));
   border:1px solid var(--line);
   border-radius:16px;
   padding:12px 14px;
@@ -2856,7 +2861,7 @@ img{display:block;max-width:100%}
 .menu-list{display:grid;gap:10px}
 .menu-btn{
   border:1px solid transparent;
-  background:transparent;
+  background:linear-gradient(180deg, rgba(255,255,255,.9), rgba(246,249,253,.75));
   color:var(--text);
   padding:14px 16px;
   border-radius:16px;
@@ -2864,11 +2869,32 @@ img{display:block;max-width:100%}
   cursor:pointer;
   text-align:left;
   font-weight:700;
+  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease,background .18s ease;
 }
-.menu-btn:hover{background:var(--soft)}
+.menu-btn:hover{
+  background:linear-gradient(180deg, rgba(235,245,255,.95), rgba(241,248,255,.9));
+  border-color:rgba(22,144,245,.18);
+  transform:translateX(2px);
+}
 .menu-btn.active{
-  background:linear-gradient(135deg,rgba(22,144,245,.10),rgba(98,210,255,.08));
-  border-color:rgba(22,144,245,.16);
+  background:linear-gradient(135deg,rgba(22,144,245,.14),rgba(98,210,255,.14),rgba(110,231,183,.12));
+  border-color:rgba(22,144,245,.28);
+  box-shadow:0 14px 28px rgba(22,144,245,.10);
+}
+.menu-icon-wrap{
+  width:34px;
+  height:34px;
+  border-radius:12px;
+  display:grid;
+  place-items:center;
+  background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(228,240,255,.9));
+  border:1px solid rgba(22,144,245,.12);
+  color:#2563eb;
+}
+.menu-btn.active .menu-icon-wrap{
+  background:linear-gradient(135deg,#1d4ed8,#38bdf8);
+  color:#fff;
+  border-color:transparent;
 }
 
 .logout-btn{
@@ -2876,10 +2902,13 @@ img{display:block;max-width:100%}
   border:0;
   border-radius:16px;
   padding:14px 16px;
-  background:var(--black);
+  background:
+    radial-gradient(circle at 12% 20%, rgba(255,0,153,.35), transparent 18%),
+    linear-gradient(135deg,#0f172a,#111827 60%,#020617);
   color:#fff;
   display:flex;align-items:center;justify-content:center;gap:8px;
   cursor:pointer;
+  box-shadow:0 18px 34px rgba(2,6,23,.22);
 }
 
 .main-area{padding:24px}
