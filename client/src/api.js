@@ -15,16 +15,38 @@ export function clearAuth() {
   localStorage.removeItem("aloo_user");
 }
 
+function getToken() {
+  return localStorage.getItem("aloo_token");
+}
+
 function authHeaders() {
-  const token = localStorage.getItem("aloo_token");
+  const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function buildUrl(path, query) {
+  const fullPath = path.startsWith("/") ? path : `/api/${path}`;
+  const url = new URL(`${API_BASE}${fullPath}`);
+
+  if (query && typeof query === "object") {
+    Object.entries(query).forEach(([key, value]) => {
+      if (value !== undefined && value !== null && value !== "") {
+        url.searchParams.set(key, String(value));
+      }
+    });
+  }
+
+  return url.toString();
+}
+
 async function request(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
+  const isFormData = options.body instanceof FormData;
+  const url = buildUrl(path, options.query);
+
+  const res = await fetch(url, {
     ...options,
     headers: {
-      ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+      ...(isFormData ? {} : { "Content-Type": "application/json" }),
       ...authHeaders(),
       ...(options.headers || {})
     }
@@ -36,7 +58,11 @@ async function request(path, options = {}) {
   }
 
   const ct = res.headers.get("content-type") || "";
-  if (ct.includes("application/json")) return res.json();
+
+  if (ct.includes("application/json")) {
+    return res.json();
+  }
+
   return res.blob();
 }
 
@@ -49,6 +75,7 @@ export const api = {
 
     if (data?.token) localStorage.setItem("aloo_token", data.token);
     if (data?.user) localStorage.setItem("aloo_user", JSON.stringify(data.user));
+
     return data;
   },
 
@@ -81,8 +108,10 @@ export const api = {
       })
   },
 
-  list: (entityOrPath) =>
-    request(entityOrPath.startsWith("/") ? entityOrPath : `/api/${entityOrPath}`),
+  list: (entityOrPath, query = null) =>
+    request(entityOrPath.startsWith("/") ? entityOrPath : `/api/${entityOrPath}`, {
+      query
+    }),
 
   create: (entity, payload) =>
     request(`/api/${entity}`, {
@@ -107,13 +136,15 @@ export const api = {
       body: formData
     }),
 
-  exportFile: async (path, fileName) => {
+  exportFile: async (path, fileName = "download") => {
     const blob = await request(path);
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = fileName;
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     window.URL.revokeObjectURL(url);
   },
 
