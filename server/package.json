@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
-    "reset:test-data": "node scripts/reset-test-data.mjs"
+    "reset:test-data": "node scripts/reset-test-data.mjs",
+    "sync:branches": "node scripts/sync-branches.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

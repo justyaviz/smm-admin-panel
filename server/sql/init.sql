@@ -242,10 +242,20 @@ INSERT INTO users (
 );
 
 INSERT INTO branches (name, city) VALUES
+('Bosh ofis', 'Bosh ofis'),
+('Ohangaron', 'Ohangaron'),
 ('Angren', 'Angren'),
 ('Chirchiq', 'Chirchiq'),
-('Olmaliq', 'Olmaliq'),
+('Guliston', 'Guliston'),
+('Jarqo''rg''on', 'Jarqo''rg''on'),
+('Sherobod', 'Sherobod'),
 ('Qibray', 'Qibray'),
+('G''azalkent', 'G''azalkent'),
+('Olmaliq', 'Olmaliq'),
+('Piskent', 'Piskent'),
+('Oqqo''rg''on', 'Oqqo''rg''on'),
+('Chinoz', 'Chinoz'),
+('Sho''rchi', 'Sho''rchi'),
 ('Parkent', 'Parkent');
 
 INSERT INTO social_accounts (platform, status) VALUES

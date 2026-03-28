@@ -12,6 +12,7 @@ import { fileURLToPath } from "url";
 import { Server as SocketIOServer } from "socket.io";
 import { getClient, query } from "./db.js";
 import { authRequired, rolesAllowed, signToken } from "./auth.js";
+import { buildBranchOrderSql, DEFAULT_BRANCHES } from "./defaultBranches.js";
 import { sendExcel, sendSimplePdf } from "./exports.js";
 
 const app = express();
@@ -172,6 +173,27 @@ async function ensurePublicShareToken() {
   } catch (err) {
     console.error("share token error:", err.message);
     return null;
+  }
+}
+
+async function ensureDefaultBranches() {
+  try {
+    const countRes = await query(`SELECT COUNT(*)::int AS count FROM branches`);
+    const branchCount = Number(countRes.rows[0]?.count || 0);
+
+    if (branchCount > 0) return;
+
+    for (const branch of DEFAULT_BRANCHES) {
+      await query(
+        `
+        INSERT INTO branches (name, city)
+        VALUES ($1, $2)
+        `,
+        [branch.name, branch.city]
+      );
+    }
+  } catch (err) {
+    console.error("default branches seed error:", err.message);
   }
 }
 
@@ -1667,7 +1689,7 @@ app.post("/api/users/:id/reset-password", authRequired, async (req, res) => {
 
 app.get("/api/branches", authRequired, async (_, res) => {
   try {
-    const result = await query(`SELECT * FROM branches ORDER BY id DESC`);
+    const result = await query(`SELECT * FROM branches ORDER BY ${buildBranchOrderSql("name")}`);
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -4252,8 +4274,13 @@ app.get("/api/export/daily-reports.pdf", authRequired, async (_, res) => {
   }
 });
 
-ensureRuntimeSchema().finally(() => {
-  httpServer.listen(PORT, () => {
-    console.log(`Server running on ${PORT}`);
+ensureRuntimeSchema()
+  .then(() => ensureDefaultBranches())
+  .catch((err) => {
+    console.error("startup schema error:", err.message);
+  })
+  .finally(() => {
+    httpServer.listen(PORT, () => {
+      console.log(`Server running on ${PORT}`);
+    });
   });
-});
