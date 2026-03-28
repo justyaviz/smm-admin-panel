@@ -744,6 +744,12 @@ function canManagePage(user, pageKey, action) {
   return action ? canDoAction(user, pageKey, action) : canAccessPage(user, pageKey);
 }
 
+function rowMatchesSearch(fields = [], search = "") {
+  const query = String(search || "").trim().toLowerCase();
+  if (!query) return true;
+  return fields.some((field) => String(field || "").toLowerCase().includes(query));
+}
+
 const LOGIN_LOGO =
   'data:image/svg+xml;utf8,' +
   encodeURIComponent(`
@@ -1205,6 +1211,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
 function ContentPage({ users = [], branches = [], settings, user, onToast, reload }) {
   const [selectedMonth, setSelectedMonth] = useState(getMonthLabel());
   const [rows, setRows] = useState([]);
+  const [tableSearch, setTableSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [bonusMode, setBonusMode] = useState(false);
@@ -1250,6 +1257,21 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     rad_etildi: rows.filter((item) => item.status === "rad_etildi").length,
     yakunlandi: rows.filter((item) => ["yakunlandi", "joylangan"].includes(item.status)).length
   };
+  const visibleRows = useMemo(() => {
+    return rows.filter((row) => rowMatchesSearch(
+      [
+        row.title,
+        row.platform,
+        row.content_type,
+        row.status,
+        row.assignee_name,
+        row.video_editor_name,
+        row.video_face_name,
+        formatDate(row.publish_date)
+      ],
+      tableSearch
+    ));
+  }, [rows, tableSearch]);
 
   async function loadMonth(monthValue = selectedMonth) {
     try {
@@ -1549,13 +1571,23 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         <SectionTitle
           title={`${getMonthTitle(selectedMonth)} kontent rejasi`}
           right={
-            <button
-              type="button"
-              className="btn secondary"
-              onClick={() => api.exportFile("/api/export/content.xlsx", `content-${selectedMonth}.xlsx`)}
-            >
-              Excel export
-            </button>
+            <div className="toolbar-actions">
+              <label className="table-search" aria-label="Kontent qidiruvi">
+                <Search size={16} />
+                <input
+                  value={tableSearch}
+                  onChange={(e) => setTableSearch(e.target.value)}
+                  placeholder="Kontent, hodim yoki turdan qidiring..."
+                />
+              </label>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => api.exportFile("/api/export/content.xlsx", `content-${selectedMonth}.xlsx`)}
+              >
+                Excel export
+              </button>
+            </div>
           }
         />
 
@@ -1576,8 +1608,8 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
             <tbody>
               {loading ? (
                 <tr><td colSpan="8" className="empty-cell">Yuklanmoqda...</td></tr>
-              ) : rows.length ? (
-                rows.map((row) => (
+              ) : visibleRows.length ? (
+                visibleRows.map((row) => (
                   <tr key={row.id}>
                     <td>{row.title}</td>
                     <td>{formatDate(row.publish_date)}</td>
@@ -1600,14 +1632,14 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="8" className="empty-cell">Bu oy uchun reja yo'q</td></tr>
+                <tr><td colSpan="8" className="empty-cell">{tableSearch.trim() ? "Qidiruv bo'yicha kontent topilmadi" : "Bu oy uchun reja yo'q"}</td></tr>
               )}
             </tbody>
           </table>
         </div> : viewMode === "calendar" ? (
           <MiniCalendar
             monthLabel={selectedMonth}
-            rows={rows}
+            rows={visibleRows}
             dateKey="publish_date"
             onMoveDate={async (id, nextDate) => {
               const row = rows.find((item) => item.id === id);
@@ -1645,7 +1677,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               { id: "rad_etildi", label: "Rad etildi", tone: "danger" },
               { id: "yakunlandi", label: "Yakunlandi", tone: "success" }
             ]}
-            rows={rows.map((item) => ({
+            rows={visibleRows.map((item) => ({
               ...item,
               status: ["tayyorlanmoqda", "tayyor"].includes(item.status) ? "jarayonda" : ["joylangan"].includes(item.status) ? "yakunlandi" : item.status
             }))}
@@ -1943,6 +1975,7 @@ function downloadBonusApprovalImage({
 
 function BonusPage({ bonusItems = [], users = [], branches = [], settings, user, onToast, reload }) {
   const [monthFilter, setMonthFilter] = useState(getMonthLabel());
+  const [tableSearch, setTableSearch] = useState("");
   const [saving, setSaving] = useState(false);
   const [viewRow, setViewRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
@@ -1987,6 +2020,21 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       "work_date"
     );
   }, [bonusItems, monthFilter]);
+  const visibleItems = useMemo(() => {
+    return filteredItems.filter((row) => rowMatchesSearch(
+      [
+        row.content_title,
+        row.content_type,
+        row.full_name,
+        row.video_editor_name,
+        row.video_face_name,
+        row.branch_name,
+        row.difficulty_level,
+        formatDate(row.work_date)
+      ],
+      tableSearch
+    ));
+  }, [filteredItems, tableSearch]);
 
   const totalProposalCount = filteredItems.reduce((sum, item) => sum + Number(item.proposal_count || 0), 0);
   const totalApprovedAmount = filteredItems.reduce((sum, item) => sum + Number(item.approved_amount || 0), 0);
@@ -2394,7 +2442,19 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       </div>
 
       <div className="card">
-        <SectionTitle title={`${getMonthTitle(monthFilter)} bonus yozuvlari`} />
+        <SectionTitle
+          title={`${getMonthTitle(monthFilter)} bonus yozuvlari`}
+          right={
+            <label className="table-search" aria-label="Bonus qidiruvi">
+              <Search size={16} />
+              <input
+                value={tableSearch}
+                onChange={(e) => setTableSearch(e.target.value)}
+                placeholder="Bonus, hodim yoki turdan qidiring..."
+              />
+            </label>
+          }
+        />
         <div className="table-wrap">
           <table>
             <thead>
@@ -2412,8 +2472,8 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               </tr>
             </thead>
             <tbody>
-              {filteredItems.length ? (
-                filteredItems.map((row) => {
+              {visibleItems.length ? (
+                visibleItems.map((row) => {
                   const difficultyMeta = getBonusDifficultyMeta(row);
                   return (
                     <tr key={row.id} className={difficultyMeta.rowClass}>
@@ -2441,7 +2501,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                   );
                 })
               ) : (
-                <tr><td colSpan="10" className="empty-cell">Bu oy uchun bonus yozuvi yo'q</td></tr>
+                <tr><td colSpan="10" className="empty-cell">{tableSearch.trim() ? "Qidiruv bo'yicha bonus yozuvi topilmadi" : "Bu oy uchun bonus yozuvi yo'q"}</td></tr>
               )}
             </tbody>
           </table>
@@ -6652,6 +6712,26 @@ img{display:block;max-width:100%}
 .section-title-row h2{margin:0;font-size:26px}
 .section-title-row p{margin:8px 0 0;color:var(--muted)}
 .toolbar-actions{display:flex;gap:8px;flex-wrap:wrap}
+.table-search{
+  min-width:min(100%, 320px);
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:12px 14px;
+  border-radius:16px;
+  border:1px solid var(--line);
+  background:var(--soft);
+  color:var(--muted);
+}
+.table-search input{
+  width:100%;
+  border:none;
+  background:transparent;
+  color:var(--text);
+}
+.table-search input::placeholder{
+  color:var(--muted);
+}
 .mb12{margin-bottom:12px}
 .info-banner{
   margin-bottom:14px;
