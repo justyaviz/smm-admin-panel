@@ -1948,20 +1948,17 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       .sort((a, b) => new Date(b.approved_at).getTime() - new Date(a.approved_at).getTime())[0] || null;
   }, [filteredItems]);
 
-  useEffect(() => {
-    if (!approvalOpen) return;
-    setApprovalRows(
-      filteredItems.map((item) => ({
-        ...item,
-        difficulty_level: item.difficulty_level || "normal",
-        proposal_count: Number(item.proposal_count || 0),
-        approved_count: Number(item.approved_count || 0),
-        total_amount: getBonusRowAmount(item, bonusRate),
-        proposal_amount: 0,
-        approved_amount: Number(item.approved_count || 0) * bonusRate
-      }))
-    );
-  }, [approvalOpen, filteredItems, bonusRate]);
+  function buildApprovalRows(items) {
+    return (items || []).map((item) => ({
+      ...item,
+      difficulty_level: item.difficulty_level || "normal",
+      proposal_count: Number(item.proposal_count || 0),
+      approved_count: Number(item.approved_count || 0),
+      total_amount: getBonusRowAmount(item, bonusRate),
+      proposal_amount: 0,
+      approved_amount: Number(item.approved_count || 0) * bonusRate
+    }));
+  }
 
   function resetForm() {
     setForm(emptyForm);
@@ -1990,6 +1987,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       onToast("Tasdiqlash uchun bonus yozuvlari topilmadi", "error");
       return;
     }
+    setApprovalRows(buildApprovalRows(filteredItems));
     setApprovalOpen(true);
   }
 
@@ -2027,6 +2025,24 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       onToast(`${getMonthTitle(monthFilter)} bonuslari tasdiqlandi`, "success");
     } catch (err) {
       onToast(err.message || "Bonuslarni tasdiqlab bo'lmadi", "error");
+    } finally {
+      setApprovalSaving(false);
+    }
+  }
+
+  async function handleRevokeMonth() {
+    const ok = window.confirm(`${getMonthTitle(monthFilter)} oyidagi tasdiqlarni bekor qilaymi?`);
+    if (!ok) return;
+
+    try {
+      setApprovalSaving(true);
+      await api.create("bonus-items/revoke-month", { month_label: monthFilter });
+      await reload();
+      setApprovalRows([]);
+      setApprovalOpen(false);
+      onToast(`${getMonthTitle(monthFilter)} bonus tasdig'i bekor qilindi`, "success");
+    } catch (err) {
+      onToast(err.message || "Tasdiqni bekor qilib bo'lmadi", "error");
     } finally {
       setApprovalSaving(false);
     }
@@ -2250,6 +2266,11 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               <button type="button" className="btn secondary" onClick={openApprovalModal} disabled={!filteredItems.length}>
                 Oylik bonusni tasdiqlash
               </button>
+              {approvedRowCount ? (
+                <button type="button" className="btn secondary" onClick={handleRevokeMonth}>
+                  Tasdiqni bekor qilish
+                </button>
+              ) : null}
               {monthApproved ? (
                 <button type="button" className="btn secondary" onClick={handleDownloadApprovalImage}>
                   Chop etish
@@ -2459,6 +2480,11 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               <button type="button" className="btn secondary" onClick={() => setApprovalOpen(false)}>
                 Yopish
               </button>
+              {approvedRowCount ? (
+                <button type="button" className="btn secondary" onClick={handleRevokeMonth} disabled={approvalSaving}>
+                  Tasdiqni bekor qilish
+                </button>
+              ) : null}
               <button type="button" className="btn primary" onClick={handleApproveMonth} disabled={approvalSaving || !approvalRows.length}>
                 {approvalSaving ? "Tasdiqlanmoqda..." : "Tasdiqlash"}
               </button>

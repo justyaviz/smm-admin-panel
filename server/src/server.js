@@ -2371,6 +2371,44 @@ app.post("/api/bonus-items/approve-month", authRequired, rolesAllowed("admin", "
   }
 });
 
+app.post("/api/bonus-items/revoke-month", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  const month = String(req.body?.month_label || "").trim();
+
+  if (!month) {
+    return res.status(400).json({ message: "Oy tanlanmagan" });
+  }
+
+  try {
+    const revoked = await query(
+      `
+      UPDATE bonus_items
+      SET
+        approved_count = 0,
+        proposal_amount = 0,
+        approved_amount = 0,
+        total_amount = 0,
+        approval_status = 'draft',
+        approved_by = NULL,
+        approved_at = NULL,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE month_label = $1
+      RETURNING id
+      `,
+      [month]
+    );
+
+    if (!revoked.rows.length) {
+      return res.status(404).json({ message: "Bekor qilish uchun bonus yozuvi topilmadi" });
+    }
+
+    await logAction(req.user.id, "revoke", "bonus_items", null, { month_label: month });
+    res.json({ success: true, count: revoked.rows.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Bonus tasdig'ini bekor qilib bo'lmadi: ${err.message}` });
+  }
+});
+
 app.delete("/api/bonus-items/:id", authRequired, async (req, res) => {
   try {
     const deleted = await query(`DELETE FROM bonus_items WHERE id = $1 RETURNING id`, [req.params.id]);
