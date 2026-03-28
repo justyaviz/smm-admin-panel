@@ -1393,7 +1393,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
         />
 
         <div className="info-banner">
-          Bonus formulasi: 1 ta taklif yoki tasdiq = <strong>{formatMoney(bonusRate)}</strong>
+          Bonus formulasi: 1 ta tasdiq = <strong>{formatMoney(bonusRate)}</strong>. Taklif soni faqat ma'lumot uchun.
         </div>
         <form className="form-grid" onSubmit={handleSubmit}>
           <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
@@ -1671,9 +1671,16 @@ function getBonusAssigneeLabel(item) {
 }
 
 function getBonusRowAmount(item, bonusRate = 25000) {
-  const explicitAmount = Number(item?.total_amount || item?.amount || 0);
-  if (explicitAmount) return explicitAmount;
-  return (Number(item?.proposal_count || 0) + Number(item?.approved_count || 0)) * Number(bonusRate || 0);
+  const approvedCount = Number(item?.approved_count || 0);
+  const approvedAmount = Number(item?.approved_amount || 0);
+  if (approvedAmount) return approvedAmount;
+  return approvedCount * Number(bonusRate || 0);
+}
+
+function getBonusDifficultyMeta(item) {
+  return item?.difficulty_level === "qiyin"
+    ? { label: "Qiyin", badgeClass: "mini-badge danger", rowClass: "table-row-danger" }
+    : { label: "Oddiy", badgeClass: "mini-badge default", rowClass: "" };
 }
 
 function summarizeBonusEmployees(items = [], bonusRate = 25000) {
@@ -1899,6 +1906,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
     title: "",
     work_date: "",
     content_type: "post",
+    difficulty_level: "normal",
     user_id: "",
     editor_user_id: "",
     face_voice_user_id: "",
@@ -1925,7 +1933,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
     );
   }, [bonusItems, monthFilter]);
 
-  const totalProposalAmount = filteredItems.reduce((sum, item) => sum + Number(item.proposal_amount || 0), 0);
+  const totalProposalCount = filteredItems.reduce((sum, item) => sum + Number(item.proposal_count || 0), 0);
   const totalApprovedAmount = filteredItems.reduce((sum, item) => sum + Number(item.approved_amount || 0), 0);
   const totalAmount = filteredItems.reduce((sum, item) => sum + Number(item.total_amount || item.amount || 0), 0);
   const employeeStats = useMemo(() => summarizeBonusEmployees(filteredItems, bonusRate), [filteredItems, bonusRate]);
@@ -1945,14 +1953,15 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
     setApprovalRows(
       filteredItems.map((item) => ({
         ...item,
+        difficulty_level: item.difficulty_level || "normal",
         proposal_count: Number(item.proposal_count || 0),
         approved_count: Number(item.approved_count || 0),
-        total_amount: Number(item.total_amount || item.amount || 0),
-        proposal_amount: Number(item.proposal_amount || 0),
-        approved_amount: Number(item.approved_amount || 0)
+        total_amount: getBonusRowAmount(item, bonusRate),
+        proposal_amount: 0,
+        approved_amount: Number(item.approved_count || 0) * bonusRate
       }))
     );
-  }, [approvalOpen, filteredItems]);
+  }, [approvalOpen, filteredItems, bonusRate]);
 
   function resetForm() {
     setForm(emptyForm);
@@ -1965,6 +1974,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       title: row.content_title || "",
       work_date: formatDate(row.work_date) === "-" ? "" : formatDate(row.work_date),
       content_type: row.content_type || "post",
+      difficulty_level: row.difficulty_level || "normal",
       user_id: row.user_id || "",
       editor_user_id: row.video_editor_user_id || "",
       face_voice_user_id: row.video_face_user_id || "",
@@ -1992,7 +2002,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
         ...row,
         approved_count: sanitized,
         approved_amount: nextApprovedCount * bonusRate,
-        total_amount: (Number(row.proposal_count || 0) + nextApprovedCount) * bonusRate
+        total_amount: nextApprovedCount * bonusRate
       };
     }));
   }
@@ -2075,6 +2085,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
         content_title: form.title,
         proposal_count: Number(form.proposal_count || 0),
         approved_count: Number(form.approved_count || 0),
+        difficulty_level: form.difficulty_level || "normal",
         user_id: isVideo ? null : form.user_id || null,
         video_editor_user_id: isVideo ? form.editor_user_id || null : null,
         video_face_user_id: isVideo ? form.face_voice_user_id || null : null,
@@ -2147,11 +2158,11 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
         />
 
         <div className="info-banner">
-          Bonus formulasi: 1 ta taklif yoki tasdiq = <strong>{formatMoney(bonusRate)}</strong>
+          Bonus formulasi: 1 ta tasdiq = <strong>{formatMoney(bonusRate)}</strong>. Taklif soni faqat ma'lumot uchun.
         </div>
 
         <div className="stats-grid">
-          <StatCard title="Taklif summasi" value={formatMoney(totalProposalAmount)} hint="joriy oy" />
+          <StatCard title="Taklif soni" value={totalProposalCount} hint="joriy oy" />
           <StatCard title="Tasdiq summasi" value={formatMoney(totalApprovedAmount)} hint="joriy oy" />
           <StatCard title="Jami bonus" value={formatMoney(totalAmount)} hint={getMonthTitle(monthFilter)} />
           <StatCard title="Yozuvlar soni" value={filteredItems.length} hint="bonus hisobotlar" />
@@ -2208,6 +2219,14 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
             <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)}>
               <option value="">Tanlang</option>
               {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+            </select>
+          </label>
+
+          <label>
+            <span>Kontent holati</span>
+            <select value={form.difficulty_level} onChange={(e) => setField("difficulty_level", e.target.value)}>
+              <option value="normal">Oddiy</option>
+              <option value="qiyin">Qiyin</option>
             </select>
           </label>
 
@@ -2287,6 +2306,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                 <th>Sana</th>
                 <th>Turi</th>
                 <th>Hodim / Video</th>
+                <th>Kontent holati</th>
                 <th>Taklif</th>
                 <th>Tasdiq</th>
                 <th>Jami</th>
@@ -2296,31 +2316,35 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
             </thead>
             <tbody>
               {filteredItems.length ? (
-                filteredItems.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.content_title || "-"}</td>
-                    <td>{formatDate(row.work_date)}</td>
-                    <td>{row.content_type || "-"}</td>
-                    <td>{getBonusAssigneeLabel(row)}</td>
-                    <td>{row.proposal_count || 0}</td>
-                    <td>{row.approved_count || 0}</td>
-                    <td>{formatMoney(row.total_amount || row.amount || 0)}</td>
-                    <td>
-                      <span className={`mini-badge ${row.approval_status === "approved" ? "success" : "warning"}`}>
-                        {row.approval_status === "approved" ? "Tasdiqlandi" : "Draft"}
-                      </span>
-                    </td>
-                    <td>
-                      <IconActions
-                        onView={() => setViewRow(row)}
-                        onEdit={() => startEdit(row)}
-                        onDelete={() => removeRow(row.id)}
-                      />
-                    </td>
-                  </tr>
-                ))
+                filteredItems.map((row) => {
+                  const difficultyMeta = getBonusDifficultyMeta(row);
+                  return (
+                    <tr key={row.id} className={difficultyMeta.rowClass}>
+                      <td>{row.content_title || "-"}</td>
+                      <td>{formatDate(row.work_date)}</td>
+                      <td>{row.content_type || "-"}</td>
+                      <td>{getBonusAssigneeLabel(row)}</td>
+                      <td><span className={difficultyMeta.badgeClass}>{difficultyMeta.label}</span></td>
+                      <td>{row.proposal_count || 0}</td>
+                      <td>{row.approved_count || 0}</td>
+                      <td>{formatMoney(row.total_amount || row.amount || 0)}</td>
+                      <td>
+                        <span className={`mini-badge ${row.approval_status === "approved" ? "success" : "warning"}`}>
+                          {row.approval_status === "approved" ? "Tasdiqlandi" : "Draft"}
+                        </span>
+                      </td>
+                      <td>
+                        <IconActions
+                          onView={() => setViewRow(row)}
+                          onEdit={() => startEdit(row)}
+                          onDelete={() => removeRow(row.id)}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
-                <tr><td colSpan="9" className="empty-cell">Bu oy uchun bonus yozuvi yo'q</td></tr>
+                <tr><td colSpan="10" className="empty-cell">Bu oy uchun bonus yozuvi yo'q</td></tr>
               )}
             </tbody>
           </table>
@@ -2350,6 +2374,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                   <th>Sana</th>
                   <th>Turi</th>
                   <th>Hodim / Video</th>
+                  <th>Kontent holati</th>
                   <th>Taklif</th>
                   <th>Tasdiq soni</th>
                   <th>Jami bonus</th>
@@ -2357,27 +2382,31 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               </thead>
               <tbody>
                 {approvalRows.length ? (
-                  approvalRows.map((row) => (
-                    <tr key={`approval-${row.id}`}>
-                      <td>{row.content_title || "-"}</td>
-                      <td>{formatDate(row.work_date)}</td>
-                      <td>{row.content_type || "-"}</td>
-                      <td>{getBonusAssigneeLabel(row)}</td>
-                      <td>{row.proposal_count || 0}</td>
-                      <td>
-                        <input
-                          className="bonus-approval-input"
-                          type="number"
-                          min="0"
-                          value={row.approved_count ?? 0}
-                          onChange={(e) => updateApprovalCount(row.id, e.target.value)}
-                        />
-                      </td>
-                      <td>{formatMoney(row.total_amount || 0)}</td>
-                    </tr>
-                  ))
+                  approvalRows.map((row) => {
+                    const difficultyMeta = getBonusDifficultyMeta(row);
+                    return (
+                      <tr key={`approval-${row.id}`} className={difficultyMeta.rowClass}>
+                        <td>{row.content_title || "-"}</td>
+                        <td>{formatDate(row.work_date)}</td>
+                        <td>{row.content_type || "-"}</td>
+                        <td>{getBonusAssigneeLabel(row)}</td>
+                        <td><span className={difficultyMeta.badgeClass}>{difficultyMeta.label}</span></td>
+                        <td>{row.proposal_count || 0}</td>
+                        <td>
+                          <input
+                            className="bonus-approval-input"
+                            type="number"
+                            min="0"
+                            value={row.approved_count ?? 0}
+                            onChange={(e) => updateApprovalCount(row.id, e.target.value)}
+                          />
+                        </td>
+                        <td>{formatMoney(row.total_amount || 0)}</td>
+                      </tr>
+                    );
+                  })
                 ) : (
-                  <tr><td colSpan="7" className="empty-cell">Tasdiqlash uchun yozuv topilmadi</td></tr>
+                  <tr><td colSpan="8" className="empty-cell">Tasdiqlash uchun yozuv topilmadi</td></tr>
                 )}
               </tbody>
             </table>
@@ -2446,6 +2475,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               <div><strong>Sana:</strong> {formatDate(viewRow.work_date)}</div>
               <div><strong>Turi:</strong> {viewRow.content_type || "-"}</div>
               <div><strong>Hodim / Video:</strong> {getBonusAssigneeLabel(viewRow)}</div>
+              <div><strong>Kontent holati:</strong> {getBonusDifficultyMeta(viewRow).label}</div>
               <div><strong>Taklif:</strong> {viewRow.proposal_count || 0}</div>
               <div><strong>Tasdiq:</strong> {viewRow.approved_count || 0}</div>
               <div><strong>Holat:</strong> {viewRow.approval_status === "approved" ? "Tasdiqlangan" : "Draft"}</div>

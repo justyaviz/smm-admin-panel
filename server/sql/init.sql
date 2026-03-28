@@ -159,6 +159,7 @@ CREATE TABLE bonus_items (
   proposal_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
   approved_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
   total_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+  difficulty_level TEXT NOT NULL DEFAULT 'normal',
   user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,

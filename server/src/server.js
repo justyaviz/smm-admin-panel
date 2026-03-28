@@ -482,6 +482,7 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS difficulty_level TEXT NOT NULL DEFAULT 'normal'`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'draft'`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`,
@@ -679,9 +680,9 @@ async function recomputeBonusFromItems() {
     await query(`
       UPDATE bonus_items
       SET
-        proposal_amount = COALESCE(proposal_count, 0) * ${bonusRate},
+        proposal_amount = 0,
         approved_amount = COALESCE(approved_count, 0) * ${bonusRate},
-        total_amount = (COALESCE(proposal_count, 0) + COALESCE(approved_count, 0)) * ${bonusRate},
+        total_amount = COALESCE(approved_count, 0) * ${bonusRate},
         updated_at = CURRENT_TIMESTAMP
     `);
   } catch (err) {
@@ -707,9 +708,9 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
 
   const proposalCount = Number(row.proposal_count || 0);
   const approvedCount = Number(row.approved_count || 0);
-  const proposalAmount = await calcMoney(proposalCount);
+  const proposalAmount = 0;
   const approvedAmount = await calcMoney(approvedCount);
-  const totalAmount = proposalAmount + approvedAmount;
+  const totalAmount = approvedAmount;
 
   const existing = await db.query(
     `SELECT id FROM bonus_items WHERE content_title = $1 AND work_date = $2 LIMIT 1`,
@@ -726,6 +727,7 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
     proposalAmount,
     approvedAmount,
     totalAmount,
+    row.difficulty_level || "normal",
     row.content_type === "video"
       ? row.video_editor_user_id || row.video_face_user_id || row.assigned_user_id || null
       : row.assigned_user_id || null,
@@ -747,14 +749,15 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
         proposal_amount = $7,
         approved_amount = $8,
         total_amount = $9,
-        user_id = $10,
-        video_editor_user_id = $11,
-        video_face_user_id = $12,
+        difficulty_level = $10,
+        user_id = $11,
+        video_editor_user_id = $12,
+        video_face_user_id = $13,
         approval_status = 'draft',
         approved_by = NULL,
         approved_at = NULL,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $13
+      WHERE id = $14
       `,
       [...values, existing.rows[0].id]
     );
@@ -772,13 +775,14 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
         proposal_amount,
         approved_amount,
         total_amount,
+        difficulty_level,
         user_id,
         video_editor_user_id,
         video_face_user_id,
         approval_status,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'draft',$13)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'draft',$14)
       `,
       [...values, actorUserId]
     );
@@ -2123,6 +2127,7 @@ app.post("/api/bonus-items", authRequired, async (req, res) => {
       content_title,
       proposal_count,
       approved_count,
+      difficulty_level,
       user_id,
       video_editor_user_id,
       video_face_user_id,
@@ -2132,9 +2137,9 @@ app.post("/api/bonus-items", authRequired, async (req, res) => {
     const dateOnly = formatDateOnly(work_date);
     const month = month_label || getMonthLabel(dateOnly || new Date());
 
-    const proposalAmount = await calcMoney(proposal_count);
+    const proposalAmount = 0;
     const approvedAmount = await calcMoney(approved_count);
-    const totalAmount = proposalAmount + approvedAmount;
+    const totalAmount = approvedAmount;
 
     const inserted = await query(
       `
@@ -2149,6 +2154,7 @@ app.post("/api/bonus-items", authRequired, async (req, res) => {
         proposal_amount,
         approved_amount,
         total_amount,
+        difficulty_level,
         user_id,
         video_editor_user_id,
         video_face_user_id,
@@ -2158,7 +2164,7 @@ app.post("/api/bonus-items", authRequired, async (req, res) => {
         approved_at,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'draft',NULL,NULL,$14)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'draft',NULL,NULL,$15)
       RETURNING *
       `,
       [
@@ -2171,6 +2177,7 @@ app.post("/api/bonus-items", authRequired, async (req, res) => {
         proposalAmount,
         approvedAmount,
         totalAmount,
+        difficulty_level === "qiyin" ? "qiyin" : "normal",
         content_type === "video"
           ? video_editor_user_id || video_face_user_id || user_id || null
           : user_id || null,
@@ -2201,6 +2208,7 @@ app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
       content_title,
       proposal_count,
       approved_count,
+      difficulty_level,
       user_id,
       video_editor_user_id,
       video_face_user_id,
@@ -2210,9 +2218,9 @@ app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
     const dateOnly = formatDateOnly(work_date);
     const month = month_label || getMonthLabel(dateOnly || new Date());
 
-    const proposalAmount = await calcMoney(proposal_count);
+    const proposalAmount = 0;
     const approvedAmount = await calcMoney(approved_count);
-    const totalAmount = proposalAmount + approvedAmount;
+    const totalAmount = approvedAmount;
 
     const updated = await query(
       `
@@ -2227,15 +2235,16 @@ app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
         proposal_amount = $7,
         approved_amount = $8,
         total_amount = $9,
-        user_id = $10,
-        video_editor_user_id = $11,
-        video_face_user_id = $12,
-        branch_id = $13,
+        difficulty_level = $10,
+        user_id = $11,
+        video_editor_user_id = $12,
+        video_face_user_id = $13,
+        branch_id = $14,
         approval_status = 'draft',
         approved_by = NULL,
         approved_at = NULL,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $14
+      WHERE id = $15
       RETURNING *
       `,
       [
@@ -2248,6 +2257,7 @@ app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
         proposalAmount,
         approvedAmount,
         totalAmount,
+        difficulty_level === "qiyin" ? "qiyin" : "normal",
         content_type === "video"
           ? video_editor_user_id || video_face_user_id || user_id || null
           : user_id || null,
@@ -2294,6 +2304,7 @@ app.post("/api/bonus-items/approve-month", authRequired, rolesAllowed("admin", "
     for (const row of items) {
       const itemId = Number(row?.id || 0);
       const approvedCount = Math.max(0, Number(row?.approved_count || 0));
+      const approvedAmount = approvedCount * bonusRate;
 
       if (!itemId) {
         throw new Error("Bonus yozuvi ID topilmadi");
@@ -2304,15 +2315,16 @@ app.post("/api/bonus-items/approve-month", authRequired, rolesAllowed("admin", "
         UPDATE bonus_items
         SET
           approved_count = $1,
-          approved_amount = $1 * $2,
-          total_amount = (COALESCE(proposal_count, 0) + $1) * $2,
+          proposal_amount = 0,
+          approved_amount = $2,
+          total_amount = $2,
           approval_status = 'approved',
           approved_by = $3,
           approved_at = CURRENT_TIMESTAMP,
           updated_at = CURRENT_TIMESTAMP
         WHERE id = $4 AND month_label = $5
         `,
-        [approvedCount, bonusRate, req.user.id, itemId, month]
+        [approvedCount, approvedAmount, req.user.id, itemId, month]
       );
 
       if (!updated.rowCount) {
