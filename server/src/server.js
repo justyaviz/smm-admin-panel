@@ -877,7 +877,7 @@ app.post("/api/auth/login", async (req, res) => {
     );
 
     if (!result.rows.length) {
-      return res.status(401).json({ message: "Login yoki parol noto‘g‘ri" });
+      return res.status(401).json({ message: "Login yoki parol notoвЂgвЂri" });
     }
 
     const user = result.rows[0];
@@ -898,7 +898,7 @@ app.post("/api/auth/login", async (req, res) => {
     }
 
     if (!ok) {
-      return res.status(401).json({ message: "Login yoki parol noto‘g‘ri" });
+      return res.status(401).json({ message: "Login yoki parol notoвЂgвЂri" });
     }
 
     const token = signToken({
@@ -1051,7 +1051,7 @@ app.post("/api/auth/change-password", authRequired, async (req, res) => {
 
     const ok = await bcrypt.compare(old_password, found.rows[0].password_hash);
     if (!ok) {
-      return res.status(400).json({ message: "Eski parol noto‘g‘ri" });
+      return res.status(400).json({ message: "Eski parol notoвЂgвЂri" });
     }
 
     const hashed = await bcrypt.hash(new_password, 10);
@@ -1066,7 +1066,7 @@ app.post("/api/auth/change-password", authRequired, async (req, res) => {
     res.json({ message: "Parol yangilandi" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Parolni o‘zgartirishda xatolik" });
+    res.status(500).json({ message: "Parolni oвЂzgartirishda xatolik" });
   }
 });
 
@@ -1174,7 +1174,7 @@ app.get("/api/dashboard/summary", authRequired, async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Dashboard ma’lumotini olib bo‘lmadi" });
+    res.status(500).json({ message: "Dashboard maвЂ™lumotini olib boвЂlmadi" });
   }
 });
 
@@ -1289,7 +1289,7 @@ app.get("/api/settings", async (_, res) => {
     res.json(result.rows[0] || null);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Sozlamalarni olib bo‘lmadi" });
+    res.status(500).json({ message: "Sozlamalarni olib boвЂlmadi" });
   }
 });
 
@@ -1394,7 +1394,7 @@ app.put("/api/settings", authRequired, async (req, res) => {
     res.json({ message: "Sozlamalar saqlandi" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Sozlamalarni saqlab bo‘lmadi" });
+    res.status(500).json({ message: "Sozlamalarni saqlab boвЂlmadi" });
   }
 });
 
@@ -1601,10 +1601,10 @@ app.delete("/api/users/:id", authRequired, rolesAllowed("admin"), async (req, re
   try {
     await query(`DELETE FROM users WHERE id = $1`, [req.params.id]);
     await logAction(req.user.id, "delete", "users", Number(req.params.id), {});
-    res.json({ message: "Hodim o‘chirildi" });
+    res.json({ message: "Hodim oвЂchirildi" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Hodimni o‘chirib bo‘lmadi" });
+    res.status(500).json({ message: "Hodimni oвЂchirib boвЂlmadi" });
   }
 });
 
@@ -1673,7 +1673,7 @@ app.get("/api/branches", authRequired, async (_, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Filiallarni olib bo‘lmadi" });
+    res.status(500).json({ message: "Filiallarni olib boвЂlmadi" });
   }
 });
 
@@ -1707,7 +1707,7 @@ app.get("/api/content", authRequired, async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Kontentni olib bo‘lmadi" });
+    res.status(500).json({ message: "Kontentni olib boвЂlmadi" });
   }
 });
 
@@ -1824,8 +1824,8 @@ app.post("/api/content", authRequired, async (req, res) => {
     if (row.bonus_enabled) {
       await createNotification(
         null,
-        "Bonusga o‘tkazildi",
-        `${row.title} bonus tizimiga qo‘shildi`,
+        "Bonusga oвЂtkazildi",
+        `${row.title} bonus tizimiga qoвЂshildi`,
         "success",
         "bonus",
         "/content"
@@ -1850,7 +1850,7 @@ app.post("/api/content", authRequired, async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ message: `Kontent qo‘shib bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Kontent qoвЂshib boвЂlmadi: ${err.message}` });
   } finally {
     client.release();
   }
@@ -1994,7 +1994,7 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
   } catch (err) {
     await client.query("ROLLBACK");
     console.error(err);
-    res.status(500).json({ message: `Kontentni yangilab bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Kontentni yangilab boвЂlmadi: ${err.message}` });
   } finally {
     client.release();
   }
@@ -2024,10 +2024,10 @@ app.delete("/api/content/:id", authRequired, async (req, res) => {
     }
 
     await logAction(req.user.id, "delete", "content_items", Number(req.params.id), {});
-    res.json({ message: "Kontent o‘chirildi" });
+    res.json({ message: "Kontent oвЂchirildi" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Kontentni o‘chirib bo‘lmadi" });
+    res.status(500).json({ message: "Kontentni oвЂchirib boвЂlmadi" });
   }
 });
 
@@ -2057,7 +2057,7 @@ app.get("/api/bonus-items", authRequired, async (_, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Bonus ma’lumotlarini olib bo‘lmadi" });
+    res.status(500).json({ message: "Bonus maвЂ™lumotlarini olib boвЂlmadi" });
   }
 });
 
@@ -2132,7 +2132,7 @@ app.post("/api/bonus-items", authRequired, async (req, res) => {
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Bonus hisobotini qo‘shib bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Bonus hisobotini qoвЂshib boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -2210,7 +2210,7 @@ app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Bonus hisobotini yangilab bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Bonus hisobotini yangilab boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -2218,10 +2218,10 @@ app.delete("/api/bonus-items/:id", authRequired, async (req, res) => {
   try {
     await query(`DELETE FROM bonus_items WHERE id = $1`, [req.params.id]);
     await logAction(req.user.id, "delete", "bonus_items", Number(req.params.id), {});
-    res.json({ message: "Bonus yozuvi o‘chirildi" });
+    res.json({ message: "Bonus yozuvi oвЂchirildi" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Bonus yozuvini o‘chirib bo‘lmadi" });
+    res.status(500).json({ message: "Bonus yozuvini oвЂchirib boвЂlmadi" });
   }
 });
 
@@ -2251,7 +2251,7 @@ app.get("/api/daily-reports", authRequired, async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Hisobotlarni olib bo‘lmadi" });
+    res.status(500).json({ message: "Hisobotlarni olib boвЂlmadi" });
   }
 });
 
@@ -2304,7 +2304,7 @@ app.post("/api/daily-reports", authRequired, async (req, res) => {
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Kunlik hisobotni saqlab bo‘lmadi" });
+    res.status(500).json({ message: "Kunlik hisobotni saqlab boвЂlmadi" });
   }
 });
 
@@ -2358,7 +2358,7 @@ app.put("/api/daily-reports/:id", authRequired, async (req, res) => {
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Hisobotni yangilab bo‘lmadi" });
+    res.status(500).json({ message: "Hisobotni yangilab boвЂlmadi" });
   }
 });
 
@@ -2366,10 +2366,10 @@ app.delete("/api/daily-reports/:id", authRequired, async (req, res) => {
   try {
     await query(`DELETE FROM daily_branch_reports WHERE id = $1`, [req.params.id]);
     await logAction(req.user.id, "delete", "daily_branch_reports", Number(req.params.id), {});
-    res.json({ message: "Hisobot o‘chirildi" });
+    res.json({ message: "Hisobot oвЂchirildi" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Hisobotni o‘chirib bo‘lmadi" });
+    res.status(500).json({ message: "Hisobotni oвЂchirib boвЂlmadi" });
   }
 });
 
@@ -2381,7 +2381,7 @@ app.get("/api/campaigns", authRequired, async (_, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Kampaniyalarni olib bo‘lmadi" });
+    res.status(500).json({ message: "Kampaniyalarni olib boвЂlmadi" });
   }
 });
 
@@ -2449,7 +2449,7 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Kampaniya qo‘shib bo‘lmadi" });
+    res.status(500).json({ message: "Kampaniya qoвЂshib boвЂlmadi" });
   }
 });
 
@@ -2522,7 +2522,7 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Kampaniyani yangilab bo‘lmadi" });
+    res.status(500).json({ message: "Kampaniyani yangilab boвЂlmadi" });
   }
 });
 
@@ -2530,10 +2530,10 @@ app.delete("/api/campaigns/:id", authRequired, async (req, res) => {
   try {
     await query(`DELETE FROM campaigns WHERE id = $1`, [req.params.id]);
     await logAction(req.user.id, "delete", "campaigns", Number(req.params.id), {});
-    res.json({ message: "Kampaniya o‘chirildi" });
+    res.json({ message: "Kampaniya oвЂchirildi" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Kampaniyani o‘chirib bo‘lmadi" });
+    res.status(500).json({ message: "Kampaniyani oвЂchirib boвЂlmadi" });
   }
 });
 
@@ -2571,7 +2571,7 @@ app.get("/api/tasks", authRequired, async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Vazifalarni olib bo‘lmadi" });
+    res.status(500).json({ message: "Vazifalarni olib boвЂlmadi" });
   }
 });
 
@@ -2626,7 +2626,7 @@ app.post("/api/tasks", authRequired, async (req, res) => {
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Vazifa qo‘shib bo‘lmadi" });
+    res.status(500).json({ message: "Vazifa qoвЂshib boвЂlmadi" });
   }
 });
 
@@ -2696,7 +2696,7 @@ app.put("/api/tasks/:id", authRequired, async (req, res) => {
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Vazifani yangilab bo‘lmadi" });
+    res.status(500).json({ message: "Vazifani yangilab boвЂlmadi" });
   }
 });
 
@@ -2713,10 +2713,10 @@ app.delete("/api/tasks/:id", authRequired, async (req, res) => {
       return res.status(404).json({ message: "Vazifa topilmadi" });
     }
     await logAction(req.user.id, "delete", "tasks", Number(req.params.id), {});
-    res.json({ message: "Vazifa o‘chirildi" });
+    res.json({ message: "Vazifa oвЂchirildi" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Vazifani o‘chirib bo‘lmadi" });
+    res.status(500).json({ message: "Vazifani oвЂchirib boвЂlmadi" });
   }
 });
 
@@ -2728,7 +2728,7 @@ app.get("/api/uploads", authRequired, async (_, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Media fayllarni olib bo‘lmadi" });
+    res.status(500).json({ message: "Media fayllarni olib boвЂlmadi" });
   }
 });
 
@@ -2809,7 +2809,7 @@ app.get("/api/attachments/:entityType/:entityId", authRequired, async (req, res)
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Biriktirmalarni olib bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Biriktirmalarni olib boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -2831,10 +2831,10 @@ app.delete("/api/uploads/:id", authRequired, async (req, res) => {
     await query(`DELETE FROM uploads WHERE id = $1`, [req.params.id]);
     await logAction(req.user.id, "delete", "uploads", Number(req.params.id), {});
 
-    res.json({ message: "Fayl o‘chirildi" });
+    res.json({ message: "Fayl oвЂchirildi" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Faylni o‘chirib bo‘lmadi" });
+    res.status(500).json({ message: "Faylni oвЂchirib boвЂlmadi" });
   }
 });
 
@@ -2855,14 +2855,14 @@ app.get("/api/notifications", authRequired, async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Bildirishnomalarni olib bo‘lmadi" });
+    res.status(500).json({ message: "Bildirishnomalarni olib boвЂlmadi" });
   }
 });
 
 app.post("/api/notifications/read/:id", authRequired, async (req, res) => {
   try {
     await query(`UPDATE notifications SET is_read = TRUE WHERE id = $1`, [req.params.id]);
-    res.json({ message: "O‘qildi" });
+    res.json({ message: "OвЂqildi" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Xatolik" });
@@ -2875,7 +2875,7 @@ app.post("/api/notifications/read-all", authRequired, async (req, res) => {
       `UPDATE notifications SET is_read = TRUE WHERE user_id = $1 OR user_id IS NULL`,
       [req.user.id]
     );
-    res.json({ message: "Hammasi o‘qildi" });
+    res.json({ message: "Hammasi oвЂqildi" });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Xatolik" });
@@ -2955,7 +2955,7 @@ app.get("/api/messages/threads", authRequired, async (req, res) => {
     res.json([...threadsMap.values()]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Chatlarni olib bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Chatlarni olib boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -2999,7 +2999,7 @@ app.get("/api/messages/thread/:otherUserId", authRequired, async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Xabarlarni olib bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Xabarlarni olib boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -3048,7 +3048,7 @@ app.post("/api/messages", authRequired, async (req, res) => {
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Xabar yuborib bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Xabar yuborib boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -3078,7 +3078,7 @@ app.post("/api/messages/typing", authRequired, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Typing holatini saqlab bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Typing holatini saqlab boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -3096,7 +3096,7 @@ app.get("/api/expenses", authRequired, async (_, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Harajatlarni olib bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Harajatlarni olib boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -3150,7 +3150,7 @@ app.post("/api/expenses", authRequired, async (req, res) => {
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Harajatni saqlab bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Harajatni saqlab boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -3207,7 +3207,7 @@ app.put("/api/expenses/:id", authRequired, async (req, res) => {
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Harajatni yangilab bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Harajatni yangilab boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -3215,10 +3215,10 @@ app.delete("/api/expenses/:id", authRequired, async (req, res) => {
   try {
     await query(`DELETE FROM expenses WHERE id = $1`, [req.params.id]);
     await logAction(req.user.id, "delete", "expenses", Number(req.params.id), {});
-    res.json({ message: "Harajat o‘chirildi" });
+    res.json({ message: "Harajat oвЂchirildi" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Harajatni o‘chirib bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Harajatni oвЂchirib boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -3239,7 +3239,7 @@ app.get("/api/travel-plans", authRequired, async (_, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Safar rejasini olib bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Safar rejasini olib boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -3321,7 +3321,7 @@ app.post("/api/travel-plans", authRequired, async (req, res) => {
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Safar rejasini saqlab bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Safar rejasini saqlab boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -3410,7 +3410,7 @@ app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Safar rejasini yangilab bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Safar rejasini yangilab boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -3418,10 +3418,10 @@ app.delete("/api/travel-plans/:id", authRequired, async (req, res) => {
   try {
     await query(`DELETE FROM travel_plans WHERE id = $1`, [req.params.id]);
     await logAction(req.user.id, "delete", "travel_plans", Number(req.params.id), {});
-    res.json({ message: "Safar rejasi o‘chirildi" });
+    res.json({ message: "Safar rejasi oвЂchirildi" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Safar rejasini o‘chirib bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Safar rejasini oвЂchirib boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -4011,7 +4011,7 @@ app.get("/api/comments/:entityType/:entityId", authRequired, async (req, res) =>
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Izohlarni olib bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Izohlarni olib boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -4055,17 +4055,17 @@ app.post("/api/comments", authRequired, async (req, res) => {
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Izohni saqlab bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Izohni saqlab boвЂlmadi: ${err.message}` });
   }
 });
 
 app.delete("/api/comments/:id", authRequired, async (req, res) => {
   try {
     await query(`DELETE FROM comments WHERE id = $1`, [req.params.id]);
-    res.json({ message: "Izoh o‘chirildi" });
+    res.json({ message: "Izoh oвЂchirildi" });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: `Izohni o‘chirib bo‘lmadi: ${err.message}` });
+    res.status(500).json({ message: `Izohni oвЂchirib boвЂlmadi: ${err.message}` });
   }
 });
 
@@ -4087,7 +4087,7 @@ app.get("/api/audit-logs", authRequired, async (_, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Audit logni olib bo‘lmadi" });
+    res.status(500).json({ message: "Audit logni olib boвЂlmadi" });
   }
 });
 
