@@ -2014,6 +2014,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
 
   const [form, setForm] = useState(emptyForm);
   const isVideo = form.content_type === "video";
+  const showBranchField = form.content_type === "video";
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
   const bonusRate = Number(settings?.bonus_rate || 25000);
   const canApproveBonus = user?.role === "admin" || user?.role === "manager";
@@ -2238,7 +2239,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
         user_id: isVideo ? null : form.user_id || null,
         video_editor_user_id: isVideo ? form.editor_user_id || null : null,
         video_face_user_id: isVideo ? form.face_voice_user_id || null : null,
-        branch_id: form.branch_id || null
+        branch_id: showBranchField ? form.branch_id || null : null
       };
 
       if (editRow?.id) {
@@ -2367,13 +2368,15 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
             </label>
           )}
 
-          <label>
-            <span>Filial</span>
-            <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)} disabled={bonusFormLocked}>
-              <option value="">Tanlang</option>
-              {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
-            </select>
-          </label>
+          {showBranchField ? (
+            <label>
+              <span>Filial</span>
+              <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)} disabled={bonusFormLocked}>
+                <option value="">Tanlang</option>
+                {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+              </select>
+            </label>
+          ) : null}
 
           <label>
             <span>Kontent holati</span>
