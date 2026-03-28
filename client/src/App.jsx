@@ -199,7 +199,7 @@ function buildMonthCalendar(monthLabel, rows = [], dateKey = "publish_date") {
   return cells;
 }
 
-function MiniCalendar({ monthLabel, rows, dateKey, renderItem }) {
+function MiniCalendar({ monthLabel, rows, dateKey, renderItem, onMoveDate = null }) {
   const weekDays = ["Du", "Se", "Cho", "Pay", "Ju", "Sha", "Yak"];
   const cells = buildMonthCalendar(monthLabel, rows, dateKey);
 
@@ -210,12 +210,35 @@ function MiniCalendar({ monthLabel, rows, dateKey, renderItem }) {
       </div>
       <div className="calendar-grid">
         {cells.map((cell) => (
-          <div key={cell.key} className={`calendar-cell ${cell.empty ? "empty" : ""}`}>
+          <div
+            key={cell.key}
+            className={`calendar-cell ${cell.empty ? "empty" : ""} ${onMoveDate && !cell.empty ? "droppable" : ""}`}
+            onDragOver={(e) => {
+              if (onMoveDate && !cell.empty) e.preventDefault();
+            }}
+            onDrop={(e) => {
+              if (!onMoveDate || cell.empty) return;
+              e.preventDefault();
+              const itemId = Number(e.dataTransfer.getData("text/plain"));
+              if (itemId) onMoveDate(itemId, cell.date);
+            }}
+          >
             {!cell.empty ? (
               <>
                 <div className="calendar-day">{cell.day}</div>
                 <div className="calendar-items">
-                  {cell.items.slice(0, 3).map((item) => renderItem(item))}
+                  {cell.items.slice(0, 3).map((item) => (
+                    <div
+                      key={item.id}
+                      draggable={!!onMoveDate}
+                      onDragStart={(e) => {
+                        if (!onMoveDate) return;
+                        e.dataTransfer.setData("text/plain", String(item.id));
+                      }}
+                    >
+                      {renderItem(item)}
+                    </div>
+                  ))}
                   {cell.items.length > 3 ? <span className="calendar-more">+{cell.items.length - 3} ta</span> : null}
                 </div>
               </>
@@ -1078,7 +1101,8 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
     shot_list_text: "",
     preview_url: "",
     final_url: "",
-    edit_file_url: ""
+    edit_file_url: "",
+    approval_comment: ""
   };
 
   const [form, setForm] = useState(emptyForm);
@@ -1147,7 +1171,8 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
       shot_list_text: row.shot_list_text || "",
       preview_url: row.preview_url || "",
       final_url: row.final_url || "",
-      edit_file_url: row.edit_file_url || ""
+      edit_file_url: row.edit_file_url || "",
+      approval_comment: row.approval_comment || ""
     });
 
     setBonusMode(!!row.bonus_enabled);
@@ -1194,7 +1219,8 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
         shot_list_text: form.shot_list_text || "",
         preview_url: form.preview_url || "",
         final_url: form.final_url || "",
-        edit_file_url: form.edit_file_url || ""
+        edit_file_url: form.edit_file_url || "",
+        approval_comment: form.approval_comment || ""
       };
 
       if (editRow?.id) {
@@ -1372,6 +1398,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
           <label><span>Preview URL</span><input value={form.preview_url} onChange={(e) => setField("preview_url", e.target.value)} /></label>
           <label><span>Final link</span><input value={form.final_url} onChange={(e) => setField("final_url", e.target.value)} /></label>
           <label><span>Montaj fayli</span><input value={form.edit_file_url} onChange={(e) => setField("edit_file_url", e.target.value)} /></label>
+          <label className="full-col"><span>Approval izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} placeholder="Tasdiqlash yoki qayta ishlash bo'yicha izoh" /></label>
 
           <button className="btn primary" type="submit" disabled={saving}>
             {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}
@@ -1475,6 +1502,26 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
             monthLabel={selectedMonth}
             rows={rows}
             dateKey="publish_date"
+            onMoveDate={async (id, nextDate) => {
+              const row = rows.find((item) => item.id === id);
+              if (!row) return;
+              try {
+                await api.update("content", id, {
+                  ...row,
+                  publish_date: nextDate,
+                  assigned_user_id: row.assigned_user_id || null,
+                  video_editor_user_id: row.video_editor_user_id || null,
+                  video_face_user_id: row.video_face_user_id || null,
+                  branch_ids_json: Array.isArray(row.branch_ids_json) ? row.branch_ids_json : [],
+                  approval_comment: row.approval_comment || ""
+                });
+                await loadMonth(selectedMonth);
+                await reload();
+                onToast("Kontent sanasi ko'chirildi", "success");
+              } catch (err) {
+                onToast(err.message || "Sanani ko'chirib bo'lmadi", "error");
+              }
+            }}
             renderItem={(item) => (
               <button key={item.id} type="button" className={`calendar-pill ${item.bonus_enabled ? "bonus" : ""}`} onClick={() => setViewRow(item)}>
                 {item.title}
@@ -1535,6 +1582,11 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
               <div><strong>Bonus:</strong> {viewRow.bonus_enabled ? "Ha" : "Yo‘q"}</div>
               <div><strong>Taklif soni:</strong> {viewRow.proposal_count || 0}</div>
               <div><strong>Tasdiq soni:</strong> {viewRow.approved_count || 0}</div>
+              <div className="full-col"><strong>Approval izohi:</strong> {viewRow.approval_comment || "-"}</div>
+              <div className="full-col"><strong>Ssenariy:</strong> {viewRow.scenario_text || "-"}</div>
+              <div className="full-col"><strong>Shot list:</strong> {viewRow.shot_list_text || "-"}</div>
+              <div className="full-col"><strong>Preview URL:</strong> {viewRow.preview_url || "-"}</div>
+              <div className="full-col"><strong>Final link:</strong> {viewRow.final_url || "-"}</div>
             </div>
             <DiscussionPanel entityType="content" entityId={viewRow.id} onToast={onToast} />
           </>
@@ -2886,6 +2938,24 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
             monthLabel={selectedMonth}
             rows={filteredTasks}
             dateKey="due_date"
+            onMoveDate={async (id, nextDate) => {
+              const row = tasks.find((item) => item.id === id);
+              if (!row) return;
+              try {
+                await api.update("tasks", id, {
+                  title: row.title,
+                  description: row.description || "",
+                  status: row.status,
+                  priority: row.priority || "medium",
+                  due_date: nextDate,
+                  assignee_user_id: row.assignee_user_id || null
+                });
+                await reload();
+                onToast("Vazifa sanasi ko'chirildi", "success");
+              } catch (err) {
+                onToast(err.message || "Vazifa sanasini ko'chirib bo'lmadi", "error");
+              }
+            }}
             renderItem={(item) => (
               <button key={item.id} type="button" className={`calendar-pill task ${item.status === "done" ? "done" : ""}`} onClick={() => setViewRow(item)}>
                 {item.title}
@@ -2932,6 +3002,7 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
 
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Vazifa tafsiloti">
         {viewRow ? (
+          <>
           <div className="detail-grid">
             <div><strong>Vazifa:</strong> {viewRow.title}</div>
             <div><strong>Status:</strong> <span className={taskStatusClass(viewRow.status)}>{taskStatusLabel(viewRow.status)}</span></div>
@@ -2940,6 +3011,8 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
             <div><strong>Mas’ul:</strong> {viewRow.assignee_name || "-"}</div>
             <div className="full-col"><strong>Izoh:</strong> {viewRow.description || "-"}</div>
           </div>
+          <DiscussionPanel entityType="task" entityId={viewRow.id} onToast={onToast} />
+          </>
         ) : null}
       </Modal>
     </div>
@@ -3396,6 +3469,8 @@ function ProfilePage({ user = {}, onToast, refreshUser }) {
 
 function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
   const [form, setForm] = useState(settings || {});
+  const [importing, setImporting] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     setForm(settings || {});
@@ -3437,20 +3512,56 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
         <button className="btn primary mt16" onClick={() => onSave(form)} disabled={saving}>
           {saving ? "Saqlanmoqda..." : "Saqlash"}
         </button>
-        <button className="btn secondary mt16" onClick={async () => {
-          try {
-            const backup = await api.list("/api/backup/export");
-            const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = "aloo-backup.json";
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-          } catch {}
-        }}>Backup export</button>
+        <div className="toolbar-actions mt16">
+          <button className="btn secondary" onClick={async () => {
+            try {
+              const backup = await api.list("/api/backup/export");
+              const blob = new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement("a");
+              a.href = url;
+              a.download = "aloo-backup.json";
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+              window.URL.revokeObjectURL(url);
+            } catch {}
+          }}>Backup export</button>
+          <button className="btn secondary" onClick={() => fileInputRef.current?.click()} disabled={importing}>
+            {importing ? "Restore..." : "Backup restore"}
+          </button>
+          <button className="btn secondary" onClick={async () => {
+            try {
+              const data = await api.create("settings/test-telegram", {});
+              alert(data?.message || "Telegram test yuborildi");
+            } catch (err) {
+              alert(err.message || "Telegram test yuborilmadi");
+            }
+          }}>Telegram test</button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/json"
+            style={{ display: "none" }}
+            onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              try {
+                setImporting(true);
+                const text = await file.text();
+                const payload = JSON.parse(text);
+                await api.create("backup/import", { payload });
+                alert("Backup restore muvaffaqiyatli tugadi");
+                window.location.reload();
+              } catch (err) {
+                alert(err.message || "Backup restore bo'lmadi");
+              } finally {
+                setImporting(false);
+                e.target.value = "";
+              }
+            }}
+          />
+        </div>
       </div>
     </div>
   );
@@ -3648,7 +3759,8 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
     hotel_text: "",
     deadline_date: "",
     status: "reja",
-    notes: ""
+    notes: "",
+    approval_comment: ""
   };
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -3677,7 +3789,8 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
       hotel_text: row.hotel_text || "",
       deadline_date: formatDate(row.deadline_date) === "-" ? "" : formatDate(row.deadline_date),
       status: row.status || "reja",
-      notes: row.notes || ""
+      notes: row.notes || "",
+      approval_comment: row.approval_comment || ""
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -3743,6 +3856,7 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
           <label><span>Mehmonxona</span><input value={form.hotel_text} onChange={(e) => setField("hotel_text", e.target.value)} /></label>
           <label><span>Deadline</span><input type="date" value={form.deadline_date} onChange={(e) => setField("deadline_date", e.target.value)} /></label>
           <label className="full-col"><span>Checklist</span><input value={(form.checklist_json || []).join(", ")} onChange={(e) => setField("checklist_json", e.target.value.split(",").map((item) => item.trim()).filter(Boolean))} /></label>
+          <label className="full-col"><span>Approval izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} /></label>
           <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
           <button className="btn primary" type="submit" disabled={saving}>{saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}</button>
         </form>
@@ -3815,6 +3929,7 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
             <div><strong>Transport:</strong> {viewRow.transport_text || "-"}</div>
             <div><strong>Mehmonxona:</strong> {viewRow.hotel_text || "-"}</div>
             <div><strong>Deadline:</strong> {formatDate(viewRow.deadline_date)}</div>
+            <div className="full-col"><strong>Approval izohi:</strong> {viewRow.approval_comment || "-"}</div>
             <div className="full-col"><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
             <div className="full-col"><strong>Checklist:</strong> {(Array.isArray(viewRow.checklist_json) ? viewRow.checklist_json : []).join(", ") || "-"}</div>
           </div>
@@ -4010,6 +4125,7 @@ function App() {
   const [globalSearch, setGlobalSearch] = useState("");
   const [globalResults, setGlobalResults] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
 
   const [summary, setSummary] = useState({});
   const [settings, setSettings] = useState(null);
@@ -4039,6 +4155,23 @@ function App() {
     localStorage.setItem("aloo_theme", theme);
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    function handleBeforeInstallPrompt(event) {
+      event.preventDefault();
+      setDeferredPrompt(event);
+    }
+    function handleInstalled() {
+      setDeferredPrompt(null);
+      showToast("Ilova qurilmaga o'rnatildi", "success");
+    }
+    window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("appinstalled", handleInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("appinstalled", handleInstalled);
+    };
+  }, []);
 
   async function reloadData() {
     try {
@@ -4419,6 +4552,19 @@ function App() {
                 <Bell size={16} />
                 {(notifications || []).filter((n) => !n.is_read).length}
               </button>
+              {deferredPrompt ? (
+                <button
+                  className="notif-pill install-pill"
+                  type="button"
+                  onClick={async () => {
+                    deferredPrompt.prompt();
+                    await deferredPrompt.userChoice.catch(() => null);
+                    setDeferredPrompt(null);
+                  }}
+                >
+                  Install
+                </button>
+              ) : null}
               <ThemeToggle theme={theme} setTheme={setTheme} />
               <button type="button" className="user-chip" onClick={() => setActive("profile")}>
                 {user?.avatar_url ? (
@@ -6221,11 +6367,52 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   white-space:pre-wrap;
   line-height:1.6;
 }
+.install-pill{
+  background:linear-gradient(135deg,#1690F5,#6dd5fa);
+  color:#fff;
+  border-color:transparent;
+  box-shadow:0 12px 28px rgba(22,144,245,.22);
+}
+.calendar-cell.droppable{
+  transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.calendar-cell.droppable:hover{
+  border-color:rgba(22,144,245,.4);
+  box-shadow:0 10px 24px rgba(22,144,245,.12);
+  transform:translateY(-1px);
+}
+.calendar-items > div[draggable="true"]{
+  cursor:grab;
+}
 @media (max-width: 1100px){
   .kanban-board{grid-template-columns:1fr 1fr}
 }
 @media (max-width: 760px){
   .kanban-board{grid-template-columns:1fr}
+  .sidebar{
+    width:100%;
+    position:sticky;
+    top:0;
+    z-index:30;
+    padding-bottom:12px;
+  }
+  .menu-list{
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:10px;
+  }
+  .topbar{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:14px;
+  }
+  .topbar-right{
+    width:100%;
+    flex-wrap:wrap;
+  }
+  .global-search{
+    width:100%;
+  }
 }
 `;
 
