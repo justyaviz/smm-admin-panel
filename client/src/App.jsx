@@ -1295,7 +1295,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
   }
 
   async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham o'chirilsinmi?")) return;
+    const ok = window.confirm("Rostdan ham o'chirilsinmi?");
     if (!ok) return;
 
     try {
@@ -1735,7 +1735,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
   }
 
   async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham o'chirilsinmi?")) return;
+    const ok = window.confirm("Rostdan ham o'chirilsinmi?");
     if (!ok) return;
     try {
       const numericId = Number(id);
@@ -2013,7 +2013,7 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
   }
 
   async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham o'chirilsinmi?")) return;
+    const ok = window.confirm("Rostdan ham o'chirilsinmi?");
     if (!ok) return;
     try {
       await api.remove("daily-reports", id);
@@ -2208,7 +2208,7 @@ function CampaignsPage({ campaigns = [], onToast, reload }) {
   }
 
   async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham o'chirilsinmi?")) return;
+    const ok = window.confirm("Rostdan ham o'chirilsinmi?");
     if (!ok) return;
     try {
       await api.remove("campaigns", id);
@@ -2376,7 +2376,7 @@ function MediaPage({ uploads = [], onToast, reload }) {
   }
 
   async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham o'chirilsinmi?")) return;
+    const ok = window.confirm("Rostdan ham o'chirilsinmi?");
     if (!ok) return;
     try {
       await api.remove("uploads", id);
@@ -2610,7 +2610,7 @@ function UsersPage({ users = [], onToast, reload }) {
   }
 
   async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham o'chirilsinmi?")) return;
+    const ok = window.confirm("Rostdan ham o'chirilsinmi?");
     if (!ok) return;
     try {
       await api.remove("users", id);
@@ -2906,7 +2906,7 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
   }
 
   async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham o'chirilsinmi?")) return;
+    const ok = window.confirm("Rostdan ham o'chirilsinmi?");
     if (!ok) return;
     try {
       await api.remove("tasks", id);
