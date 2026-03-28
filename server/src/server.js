@@ -6,6 +6,7 @@ import multer from "multer";
 import fs from "fs";
 import path from "path";
 import http from "http";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { fileURLToPath } from "url";
 import { Server as SocketIOServer } from "socket.io";
@@ -154,6 +155,24 @@ async function getSettingsRow() {
     const result = await query(`SELECT * FROM app_settings ORDER BY id ASC LIMIT 1`);
     return result.rows[0] || null;
   } catch {
+    return null;
+  }
+}
+
+async function ensurePublicShareToken() {
+  try {
+    const settings = await getSettingsRow();
+    if (settings?.public_share_token) return settings.public_share_token;
+    const token = crypto.randomBytes(18).toString("hex");
+    const current = await query(`SELECT id FROM app_settings ORDER BY id ASC LIMIT 1`);
+    if (!current.rows.length) {
+      await query(`INSERT INTO app_settings (company_name, public_share_token) VALUES ($1, $2)`, ["aloo", token]);
+    } else {
+      await query(`UPDATE app_settings SET public_share_token = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`, [token, current.rows[0].id]);
+    }
+    return token;
+  } catch (err) {
+    console.error("share token error:", err.message);
     return null;
   }
 }
@@ -387,6 +406,7 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS bonus_rate NUMERIC(14,2) NOT NULL DEFAULT 25000`,
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS telegram_bot_token TEXT`,
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS telegram_chat_id TEXT`,
+    `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS public_share_token TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS bonus_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
@@ -402,6 +422,12 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS preview_url TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS final_url TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS edit_file_url TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS content_template TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS idea_score INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS visual_score INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS editing_score INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS result_score INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS reach_value INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS month_label TEXT`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS work_date DATE`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL`,
@@ -435,6 +461,9 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url TEXT`,
     `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS entity_type TEXT`,
     `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS entity_id INTEGER`,
+    `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS folder_name TEXT`,
+    `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS tags_json JSONB NOT NULL DEFAULT '[]'::jsonb`,
+    `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS version_label TEXT`,
     `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_key TEXT`,
     `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS checklist_json JSONB NOT NULL DEFAULT '[]'::jsonb`,
     `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS approval_comment TEXT`,
@@ -534,6 +563,24 @@ async function ensureRuntimeSchema() {
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS monthly_snapshots (
+      id SERIAL PRIMARY KEY,
+      month_label TEXT NOT NULL,
+      snapshot_type TEXT NOT NULL,
+      payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS team_mood_entries (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      entry_date DATE NOT NULL DEFAULT CURRENT_DATE,
+      mood_score INTEGER NOT NULL DEFAULT 3,
+      note TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (user_id, entry_date)
     )`,
     `ALTER TABLE messages ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP`,
     `ALTER TABLE messages ADD COLUMN IF NOT EXISTS read_at TIMESTAMP`,
@@ -1059,7 +1106,7 @@ app.get("/api/dashboard/summary", authRequired, async (req, res) => {
         ? `SELECT COUNT(*)::int AS count FROM tasks WHERE status <> 'done' AND due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 day'`
         : `SELECT COUNT(*)::int AS count FROM tasks WHERE assignee_user_id = $1 AND status <> 'done' AND due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 day'`;
 
-    const [contentCount, taskCount, campaignCount, userCount, todayReports, taskProgress, overdueTasks, dueSoonTasks, monthlyContent, monthlyBonus, campaignSpend, reminders, bonusRate] = await Promise.all([
+    const [contentCount, taskCount, campaignCount, userCount, todayReports, taskProgress, overdueTasks, dueSoonTasks, monthlyContent, monthlyBonus, campaignSpend, reminders, bonusRate, budgetsRes, monthlyExpenses] = await Promise.all([
       query(`SELECT COUNT(*)::int AS count FROM content_items`),
       query(`SELECT COUNT(*)::int AS count FROM tasks`),
       query(`SELECT COUNT(*)::int AS count FROM campaigns`),
@@ -1079,11 +1126,31 @@ app.get("/api/dashboard/summary", authRequired, async (req, res) => {
       query(`SELECT COALESCE(SUM(total_amount), 0)::numeric AS amount FROM bonus_items WHERE month_label = $1`, [currentMonth]),
       query(`SELECT COALESCE(SUM(spend), 0)::numeric AS amount FROM campaigns WHERE to_char(start_date, 'YYYY-MM') = $1 OR to_char(end_date, 'YYYY-MM') = $1`, [currentMonth]),
       req.user.role === "admin" || req.user.role === "manager" ? query(reminderSql) : query(reminderSql, [req.user.id]),
-      query(`SELECT COALESCE(bonus_rate, 25000)::numeric AS rate FROM app_settings ORDER BY id ASC LIMIT 1`)
+      query(`SELECT COALESCE(bonus_rate, 25000)::numeric AS rate FROM app_settings ORDER BY id ASC LIMIT 1`),
+      query(`SELECT category, limit_amount FROM budgets WHERE month_label = $1`, [currentMonth]),
+      query(`SELECT category, COALESCE(SUM(amount), 0)::numeric AS amount FROM expenses WHERE to_char(expense_date, 'YYYY-MM') = $1 GROUP BY category`, [currentMonth])
     ]);
 
     const totalTasks = Number(taskProgress.rows[0]?.total || 0);
     const doneTasks = Number(taskProgress.rows[0]?.done_count || 0);
+    const budgetAlerts = budgetsRes.rows.map((budget) => {
+      const actual = Number(monthlyExpenses.rows.find((row) => row.category === budget.category)?.amount || 0);
+      return {
+        category: budget.category,
+        limit_amount: Number(budget.limit_amount || 0),
+        actual_amount: actual,
+        exceeded: actual > Number(budget.limit_amount || 0)
+      };
+    });
+    const smartAlerts = [
+      ...(Number(overdueTasks.rows[0]?.count || 0) > 0 ? [{ type: "danger", text: `${overdueTasks.rows[0].count} ta kechikkan vazifa bor` }] : []),
+      ...(Number(dueSoonTasks.rows[0]?.count || 0) > 0 ? [{ type: "warning", text: `${dueSoonTasks.rows[0].count} ta yaqin muddatli vazifa bor` }] : []),
+      ...budgetAlerts.filter((item) => item.exceeded).map((item) => ({
+        type: "danger",
+        text: `${item.category} budjeti oshgan: ${item.actual_amount} / ${item.limit_amount}`
+      }))
+    ];
+    const executiveSummary = `Bu oy ${monthlyContent.rows[0]?.count || 0} ta kontent, ${todayReports.rows[0]?.count || 0} ta bugungi hisobot va ${doneTasks}/${totalTasks} vazifa bajarilishi qayd etildi.`;
 
     res.json({
       content_count: contentCount.rows[0].count,
@@ -1100,7 +1167,10 @@ app.get("/api/dashboard/summary", authRequired, async (req, res) => {
       monthly_bonus_amount: Number(monthlyBonus.rows[0]?.amount || 0),
       monthly_campaign_spend: Number(campaignSpend.rows[0]?.amount || 0),
       bonus_rate: Number(bonusRate.rows[0]?.rate || 25000),
-      reminders: reminders.rows || []
+      reminders: reminders.rows || [],
+      smart_alerts: smartAlerts,
+      executive_summary: executiveSummary,
+      budget_alerts: budgetAlerts
     });
   } catch (err) {
     console.error(err);
@@ -1664,7 +1734,13 @@ app.post("/api/content", authRequired, async (req, res) => {
       preview_url,
       final_url,
       edit_file_url,
-      approval_comment
+      approval_comment,
+      content_template,
+      idea_score,
+      visual_score,
+      editing_score,
+      result_score,
+      reach_value
     } = req.body;
 
     const publishDate = formatDateOnly(publish_date);
@@ -1697,10 +1773,16 @@ app.post("/api/content", authRequired, async (req, res) => {
         final_url,
         edit_file_url,
         approval_comment,
+        content_template,
+        idea_score,
+        visual_score,
+        editing_score,
+        result_score,
+        reach_value,
         plan_month,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
       RETURNING *
       `,
       [
@@ -1723,6 +1805,12 @@ app.post("/api/content", authRequired, async (req, res) => {
         final_url || "",
         edit_file_url || "",
         approval_comment || "",
+        content_template || "",
+        Number(idea_score || 0),
+        Number(visual_score || 0),
+        Number(editing_score || 0),
+        Number(result_score || 0),
+        Number(reach_value || 0),
         planMonth,
         req.user.id
       ]
@@ -1791,7 +1879,13 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
       preview_url,
       final_url,
       edit_file_url,
-      approval_comment
+      approval_comment,
+      content_template,
+      idea_score,
+      visual_score,
+      editing_score,
+      result_score,
+      reach_value
     } = req.body;
 
     const publishDate = formatDateOnly(publish_date);
@@ -1825,9 +1919,15 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
         final_url = $17,
         edit_file_url = $18,
         approval_comment = $19,
-        plan_month = $20,
+        content_template = $20,
+        idea_score = $21,
+        visual_score = $22,
+        editing_score = $23,
+        result_score = $24,
+        reach_value = $25,
+        plan_month = $26,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $21
+      WHERE id = $27
       RETURNING *
       `,
       [
@@ -1850,6 +1950,12 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
         final_url || "",
         edit_file_url || "",
         approval_comment || "",
+        content_template || "",
+        Number(idea_score || 0),
+        Number(visual_score || 0),
+        Number(editing_score || 0),
+        Number(result_score || 0),
+        Number(reach_value || 0),
         planMonth,
         req.params.id
       ]
@@ -2634,6 +2740,14 @@ app.post("/api/uploads", authRequired, upload.single("file"), async (req, res) =
 
     const entityType = req.body?.entity_type || null;
     const entityId = req.body?.entity_id ? Number(req.body.entity_id) : null;
+    const folderName = req.body?.folder_name || "";
+    const versionLabel = req.body?.version_label || "";
+    let tags = [];
+    try {
+      tags = req.body?.tags_json ? JSON.parse(req.body.tags_json) : [];
+    } catch {
+      tags = String(req.body?.tags_json || "").split(",").map((item) => item.trim()).filter(Boolean);
+    }
 
     const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
 
@@ -2647,10 +2761,13 @@ app.post("/api/uploads", authRequired, upload.single("file"), async (req, res) =
         file_size,
         file_url,
         uploaded_by,
+        folder_name,
+        tags_json,
+        version_label,
         entity_type,
         entity_id
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
       RETURNING *
       `,
       [
@@ -2660,6 +2777,9 @@ app.post("/api/uploads", authRequired, upload.single("file"), async (req, res) =
         req.file.size,
         fileUrl,
         req.user.id,
+        folderName,
+        JSON.stringify(Array.isArray(tags) ? tags : []),
+        versionLabel,
         entityType,
         entityId
       ]
@@ -3456,19 +3576,106 @@ app.delete("/api/budgets/:id", authRequired, async (req, res) => {
 app.get("/api/analytics/overview", authRequired, async (_, res) => {
   try {
     await runRecurringAutomation();
-    const [bonusByMonth, spendByMonth, contentByStatus, branchKpi, topUsers, budgetsRes, expenseTotals] = await Promise.all([
+    const [bonusByMonth, spendByMonth, contentByStatus, branchKpi, topUsers, budgetsRes, expenseTotals, workloadHeatmap, employeeKpi, moodSummary] = await Promise.all([
       query(`SELECT month_label, COALESCE(SUM(total_amount),0)::numeric AS total FROM bonus_items GROUP BY month_label ORDER BY month_label DESC LIMIT 6`),
       query(`SELECT to_char(COALESCE(start_date,end_date,CURRENT_DATE), 'YYYY-MM') AS month_label, COALESCE(SUM(spend),0)::numeric AS total FROM campaigns GROUP BY 1 ORDER BY 1 DESC LIMIT 6`),
       query(`SELECT status, COUNT(*)::int AS count FROM content_items GROUP BY status ORDER BY status`),
       query(`SELECT b.name, COALESCE(SUM(d.stories_count + d.posts_count + d.reels_count),0)::int AS content_score, COALESCE(SUM(d.subscriber_count),0)::int AS subscriber_growth FROM branches b LEFT JOIN daily_branch_reports d ON d.branch_id = b.id GROUP BY b.id, b.name ORDER BY content_score DESC, subscriber_growth DESC LIMIT 8`),
       query(`SELECT u.full_name, COUNT(t.id)::int AS done_tasks, COALESCE(SUM(bi.total_amount),0)::numeric AS bonus_total FROM users u LEFT JOIN tasks t ON t.assignee_user_id = u.id AND t.status = 'done' LEFT JOIN bonus_items bi ON bi.user_id = u.id GROUP BY u.id, u.full_name ORDER BY done_tasks DESC, bonus_total DESC LIMIT 8`),
       query(`SELECT month_label, category, limit_amount FROM budgets ORDER BY month_label DESC, id DESC LIMIT 24`),
-      query(`SELECT category, COALESCE(SUM(amount),0)::numeric AS total FROM expenses GROUP BY category ORDER BY total DESC`)
+      query(`SELECT category, COALESCE(SUM(amount),0)::numeric AS total FROM expenses GROUP BY category ORDER BY total DESC`),
+      query(`SELECT TO_CHAR(COALESCE(due_date, CURRENT_DATE), 'YYYY-MM-DD') AS day_label, COUNT(*)::int AS task_count FROM tasks GROUP BY 1 ORDER BY 1 DESC LIMIT 21`),
+      query(`SELECT u.id, u.full_name, COUNT(t.id)::int AS total_tasks, COUNT(t.id) FILTER (WHERE t.status='done')::int AS done_tasks, COUNT(c.id)::int AS content_count, COALESCE(SUM(bi.total_amount),0)::numeric AS bonus_total FROM users u LEFT JOIN tasks t ON t.assignee_user_id = u.id LEFT JOIN content_items c ON c.assigned_user_id = u.id LEFT JOIN bonus_items bi ON bi.user_id = u.id GROUP BY u.id, u.full_name ORDER BY done_tasks DESC, content_count DESC`),
+      query(`SELECT entry_date, ROUND(AVG(mood_score)::numeric, 2) AS avg_mood, COUNT(*)::int AS total_entries FROM team_mood_entries GROUP BY entry_date ORDER BY entry_date DESC LIMIT 14`)
     ]);
-    res.json({ bonus_by_month: bonusByMonth.rows, spend_by_month: spendByMonth.rows, content_by_status: contentByStatus.rows, branch_kpi: branchKpi.rows, top_performers: topUsers.rows, budgets: budgetsRes.rows, expense_totals: expenseTotals.rows });
+    res.json({ bonus_by_month: bonusByMonth.rows, spend_by_month: spendByMonth.rows, content_by_status: contentByStatus.rows, branch_kpi: branchKpi.rows, top_performers: topUsers.rows, budgets: budgetsRes.rows, expense_totals: expenseTotals.rows, workload_heatmap: workloadHeatmap.rows, employee_kpi: employeeKpi.rows, mood_summary: moodSummary.rows });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: `Analyticsni olib bo'lmadi: ${err.message}` });
+  }
+});
+
+app.get("/api/analytics/posting-insights", authRequired, async (_, res) => {
+  try {
+    const [byHour, byDay] = await Promise.all([
+      query(`
+        SELECT
+          EXTRACT(HOUR FROM COALESCE(publish_date::timestamp, created_at))::int AS hour_label,
+          COUNT(*)::int AS content_count,
+          ROUND(AVG(COALESCE(reach_value, 0))::numeric, 2) AS avg_reach
+        FROM content_items
+        GROUP BY 1
+        ORDER BY avg_reach DESC, content_count DESC
+      `),
+      query(`
+        SELECT
+          TO_CHAR(COALESCE(publish_date::timestamp, created_at), 'Dy') AS day_label,
+          COUNT(*)::int AS content_count,
+          ROUND(AVG(COALESCE(reach_value, 0))::numeric, 2) AS avg_reach
+        FROM content_items
+        GROUP BY 1
+        ORDER BY avg_reach DESC, content_count DESC
+      `)
+    ]);
+
+    res.json({
+      by_hour: byHour.rows,
+      by_day: byDay.rows,
+      best_hour: byHour.rows[0] || null,
+      best_day: byDay.rows[0] || null
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Posting insight bo'lmadi: ${err.message}` });
+  }
+});
+
+app.get("/api/team-mood", authRequired, async (_, res) => {
+  try {
+    const result = await query(`
+      SELECT
+        tm.*,
+        u.full_name,
+        u.avatar_url
+      FROM team_mood_entries tm
+      LEFT JOIN users u ON u.id = tm.user_id
+      ORDER BY tm.entry_date DESC, tm.updated_at DESC
+      LIMIT 100
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Mood pulse bo'lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/team-mood", authRequired, async (req, res) => {
+  try {
+    const score = Math.min(5, Math.max(1, Number(req.body?.mood_score || 3)));
+    const note = String(req.body?.note || "").trim();
+    const result = await query(
+      `
+      INSERT INTO team_mood_entries (user_id, entry_date, mood_score, note)
+      VALUES ($1, CURRENT_DATE, $2, $3)
+      ON CONFLICT (user_id, entry_date)
+      DO UPDATE SET
+        mood_score = EXCLUDED.mood_score,
+        note = EXCLUDED.note,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+      `,
+      [req.user.id, score, note]
+    );
+
+    if (score <= 2) {
+      await createNotification(null, "Team mood alert", `${req.user.full_name} past kayfiyat belgiladi`, "warning", "reminder", "/team-mood");
+    }
+
+    await logAction(req.user.id, "upsert", "team_mood_entries", result.rows[0].id, { mood_score: score });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Mood pulse saqlanmadi: ${err.message}` });
   }
 });
 
@@ -3616,6 +3823,152 @@ app.post("/api/backup/preview", authRequired, rolesAllowed("admin"), async (req,
   }
 });
 
+app.get("/api/executive-summary", authRequired, async (_, res) => {
+  try {
+    const month = getMonthLabel();
+    const [contentRes, bonusRes, expenseRes, taskRes] = await Promise.all([
+      query(`SELECT COUNT(*)::int AS count FROM content_items WHERE plan_month = $1`, [month]),
+      query(`SELECT COALESCE(SUM(total_amount),0)::numeric AS amount FROM bonus_items WHERE month_label = $1`, [month]),
+      query(`SELECT COALESCE(SUM(amount),0)::numeric AS amount FROM expenses WHERE to_char(expense_date, 'YYYY-MM') = $1`, [month]),
+      query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status='done')::int AS done_count FROM tasks WHERE due_date IS NOT NULL AND to_char(due_date, 'YYYY-MM') = $1`, [month])
+    ]);
+    res.json({
+      month_label: month,
+      text: `${month} bo'yicha ${contentRes.rows[0]?.count || 0} ta kontent, ${taskRes.rows[0]?.done_count || 0}/${taskRes.rows[0]?.total || 0} ta vazifa, ${bonusRes.rows[0]?.amount || 0} bonus va ${expenseRes.rows[0]?.amount || 0} harajat qayd etildi.`
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Executive summary bo'lmadi: ${err.message}` });
+  }
+});
+
+app.get("/api/employee-kpi", authRequired, async (_, res) => {
+  try {
+    const result = await query(
+      `SELECT u.id, u.full_name,
+        COUNT(t.id)::int AS total_tasks,
+        COUNT(t.id) FILTER (WHERE t.status='done')::int AS done_tasks,
+        COUNT(c.id)::int AS content_count,
+        COUNT(tp.id)::int AS travel_count,
+        COALESCE(SUM(bi.total_amount),0)::numeric AS bonus_total
+      FROM users u
+      LEFT JOIN tasks t ON t.assignee_user_id = u.id
+      LEFT JOIN content_items c ON c.assigned_user_id = u.id
+      LEFT JOIN travel_plans tp ON tp.created_by = u.id
+      LEFT JOIN bonus_items bi ON bi.user_id = u.id
+      GROUP BY u.id, u.full_name
+      ORDER BY done_tasks DESC, content_count DESC, bonus_total DESC`
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Employee KPI bo'lmadi: ${err.message}` });
+  }
+});
+
+app.get("/api/version-history/:entityType/:entityId", authRequired, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT a.*, u.full_name
+       FROM audit_logs a
+       LEFT JOIN users u ON u.id = a.user_id
+       WHERE a.entity_type = $1 AND a.entity_id = $2
+       ORDER BY a.id DESC`,
+      [req.params.entityType, Number(req.params.entityId)]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Version history bo'lmadi: ${err.message}` });
+  }
+});
+
+app.get("/api/health", authRequired, rolesAllowed("admin", "manager"), async (_, res) => {
+  try {
+    const [socketCount, notifCount, backupCount] = await Promise.all([
+      Promise.resolve([...userSockets.values()].reduce((sum, set) => sum + set.size, 0)),
+      query(`SELECT COUNT(*)::int AS count FROM notifications WHERE is_read = FALSE`),
+      query(`SELECT COUNT(*)::int AS count FROM monthly_snapshots`)
+    ]);
+    res.json({
+      socket_connections: socketCount,
+      unread_notifications: Number(notifCount.rows[0]?.count || 0),
+      monthly_snapshots: Number(backupCount.rows[0]?.count || 0),
+      telegram_configured: !!(await getSettingsRow())?.telegram_bot_token,
+      timestamp: new Date().toISOString()
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Health page bo'lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/monthly-close", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  try {
+    const month = req.body?.month_label || getMonthLabel();
+    const [bonusRes, expenseRes, kpiRes] = await Promise.all([
+      query(`SELECT COALESCE(SUM(total_amount),0)::numeric AS total FROM bonus_items WHERE month_label = $1`, [month]),
+      query(`SELECT COALESCE(SUM(amount),0)::numeric AS total FROM expenses WHERE to_char(expense_date,'YYYY-MM') = $1`, [month]),
+      query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE status='done')::int AS done_count FROM tasks WHERE to_char(due_date,'YYYY-MM') = $1`, [month])
+    ]);
+    const snapshot = {
+      month_label: month,
+      bonus_total: Number(bonusRes.rows[0]?.total || 0),
+      expense_total: Number(expenseRes.rows[0]?.total || 0),
+      task_done: Number(kpiRes.rows[0]?.done_count || 0),
+      task_total: Number(kpiRes.rows[0]?.total || 0)
+    };
+    const inserted = await query(
+      `INSERT INTO monthly_snapshots (month_label, snapshot_type, payload_json, created_by) VALUES ($1,$2,$3,$4) RETURNING *`,
+      [month, "monthly_close", JSON.stringify(snapshot), req.user.id]
+    );
+    await createTelegramEvent("Monthly close bajarildi", [
+      `Oy: ${month}`,
+      `Bonus: ${snapshot.bonus_total}`,
+      `Harajat: ${snapshot.expense_total}`
+    ]);
+    res.json(inserted.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Monthly close bo'lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/settings/share-token", authRequired, rolesAllowed("admin", "manager"), async (_, res) => {
+  try {
+    const token = await ensurePublicShareToken();
+    res.json({ token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Share token bo'lmadi: ${err.message}` });
+  }
+});
+
+app.get("/api/share/report/:token", async (req, res) => {
+  try {
+    const settings = await getSettingsRow();
+    if (!settings?.public_share_token || settings.public_share_token !== req.params.token) {
+      return res.status(403).json({ message: "Share token noto'g'ri" });
+    }
+    const month = getMonthLabel();
+    const [contentRes, bonusRes, expenseRes] = await Promise.all([
+      query(`SELECT COUNT(*)::int AS count FROM content_items WHERE plan_month = $1`, [month]),
+      query(`SELECT COALESCE(SUM(total_amount),0)::numeric AS total FROM bonus_items WHERE month_label = $1`, [month]),
+      query(`SELECT COALESCE(SUM(amount),0)::numeric AS total FROM expenses WHERE to_char(expense_date,'YYYY-MM') = $1`, [month])
+    ]);
+    res.json({
+      company_name: settings.company_name || "aloo",
+      month_label: month,
+      content_count: Number(contentRes.rows[0]?.count || 0),
+      bonus_total: Number(bonusRes.rows[0]?.total || 0),
+      expense_total: Number(expenseRes.rows[0]?.total || 0)
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Share report bo'lmadi: ${err.message}` });
+  }
+});
+
 app.post("/api/ai/assist", authRequired, async (req, res) => {
   try {
     const { mode, prompt, branch_name, content_type } = req.body;
@@ -3626,7 +3979,10 @@ app.post("/api/ai/assist", authRequired, async (req, res) => {
       title: `Bugungi${branch}${type} uchun jalb qiluvchi sarlavha: "${clean || "Yangi kontent"}"`,
       caption: `${branch || "Brend"} uchun qisqa caption:\n1. E'tiborli kirish\n2. Foydali asosiy gap\n3. Kuchli CTA`,
       script: `Ssenariy drafti:\n1. Hook\n2. Muammo\n3. Yechim\n4. Natija\n5. CTA\nMavzu: ${clean || "Mahsulot taqdimoti"}`,
-      ideas: `Kontent g'oyalari:\n- Mijoz hikoyasi\n- Filial ichki lavhasi\n- Oldin/keyin format\n- Top 3 maslahat\n- Trendga mos reels`
+      ideas: `Kontent g'oyalari:\n- Mijoz hikoyasi\n- Filial ichki lavhasi\n- Oldin/keyin format\n- Top 3 maslahat\n- Trendga mos reels`,
+      hook: `Hook variantlari:\n- Birinchi 3 soniyada diqqatni ushlaydigan savol\n- Kutilmagan natija bilan kirish\n- "Buni ko'pchilik bilmaydi" usuli`,
+      cta: `CTA variantlari:\n- Hozir yozib qoldiring\n- Filialga tashrif buyuring\n- Batafsil ma'lumot uchun DM qiling`,
+      plan: `Kontent plan:\n1. Dushanba - product reels\n2. Chorshanba - branch backstage\n3. Juma - aksiya post\n4. Shanba - customer feedback story`
     };
     res.json({ mode: mode || "ideas", output: templates[mode || "ideas"] || templates.ideas });
   } catch (err) {
