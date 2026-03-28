@@ -1321,7 +1321,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
 
   return (
     <div className="page-grid">
-      <div className="card">
+      {false && <div className="card">
         <SectionTitle
           title={editRow ? "Kontent rejani tahrirlash" : "Kontent reja yaratish"}
           desc={`${getMonthTitle(selectedMonth)} uchun`}
@@ -1351,26 +1351,6 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
         <div className="info-banner">
           Bonus formulasi: 1 ta taklif yoki tasdiq = <strong>{formatMoney(bonusRate)}</strong>
         </div>
-        <div className="workflow-strip">
-          {[
-            { key: "product_reels", label: "Product reels" },
-            { key: "branch_backstage", label: "Branch backstage" },
-            { key: "feedback_story", label: "Feedback story" },
-            { key: "promo_post", label: "Promo post" }
-          ].map((tpl) => (
-            <button key={tpl.key} type="button" className={`template-chip ${form.content_template === tpl.key ? "active" : ""}`} onClick={() => setField("content_template", tpl.key)}>
-              {tpl.label}
-            </button>
-          ))}
-        </div>
-        <SavedViews
-          storageKey="aloo_content_views"
-          currentValue={{ selectedMonth, viewMode }}
-          onApply={(value) => {
-            setSelectedMonth(value?.selectedMonth || getMonthLabel());
-            setViewMode(value?.viewMode || "table");
-          }}
-        />
         <form className="form-grid" onSubmit={handleSubmit}>
           <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
           <label><span>Joylash sanasi</span><input type="date" value={form.publish_date} onChange={(e) => setField("publish_date", e.target.value)} required /></label>
@@ -1462,11 +1442,6 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
           ) : null}
 
           <label className="full-col"><span>Approval izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} placeholder="Tasdiqlash yoki qayta ishlash bo'yicha izoh" /></label>
-          <label><span>Idea score</span><input type="number" min="0" max="10" value={form.idea_score} onChange={(e) => setField("idea_score", e.target.value)} /></label>
-          <label><span>Visual score</span><input type="number" min="0" max="10" value={form.visual_score} onChange={(e) => setField("visual_score", e.target.value)} /></label>
-          <label><span>Editing score</span><input type="number" min="0" max="10" value={form.editing_score} onChange={(e) => setField("editing_score", e.target.value)} /></label>
-          <label><span>Result score</span><input type="number" min="0" max="10" value={form.result_score} onChange={(e) => setField("result_score", e.target.value)} /></label>
-          <label><span>Reach</span><input type="number" min="0" value={form.reach_value} onChange={(e) => setField("reach_value", e.target.value)} /></label>
 
           <button className="btn primary" type="submit" disabled={saving}>
             {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}
@@ -1474,26 +1449,9 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
         </form>
       </div>
 
-      <div className="stats-grid analytics-grid">
-        <StatCard title="Rejadagilar" value={workflowCounts.reja} hint="approval kutmoqda" tone="default" />
-        <StatCard title="Tasdiqlanganlar" value={workflowCounts.tasdiqlandi} hint="keyingi bosqichga tayyor" tone="warning" />
-        <StatCard title="Jarayondagi kontent" value={workflowCounts.jarayonda} hint="ish jarayonida" tone="info" />
-        <StatCard title="Yakunlanganlar" value={workflowCounts.yakunlandi} hint={getMonthTitle(selectedMonth)} tone="success" />
-      </div>
+      
 
-      <div className="card">
-        <SectionTitle title="Approval workflow" desc="Kontent bo'limi uchun keyingi bosqich signalari" />
-        <div className="workflow-strip">
-          {["reja", "tasdiqlandi", "jarayonda", "qayta_ishlash", "rad_etildi", "yakunlandi"].map((statusKey) => (
-            <div key={statusKey} className={`workflow-step ${approvalStatusMeta(statusKey).tone}`}>
-              <span className={approvalStatusClass(statusKey)}>{formatApprovalStatus(statusKey)}</span>
-              <strong>{workflowCounts[statusKey] || 0}</strong>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="card">
+      {false && <div className="card">
         <SectionTitle title="Workflow reminders" desc="Ayni paytda workflow eslatmalari shu blokda chiqadi" />
         <div className="workflow-strip">
           {[...overdueTasks, ...dueSoonTasks].slice(0, 6).map((row) => (
@@ -1504,7 +1462,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
           ))}
           {!overdueTasks.length && !dueSoonTasks.length ? <div className="empty-block">Hozircha eslatma yo'q</div> : null}
         </div>
-      </div>
+      </div>}
 
       <div className="card">
         <SectionTitle
