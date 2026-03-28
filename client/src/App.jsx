@@ -176,7 +176,7 @@ function formatDate(value) {
 }
 
 function formatMoney(value) {
-  return `${Number(value || 0).toLocaleString()} soвЂm`;
+  return `${Number(value || 0).toLocaleString()} so'm`;
 }
 
 function formatDateTime(value) {
@@ -304,9 +304,9 @@ function DiscussionPanel({ entityType, entityId, onToast }) {
       const commentsRes = await api.list(`/api/comments/${entityType}/${entityId}`);
       setComments(commentsRes || []);
       setBody("");
-      onToast?.("Izoh qoвЂshildi", "success");
+      onToast?.("Izoh qoР Р†Р вЂљР’Вshildi", "success");
     } catch (err) {
-      onToast?.(err.message || "Izohni saqlab boвЂlmadi", "error");
+      onToast?.(err.message || "Izohni saqlab boР Р†Р вЂљР’Вlmadi", "error");
     } finally {
       setSaving(false);
     }
@@ -327,7 +327,7 @@ function DiscussionPanel({ entityType, entityId, onToast }) {
       setTagText("");
       onToast?.("Fayl biriktirildi", "success");
     } catch (err) {
-      onToast?.(err.message || "Fayl yuklab boвЂlmadi", "error");
+      onToast?.(err.message || "Fayl yuklab boР Р†Р вЂљР’Вlmadi", "error");
     } finally {
       setSaving(false);
     }
@@ -358,11 +358,11 @@ function DiscussionPanel({ entityType, entityId, onToast }) {
               <span>{formatDateTime(item.created_at)}</span>
               <p>{item.body}</p>
             </div>
-          )) : <div className="empty-block">Hozircha izoh yoвЂq</div>}
+          )) : <div className="empty-block">Hozircha izoh yoР Р†Р вЂљР’Вq</div>}
         </div>
         <form className="discussion-form" onSubmit={submitComment}>
           <input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Ichki izoh yozing..." />
-          <button type="submit" className="btn secondary" disabled={saving}>Izoh qoвЂshish</button>
+          <button type="submit" className="btn secondary" disabled={saving}>Izoh qoР Р†Р вЂљР’Вshish</button>
         </form>
       </div>
       <div className="discussion-col">
@@ -374,7 +374,7 @@ function DiscussionPanel({ entityType, entityId, onToast }) {
               <strong>{item.original_name}</strong>
               <span>{item.mime_type || "file"}</span>
             </a>
-          )) : <div className="empty-block">Hozircha fayl yoвЂq</div>}
+          )) : <div className="empty-block">Hozircha fayl yoР Р†Р вЂљР’Вq</div>}
         </div>
         <div className="discussion-upload">
           <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
@@ -408,7 +408,7 @@ function IconActions({ onView, onEdit, onDelete }) {
   return (
     <div className="icon-actions">
       {onView ? (
-        <button type="button" className="icon-btn" onClick={onView} title="KoвЂrish">
+        <button type="button" className="icon-btn" onClick={onView} title="KoР Р†Р вЂљР’Вrish">
           <Eye size={16} />
         </button>
       ) : null}
@@ -418,7 +418,7 @@ function IconActions({ onView, onEdit, onDelete }) {
         </button>
       ) : null}
       {onDelete ? (
-        <button type="button" className="icon-btn danger" onClick={onDelete} title="OвЂchirish">
+        <button type="button" className="icon-btn danger" onClick={onDelete} title="OР Р†Р вЂљР’Вchirish">
           <Trash2 size={16} />
         </button>
       ) : null}
@@ -469,10 +469,10 @@ function NotificationsDrawer({ open, onClose, notifications = [], onRead, onRead
         <div className="drawer-head">
           <div>
             <div className="small-label">Bildirishnomalar</div>
-            <h3>SoвЂnggi yangiliklar</h3>
+            <h3>SoР Р†Р вЂљР’Вnggi yangiliklar</h3>
           </div>
           <button type="button" className="btn secondary" onClick={onReadAll}>
-            Hammasini oвЂqildi
+            Hammasini oР Р†Р вЂљР’Вqildi
           </button>
         </div>
 
@@ -486,14 +486,14 @@ function NotificationsDrawer({ open, onClose, notifications = [], onRead, onRead
                   <span className={notificationCategoryClass(item.category || item.type)}>{item.category || item.type}</span>
                   {!item.is_read ? (
                     <button type="button" className="link-btn" onClick={() => onRead(item.id)}>
-                      OвЂqildi
+                      OР Р†Р вЂљР’Вqildi
                     </button>
                   ) : null}
                 </div>
               </div>
             ))
           ) : (
-            <div className="empty-block">Hozircha bildirishnoma yoвЂq</div>
+            <div className="empty-block">Hozircha bildirishnoma yoР Р†Р вЂљР’Вq</div>
           )}
         </div>
       </div>
@@ -780,7 +780,7 @@ function LoginPage({ onLoggedIn, settings }) {
       <div className="login-grid-line" />
 
       <div className="login-copy">
-        <div className="brand-kicker">aloo вЂў yagona platforma</div>
+        <div className="brand-kicker">aloo Р Р†Р вЂљРЎС› yagona platforma</div>
         <div className="login-logo-lockup">
           <img src={logoSrc} alt="aloo logo" className="login-logo-image" />
           <div className="login-logo-copy">
@@ -789,7 +789,7 @@ function LoginPage({ onLoggedIn, settings }) {
           </div>
         </div>
         <h1>Assalomu alaykum</h1>
-        <h2>aloo doвЂkonlar tarmogвЂi SMM jamoasi yagona maвЂ™lumotlar platformasiga xush kelibsiz</h2>
+        <h2>aloo doР Р†Р вЂљР’Вkonlar tarmogР Р†Р вЂљР’Вi SMM jamoasi yagona maР Р†Р вЂљРІвЂћСћlumotlar platformasiga xush kelibsiz</h2>
         <p>Kirish uchun login va parolingizni kiriting.</p>
         <div className="login-feature-row">
           <div className="login-feature-card">
@@ -969,7 +969,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
         <StatCard
           title="Bugungi filial hisobotlari"
           value={summary?.today_report_count || 0}
-          hint="bugungi maвЂ™lumot"
+          hint="bugungi maР Р†Р вЂљРІвЂћСћlumot"
           tone={(summary?.today_report_count || 0) > 0 ? "success" : "default"}
         />
         <StatCard
@@ -990,7 +990,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
 
       <div className="two-grid">
         <div className="card">
-          <SectionTitle title="SoвЂnggi filial hisobotlari" />
+          <SectionTitle title="SoР Р†Р вЂљР’Вnggi filial hisobotlari" />
           <div className="table-wrap">
             <table>
               <thead>
@@ -1037,7 +1037,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
             {reminders.length ? reminders.map((item) => (
               <div key={item.id} className={`reminder-card ${formatDate(item.due_date) < formatDate(new Date()) ? "danger" : "warning"}`}>
                 <strong>{item.title}</strong>
-                <span>{formatDate(item.due_date)} вЂў {taskStatusLabel(item.status)}</span>
+                <span>{formatDate(item.due_date)} Р Р†Р вЂљРЎС› {taskStatusLabel(item.status)}</span>
               </div>
             )) : <div className="empty-block">Hozircha eslatma yo'q</div>}
           </div>
@@ -1186,7 +1186,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
       });
       setRows(sorted);
     } catch (err) {
-      onToast(err.message || "Kontent rejani olib boвЂlmadi", "error");
+      onToast(err.message || "Kontent rejani olib boР Р†Р вЂљР’Вlmadi", "error");
     } finally {
       setLoading(false);
     }
@@ -1247,7 +1247,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
       }
     } else {
       if (!form.assigned_user_id) {
-        onToast("MasвЂ™ul shaxsni tanlang", "error");
+        onToast("MasР Р†Р вЂљРІвЂћСћul shaxsni tanlang", "error");
         return;
       }
     }
@@ -1283,10 +1283,10 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
 
       if (editRow?.id) {
         await api.update("content", editRow.id, payload);
-        onToast("Kontent reja yangilandi вњ…", "success");
+        onToast("Kontent reja yangilandi Р Р†РЎС™РІР‚В¦", "success");
       } else {
         await api.create("content", payload);
-        onToast("Kontent reja saqlandi вњ…", "success");
+        onToast("Kontent reja saqlandi Р Р†РЎС™РІР‚В¦", "success");
       }
 
       await loadMonth(selectedMonth);
@@ -1300,7 +1300,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
   }
 
   async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham oвЂchirilsinmi?");
+    const ok = window.confirm("Rostdan ham oР Р†Р вЂљР’Вchirilsinmi?");
     if (!ok) return;
 
     try {
@@ -1313,9 +1313,9 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
       setRows((prev) => prev.filter((row) => Number(row.id) !== numericId));
       await loadMonth(selectedMonth);
       await reload();
-      onToast("Kontent oвЂchirildi", "success");
+      onToast("Kontent oР Р†Р вЂљР’Вchirildi", "success");
     } catch (err) {
-      onToast(err.message || "OвЂchirishda xatolik", "error");
+      onToast(err.message || "OР Р†Р вЂљР’Вchirishda xatolik", "error");
     }
   }
 
@@ -1331,13 +1331,13 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
                 {viewMode === "table" ? "Calendar view" : viewMode === "calendar" ? "Kanban view" : "Table view"}
               </button>
               <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>
-                в†ђ Oldingi oy
+                <- Oldingi oy
               </button>
               <div className="summary-pill">
                 <strong>{getMonthTitle(selectedMonth)}</strong>
               </div>
               <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>
-                Keyingi oy в†’
+                Keyingi oy ->
               </button>
               {editRow ? (
                 <button type="button" className="btn secondary" onClick={resetForm}>
@@ -1421,7 +1421,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
             </>
           ) : (
             <label>
-              <span>MasвЂ™ul shaxs</span>
+              <span>Mas'ul shaxs</span>
               <select value={form.assigned_user_id} onChange={(e) => setField("assigned_user_id", e.target.value)}>
                 <option value="">Tanlang</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
@@ -1431,7 +1431,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
 
           <label className="checkbox-row">
             <input type="checkbox" checked={bonusMode} onChange={(e) => setBonusMode(e.target.checked)} />
-            <span>Bonusga oвЂtkazish</span>
+            <span>Bonusga o'tkazish</span>
           </label>
 
           {bonusMode ? (
@@ -1457,7 +1457,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
           {[...overdueTasks, ...dueSoonTasks].slice(0, 6).map((row) => (
             <div key={`reminder-${row.id}`} className={`reminder-card ${overdueTasks.some((item) => item.id === row.id) ? "danger" : ""}`}>
               <strong>{row.title}</strong>
-              <span>{formatDate(row.due_date)} вЂў {taskStatusLabel(row.status)}</span>
+              <span>{formatDate(row.due_date)} Р Р†Р вЂљРЎС› {taskStatusLabel(row.status)}</span>
             </div>
           ))}
           {!overdueTasks.length && !dueSoonTasks.length ? <div className="empty-block">Hozircha eslatma yo'q</div> : null}
@@ -1487,7 +1487,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
                 <th>Holati</th>
                 <th>Platforma</th>
                 <th>Kontent turi</th>
-                <th>MasвЂ™ul / Video</th>
+                <th>MasР Р†Р вЂљРІвЂћСћul / Video</th>
                 <th>Bonus</th>
                 <th>Amallar</th>
               </tr>
@@ -1508,7 +1508,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
                         ? `${row.video_editor_name || "-"} / ${row.video_face_name || "-"}`
                         : row.assignee_name || "-"}
                     </td>
-                    <td>{row.bonus_enabled ? "Ha" : "YoвЂq"}</td>
+                    <td>{row.bonus_enabled ? "Ha" : "YoР Р†Р вЂљР’Вq"}</td>
                     <td>
                       <IconActions
                         onView={() => setViewRow(row)}
@@ -1519,7 +1519,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="8" className="empty-cell">Bu oy uchun reja yoвЂq</td></tr>
+                <tr><td colSpan="8" className="empty-cell">Bu oy uchun reja yoР Р†Р вЂљР’Вq</td></tr>
               )}
             </tbody>
           </table>
@@ -1607,7 +1607,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
               <div><strong>Holati:</strong> <span className={approvalStatusClass(viewRow.status)}>{formatApprovalStatus(viewRow.status)}</span></div>
               <div><strong>Platforma:</strong> {viewRow.platform || "-"}</div>
               <div><strong>Turi:</strong> {viewRow.content_type || "-"}</div>
-              <div><strong>Bonus:</strong> {viewRow.bonus_enabled ? "Ha" : "YoвЂq"}</div>
+              <div><strong>Bonus:</strong> {viewRow.bonus_enabled ? "Ha" : "YoР Р†Р вЂљР’Вq"}</div>
               <div><strong>Taklif soni:</strong> {viewRow.proposal_count || 0}</div>
               <div><strong>Tasdiq soni:</strong> {viewRow.approved_count || 0}</div>
               <div className="full-col"><strong>Approval izohi:</strong> {viewRow.approval_comment || "-"}</div>
@@ -1735,10 +1735,10 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
 
       if (editRow?.id) {
         await api.update("bonus-items", editRow.id, payload);
-        onToast("Bonus hisobot yangilandi вњ…", "success");
+        onToast("Bonus hisobot yangilandi Р Р†РЎС™РІР‚В¦", "success");
       } else {
         await api.create("bonus-items", payload);
-        onToast("Bonus hisobot saqlandi вњ…", "success");
+        onToast("Bonus hisobot saqlandi Р Р†РЎС™РІР‚В¦", "success");
       }
 
       await reload();
@@ -1751,7 +1751,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
   }
 
   async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham oвЂchirilsinmi?");
+    const ok = window.confirm("Rostdan ham oР Р†Р вЂљР’Вchirilsinmi?");
     if (!ok) return;
     try {
       const numericId = Number(id);
@@ -1761,9 +1761,9 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
       }
       await api.remove("bonus-items", numericId);
       await reload();
-      onToast("Bonus yozuvi oвЂchirildi", "success");
+      onToast("Bonus yozuvi oР Р†Р вЂљР’Вchirildi", "success");
     } catch (err) {
-      onToast(err.message || "OвЂchirishda xatolik", "error");
+      onToast(err.message || "OР Р†Р вЂљР’Вchirishda xatolik", "error");
     }
   }
 
@@ -1811,7 +1811,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
       </div>
 
       <div className="card">
-        <SectionTitle title={editRow ? "Bonus hisobotni tahrirlash" : "Hisobot qoвЂshish"} />
+        <SectionTitle title={editRow ? "Bonus hisobotni tahrirlash" : "Hisobot qoР Р†Р вЂљР’Вshish"} />
         <form className="form-grid" onSubmit={handleSubmit}>
           <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
           <label><span>Joylangan sanasi</span><input type="date" value={form.work_date} onChange={(e) => setField("work_date", e.target.value)} required /></label>
@@ -1872,7 +1872,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
       </div>
 
       <div className="card">
-        <SectionTitle title="Hodim boвЂyicha bonus summalari" />
+        <SectionTitle title="Hodim boР Р†Р вЂљР’Вyicha bonus summalari" />
         <div className="table-wrap">
           <table>
             <thead>
@@ -1890,7 +1890,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="2" className="empty-cell">Bu oy uchun bonus yoвЂq</td></tr>
+                <tr><td colSpan="2" className="empty-cell">Bu oy uchun bonus yoР Р†Р вЂљР’Вq</td></tr>
               )}
             </tbody>
           </table>
@@ -1938,7 +1938,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="8" className="empty-cell">Bu oy uchun bonus yozuvi yoвЂq</td></tr>
+                <tr><td colSpan="8" className="empty-cell">Bu oy uchun bonus yozuvi yoР Р†Р вЂљР’Вq</td></tr>
               )}
             </tbody>
           </table>
@@ -2014,10 +2014,10 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
       setSaving(true);
       if (editRow?.id) {
         await api.update("daily-reports", editRow.id, form);
-        onToast("Hisobot yangilandi вњ…", "success");
+        onToast("Hisobot yangilandi Р Р†РЎС™РІР‚В¦", "success");
       } else {
         await api.create("daily-reports", form);
-        onToast("Saqlandi вњ…", "success");
+        onToast("Saqlandi Р Р†РЎС™РІР‚В¦", "success");
       }
       await reload();
       resetForm();
@@ -2029,14 +2029,14 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
   }
 
   async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham oвЂchirilsinmi?");
+    const ok = window.confirm("Rostdan ham oР Р†Р вЂљР’Вchirilsinmi?");
     if (!ok) return;
     try {
       await api.remove("daily-reports", id);
       await reload();
-      onToast("Hisobot oвЂchirildi", "success");
+      onToast("Hisobot oР Р†Р вЂљР’Вchirildi", "success");
     } catch (err) {
-      onToast(err.message || "OвЂchirishda xatolik", "error");
+      onToast(err.message || "OР Р†Р вЂљР’Вchirishda xatolik", "error");
     }
   }
 
@@ -2128,7 +2128,7 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="9" className="empty-cell">Hozircha maвЂ™lumot yoвЂq</td></tr>
+                <tr><td colSpan="9" className="empty-cell">Hozircha maР Р†Р вЂљРІвЂћСћlumot yoР Р†Р вЂљР’Вq</td></tr>
               )}
             </tbody>
           </table>
@@ -2209,10 +2209,10 @@ function CampaignsPage({ campaigns = [], onToast, reload }) {
       setSaving(true);
       if (editRow?.id) {
         await api.update("campaigns", editRow.id, form);
-        onToast("Kampaniya yangilandi вњ…", "success");
+        onToast("Kampaniya yangilandi Р Р†РЎС™РІР‚В¦", "success");
       } else {
         await api.create("campaigns", form);
-        onToast("Kampaniya saqlandi вњ…", "success");
+        onToast("Kampaniya saqlandi Р Р†РЎС™РІР‚В¦", "success");
       }
       await reload();
       resetForm();
@@ -2224,14 +2224,14 @@ function CampaignsPage({ campaigns = [], onToast, reload }) {
   }
 
   async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham oвЂchirilsinmi?");
+    const ok = window.confirm("Rostdan ham oР Р†Р вЂљР’Вchirilsinmi?");
     if (!ok) return;
     try {
       await api.remove("campaigns", id);
       await reload();
-      onToast("Kampaniya oвЂchirildi", "success");
+      onToast("Kampaniya oР Р†Р вЂљР’Вchirildi", "success");
     } catch (err) {
-      onToast(err.message || "OвЂchirishda xatolik", "error");
+      onToast(err.message || "OР Р†Р вЂљР’Вchirishda xatolik", "error");
     }
   }
 
@@ -2274,13 +2274,13 @@ function CampaignsPage({ campaigns = [], onToast, reload }) {
           </label>
           <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
           <button className="btn primary" type="submit" disabled={saving}>
-            {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Kampaniya qoвЂshish"}
+            {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Kampaniya qoР Р†Р вЂљР’Вshish"}
           </button>
         </form>
       </div>
 
       <div className="card">
-        <SectionTitle title="Kampaniyalar roвЂyxati" />
+        <SectionTitle title="Kampaniyalar roР Р†Р вЂљР’Вyxati" />
         <div className="table-wrap">
           <table>
             <thead>
@@ -2318,7 +2318,7 @@ function CampaignsPage({ campaigns = [], onToast, reload }) {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="9" className="empty-cell">Hozircha maвЂ™lumot yoвЂq</td></tr>
+                <tr><td colSpan="9" className="empty-cell">Hozircha maР Р†Р вЂљРІвЂћСћlumot yoР Р†Р вЂљР’Вq</td></tr>
               )}
             </tbody>
           </table>
@@ -2383,7 +2383,7 @@ function MediaPage({ uploads = [], onToast, reload }) {
       await api.upload(formData);
       await reload();
       setFile(null);
-      onToast("Fayl yuklandi вњ…", "success");
+      onToast("Fayl yuklandi Р Р†РЎС™РІР‚В¦", "success");
     } catch (err) {
       onToast(err.message || "Yuklashda xatolik", "error");
     } finally {
@@ -2392,14 +2392,14 @@ function MediaPage({ uploads = [], onToast, reload }) {
   }
 
   async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham oвЂchirilsinmi?");
+    const ok = window.confirm("Rostdan ham oР Р†Р вЂљР’Вchirilsinmi?");
     if (!ok) return;
     try {
       await api.remove("uploads", id);
       await reload();
-      onToast("Fayl oвЂchirildi", "success");
+      onToast("Fayl oР Р†Р вЂљР’Вchirildi", "success");
     } catch (err) {
-      onToast(err.message || "OвЂchirishda xatolik", "error");
+      onToast(err.message || "OР Р†Р вЂљР’Вchirishda xatolik", "error");
     }
   }
 
@@ -2410,9 +2410,9 @@ function MediaPage({ uploads = [], onToast, reload }) {
   async function copyLink(link) {
     try {
       await navigator.clipboard.writeText(link);
-      onToast("Link nusxalandi вњ…", "success");
+      onToast("Link nusxalandi Р Р†РЎС™РІР‚В¦", "success");
     } catch {
-      onToast("Linkni nusxalab boвЂlmadi", "error");
+      onToast("Linkni nusxalab boР Р†Р вЂљР’Вlmadi", "error");
     }
   }
 
@@ -2473,7 +2473,7 @@ function MediaPage({ uploads = [], onToast, reload }) {
               <div className="media-info">
                 <div className="media-name">{row.original_name}</div>
                 <div className="media-meta">{row.mime_type}</div>
-                <div className="media-meta">{row.folder_name || "general"} вЂў {row.version_label || "v1"}</div>
+                <div className="media-meta">{row.folder_name || "general"} Р Р†Р вЂљРЎС› {row.version_label || "v1"}</div>
                 <div className="media-meta">{Array.isArray(row.tags_json) ? row.tags_json.join(", ") : "-"}</div>
                 <div className="media-meta">{row.file_size}</div>
               </div>
@@ -2494,7 +2494,7 @@ function MediaPage({ uploads = [], onToast, reload }) {
               </div>
             </div>
           )) : (
-            <div className="empty-block">Hozircha media yoвЂq</div>
+            <div className="empty-block">Hozircha media yoР Р†Р вЂљР’Вq</div>
           )}
         </div>
       </div>
@@ -2591,10 +2591,10 @@ function UsersPage({ users = [], onToast, reload }) {
           department_role: form.department_role,
           permissions_json: form.permissions_json
         });
-        onToast("Hodim yangilandi вњ…", "success");
+        onToast("Hodim yangilandi Р Р†РЎС™РІР‚В¦", "success");
       } else {
         await api.create("users", form);
-        onToast("Yangi hodim yaratildi вњ…", "success");
+        onToast("Yangi hodim yaratildi Р Р†РЎС™РІР‚В¦", "success");
       }
 
       await reload();
@@ -2626,14 +2626,14 @@ function UsersPage({ users = [], onToast, reload }) {
   }
 
   async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham oвЂchirilsinmi?");
+    const ok = window.confirm("Rostdan ham oР Р†Р вЂљР’Вchirilsinmi?");
     if (!ok) return;
     try {
       await api.remove("users", id);
       await reload();
-      onToast("Hodim oвЂchirildi", "success");
+      onToast("Hodim oР Р†Р вЂљР’Вchirildi", "success");
     } catch (err) {
-      onToast(err.message || "OвЂchirishda xatolik", "error");
+      onToast(err.message || "OР Р†Р вЂљР’Вchirishda xatolik", "error");
     }
   }
 
@@ -2720,13 +2720,13 @@ function UsersPage({ users = [], onToast, reload }) {
           </div>
 
           <button className="btn primary" type="submit" disabled={saving}>
-            {saving ? "Saqlanmoqda..." : editingId ? "Yangilash" : "Hodim qoвЂshish"}
+            {saving ? "Saqlanmoqda..." : editingId ? "Yangilash" : "Hodim qoР Р†Р вЂљР’Вshish"}
           </button>
         </form>
       </div>
 
       <div className="card">
-        <SectionTitle title="Hodimlar roвЂyxati" />
+        <SectionTitle title="Hodimlar roР Р†Р вЂљР’Вyxati" />
         <div className="table-wrap">
           <table>
             <thead>
@@ -2774,7 +2774,7 @@ function UsersPage({ users = [], onToast, reload }) {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="8" className="empty-cell">Hozircha maвЂ™lumot yoвЂq</td></tr>
+                <tr><td colSpan="8" className="empty-cell">Hozircha maР Р†Р вЂљРІвЂћСћlumot yoР Р†Р вЂљР’Вq</td></tr>
               )}
             </tbody>
           </table>
@@ -2907,10 +2907,10 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
       };
       if (editRow?.id) {
         await api.update("tasks", editRow.id, payload);
-        onToast("Vazifa yangilandi вњ…", "success");
+        onToast("Vazifa yangilandi Р Р†РЎС™РІР‚В¦", "success");
       } else {
         await api.create("tasks", payload);
-        onToast("Vazifa saqlandi вњ…", "success");
+        onToast("Vazifa saqlandi Р Р†РЎС™РІР‚В¦", "success");
       }
       await reload();
       resetForm();
@@ -2922,14 +2922,14 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
   }
 
   async function removeRow(id) {
-    const ok = window.confirm("Rostdan ham oвЂchirilsinmi?");
+    const ok = window.confirm("Rostdan ham oР Р†Р вЂљР’Вchirilsinmi?");
     if (!ok) return;
     try {
       await api.remove("tasks", id);
       await reload();
-      onToast("Vazifa oвЂchirildi", "success");
+      onToast("Vazifa oР Р†Р вЂљР’Вchirildi", "success");
     } catch (err) {
-      onToast(err.message || "OвЂchirishda xatolik", "error");
+      onToast(err.message || "OР Р†Р вЂљР’Вchirishda xatolik", "error");
     }
   }
 
@@ -2977,7 +2977,7 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
           </label>
           <label><span>Muddat</span><input type="date" value={form.due_date} onChange={(e) => setField("due_date", e.target.value)} /></label>
           <label>
-            <span>MasвЂ™ul</span>
+            <span>MasР Р†Р вЂљРІвЂћСћul</span>
             <select value={form.assignee_user_id} onChange={(e) => setField("assignee_user_id", e.target.value)}>
               <option value="">Tanlang</option>
               {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
@@ -2996,13 +2996,13 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
             <div className="voice-task-hint">Mikrofon orqali gapiring, matn task nomi va izohiga tushadi.</div>
           </div>
           <button className="btn primary" type="submit" disabled={saving}>
-            {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Vazifa qoвЂshish"}
+            {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Vazifa qoР Р†Р вЂљР’Вshish"}
           </button>
         </form>
       </div>
 
       <div className="card">
-        <SectionTitle title="Vazifalar roвЂyxati" right={<input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />} />
+        <SectionTitle title="Vazifalar roР Р†Р вЂљР’Вyxati" right={<input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />} />
         {viewMode === "table" ? <div className="table-wrap">
           <table>
             <thead>
@@ -3011,7 +3011,7 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
                 <th>Status</th>
                 <th>Muhimlik</th>
                 <th>Muddat</th>
-                <th>MasвЂ™ul</th>
+                <th>MasР Р†Р вЂљРІвЂћСћul</th>
                 <th>Amallar</th>
               </tr>
             </thead>
@@ -3034,7 +3034,7 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="6" className="empty-cell">Hozircha maвЂ™lumot yoвЂq</td></tr>
+                <tr><td colSpan="6" className="empty-cell">Hozircha maР Р†Р вЂљРІвЂћСћlumot yoР Р†Р вЂљР’Вq</td></tr>
               )}
             </tbody>
           </table>
@@ -3113,7 +3113,7 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
             <div><strong>Status:</strong> <span className={taskStatusClass(viewRow.status)}>{taskStatusLabel(viewRow.status)}</span></div>
             <div><strong>Muhimlik:</strong> <span className={priorityClass(viewRow.priority)}>{viewRow.priority}</span></div>
             <div><strong>Muddat:</strong> {formatDate(viewRow.due_date)}</div>
-            <div><strong>MasвЂ™ul:</strong> {viewRow.assignee_name || "-"}</div>
+            <div><strong>MasР Р†Р вЂљРІвЂћСћul:</strong> {viewRow.assignee_name || "-"}</div>
             <div className="full-col"><strong>Izoh:</strong> {viewRow.description || "-"}</div>
           </div>
           <DiscussionPanel entityType="task" entityId={viewRow.id} onToast={onToast} />
@@ -3195,7 +3195,7 @@ function AuditPage({ logs = [] }) {
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="5" className="empty-cell">Hozircha maвЂ™lumot yoвЂq</td></tr>
+                <tr><td colSpan="5" className="empty-cell">Hozircha maР Р†Р вЂљРІвЂћСћlumot yoР Р†Р вЂљР’Вq</td></tr>
               )}
             </tbody>
           </table>
@@ -3493,7 +3493,7 @@ function ChatPage({ user, users = [], threads = [], onToast, reload }) {
                   className={`chat-bubble ${message.sender_user_id === user?.id ? "mine" : ""}`}
                 >
                   <div>{message.body}</div>
-                  <span>{formatDateTime(message.created_at)} {message.sender_user_id === user?.id ? `вЂў ${message.read_at ? "oвЂqildi" : message.delivered_at ? "yetkazildi" : "yuborildi"}` : ""}</span>
+                  <span>{formatDateTime(message.created_at)} {message.sender_user_id === user?.id ? `Р Р†Р вЂљРЎС› ${message.read_at ? "oР Р†Р вЂљР’Вqildi" : message.delivered_at ? "yetkazildi" : "yuborildi"}` : ""}</span>
                 </div>
               )) : <div className="empty-block">Xabarlar yo'q</div>}
             </div>
@@ -3564,14 +3564,14 @@ function ProfilePage({ user = {}, onToast, refreshUser }) {
 
       const me = await api.me();
       refreshUser(me.user);
-      onToast("Profil saqlandi вњ…", "success");
+      onToast("Profil saqlandi Р Р†РЎС™РІР‚В¦", "success");
       setForm((prev) => ({
         ...prev,
         old_password: "",
         new_password: ""
       }));
     } catch (err) {
-      onToast(err.message || "Profilni saqlab boвЂlmadi", "error");
+      onToast(err.message || "Profilni saqlab boР Р†Р вЂљР’Вlmadi", "error");
     } finally {
       setSaving(false);
     }
@@ -3622,7 +3622,7 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme, onToast, relo
         <div className="form-grid">
           <label><span>Kompaniya nomi</span><input value={form.company_name || ""} onChange={(e) => setField("company_name", e.target.value)} /></label>
           <label><span>Platforma nomi</span><input value={form.platform_name || ""} onChange={(e) => setField("platform_name", e.target.value)} /></label>
-          <label><span>BoвЂlim</span><input value={form.department_name || ""} onChange={(e) => setField("department_name", e.target.value)} /></label>
+          <label><span>BoР Р†Р вЂљР’Вlim</span><input value={form.department_name || ""} onChange={(e) => setField("department_name", e.target.value)} /></label>
           <label><span>Bonus stavkasi</span><input type="number" min="0" value={form.bonus_rate || 25000} onChange={(e) => setField("bonus_rate", e.target.value)} /></label>
           <label><span>Telegram bot token</span><input value={form.telegram_bot_token || ""} onChange={(e) => setField("telegram_bot_token", e.target.value)} /></label>
           <label><span>Telegram chat ID</span><input value={form.telegram_chat_id || ""} onChange={(e) => setField("telegram_chat_id", e.target.value)} /></label>
@@ -3642,7 +3642,7 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme, onToast, relo
             <img src={form.logo_url || LOGIN_LOGO} alt="Logo preview" className="settings-logo-image" />
             <div>
               <strong>{form.company_name || "aloo"}</strong>
-              <span>{form.platform_name || "SMM jamoasi platformasi"} вЂў {formatMoney(form.bonus_rate || 25000)}</span>
+              <span>{form.platform_name || "SMM jamoasi platformasi"} Р Р†Р вЂљРЎС› {formatMoney(form.bonus_rate || 25000)}</span>
             </div>
           </div>
         </div>
@@ -3834,20 +3834,20 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
       await reload();
       resetForm();
     } catch (err) {
-      onToast(err.message || "Harajatni saqlab boвЂlmadi", "error");
+      onToast(err.message || "Harajatni saqlab boР Р†Р вЂљР’Вlmadi", "error");
     } finally {
       setSaving(false);
     }
   }
 
   async function removeRow(id) {
-    if (!window.confirm("Rostdan ham oвЂchirilsinmi?")) return;
+    if (!window.confirm("Rostdan ham oР Р†Р вЂљР’Вchirilsinmi?")) return;
     try {
       await api.remove("expenses", id);
       await reload();
-      onToast("Harajat oвЂchirildi", "success");
+      onToast("Harajat oР Р†Р вЂљР’Вchirildi", "success");
     } catch (err) {
-      onToast(err.message || "Harajatni oвЂchirib boвЂlmadi", "error");
+      onToast(err.message || "Harajatni oР Р†Р вЂљР’Вchirib boР Р†Р вЂљР’Вlmadi", "error");
     }
   }
 
@@ -3870,7 +3870,7 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
   return (
     <div className="page-grid">
       <div className="card">
-        <SectionTitle title={editRow ? "Harajatni tahrirlash" : "Harajat qoвЂshish"} right={editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null} />
+        <SectionTitle title={editRow ? "Harajatni tahrirlash" : "Harajat qoР Р†Р вЂљР’Вshish"} right={editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null} />
         <form className="form-grid" onSubmit={handleSubmit}>
           <label><span>Sana</span><input type="date" value={form.expense_date} onChange={(e) => setField("expense_date", e.target.value)} required /></label>
           <label><span>Nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
@@ -3879,7 +3879,7 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
           <label><span>Summa</span><input type="number" min="0" value={form.amount} onChange={(e) => setField("amount", e.target.value)} required /></label>
           <label><span>Valyuta</span><select value={form.currency} onChange={(e) => setField("currency", e.target.value)}><option value="UZS">UZS</option><option value="USD">USD</option></select></label>
           <label><span>Kategoriya</span><select value={form.category} onChange={(e) => setField("category", e.target.value)}><option value="servis">Servis</option><option value="reklama">Reklama</option><option value="safar">Safar</option><option value="boshqa">Boshqa</option></select></label>
-          <label><span>ToвЂlov turi</span><select value={form.payment_type} onChange={(e) => setField("payment_type", e.target.value)}><option value="visa">Visa karta</option><option value="cash">Naqd</option><option value="bank">Bank</option></select></label>
+          <label><span>ToР Р†Р вЂљР’Вlov turi</span><select value={form.payment_type} onChange={(e) => setField("payment_type", e.target.value)}><option value="visa">Visa karta</option><option value="cash">Naqd</option><option value="bank">Bank</option></select></label>
           <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
           <button className="btn primary" type="submit" disabled={saving}>{saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}</button>
         </form>
@@ -3892,8 +3892,8 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
 
       <div className="card">
         <SectionTitle
-          title="Oy boвЂyicha harajatlar"
-          desc="Kategoriya kesimida tezkor koвЂrinish"
+          title="Oy boР Р†Р вЂљР’Вyicha harajatlar"
+          desc="Kategoriya kesimida tezkor koР Р†Р вЂљР’Вrinish"
           right={
             <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
               {monthOptions.map((item) => <option key={item} value={item}>{getMonthTitle(item)}</option>)}
@@ -3916,7 +3916,7 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
       </div>
 
       <div className="card">
-        <SectionTitle title="Harajatlar roвЂyxati" desc={getMonthTitle(monthFilter)} />
+        <SectionTitle title="Harajatlar roР Р†Р вЂљР’Вyxati" desc={getMonthTitle(monthFilter)} />
         <div className="table-wrap">
           <table>
             <thead><tr><th>Sana</th><th>Nomi</th><th>Xizmat</th><th>Holat</th><th>Summa</th><th>Amallar</th></tr></thead>
@@ -3935,7 +3935,7 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
                   <td>{Number(row.amount || 0).toLocaleString()} {row.currency || "UZS"}</td>
                   <td><IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} /></td>
                 </tr>
-              )) : <tr><td colSpan="6" className="empty-cell">Bu oy uchun harajat yoвЂq</td></tr>}
+              )) : <tr><td colSpan="6" className="empty-cell">Bu oy uchun harajat yoР Р†Р вЂљР’Вq</td></tr>}
             </tbody>
           </table>
         </div>
@@ -3949,7 +3949,7 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
           <div><strong>Karta egasi:</strong> {viewRow.card_holder || "-"}</div>
           <div><strong>Summa:</strong> {Number(viewRow.amount || 0).toLocaleString()} {viewRow.currency || "UZS"}</div>
           <div><strong>Kategoriya:</strong> {viewRow.category || "-"}</div>
-          <div><strong>ToвЂlov turi:</strong> {viewRow.payment_type || "-"}</div>
+          <div><strong>ToР Р†Р вЂљР’Вlov turi:</strong> {viewRow.payment_type || "-"}</div>
           <div className="full-col"><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
         </div> : null}
       </Modal>
@@ -4021,20 +4021,20 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
       await reload();
       resetForm();
     } catch (err) {
-      onToast(err.message || "Safar rejasini saqlab boвЂlmadi", "error");
+      onToast(err.message || "Safar rejasini saqlab boР Р†Р вЂљР’Вlmadi", "error");
     } finally {
       setSaving(false);
     }
   }
 
   async function removeRow(id) {
-    if (!window.confirm("Rostdan ham oвЂchirilsinmi?")) return;
+    if (!window.confirm("Rostdan ham oР Р†Р вЂљР’Вchirilsinmi?")) return;
     try {
       await api.remove("travel-plans", id);
       await reload();
-      onToast("Safar rejasi oвЂchirildi", "success");
+      onToast("Safar rejasi oР Р†Р вЂљР’Вchirildi", "success");
     } catch (err) {
-      onToast(err.message || "Safar rejasini oвЂchirib boвЂlmadi", "error");
+      onToast(err.message || "Safar rejasini oР Р†Р вЂљР’Вchirib boР Р†Р вЂљР’Вlmadi", "error");
     }
   }
 
@@ -4056,7 +4056,7 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
   return (
     <div className="page-grid">
       <div className="card">
-        <SectionTitle title={editRow ? "Safar rejasini tahrirlash" : "Safar rejasi qoвЂshish"} right={editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null} />
+        <SectionTitle title={editRow ? "Safar rejasini tahrirlash" : "Safar rejasi qoР Р†Р вЂљР’Вshish"} right={editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null} />
         <form className="form-grid" onSubmit={handleSubmit}>
           <label><span>Sana</span><input type="date" value={form.plan_date} onChange={(e) => setField("plan_date", e.target.value)} required /></label>
           <label><span>Filial</span><select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)} required><option value="">Tanlang</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
@@ -4099,7 +4099,7 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
                   <td><span className={approvalStatusClass(row.status, "travel")}>{formatApprovalStatus(row.status, "travel")}</span></td>
                   <td><IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} /></td>
                 </tr>
-              )) : <tr><td colSpan="6" className="empty-cell">Hozircha safar rejasi yoвЂq</td></tr>}
+              )) : <tr><td colSpan="6" className="empty-cell">Hozircha safar rejasi yoР Р†Р вЂљР’Вq</td></tr>}
             </tbody>
           </table>
         </div>
@@ -4122,10 +4122,10 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
                   <span>{row.branch_name || "-"}</span>
                   <span className={approvalStatusClass(row.status, "travel")}>{formatApprovalStatus(row.status, "travel")}</span>
                 </div>
-                <p>{row.participants_text || "Ishtirokchilar koвЂrsatilmagan"}</p>
+                <p>{row.participants_text || "Ishtirokchilar koР Р†Р вЂљР’Вrsatilmagan"}</p>
               </div>
             </button>
-          )) : <div className="empty-block">Hozircha timeline uchun safar rejasi yoвЂq</div>}
+          )) : <div className="empty-block">Hozircha timeline uchun safar rejasi yoР Р†Р вЂљР’Вq</div>}
         </div>
       </div>
 
@@ -4775,7 +4775,7 @@ function App() {
     );
   }, [search, allowedMenu]);
 
-  function showToast(message = "Saqlandi вњ…", type = "success") {
+  function showToast(message = "Saqlandi Р Р†РЎС™РІР‚В¦", type = "success") {
     setToast({ message, type });
   }
 
@@ -4785,7 +4785,7 @@ function App() {
       const res = await api.settings.update(payload);
       const updated = await api.settings.get();
       setSettings(updated);
-      showToast(res.message || "Saqlandi вњ…");
+      showToast(res.message || "Saqlandi Р Р†РЎС™РІР‚В¦");
     } catch (err) {
       showToast(err.message || "Xatolik yuz berdi", "error");
     } finally {
