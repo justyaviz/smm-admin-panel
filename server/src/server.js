@@ -11,7 +11,7 @@ import jwt from "jsonwebtoken";
 import { fileURLToPath } from "url";
 import { Server as SocketIOServer } from "socket.io";
 import { getClient, query } from "./db.js";
-import { authRequired, rolesAllowed, signToken } from "./auth.js";
+import { actionPermissionAllowed, authRequired, pagePermissionAllowed, rolesAllowed, signToken } from "./auth.js";
 import { buildBranchOrderSql, DEFAULT_BRANCHES } from "./defaultBranches.js";
 import { sendExcel, sendSimplePdf } from "./exports.js";
 
@@ -1027,7 +1027,7 @@ app.put("/api/auth/profile", authRequired, async (req, res) => {
   try {
     const { full_name, phone, login, avatar_url, department_role } = req.body;
 
-    const updated = await client.query(
+    const updated = await query(
       `
       UPDATE users
       SET
@@ -1730,7 +1730,7 @@ app.get("/api/branches", authRequired, async (_, res) => {
 
 /* CONTENT */
 
-app.get("/api/content", authRequired, async (req, res) => {
+app.get("/api/content", authRequired, pagePermissionAllowed("content"), async (req, res) => {
   try {
     const month = req.query.month;
 
@@ -1762,7 +1762,7 @@ app.get("/api/content", authRequired, async (req, res) => {
   }
 });
 
-app.post("/api/content", authRequired, async (req, res) => {
+app.post("/api/content", authRequired, actionPermissionAllowed("content", "create"), async (req, res) => {
   const client = await getClient();
   try {
     await client.query("BEGIN");
@@ -1907,7 +1907,7 @@ app.post("/api/content", authRequired, async (req, res) => {
   }
 });
 
-app.put("/api/content/:id", authRequired, async (req, res) => {
+app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "edit"), async (req, res) => {
   const client = await getClient();
   try {
     await client.query("BEGIN");
@@ -2051,7 +2051,7 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
   }
 });
 
-app.delete("/api/content/:id", authRequired, async (req, res) => {
+app.delete("/api/content/:id", authRequired, actionPermissionAllowed("content", "delete"), async (req, res) => {
   try {
     const found = await query(
       `SELECT id, title, publish_date FROM content_items WHERE id = $1 LIMIT 1`,
@@ -2088,7 +2088,7 @@ app.delete("/api/content/:id", authRequired, async (req, res) => {
 
 /* BONUS */
 
-app.get("/api/bonus-items", authRequired, async (_, res) => {
+app.get("/api/bonus-items", authRequired, pagePermissionAllowed("bonus"), async (_, res) => {
   try {
     await recomputeBonusFromItems();
 
@@ -2118,7 +2118,7 @@ app.get("/api/bonus-items", authRequired, async (_, res) => {
   }
 });
 
-app.post("/api/bonus-items", authRequired, async (req, res) => {
+app.post("/api/bonus-items", authRequired, actionPermissionAllowed("bonus", "create"), async (req, res) => {
   try {
     const {
       month_label,
@@ -2199,7 +2199,7 @@ app.post("/api/bonus-items", authRequired, async (req, res) => {
   }
 });
 
-app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
+app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "edit"), async (req, res) => {
   try {
     const {
       month_label,
@@ -2283,7 +2283,7 @@ app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
   }
 });
 
-app.post("/api/bonus-items/approve-month", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+app.post("/api/bonus-items/approve-month", authRequired, pagePermissionAllowed("bonus"), rolesAllowed("admin", "manager"), async (req, res) => {
   const { month_label, items = [] } = req.body || {};
   const month = String(month_label || "").trim();
 
@@ -2371,7 +2371,7 @@ app.post("/api/bonus-items/approve-month", authRequired, rolesAllowed("admin", "
   }
 });
 
-app.post("/api/bonus-items/revoke-month", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+app.post("/api/bonus-items/revoke-month", authRequired, pagePermissionAllowed("bonus"), rolesAllowed("admin", "manager"), async (req, res) => {
   const month = String(req.body?.month_label || "").trim();
 
   if (!month) {
@@ -2409,7 +2409,7 @@ app.post("/api/bonus-items/revoke-month", authRequired, rolesAllowed("admin", "m
   }
 });
 
-app.delete("/api/bonus-items/:id", authRequired, async (req, res) => {
+app.delete("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "delete"), async (req, res) => {
   try {
     const deleted = await query(`DELETE FROM bonus_items WHERE id = $1 RETURNING id`, [req.params.id]);
     if (!deleted.rows.length) {

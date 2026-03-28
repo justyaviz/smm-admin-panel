@@ -730,9 +730,18 @@ function hasPermission(user, permission) {
   return safePermissions(user?.permissions_json).includes(permission);
 }
 
-function canManagePage(user, pageKey, action) {
+function canAccessPage(user, pageKey) {
   if (user?.role === "admin") return true;
-  return hasPermission(user, pageKey) || hasPermission(user, `${pageKey}_${action}`);
+  return hasPermission(user, pageKey);
+}
+
+function canDoAction(user, pageKey, action) {
+  if (user?.role === "admin") return true;
+  return hasPermission(user, `${pageKey}_${action}`);
+}
+
+function canManagePage(user, pageKey, action) {
+  return action ? canDoAction(user, pageKey, action) : canAccessPage(user, pageKey);
 }
 
 const LOGIN_LOGO =
@@ -1193,7 +1202,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   );
 }
 
-function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
+function ContentPage({ users = [], branches = [], settings, user, onToast, reload }) {
   const [selectedMonth, setSelectedMonth] = useState(getMonthLabel());
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -1226,6 +1235,10 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
 
   const [form, setForm] = useState(emptyForm);
   const isVideo = form.content_type === "video";
+  const canCreateContent = canDoAction(user, "content", "create");
+  const canEditContent = canDoAction(user, "content", "edit");
+  const canDeleteContent = canDoAction(user, "content", "delete");
+  const formLocked = editRow ? !canEditContent : !canCreateContent;
   const dueSoonTasks = [];
   const overdueTasks = [];
   const tasks = [];
@@ -1267,6 +1280,10 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
   const bonusRate = Number(settings?.bonus_rate || 25000);
 
   function startEdit(row) {
+    if (!canEditContent) {
+      onToast("Sizda kontentni tahrirlash ruxsati yo'q", "error");
+      return;
+    }
     setEditRow(row);
     const platforms = String(row.platform || "").split(",").map((x) => x.trim()).filter(Boolean);
 
@@ -1297,6 +1314,16 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+
+    if (editRow && !canEditContent) {
+      onToast("Sizda kontentni tahrirlash ruxsati yo'q", "error");
+      return;
+    }
+
+    if (!editRow && !canCreateContent) {
+      onToast("Sizda kontent qo'shish ruxsati yo'q", "error");
+      return;
+    }
 
     if (isVideo) {
       if (!form.editor_user_id || !form.face_voice_user_id) {
@@ -1358,6 +1385,10 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
   }
 
   async function removeRow(id) {
+    if (!canDeleteContent) {
+      onToast("Sizda kontentni o'chirish ruxsati yo'q", "error");
+      return;
+    }
     const ok = window.confirm("Rostdan ham o'chirilsinmi?");
     if (!ok) return;
 
@@ -1409,12 +1440,15 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
         <div className="info-banner">
           Bonus formulasi: 1 ta tasdiq = <strong>{formatMoney(bonusRate)}</strong>. Taklif soni faqat ma'lumot uchun.
         </div>
+        {!canCreateContent && !canEditContent ? (
+          <div className="info-banner">Siz bu bo'limda faqat ko'rish ruxsatiga egasiz.</div>
+        ) : null}
         <form className="form-grid" onSubmit={handleSubmit}>
-          <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
-          <label><span>Joylash sanasi</span><input type="date" value={form.publish_date} onChange={(e) => setField("publish_date", e.target.value)} required /></label>
+          <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required disabled={formLocked} /></label>
+          <label><span>Joylash sanasi</span><input type="date" value={form.publish_date} onChange={(e) => setField("publish_date", e.target.value)} required disabled={formLocked} /></label>
           <label>
             <span>Holati</span>
-            <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
+            <select value={form.status} onChange={(e) => setField("status", e.target.value)} disabled={formLocked}>
               <option value="reja">Reja</option>
               <option value="tasdiqlandi">Tasdiqlandi</option>
               <option value="jarayonda">Jarayonda</option>
@@ -1427,7 +1461,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
 
           <label>
             <span>1-platforma</span>
-            <select value={form.platform_primary} onChange={(e) => setField("platform_primary", e.target.value)}>
+            <select value={form.platform_primary} onChange={(e) => setField("platform_primary", e.target.value)} disabled={formLocked}>
               <option value="Instagram">Instagram</option>
               <option value="Telegram">Telegram</option>
               <option value="YouTube">YouTube</option>
@@ -1438,7 +1472,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
 
           <label>
             <span>2-platforma</span>
-            <select value={form.platform_secondary} onChange={(e) => setField("platform_secondary", e.target.value)}>
+            <select value={form.platform_secondary} onChange={(e) => setField("platform_secondary", e.target.value)} disabled={formLocked}>
               <option value="">Tanlanmagan</option>
               <option value="Instagram">Instagram</option>
               <option value="Telegram">Telegram</option>
@@ -1450,7 +1484,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
 
           <label>
             <span>Kontent turi</span>
-            <select value={form.content_type} onChange={(e) => setField("content_type", e.target.value)}>
+            <select value={form.content_type} onChange={(e) => setField("content_type", e.target.value)} disabled={formLocked}>
               <option value="post">Post</option>
               <option value="story">Story</option>
               <option value="reels">Reels</option>
@@ -1464,7 +1498,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
             <>
               <label>
                 <span>Montaj kim qildi</span>
-                <select value={form.editor_user_id} onChange={(e) => setField("editor_user_id", e.target.value)}>
+                <select value={form.editor_user_id} onChange={(e) => setField("editor_user_id", e.target.value)} disabled={formLocked}>
                   <option value="">Tanlang</option>
                   {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
                 </select>
@@ -1472,7 +1506,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
 
               <label>
                 <span>Face + ovoz kimniki</span>
-                <select value={form.face_voice_user_id} onChange={(e) => setField("face_voice_user_id", e.target.value)}>
+                <select value={form.face_voice_user_id} onChange={(e) => setField("face_voice_user_id", e.target.value)} disabled={formLocked}>
                   <option value="">Tanlang</option>
                   {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
                 </select>
@@ -1481,7 +1515,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
           ) : (
             <label>
               <span>Mas'ul shaxs</span>
-              <select value={form.assigned_user_id} onChange={(e) => setField("assigned_user_id", e.target.value)}>
+              <select value={form.assigned_user_id} onChange={(e) => setField("assigned_user_id", e.target.value)} disabled={formLocked}>
                 <option value="">Tanlang</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
               </select>
@@ -1489,20 +1523,20 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
           )}
 
           <label className="checkbox-row">
-            <input type="checkbox" checked={bonusMode} onChange={(e) => setBonusMode(e.target.checked)} />
+            <input type="checkbox" checked={bonusMode} onChange={(e) => setBonusMode(e.target.checked)} disabled={formLocked} />
             <span>Bonusga o'tkazish</span>
           </label>
 
           {bonusMode ? (
             <>
-              <label><span>Taklif soni</span><input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required /></label>
-              <label><span>Tasdiq soni</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} /></label>
+              <label><span>Taklif soni</span><input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required disabled={formLocked} /></label>
+              <label><span>Tasdiq soni</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} disabled={formLocked} /></label>
             </>
           ) : null}
 
-          <label className="full-col"><span>Approval izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} placeholder="Tasdiqlash yoki qayta ishlash bo'yicha izoh" /></label>
+          <label className="full-col"><span>Approval izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} placeholder="Tasdiqlash yoki qayta ishlash bo'yicha izoh" disabled={formLocked} /></label>
 
-          <button className="btn primary" type="submit" disabled={saving}>
+          <button className="btn primary" type="submit" disabled={saving || formLocked}>
             {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}
           </button>
         </form>
@@ -1559,8 +1593,8 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
                     <td>
                       <IconActions
                         onView={() => setViewRow(row)}
-                        onEdit={() => startEdit(row)}
-                        onDelete={() => removeRow(row.id)}
+                        onEdit={canEditContent ? () => startEdit(row) : null}
+                        onDelete={canDeleteContent ? () => removeRow(row.id) : null}
                       />
                     </td>
                   </tr>
@@ -1934,6 +1968,10 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
   const bonusRate = Number(settings?.bonus_rate || 25000);
   const canApproveBonus = user?.role === "admin" || user?.role === "manager";
+  const canCreateBonus = canDoAction(user, "bonus", "create");
+  const canEditBonus = canDoAction(user, "bonus", "edit");
+  const canDeleteBonus = canDoAction(user, "bonus", "delete");
+  const bonusFormLocked = editRow ? !canEditBonus : !canCreateBonus;
 
   const monthOptions = useMemo(() => {
     return [...new Set(
@@ -1983,6 +2021,10 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   }
 
   function startEdit(row) {
+    if (!canEditBonus) {
+      onToast("Sizda bonusni tahrirlash ruxsati yo'q", "error");
+      return;
+    }
     setEditRow(row);
     setForm({
       title: row.content_title || "",
@@ -2091,6 +2133,16 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   async function handleSubmit(e) {
     e.preventDefault();
 
+    if (editRow && !canEditBonus) {
+      onToast("Sizda bonusni tahrirlash ruxsati yo'q", "error");
+      return;
+    }
+
+    if (!editRow && !canCreateBonus) {
+      onToast("Sizda bonus qo'shish ruxsati yo'q", "error");
+      return;
+    }
+
     if (isVideo) {
       if (!form.editor_user_id || !form.face_voice_user_id) {
         onToast("Video uchun 2 ta hodim tanlanishi kerak", "error");
@@ -2143,6 +2195,10 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   }
 
   async function removeRow(id) {
+    if (!canDeleteBonus) {
+      onToast("Sizda bonusni o'chirish ruxsati yo'q", "error");
+      return;
+    }
     const ok = window.confirm("Rostdan ham o'chirilsinmi?");
     if (!ok) return;
     try {
@@ -2204,12 +2260,15 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
 
       <div className="card">
         <SectionTitle title={editRow ? "Bonus hisobotni tahrirlash" : "Hisobot qo'shish"} />
+        {!canCreateBonus && !canEditBonus ? (
+          <div className="info-banner">Siz bu bo'limda faqat ko'rish ruxsatiga egasiz.</div>
+        ) : null}
         <form className="form-grid" onSubmit={handleSubmit}>
-          <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
-          <label><span>Joylangan sanasi</span><input type="date" value={form.work_date} onChange={(e) => setField("work_date", e.target.value)} required /></label>
+          <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required disabled={bonusFormLocked} /></label>
+          <label><span>Joylangan sanasi</span><input type="date" value={form.work_date} onChange={(e) => setField("work_date", e.target.value)} required disabled={bonusFormLocked} /></label>
           <label>
             <span>Kontent turi</span>
-            <select value={form.content_type} onChange={(e) => setField("content_type", e.target.value)}>
+            <select value={form.content_type} onChange={(e) => setField("content_type", e.target.value)} disabled={bonusFormLocked}>
               <option value="post">Post</option>
               <option value="story">Story</option>
               <option value="reels">Reels</option>
@@ -2223,7 +2282,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
             <>
               <label>
                 <span>Montajni kim qildi</span>
-                <select value={form.editor_user_id} onChange={(e) => setField("editor_user_id", e.target.value)}>
+                <select value={form.editor_user_id} onChange={(e) => setField("editor_user_id", e.target.value)} disabled={bonusFormLocked}>
                   <option value="">Tanlang</option>
                   {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
                 </select>
@@ -2231,7 +2290,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
 
               <label>
                 <span>Face + ovoz kimniki</span>
-                <select value={form.face_voice_user_id} onChange={(e) => setField("face_voice_user_id", e.target.value)}>
+                <select value={form.face_voice_user_id} onChange={(e) => setField("face_voice_user_id", e.target.value)} disabled={bonusFormLocked}>
                   <option value="">Tanlang</option>
                   {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
                 </select>
@@ -2240,7 +2299,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
           ) : (
             <label>
               <span>Hodim</span>
-              <select value={form.user_id} onChange={(e) => setField("user_id", e.target.value)}>
+              <select value={form.user_id} onChange={(e) => setField("user_id", e.target.value)} disabled={bonusFormLocked}>
                 <option value="">Tanlang</option>
                 {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
               </select>
@@ -2249,7 +2308,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
 
           <label>
             <span>Filial</span>
-            <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)}>
+            <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)} disabled={bonusFormLocked}>
               <option value="">Tanlang</option>
               {branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
             </select>
@@ -2257,16 +2316,16 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
 
           <label>
             <span>Kontent holati</span>
-            <select value={form.difficulty_level} onChange={(e) => setField("difficulty_level", e.target.value)}>
+            <select value={form.difficulty_level} onChange={(e) => setField("difficulty_level", e.target.value)} disabled={bonusFormLocked}>
               <option value="normal">Oddiy</option>
               <option value="qiyin">Qiyin</option>
             </select>
           </label>
 
-          <label><span>Taklif soni</span><input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required /></label>
-          <label><span>Tasdiq soni</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} /></label>
+          <label><span>Taklif soni</span><input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required disabled={bonusFormLocked} /></label>
+          <label><span>Tasdiq soni</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} disabled={bonusFormLocked} /></label>
 
-          <button className="btn primary" type="submit" disabled={saving}>
+          <button className="btn primary" type="submit" disabled={saving || bonusFormLocked}>
             {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Hisobotni saqlash"}
           </button>
         </form>
@@ -2374,8 +2433,8 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                       <td>
                         <IconActions
                           onView={() => setViewRow(row)}
-                          onEdit={() => startEdit(row)}
-                          onDelete={() => removeRow(row.id)}
+                          onEdit={canEditBonus ? () => startEdit(row) : null}
+                          onDelete={canDeleteBonus ? () => removeRow(row.id) : null}
                         />
                       </td>
                     </tr>
@@ -5205,6 +5264,7 @@ function App() {
   async function reloadData() {
     try {
       const [
+        meRes,
         dashboardRes,
         settingsRes,
         notificationsRes,
@@ -5232,6 +5292,7 @@ function App() {
         moodRes,
         postingInsightsRes
       ] = await Promise.all([
+        api.me().catch(() => null),
         api.dashboard().catch(() => ({})),
         api.settings.get().catch(() => null),
         api.list("notifications").catch(() => []),
@@ -5260,6 +5321,9 @@ function App() {
         api.list("/api/analytics/posting-insights").catch(() => null)
       ]);
 
+      if (meRes?.user) {
+        setUser(meRes.user);
+      }
       setSummary(dashboardRes || {});
       setSettings(settingsRes);
       setNotifications(notificationsRes || []);
@@ -5350,6 +5414,12 @@ function App() {
     }
     return MENU.filter((item) => permissions.includes(item.id));
   }, [user]);
+
+  useEffect(() => {
+    if (!allowedMenu.some((item) => item.id === active)) {
+      setActive("dashboard");
+    }
+  }, [allowedMenu, active]);
 
   const filteredMenu = useMemo(() => {
     if (!search.trim()) return allowedMenu;
@@ -5455,7 +5525,7 @@ function App() {
       />
     );
   } else if (active === "content") {
-    page = <ContentPage users={users} branches={branches} settings={settings} onToast={showToast} reload={reloadData} />;
+    page = <ContentPage users={users} branches={branches} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "bonus") {
     page = <BonusPage bonusItems={bonusItems} users={users} branches={branches} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "expenses") {
