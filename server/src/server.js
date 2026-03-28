@@ -41,7 +41,7 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "25mb" }));
 app.use("/uploads", express.static(uploadsDir));
 
 const httpServer = http.createServer(app);
@@ -173,6 +173,66 @@ async function sendTelegramMessage(text) {
     });
   } catch (err) {
     console.error("telegram send error:", err.message);
+  }
+}
+
+function stringifyDbValue(value) {
+  if (value === undefined) return null;
+  if (value === null) return null;
+  if (Array.isArray(value)) return JSON.stringify(value);
+  if (typeof value === "object" && !(value instanceof Date)) return JSON.stringify(value);
+  return value;
+}
+
+async function addApprovalComment(entityType, entityId, authorUserId, body) {
+  if (!entityType || !entityId || !body?.trim()) return;
+  try {
+    await query(
+      `
+      INSERT INTO comments (entity_type, entity_id, body, author_user_id)
+      VALUES ($1, $2, $3, $4)
+      `,
+      [entityType, Number(entityId), `[Approval] ${body.trim()}`, authorUserId || null]
+    );
+  } catch (err) {
+    console.error("approval comment error:", err.message);
+  }
+}
+
+async function createTelegramEvent(title, lines = []) {
+  const cleanLines = lines.filter(Boolean).map((line) => String(line).trim()).filter(Boolean);
+  await sendTelegramMessage([title, ...cleanLines].join("\n"));
+}
+
+async function insertBackupRows(client, tableName, rows = []) {
+  if (!rows.length) return;
+
+  for (const row of rows) {
+    const columns = Object.keys(row);
+    if (!columns.length) continue;
+    const placeholders = columns.map((_, index) => `$${index + 1}`).join(", ");
+    const values = columns.map((key) => stringifyDbValue(row[key]));
+    await client.query(
+      `INSERT INTO ${tableName} (${columns.join(", ")}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`,
+      values
+    );
+  }
+}
+
+async function resetSequence(client, tableName) {
+  try {
+    await client.query(
+      `
+      SELECT setval(
+        pg_get_serial_sequence($1, 'id'),
+        COALESCE((SELECT MAX(id) FROM ${tableName}), 1),
+        COALESCE((SELECT MAX(id) FROM ${tableName}), 0) > 0
+      )
+      `,
+      [tableName]
+    );
+  } catch {
+    // ignore tables without serial sequence
   }
 }
 
@@ -322,6 +382,7 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS plan_month TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS branch_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS approval_comment TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS scenario_text TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS shot_list_text TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS preview_url TEXT`,
@@ -362,6 +423,7 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS entity_id INTEGER`,
     `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_key TEXT`,
     `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS checklist_json JSONB NOT NULL DEFAULT '[]'::jsonb`,
+    `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS approval_comment TEXT`,
     `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS budget_amount NUMERIC(14,2) NOT NULL DEFAULT 0`,
     `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS transport_text TEXT`,
     `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS hotel_text TEXT`,
@@ -1252,6 +1314,19 @@ app.put("/api/settings", authRequired, async (req, res) => {
   }
 });
 
+app.post("/api/settings/test-telegram", authRequired, async (req, res) => {
+  try {
+    await createTelegramEvent("Aloo platforma test xabari", [
+      `Foydalanuvchi: ${req.user.full_name || req.user.login || req.user.id}`,
+      `Sana: ${new Date().toISOString()}`
+    ]);
+    res.json({ message: "Telegram test xabari yuborildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Telegram test yuborilmadi: ${err.message}` });
+  }
+});
+
 /* USERS */
 
 app.get("/api/users", authRequired, async (_, res) => {
@@ -1574,7 +1649,8 @@ app.post("/api/content", authRequired, async (req, res) => {
       shot_list_text,
       preview_url,
       final_url,
-      edit_file_url
+      edit_file_url,
+      approval_comment
     } = req.body;
 
     const publishDate = formatDateOnly(publish_date);
@@ -1606,10 +1682,11 @@ app.post("/api/content", authRequired, async (req, res) => {
         preview_url,
         final_url,
         edit_file_url,
+        approval_comment,
         plan_month,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21)
       RETURNING *
       `,
       [
@@ -1631,6 +1708,7 @@ app.post("/api/content", authRequired, async (req, res) => {
         preview_url || "",
         final_url || "",
         edit_file_url || "",
+        approval_comment || "",
         planMonth,
         req.user.id
       ]
@@ -1655,6 +1733,14 @@ app.post("/api/content", authRequired, async (req, res) => {
     const approvalMeta = getApprovalNotificationMeta(row.status, row.title);
     if (approvalMeta) {
       await createNotification(null, approvalMeta.title, approvalMeta.body, approvalMeta.type, "approval", "/content");
+    }
+    if (approval_comment?.trim()) {
+      await addApprovalComment("content", row.id, req.user.id, approval_comment);
+      await createTelegramEvent("Kontent approval izohi", [
+        `Kontent: ${row.title}`,
+        `Status: ${row.status}`,
+        `Izoh: ${approval_comment}`
+      ]);
     }
 
     await logAction(req.user.id, "create", "content_items", row.id, { title: row.title });
@@ -1690,7 +1776,8 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
       shot_list_text,
       preview_url,
       final_url,
-      edit_file_url
+      edit_file_url,
+      approval_comment
     } = req.body;
 
     const publishDate = formatDateOnly(publish_date);
@@ -1723,9 +1810,10 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
         preview_url = $16,
         final_url = $17,
         edit_file_url = $18,
-        plan_month = $19,
+        approval_comment = $19,
+        plan_month = $20,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $20
+      WHERE id = $21
       RETURNING *
       `,
       [
@@ -1747,6 +1835,7 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
         preview_url || "",
         final_url || "",
         edit_file_url || "",
+        approval_comment || "",
         planMonth,
         req.params.id
       ]
@@ -1767,6 +1856,14 @@ app.put("/api/content/:id", authRequired, async (req, res) => {
       if (approvalMeta) {
         await createNotification(null, approvalMeta.title, approvalMeta.body, approvalMeta.type, "approval", "/content");
       }
+    }
+    if (approval_comment?.trim()) {
+      await addApprovalComment("content", row.id, req.user.id, approval_comment);
+      await createTelegramEvent("Kontent approval yangilandi", [
+        `Kontent: ${row.title}`,
+        `Status: ${row.status}`,
+        `Izoh: ${approval_comment}`
+      ]);
     }
 
     await logAction(req.user.id, "update", "content_items", Number(req.params.id), {
@@ -2392,6 +2489,19 @@ app.post("/api/tasks", authRequired, async (req, res) => {
       ]
     );
 
+    await createNotification(
+      assignee_user_id || null,
+      "Yangi vazifa",
+      `${title} (${formatDateOnly(due_date) || "muddatsiz"})`,
+      "info",
+      "task",
+      "/tasks"
+    );
+    await createTelegramEvent("Yangi vazifa yaratildi", [
+      `Vazifa: ${title}`,
+      `Muddat: ${formatDateOnly(due_date) || "ko'rsatilmagan"}`,
+      `Mas'ul ID: ${assignee_user_id || "-"}`
+    ]);
     await logAction(req.user.id, "create", "tasks", inserted.rows[0].id, {});
     res.json(inserted.rows[0]);
   } catch (err) {
@@ -2454,6 +2564,14 @@ app.put("/api/tasks/:id", authRequired, async (req, res) => {
       return res.status(404).json({ message: "Vazifa topilmadi" });
     }
 
+    await createNotification(
+      updated.rows[0].assignee_user_id || null,
+      "Vazifa yangilandi",
+      `${updated.rows[0].title} -> ${updated.rows[0].status}`,
+      "info",
+      "task",
+      "/tasks"
+    );
     await logAction(req.user.id, "update", "tasks", Number(req.params.id), {});
     res.json(updated.rows[0]);
   } catch (err) {
@@ -3006,7 +3124,8 @@ app.post("/api/travel-plans", authRequired, async (req, res) => {
       hotel_text,
       deadline_date,
       status,
-      notes
+      notes,
+      approval_comment
     } = req.body;
 
     const inserted = await query(
@@ -3026,9 +3145,10 @@ app.post("/api/travel-plans", authRequired, async (req, res) => {
         deadline_date,
         status,
         notes,
+        approval_comment,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
       RETURNING *
       `,
       [
@@ -3045,6 +3165,7 @@ app.post("/api/travel-plans", authRequired, async (req, res) => {
         normalizeDateOnly(deadline_date),
         status || "reja",
         notes || "",
+        approval_comment || "",
         req.user.id
       ]
     );
@@ -3052,6 +3173,14 @@ app.post("/api/travel-plans", authRequired, async (req, res) => {
     const approvalMeta = getApprovalNotificationMeta(inserted.rows[0].status, inserted.rows[0].video_title);
     if (approvalMeta) {
       await createNotification(null, approvalMeta.title, approvalMeta.body, approvalMeta.type, "approval", "/travel-plans");
+    }
+    if (approval_comment?.trim()) {
+      await addApprovalComment("travel_plan", inserted.rows[0].id, req.user.id, approval_comment);
+      await createTelegramEvent("Safar approval izohi", [
+        `Video: ${inserted.rows[0].video_title}`,
+        `Status: ${inserted.rows[0].status}`,
+        `Izoh: ${approval_comment}`
+      ]);
     }
 
     await logAction(req.user.id, "create", "travel_plans", inserted.rows[0].id, { video_title });
@@ -3077,7 +3206,8 @@ app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
       hotel_text,
       deadline_date,
       status,
-      notes
+      notes,
+      approval_comment
     } = req.body;
 
     const previous = await query(`SELECT status FROM travel_plans WHERE id = $1 LIMIT 1`, [req.params.id]);
@@ -3099,8 +3229,9 @@ app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
         deadline_date = $11,
         status = $12,
         notes = $13,
+        approval_comment = $14,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $14
+      WHERE id = $15
       RETURNING *
       `,
       [
@@ -3117,6 +3248,7 @@ app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
         normalizeDateOnly(deadline_date),
         status || "reja",
         notes || "",
+        approval_comment || "",
         req.params.id
       ]
     );
@@ -3130,6 +3262,14 @@ app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
       if (approvalMeta) {
         await createNotification(null, approvalMeta.title, approvalMeta.body, approvalMeta.type, "approval", "/travel-plans");
       }
+    }
+    if (approval_comment?.trim()) {
+      await addApprovalComment("travel_plan", updated.rows[0].id, req.user.id, approval_comment);
+      await createTelegramEvent("Safar approval yangilandi", [
+        `Video: ${updated.rows[0].video_title}`,
+        `Status: ${updated.rows[0].status}`,
+        `Izoh: ${approval_comment}`
+      ]);
     }
 
     await logAction(req.user.id, "update", "travel_plans", Number(req.params.id), { video_title });
@@ -3349,7 +3489,25 @@ app.get("/api/top-performers", authRequired, async (_, res) => {
 
 app.get("/api/backup/export", authRequired, rolesAllowed("admin"), async (_, res) => {
   try {
-    const tables = ["users", "tasks", "content_items", "bonus_items", "daily_branch_reports", "expenses", "travel_plans", "campaigns", "budgets"];
+    const tables = [
+      "app_settings",
+      "branches",
+      "users",
+      "campaigns",
+      "content_items",
+      "bonus_items",
+      "daily_branch_reports",
+      "expenses",
+      "travel_plans",
+      "tasks",
+      "budgets",
+      "comments",
+      "messages",
+      "notifications",
+      "recurring_tasks",
+      "recurring_expenses",
+      "uploads"
+    ];
     const payload = {};
     for (const table of tables) {
       payload[table] = (await query(`SELECT * FROM ${table}`)).rows;
@@ -3358,6 +3516,62 @@ app.get("/api/backup/export", authRequired, rolesAllowed("admin"), async (_, res
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: `Backup export bo'lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/backup/import", authRequired, rolesAllowed("admin"), async (req, res) => {
+  const client = await getClient();
+  try {
+    const payload = req.body?.payload || req.body || {};
+    const tables = [
+      "app_settings",
+      "branches",
+      "users",
+      "campaigns",
+      "content_items",
+      "bonus_items",
+      "daily_branch_reports",
+      "expenses",
+      "travel_plans",
+      "tasks",
+      "budgets",
+      "comments",
+      "messages",
+      "notifications",
+      "recurring_tasks",
+      "recurring_expenses",
+      "uploads"
+    ];
+
+    await client.query("BEGIN");
+
+    const deleteOrder = [...tables].reverse();
+    for (const tableName of deleteOrder) {
+      if (Array.isArray(payload[tableName])) {
+        await client.query(`DELETE FROM ${tableName}`);
+      }
+    }
+
+    for (const tableName of tables) {
+      if (Array.isArray(payload[tableName])) {
+        await insertBackupRows(client, tableName, payload[tableName]);
+        await resetSequence(client, tableName);
+      }
+    }
+
+    await client.query("COMMIT");
+    await logAction(req.user.id, "import", "backup", null, { tables: Object.keys(payload) });
+    await createTelegramEvent("Backup restore bajarildi", [
+      `Admin: ${req.user.full_name || req.user.login || req.user.id}`,
+      `Jadvallar: ${Object.keys(payload).join(", ")}`
+    ]);
+    res.json({ message: "Backup restore muvaffaqiyatli yakunlandi" });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ message: `Backup restore bo'lmadi: ${err.message}` });
+  } finally {
+    client.release();
   }
 });
 
