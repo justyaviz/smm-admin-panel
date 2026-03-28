@@ -2014,7 +2014,11 @@ app.delete("/api/content/:id", authRequired, async (req, res) => {
     const row = found.rows[0];
     const dateOnly = normalizeDateOnly(row.publish_date);
 
-    await query(`DELETE FROM content_items WHERE id = $1`, [req.params.id]);
+    const deleted = await query(`DELETE FROM content_items WHERE id = $1 RETURNING id`, [req.params.id]);
+
+    if (!deleted.rows.length) {
+      return res.status(404).json({ message: "Kontent topilmadi" });
+    }
 
     if (dateOnly) {
       await query(
@@ -2216,7 +2220,10 @@ app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
 
 app.delete("/api/bonus-items/:id", authRequired, async (req, res) => {
   try {
-    await query(`DELETE FROM bonus_items WHERE id = $1`, [req.params.id]);
+    const deleted = await query(`DELETE FROM bonus_items WHERE id = $1 RETURNING id`, [req.params.id]);
+    if (!deleted.rows.length) {
+      return res.status(404).json({ message: "Bonus yozuvi topilmadi" });
+    }
     await logAction(req.user.id, "delete", "bonus_items", Number(req.params.id), {});
     res.json({ message: "Bonus yozuvi oвЂchirildi" });
   } catch (err) {
