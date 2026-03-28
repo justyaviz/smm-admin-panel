@@ -182,6 +182,25 @@ function formatDateTime(value) {
   return `${d.toISOString().slice(0, 10)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+function getDateSortValue(value, fallback = Number.POSITIVE_INFINITY) {
+  if (!value) return fallback;
+  const normalized = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
+    ? `${value}T00:00:00`
+    : value;
+  const time = new Date(normalized).getTime();
+  return Number.isNaN(time) ? fallback : time;
+}
+
+function sortRowsByDate(rows = [], dateKey = "publish_date", direction = "asc") {
+  const fallback = direction === "desc" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
+  return [...(rows || [])].sort((a, b) => {
+    const aTime = getDateSortValue(a?.[dateKey], fallback);
+    const bTime = getDateSortValue(b?.[dateKey], fallback);
+    if (aTime === bTime) return Number(a?.id || 0) - Number(b?.id || 0);
+    return direction === "desc" ? bTime - aTime : aTime - bTime;
+  });
+}
+
 function buildMonthCalendar(monthLabel, rows = [], dateKey = "publish_date") {
   const [year, month] = String(monthLabel || getMonthLabel()).split("-").map(Number);
   const firstDay = new Date(year, (month || 1) - 1, 1);
@@ -1223,12 +1242,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
     try {
       setLoading(true);
       const data = await api.list("content", { month: monthValue });
-      const sorted = (data || []).sort((a, b) => {
-        const aDate = a.publish_date ? new Date(a.publish_date).getTime() : 0;
-        const bDate = b.publish_date ? new Date(b.publish_date).getTime() : 0;
-        return bDate - aDate;
-      });
-      setRows(sorted);
+      setRows(sortRowsByDate(data, "publish_date"));
     } catch (err) {
       onToast(err.message || "Kontent rejani olib bo'lmadi", "error");
     } finally {
@@ -1928,8 +1942,11 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   }, [bonusItems]);
 
   const filteredItems = useMemo(() => {
-    return bonusItems.filter((item) =>
-      monthFilter ? (item.month_label || formatDate(item.work_date).slice(0, 7)) === monthFilter : true
+    return sortRowsByDate(
+      bonusItems.filter((item) =>
+        monthFilter ? (item.month_label || formatDate(item.work_date).slice(0, 7)) === monthFilter : true
+      ),
+      "work_date"
     );
   }, [bonusItems, monthFilter]);
 
@@ -2536,9 +2553,12 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
   const [form, setForm] = useState(emptyForm);
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const filteredReports = filterDate
-    ? reports.filter((row) => formatDate(row.report_date) === filterDate)
-    : reports;
+  const filteredReports = sortRowsByDate(
+    filterDate
+      ? reports.filter((row) => formatDate(row.report_date) === filterDate)
+      : reports,
+    "report_date"
+  );
 
   function resetForm() {
     setForm(emptyForm);
@@ -3374,9 +3394,12 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
   const [form, setForm] = useState(emptyForm);
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const filteredTasks = filterDate
-    ? tasks.filter((row) => formatDate(row.due_date) === filterDate)
-    : tasks;
+  const filteredTasks = useMemo(() => sortRowsByDate(
+    filterDate
+      ? tasks.filter((row) => formatDate(row.due_date) === filterDate)
+      : tasks,
+    "due_date"
+  ), [tasks, filterDate]);
   const dueSoonTasks = (tasks || []).filter((row) => {
     const due = formatDate(row.due_date);
     if (due === "-" || row.status === "done") return false;
@@ -4404,7 +4427,10 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
   }
 
   const monthOptions = [...new Set([getMonthLabel(), ...expenses.map((item) => formatDate(item.expense_date).slice(0, 7)).filter((item) => item && item !== "-")])];
-  const filteredExpenses = expenses.filter((item) => !monthFilter || formatDate(item.expense_date).startsWith(monthFilter));
+  const filteredExpenses = useMemo(() => sortRowsByDate(
+    expenses.filter((item) => !monthFilter || formatDate(item.expense_date).startsWith(monthFilter)),
+    "expense_date"
+  ), [expenses, monthFilter]);
   const totalAmount = filteredExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
   const categoryTotals = [
     { key: "servis", label: "Servis" },
@@ -4590,12 +4616,13 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
     }
   }
 
-  const timelineRows = [...travelPlans]
-    .filter((row) => !branchFilter || String(row.branch_id) === String(branchFilter))
+  const filteredTravelPlans = useMemo(() => sortRowsByDate(
+    travelPlans.filter((row) => !branchFilter || String(row.branch_id) === String(branchFilter)),
+    "plan_date"
+  ), [travelPlans, branchFilter]);
+  const timelineRows = filteredTravelPlans
     .filter((row) => formatDate(row.plan_date) !== "-")
-    .sort((a, b) => new Date(a.plan_date).getTime() - new Date(b.plan_date).getTime())
     .slice(0, 8);
-  const filteredTravelPlans = travelPlans.filter((row) => !branchFilter || String(row.branch_id) === String(branchFilter));
   const travelWorkflowCounts = {
     reja: filteredTravelPlans.filter((item) => item.status === "reja").length,
     tasdiqlandi: filteredTravelPlans.filter((item) => item.status === "tasdiqlandi").length,
