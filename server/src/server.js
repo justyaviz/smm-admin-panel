@@ -178,19 +178,36 @@ async function ensurePublicShareToken() {
 
 async function ensureDefaultBranches() {
   try {
-    const countRes = await query(`SELECT COUNT(*)::int AS count FROM branches`);
-    const branchCount = Number(countRes.rows[0]?.count || 0);
-
-    if (branchCount > 0) return;
+    const existingRes = await query(`SELECT id, name, city FROM branches`);
+    const existingByName = new Map(
+      existingRes.rows.map((row) => [String(row.name || "").trim().toLowerCase(), row])
+    );
 
     for (const branch of DEFAULT_BRANCHES) {
-      await query(
-        `
-        INSERT INTO branches (name, city)
-        VALUES ($1, $2)
-        `,
-        [branch.name, branch.city]
-      );
+      const key = branch.name.trim().toLowerCase();
+      const existing = existingByName.get(key);
+
+      if (!existing) {
+        await query(
+          `
+          INSERT INTO branches (name, city)
+          VALUES ($1, $2)
+          `,
+          [branch.name, branch.city]
+        );
+        continue;
+      }
+
+      if ((existing.city || "") !== branch.city) {
+        await query(
+          `
+          UPDATE branches
+          SET city = $1
+          WHERE id = $2
+          `,
+          [branch.city, existing.id]
+        );
+      }
     }
   } catch (err) {
     console.error("default branches seed error:", err.message);
@@ -1689,7 +1706,10 @@ app.post("/api/users/:id/reset-password", authRequired, async (req, res) => {
 
 app.get("/api/branches", authRequired, async (_, res) => {
   try {
-    const result = await query(`SELECT * FROM branches ORDER BY ${buildBranchOrderSql("name")}`);
+    const result = await query(
+      `SELECT * FROM branches WHERE name = ANY($1) ORDER BY ${buildBranchOrderSql("name")}`,
+      [DEFAULT_BRANCHES.map((branch) => branch.name)]
+    );
     res.json(result.rows);
   } catch (err) {
     console.error(err);
