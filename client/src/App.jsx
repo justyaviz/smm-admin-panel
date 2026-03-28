@@ -76,7 +76,6 @@ const PERMISSION_OPTIONS = [
   { id: "bonus_delete", label: "Bonus o'chirish" },
   { id: "expenses", label: "Harajatlar" },
   { id: "finance", label: "Finance dashboard" },
-        <SectionTitle title={editRow ? "Harajatni tahrirlash" : "Harajat qo'shish"} right={editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null} />
   { id: "expenses_edit", label: "Harajat tahrirlash" },
   { id: "expenses_delete", label: "Harajat o'chirish" },
   { id: "travelPlans", label: "Safar rejasi" },
@@ -91,22 +90,18 @@ const PERMISSION_OPTIONS = [
   { id: "travelPlans_edit", label: "Safar reja tahrirlash" },
   { id: "travelPlans_delete", label: "Safar reja o'chirish" },
   { id: "dailyReports", label: "Kunlik filial hisobotlari" },
-        <SectionTitle title={editRow ? "Bonus hisobotni tahrirlash" : "Hisobot qo'shish"} />
   { id: "dailyReports_edit", label: "Hisobot tahrirlash" },
   { id: "dailyReports_delete", label: "Hisobot o'chirish" },
   { id: "campaigns", label: "Reklama kampaniyalari" },
-            {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Kampaniya qo'shish"}
   { id: "campaigns_edit", label: "Kampaniya tahrirlash" },
   { id: "campaigns_delete", label: "Kampaniya o'chirish" },
   { id: "uploads", label: "Media kutubxona" },
   { id: "uploads_create", label: "Fayl yuklash" },
   { id: "uploads_delete", label: "Fayl o'chirish" },
   { id: "users", label: "Hodimlar" },
-            {saving ? "Saqlanmoqda..." : editingId ? "Yangilash" : "Hodim qo'shish"}
   { id: "users_edit", label: "Hodim tahrirlash" },
   { id: "users_delete", label: "Hodim o'chirish" },
   { id: "tasks", label: "Vazifalar" },
-            {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Vazifa qo'shish"}
   { id: "tasks_edit", label: "Vazifa tahrirlash" },
   { id: "tasks_delete", label: "Vazifa o'chirish" },
   { id: "chat", label: "Chat" },
