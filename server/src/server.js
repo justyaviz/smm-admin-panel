@@ -361,6 +361,20 @@ function getApprovalNotificationMeta(status, label) {
       type: "success"
     };
   }
+  if (normalized === "qayta_ishlash") {
+    return {
+      title: `${label} qayta ishlashga qaytdi`,
+      body: `${label} bo'yicha tuzatish talab qilindi`,
+      type: "warning"
+    };
+  }
+  if (normalized === "rad_etildi") {
+    return {
+      title: `${label} rad etildi`,
+      body: `${label} ma'qullanmadi`,
+      type: "error"
+    };
+  }
   return null;
 }
 
@@ -3575,6 +3589,33 @@ app.post("/api/backup/import", authRequired, rolesAllowed("admin"), async (req, 
   }
 });
 
+app.post("/api/backup/preview", authRequired, rolesAllowed("admin"), async (req, res) => {
+  try {
+    const payload = req.body?.payload || req.body || {};
+    const preview = [];
+    for (const [tableName, rows] of Object.entries(payload)) {
+      if (!Array.isArray(rows)) continue;
+      const currentCount = Number((await query(`SELECT COUNT(*)::int AS count FROM ${tableName}`)).rows[0]?.count || 0);
+      preview.push({
+        table: tableName,
+        incoming_count: rows.length,
+        current_count: currentCount,
+        rows_to_replace: currentCount,
+        rows_to_insert: rows.length
+      });
+    }
+    res.json({
+      tables: preview,
+      total_tables: preview.length,
+      total_replace: preview.reduce((sum, row) => sum + row.rows_to_replace, 0),
+      total_insert: preview.reduce((sum, row) => sum + row.rows_to_insert, 0)
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Backup preview bo'lmadi: ${err.message}` });
+  }
+});
+
 app.post("/api/ai/assist", authRequired, async (req, res) => {
   try {
     const { mode, prompt, branch_name, content_type } = req.body;
@@ -3634,6 +3675,25 @@ app.post("/api/comments", authRequired, async (req, res) => {
       `,
       [entity_type, Number(entity_id), body.trim(), req.user.id]
     );
+
+    const mentions = [...body.matchAll(/@([a-zA-Z0-9_]+)/g)].map((item) => item[1].toLowerCase());
+    if (mentions.length) {
+      const foundUsers = await query(
+        `SELECT id, full_name, login, phone FROM users WHERE LOWER(COALESCE(login, '')) = ANY($1) OR LOWER(COALESCE(phone, '')) = ANY($1)`,
+        [mentions]
+      );
+      for (const foundUser of foundUsers.rows) {
+        if (Number(foundUser.id) === Number(req.user.id)) continue;
+        await createNotification(
+          foundUser.id,
+          "Siz izohda tilga olindingiz",
+          `${req.user.full_name || req.user.login} sizni ${entity_type} izohida eslatdi`,
+          "info",
+          "mention",
+          `/${entity_type}`
+        );
+      }
+    }
 
     await logAction(req.user.id, "comment", entity_type, Number(entity_id), {});
     res.json(inserted.rows[0]);
