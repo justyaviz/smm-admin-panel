@@ -1653,11 +1653,247 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
   );
 }
 
-function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToast, reload }) {
+function getBonusParticipantNames(item) {
+  const participants = item?.content_type === "video"
+    ? [item.video_editor_name, item.video_face_name]
+    : [item.full_name];
+
+  return [...new Set(
+    participants
+      .map((name) => String(name || "").trim())
+      .filter((name) => name && name !== "-")
+  )];
+}
+
+function getBonusAssigneeLabel(item) {
+  const names = getBonusParticipantNames(item);
+  return names.length ? names.join(" / ") : "-";
+}
+
+function getBonusRowAmount(item, bonusRate = 25000) {
+  const explicitAmount = Number(item?.total_amount || item?.amount || 0);
+  if (explicitAmount) return explicitAmount;
+  return (Number(item?.proposal_count || 0) + Number(item?.approved_count || 0)) * Number(bonusRate || 0);
+}
+
+function summarizeBonusEmployees(items = [], bonusRate = 25000) {
+  const stats = new Map();
+
+  (items || []).forEach((item) => {
+    const names = getBonusParticipantNames(item);
+    const amount = getBonusRowAmount(item, bonusRate);
+    const proposalCount = Number(item?.proposal_count || 0);
+    const approvedCount = Number(item?.approved_count || 0);
+
+    names.forEach((name) => {
+      if (!stats.has(name)) {
+        stats.set(name, {
+          name,
+          content_count: 0,
+          proposal_count: 0,
+          approved_count: 0,
+          amount: 0
+        });
+      }
+
+      const current = stats.get(name);
+      current.content_count += 1;
+      current.proposal_count += proposalCount;
+      current.approved_count += approvedCount;
+      current.amount += amount;
+    });
+  });
+
+  return [...stats.values()].sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
+}
+
+function drawRoundedRect(ctx, x, y, width, height, radius) {
+  const safeRadius = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + safeRadius, y);
+  ctx.lineTo(x + width - safeRadius, y);
+  ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+  ctx.lineTo(x + width, y + height - safeRadius);
+  ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+  ctx.lineTo(x + safeRadius, y + height);
+  ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+  ctx.lineTo(x, y + safeRadius);
+  ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+  ctx.closePath();
+}
+
+function trimCanvasText(ctx, text, maxWidth) {
+  const source = String(text || "-");
+  if (ctx.measureText(source).width <= maxWidth) return source;
+  let next = source;
+  while (next.length > 1 && ctx.measureText(`${next}...`).width > maxWidth) {
+    next = next.slice(0, -1);
+  }
+  return `${next}...`;
+}
+
+function downloadBonusApprovalImage({
+  monthLabel,
+  employeeRows = [],
+  approvedByName,
+  approvedAt,
+  totalAmount,
+  uniqueTotalAmount,
+  contentCount
+}) {
+  if (!employeeRows.length) return false;
+
+  const width = 1480;
+  const outerPadding = 52;
+  const gap = 22;
+  const columns = employeeRows.length > 1 ? 2 : 1;
+  const cardWidth = columns === 1
+    ? width - outerPadding * 2
+    : (width - outerPadding * 2 - gap) / 2;
+  const cardHeight = 168;
+  const rowCount = Math.ceil(employeeRows.length / columns);
+  const headerHeight = 286;
+  const footerHeight = 118;
+  const height = headerHeight + rowCount * (cardHeight + gap) + footerHeight;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) return false;
+
+  canvas.width = width * dpr;
+  canvas.height = height * dpr;
+  ctx.scale(dpr, dpr);
+
+  const background = ctx.createLinearGradient(0, 0, width, height);
+  background.addColorStop(0, "#eff8ff");
+  background.addColorStop(0.55, "#f8fbff");
+  background.addColorStop(1, "#eefcf7");
+  ctx.fillStyle = background;
+  ctx.fillRect(0, 0, width, height);
+
+  const glowA = ctx.createRadialGradient(180, 140, 20, 180, 140, 260);
+  glowA.addColorStop(0, "rgba(56, 189, 248, 0.26)");
+  glowA.addColorStop(1, "rgba(56, 189, 248, 0)");
+  ctx.fillStyle = glowA;
+  ctx.fillRect(0, 0, width, height);
+
+  const glowB = ctx.createRadialGradient(width - 180, height - 120, 20, width - 180, height - 120, 260);
+  glowB.addColorStop(0, "rgba(110, 231, 183, 0.22)");
+  glowB.addColorStop(1, "rgba(110, 231, 183, 0)");
+  ctx.fillStyle = glowB;
+  ctx.fillRect(0, 0, width, height);
+
+  ctx.fillStyle = "rgba(37, 99, 235, 0.05)";
+  for (let x = 0; x < width; x += 36) ctx.fillRect(x, 0, 1, height);
+  for (let y = 0; y < height; y += 36) ctx.fillRect(0, y, width, 1);
+
+  drawRoundedRect(ctx, outerPadding, 34, width - outerPadding * 2, 220, 34);
+  ctx.fillStyle = "rgba(255,255,255,0.72)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.75)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  ctx.fillStyle = "#1277da";
+  ctx.font = "600 15px 'Segoe UI'";
+  ctx.fillText("aloo bonus approval", outerPadding + 28, 72);
+
+  ctx.fillStyle = "#0f172a";
+  ctx.font = "700 42px 'Segoe UI'";
+  ctx.fillText(`${getMonthTitle(monthLabel)} bonus hisoboti`, outerPadding + 28, 122);
+
+  ctx.fillStyle = "#64748b";
+  ctx.font = "500 18px 'Segoe UI'";
+  const subtitle = approvedByName
+    ? `Tasdiqlagan: ${approvedByName}${approvedAt ? ` • ${formatDateTime(approvedAt)}` : ""}`
+    : "Rahbar tomonidan tasdiqlangan bonus hisoboti";
+  ctx.fillText(subtitle, outerPadding + 28, 156);
+
+  const statCards = [
+    { label: "Hodimlar", value: employeeRows.length },
+    { label: "Kontentlar", value: contentCount },
+    { label: "Hodimlar jami", value: formatMoney(totalAmount) },
+    { label: "Yozuvlar jami", value: formatMoney(uniqueTotalAmount) }
+  ];
+
+  statCards.forEach((card, index) => {
+    const boxWidth = 300;
+    const x = outerPadding + 28 + index * (boxWidth + 16);
+    const y = 174;
+    drawRoundedRect(ctx, x, y, boxWidth, 72, 22);
+    ctx.fillStyle = "rgba(247,250,255,0.92)";
+    ctx.fill();
+    ctx.fillStyle = "#64748b";
+    ctx.font = "500 14px 'Segoe UI'";
+    ctx.fillText(card.label, x + 18, y + 28);
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "700 24px 'Segoe UI'";
+    ctx.fillText(String(card.value), x + 18, y + 56);
+  });
+
+  employeeRows.forEach((row, index) => {
+    const col = index % columns;
+    const rowIndex = Math.floor(index / columns);
+    const x = outerPadding + col * (cardWidth + gap);
+    const y = headerHeight + rowIndex * (cardHeight + gap);
+
+    drawRoundedRect(ctx, x, y, cardWidth, cardHeight, 28);
+    ctx.fillStyle = "rgba(255,255,255,0.84)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(191,219,254,0.8)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    drawRoundedRect(ctx, x + 18, y + 18, 74, 74, 22);
+    const accent = ctx.createLinearGradient(x + 18, y + 18, x + 92, y + 92);
+    accent.addColorStop(0, "#1d4ed8");
+    accent.addColorStop(1, "#38bdf8");
+    ctx.fillStyle = accent;
+    ctx.fill();
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "700 30px 'Segoe UI'";
+    ctx.fillText(String(index + 1).padStart(2, "0"), x + 34, y + 66);
+
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "700 26px 'Segoe UI'";
+    ctx.fillText(trimCanvasText(ctx, row.name, cardWidth - 138), x + 114, y + 52);
+
+    ctx.fillStyle = "#64748b";
+    ctx.font = "500 16px 'Segoe UI'";
+    ctx.fillText(`Kontent soni: ${row.content_count}`, x + 114, y + 82);
+    ctx.fillText(`Tasdiq soni: ${row.approved_count}`, x + 114, y + 108);
+
+    ctx.fillStyle = "#1277da";
+    ctx.font = "600 14px 'Segoe UI'";
+    ctx.fillText("Jami bonus", x + 114, y + 136);
+    ctx.fillStyle = "#0f172a";
+    ctx.font = "700 28px 'Segoe UI'";
+    ctx.fillText(formatMoney(row.amount), x + 114, y + 162);
+  });
+
+  ctx.fillStyle = "#64748b";
+  ctx.font = "500 16px 'Segoe UI'";
+  ctx.fillText("aloo SMM panel • bonus approval export", outerPadding, height - 34);
+
+  const link = document.createElement("a");
+  link.href = canvas.toDataURL("image/png");
+  link.download = `bonus-approval-${monthLabel}.png`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  return true;
+}
+
+function BonusPage({ bonusItems = [], users = [], branches = [], settings, user, onToast, reload }) {
   const [monthFilter, setMonthFilter] = useState(getMonthLabel());
   const [saving, setSaving] = useState(false);
   const [viewRow, setViewRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
+  const [approvalOpen, setApprovalOpen] = useState(false);
+  const [approvalRows, setApprovalRows] = useState([]);
+  const [approvalSaving, setApprovalSaving] = useState(false);
 
   const emptyForm = {
     title: "",
@@ -1675,39 +1911,48 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
   const isVideo = form.content_type === "video";
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
   const bonusRate = Number(settings?.bonus_rate || 25000);
+  const canApproveBonus = user?.role === "admin" || user?.role === "manager";
 
-  const monthOptions = [...new Set(
-    [getMonthLabel(), ...(bonusItems || []).map((i) => i.month_label || formatDate(i.work_date).slice(0, 7)).filter(Boolean)]
-  )];
+  const monthOptions = useMemo(() => {
+    return [...new Set(
+      [getMonthLabel(), ...(bonusItems || []).map((item) => item.month_label || formatDate(item.work_date).slice(0, 7)).filter(Boolean)]
+    )].sort((a, b) => b.localeCompare(a));
+  }, [bonusItems]);
 
-  const filteredItems = bonusItems.filter((item) =>
-    monthFilter ? (item.month_label || formatDate(item.work_date).slice(0, 7)) === monthFilter : true
-  );
+  const filteredItems = useMemo(() => {
+    return bonusItems.filter((item) =>
+      monthFilter ? (item.month_label || formatDate(item.work_date).slice(0, 7)) === monthFilter : true
+    );
+  }, [bonusItems, monthFilter]);
 
   const totalProposalAmount = filteredItems.reduce((sum, item) => sum + Number(item.proposal_amount || 0), 0);
   const totalApprovedAmount = filteredItems.reduce((sum, item) => sum + Number(item.approved_amount || 0), 0);
   const totalAmount = filteredItems.reduce((sum, item) => sum + Number(item.total_amount || item.amount || 0), 0);
+  const employeeStats = useMemo(() => summarizeBonusEmployees(filteredItems, bonusRate), [filteredItems, bonusRate]);
+  const employeeTotalAmount = employeeStats.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const approvalEmployeeStats = useMemo(() => summarizeBonusEmployees(approvalRows, bonusRate), [approvalRows, bonusRate]);
+  const approvalEmployeeTotal = approvalEmployeeStats.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const approvedRowCount = filteredItems.filter((item) => item.approval_status === "approved").length;
+  const monthApproved = !!filteredItems.length && approvedRowCount === filteredItems.length;
+  const lastApprovalMeta = useMemo(() => {
+    return [...filteredItems]
+      .filter((item) => item.approval_status === "approved" && item.approved_at)
+      .sort((a, b) => new Date(b.approved_at).getTime() - new Date(a.approved_at).getTime())[0] || null;
+  }, [filteredItems]);
 
-  const employeeStatsMap = new Map();
-
-  filteredItems.forEach((item) => {
-    const add = (name, amount) => {
-      if (!name || name === "-") return;
-      if (!employeeStatsMap.has(name)) employeeStatsMap.set(name, 0);
-      employeeStatsMap.set(name, employeeStatsMap.get(name) + Number(amount || 0));
-    };
-
-    if (item.content_type === "video") {
-      add(item.video_editor_name || "-", Number(item.total_amount || item.amount || 0));
-      add(item.video_face_name || "-", Number(item.total_amount || item.amount || 0));
-    } else {
-      add(item.full_name || "-", Number(item.total_amount || item.amount || 0));
-    }
-  });
-
-  const employeeStats = [...employeeStatsMap.entries()]
-    .map(([name, amount]) => ({ name, amount }))
-    .sort((a, b) => b.amount - a.amount);
+  useEffect(() => {
+    if (!approvalOpen) return;
+    setApprovalRows(
+      filteredItems.map((item) => ({
+        ...item,
+        proposal_count: Number(item.proposal_count || 0),
+        approved_count: Number(item.approved_count || 0),
+        total_amount: Number(item.total_amount || item.amount || 0),
+        proposal_amount: Number(item.proposal_amount || 0),
+        approved_amount: Number(item.approved_amount || 0)
+      }))
+    );
+  }, [approvalOpen, filteredItems]);
 
   function resetForm() {
     setForm(emptyForm);
@@ -1728,6 +1973,76 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
       approved_count: row.approved_count ?? ""
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function openApprovalModal() {
+    if (!filteredItems.length) {
+      onToast("Tasdiqlash uchun bonus yozuvlari topilmadi", "error");
+      return;
+    }
+    setApprovalOpen(true);
+  }
+
+  function updateApprovalCount(id, value) {
+    const sanitized = value === "" ? "" : Math.max(0, Number(value) || 0);
+    setApprovalRows((prev) => prev.map((row) => {
+      if (row.id !== id) return row;
+      const nextApprovedCount = Number(sanitized || 0);
+      return {
+        ...row,
+        approved_count: sanitized,
+        approved_amount: nextApprovedCount * bonusRate,
+        total_amount: (Number(row.proposal_count || 0) + nextApprovedCount) * bonusRate
+      };
+    }));
+  }
+
+  async function handleApproveMonth() {
+    if (!approvalRows.length) {
+      onToast("Tasdiqlash uchun yozuv topilmadi", "error");
+      return;
+    }
+
+    try {
+      setApprovalSaving(true);
+      await api.create("bonus-items/approve-month", {
+        month_label: monthFilter,
+        items: approvalRows.map((row) => ({
+          id: row.id,
+          approved_count: Number(row.approved_count || 0)
+        }))
+      });
+      await reload();
+      setApprovalOpen(false);
+      onToast(`${getMonthTitle(monthFilter)} bonuslari tasdiqlandi`, "success");
+    } catch (err) {
+      onToast(err.message || "Bonuslarni tasdiqlab bo'lmadi", "error");
+    } finally {
+      setApprovalSaving(false);
+    }
+  }
+
+  function handleDownloadApprovalImage() {
+    if (!monthApproved) {
+      onToast("Avval oylik bonusni tasdiqlang", "error");
+      return;
+    }
+
+    const exported = downloadBonusApprovalImage({
+      monthLabel: monthFilter,
+      employeeRows: employeeStats,
+      approvedByName: lastApprovalMeta?.approved_by_name || user?.full_name || "Rahbar",
+      approvedAt: lastApprovalMeta?.approved_at,
+      totalAmount: employeeTotalAmount,
+      uniqueTotalAmount: totalAmount,
+      contentCount: filteredItems.length
+    });
+
+    if (exported) {
+      onToast("Bonus hisoboti rasm sifatida yuklab olindi", "success");
+    } else {
+      onToast("Rasm eksportini tayyorlab bo'lmadi", "error");
+    }
   }
 
   async function handleSubmit(e) {
@@ -1906,25 +2221,56 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
       </div>
 
       <div className="card">
-        <SectionTitle title="Hodim bo'yicha bonus summalari" />
+        <SectionTitle
+          title="Hodim bo'yicha bonus summalari"
+          right={canApproveBonus ? (
+            <div className="toolbar-actions">
+              <span className={`mini-badge ${monthApproved ? "success" : "warning"}`}>
+                {monthApproved ? "Tasdiqlangan" : "Tasdiqlanmagan"}
+              </span>
+              <button type="button" className="btn secondary" onClick={openApprovalModal} disabled={!filteredItems.length}>
+                Oylik bonusni tasdiqlash
+              </button>
+              {monthApproved ? (
+                <button type="button" className="btn secondary" onClick={handleDownloadApprovalImage}>
+                  Chop etish
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        />
+        {lastApprovalMeta ? (
+          <div className="bonus-approval-meta">
+            Oxirgi tasdiq: <strong>{lastApprovalMeta.approved_by_name || "Rahbar"}</strong> • {formatDateTime(lastApprovalMeta.approved_at)}
+          </div>
+        ) : null}
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Hodim</th>
+                <th>Kontent soni</th>
                 <th>Jami bonus</th>
               </tr>
             </thead>
             <tbody>
               {employeeStats.length ? (
-                employeeStats.map((row, idx) => (
-                  <tr key={`${row.name}-${idx}`}>
-                    <td>{row.name}</td>
-                    <td>{formatMoney(row.amount)}</td>
+                <>
+                  {employeeStats.map((row, idx) => (
+                    <tr key={`${row.name}-${idx}`}>
+                      <td>{row.name}</td>
+                      <td>{row.content_count}</td>
+                      <td>{formatMoney(row.amount)}</td>
+                    </tr>
+                  ))}
+                  <tr className="summary-row">
+                    <td><strong>Jami</strong></td>
+                    <td><strong>{employeeStats.reduce((sum, row) => sum + Number(row.content_count || 0), 0)}</strong></td>
+                    <td><strong>{formatMoney(employeeTotalAmount)}</strong></td>
                   </tr>
-                ))
+                </>
               ) : (
-                <tr><td colSpan="2" className="empty-cell">Bu oy uchun bonus yo'q</td></tr>
+                <tr><td colSpan="3" className="empty-cell">Bu oy uchun bonus yo'q</td></tr>
               )}
             </tbody>
           </table>
@@ -1944,6 +2290,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
                 <th>Taklif</th>
                 <th>Tasdiq</th>
                 <th>Jami</th>
+                <th>Holat</th>
                 <th>Amallar</th>
               </tr>
             </thead>
@@ -1954,14 +2301,15 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
                     <td>{row.content_title || "-"}</td>
                     <td>{formatDate(row.work_date)}</td>
                     <td>{row.content_type || "-"}</td>
-                    <td>
-                      {row.content_type === "video"
-                        ? `${row.video_editor_name || "-"} / ${row.video_face_name || "-"}`
-                        : row.full_name || "-"}
-                    </td>
+                    <td>{getBonusAssigneeLabel(row)}</td>
                     <td>{row.proposal_count || 0}</td>
                     <td>{row.approved_count || 0}</td>
                     <td>{formatMoney(row.total_amount || row.amount || 0)}</td>
+                    <td>
+                      <span className={`mini-badge ${row.approval_status === "approved" ? "success" : "warning"}`}>
+                        {row.approval_status === "approved" ? "Tasdiqlandi" : "Draft"}
+                      </span>
+                    </td>
                     <td>
                       <IconActions
                         onView={() => setViewRow(row)}
@@ -1972,23 +2320,137 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="8" className="empty-cell">Bu oy uchun bonus yozuvi yo'q</td></tr>
+                <tr><td colSpan="9" className="empty-cell">Bu oy uchun bonus yozuvi yo'q</td></tr>
               )}
             </tbody>
           </table>
         </div>
       </div>
 
+      <Modal
+        open={approvalOpen}
+        onClose={() => setApprovalOpen(false)}
+        title={`${getMonthTitle(monthFilter)} bonuslarini tasdiqlash`}
+        wide
+      >
+        <div className="bonus-approval-stack">
+          <div className="info-banner">
+            Rahbar oynasi: faqat <strong>Tasdiq soni</strong> maydoni ochiq. Qolgan barcha ustunlar faqat ko'rish uchun.
+          </div>
+          <div className="bonus-approval-meta">
+            {monthApproved
+              ? "Bu oy tasdiqlangan. Zarurat bo'lsa tasdiq sonlarini yangilab qayta saqlashingiz mumkin."
+              : "Tasdiqlashdan keyin rahbar uchun chop etish tugmasi faollashadi."}
+          </div>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Kontent nomi</th>
+                  <th>Sana</th>
+                  <th>Turi</th>
+                  <th>Hodim / Video</th>
+                  <th>Taklif</th>
+                  <th>Tasdiq soni</th>
+                  <th>Jami bonus</th>
+                </tr>
+              </thead>
+              <tbody>
+                {approvalRows.length ? (
+                  approvalRows.map((row) => (
+                    <tr key={`approval-${row.id}`}>
+                      <td>{row.content_title || "-"}</td>
+                      <td>{formatDate(row.work_date)}</td>
+                      <td>{row.content_type || "-"}</td>
+                      <td>{getBonusAssigneeLabel(row)}</td>
+                      <td>{row.proposal_count || 0}</td>
+                      <td>
+                        <input
+                          className="bonus-approval-input"
+                          type="number"
+                          min="0"
+                          value={row.approved_count ?? 0}
+                          onChange={(e) => updateApprovalCount(row.id, e.target.value)}
+                        />
+                      </td>
+                      <td>{formatMoney(row.total_amount || 0)}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan="7" className="empty-cell">Tasdiqlash uchun yozuv topilmadi</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="bonus-approval-summary">
+            <SectionTitle title="Hodim bo'yicha jami" />
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Hodim</th>
+                    <th>Kontent soni</th>
+                    <th>Tasdiq birlik</th>
+                    <th>Jami bonus</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {approvalEmployeeStats.length ? (
+                    <>
+                      {approvalEmployeeStats.map((row, idx) => (
+                        <tr key={`approval-summary-${row.name}-${idx}`}>
+                          <td>{row.name}</td>
+                          <td>{row.content_count}</td>
+                          <td>{row.approved_count}</td>
+                          <td>{formatMoney(row.amount)}</td>
+                        </tr>
+                      ))}
+                      <tr className="summary-row">
+                        <td><strong>Jami</strong></td>
+                        <td><strong>{approvalEmployeeStats.reduce((sum, row) => sum + Number(row.content_count || 0), 0)}</strong></td>
+                        <td><strong>{approvalEmployeeStats.reduce((sum, row) => sum + Number(row.approved_count || 0), 0)}</strong></td>
+                        <td><strong>{formatMoney(approvalEmployeeTotal)}</strong></td>
+                      </tr>
+                    </>
+                  ) : (
+                    <tr><td colSpan="4" className="empty-cell">Hodim bo'yicha jamlanma yo'q</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="bonus-approval-footer">
+            <div className="bonus-approval-total">
+              <span>Yozuvlar: {approvalRows.length}</span>
+              <strong>Hodimlar bo'yicha jami: {formatMoney(approvalEmployeeTotal)}</strong>
+            </div>
+            <div className="toolbar-actions">
+              <button type="button" className="btn secondary" onClick={() => setApprovalOpen(false)}>
+                Yopish
+              </button>
+              <button type="button" className="btn primary" onClick={handleApproveMonth} disabled={approvalSaving || !approvalRows.length}>
+                {approvalSaving ? "Tasdiqlanmoqda..." : "Tasdiqlash"}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Bonus yozuvi tafsiloti">
         {viewRow ? (
           <>
             <div className="detail-grid">
-            <div><strong>Kontent nomi:</strong> {viewRow.content_title || "-"}</div>
-            <div><strong>Sana:</strong> {formatDate(viewRow.work_date)}</div>
-            <div><strong>Turi:</strong> {viewRow.content_type || "-"}</div>
-            <div><strong>Taklif:</strong> {viewRow.proposal_count || 0}</div>
-            <div><strong>Tasdiq:</strong> {viewRow.approved_count || 0}</div>
-            <div><strong>Jami:</strong> {formatMoney(viewRow.total_amount || viewRow.amount || 0)}</div>
+              <div><strong>Kontent nomi:</strong> {viewRow.content_title || "-"}</div>
+              <div><strong>Sana:</strong> {formatDate(viewRow.work_date)}</div>
+              <div><strong>Turi:</strong> {viewRow.content_type || "-"}</div>
+              <div><strong>Hodim / Video:</strong> {getBonusAssigneeLabel(viewRow)}</div>
+              <div><strong>Taklif:</strong> {viewRow.proposal_count || 0}</div>
+              <div><strong>Tasdiq:</strong> {viewRow.approved_count || 0}</div>
+              <div><strong>Holat:</strong> {viewRow.approval_status === "approved" ? "Tasdiqlangan" : "Draft"}</div>
+              <div><strong>Jami:</strong> {formatMoney(viewRow.total_amount || viewRow.amount || 0)}</div>
+              <div className="full-col"><strong>Tasdiqlagan:</strong> {viewRow.approved_by_name || "-"}</div>
             </div>
             <DiscussionPanel entityType="bonus_item" entityId={viewRow.id} onToast={onToast} />
           </>
@@ -4912,7 +5374,7 @@ function App() {
   } else if (active === "content") {
     page = <ContentPage users={users} branches={branches} settings={settings} onToast={showToast} reload={reloadData} />;
   } else if (active === "bonus") {
-    page = <BonusPage bonusItems={bonusItems} users={users} branches={branches} settings={settings} onToast={showToast} reload={reloadData} />;
+    page = <BonusPage bonusItems={bonusItems} users={users} branches={branches} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "expenses") {
     page = <ExpensesPage expenses={expenses} onToast={showToast} reload={reloadData} />;
   } else if (active === "finance") {
@@ -6200,6 +6662,52 @@ table{width:100%;border-collapse:collapse}
 th,td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
 th{background:rgba(22,144,245,.05);color:var(--muted)}
 .empty-cell{text-align:center;color:var(--muted);padding:24px}
+.summary-row{
+  background:linear-gradient(90deg, rgba(22,144,245,.08), rgba(110,231,183,.08));
+}
+.bonus-approval-meta{
+  margin:0 0 14px;
+  color:var(--muted);
+  font-size:14px;
+}
+.bonus-approval-stack{
+  display:grid;
+  gap:16px;
+}
+.bonus-approval-summary{
+  display:grid;
+  gap:12px;
+}
+.bonus-approval-footer{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  flex-wrap:wrap;
+}
+.bonus-approval-total{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  flex-wrap:wrap;
+  color:var(--muted);
+}
+.bonus-approval-total strong{
+  color:var(--text);
+}
+.bonus-approval-input{
+  width:92px;
+  background:rgba(248,251,255,.92);
+  border:1px solid rgba(22,144,245,.16);
+  border-radius:12px;
+  padding:10px 12px;
+  color:var(--text);
+}
+.bonus-approval-input:focus{
+  outline:none;
+  border-color:rgba(22,144,245,.4);
+  box-shadow:0 0 0 4px rgba(22,144,245,.10);
+}
 .table-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .table-row-success{background:linear-gradient(90deg, rgba(16,185,129,.08), transparent 55%)}
 .table-row-info{background:linear-gradient(90deg, rgba(59,130,246,.08), transparent 55%)}

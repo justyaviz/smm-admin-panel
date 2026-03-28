@@ -162,6 +162,9 @@ CREATE TABLE bonus_items (
   user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
   video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  approval_status TEXT NOT NULL DEFAULT 'draft',
+  approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  approved_at TIMESTAMP,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

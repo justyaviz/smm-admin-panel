@@ -482,6 +482,9 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'draft'`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`,
     `ALTER TABLE bonus_items ALTER COLUMN bonus_id DROP NOT NULL`,
     `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS subscriber_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS condition_text TEXT`,
@@ -747,6 +750,9 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
         user_id = $10,
         video_editor_user_id = $11,
         video_face_user_id = $12,
+        approval_status = 'draft',
+        approved_by = NULL,
+        approved_at = NULL,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $13
       `,
@@ -769,9 +775,10 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
         user_id,
         video_editor_user_id,
         video_face_user_id,
+        approval_status,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'draft',$13)
       `,
       [...values, actorUserId]
     );
@@ -2088,12 +2095,14 @@ app.get("/api/bonus-items", authRequired, async (_, res) => {
         u.full_name,
         ve.full_name AS video_editor_name,
         vf.full_name AS video_face_name,
-        br.name AS branch_name
+        br.name AS branch_name,
+        approver.full_name AS approved_by_name
       FROM bonus_items bi
       LEFT JOIN users u ON u.id = bi.user_id
       LEFT JOIN users ve ON ve.id = bi.video_editor_user_id
       LEFT JOIN users vf ON vf.id = bi.video_face_user_id
       LEFT JOIN branches br ON br.id = bi.branch_id
+      LEFT JOIN users approver ON approver.id = bi.approved_by
       ORDER BY bi.work_date DESC NULLS LAST, bi.id DESC
       `
     );
@@ -2144,9 +2153,12 @@ app.post("/api/bonus-items", authRequired, async (req, res) => {
         video_editor_user_id,
         video_face_user_id,
         branch_id,
+        approval_status,
+        approved_by,
+        approved_at,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'draft',NULL,NULL,$14)
       RETURNING *
       `,
       [
@@ -2219,6 +2231,9 @@ app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
         video_editor_user_id = $11,
         video_face_user_id = $12,
         branch_id = $13,
+        approval_status = 'draft',
+        approved_by = NULL,
+        approved_at = NULL,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $14
       RETURNING *
@@ -2255,6 +2270,92 @@ app.put("/api/bonus-items/:id", authRequired, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: `Bonus hisobotini yangilab boвЂlmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/bonus-items/approve-month", authRequired, rolesAllowed("admin", "manager"), async (req, res) => {
+  const { month_label, items = [] } = req.body || {};
+  const month = String(month_label || "").trim();
+
+  if (!month) {
+    return res.status(400).json({ message: "Oy tanlanmagan" });
+  }
+
+  if (!Array.isArray(items) || !items.length) {
+    return res.status(400).json({ message: "Tasdiqlash uchun bonus yozuvlari topilmadi" });
+  }
+
+  const client = await getClient();
+
+  try {
+    const bonusRate = await getBonusRate();
+    await client.query("BEGIN");
+
+    for (const row of items) {
+      const itemId = Number(row?.id || 0);
+      const approvedCount = Math.max(0, Number(row?.approved_count || 0));
+
+      if (!itemId) {
+        throw new Error("Bonus yozuvi ID topilmadi");
+      }
+
+      const updated = await client.query(
+        `
+        UPDATE bonus_items
+        SET
+          approved_count = $1,
+          approved_amount = $1 * $2,
+          total_amount = (COALESCE(proposal_count, 0) + $1) * $2,
+          approval_status = 'approved',
+          approved_by = $3,
+          approved_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $4 AND month_label = $5
+        `,
+        [approvedCount, bonusRate, req.user.id, itemId, month]
+      );
+
+      if (!updated.rowCount) {
+        throw new Error("Bonus yozuvi topilmadi yoki oy mos emas");
+      }
+    }
+
+    const refreshed = await client.query(
+      `
+      SELECT
+        bi.*,
+        u.full_name,
+        ve.full_name AS video_editor_name,
+        vf.full_name AS video_face_name,
+        br.name AS branch_name,
+        approver.full_name AS approved_by_name
+      FROM bonus_items bi
+      LEFT JOIN users u ON u.id = bi.user_id
+      LEFT JOIN users ve ON ve.id = bi.video_editor_user_id
+      LEFT JOIN users vf ON vf.id = bi.video_face_user_id
+      LEFT JOIN branches br ON br.id = bi.branch_id
+      LEFT JOIN users approver ON approver.id = bi.approved_by
+      WHERE bi.month_label = $1
+      ORDER BY bi.work_date DESC NULLS LAST, bi.id DESC
+      `,
+      [month]
+    );
+
+    await client.query("COMMIT");
+    await logAction(req.user.id, "approve", "bonus_items", null, {
+      month_label: month,
+      item_count: items.length
+    });
+    res.json({
+      message: `${month} bonuslari tasdiqlandi`,
+      items: refreshed.rows
+    });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ message: err.message || "Bonuslarni tasdiqlab bo'lmadi" });
+  } finally {
+    client.release();
   }
 });
 
