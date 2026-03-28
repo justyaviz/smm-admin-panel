@@ -3,7 +3,7 @@ import path from "path";
 
 const DEFAULT_SITE_URL = "https://smm-admin-panel-fron-production.up.railway.app";
 const SITE_URL = normalizeSiteUrl(process.env.VITE_SITE_URL || DEFAULT_SITE_URL);
-const TITLE = "Aloo SMM Panel";
+const TITLE = "aloo SMM Panel";
 const DESCRIPTION = "SMM va marketing boshqaruv tizimi";
 
 function normalizeSiteUrl(value) {

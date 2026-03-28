@@ -1,6 +1,6 @@
 {
-  "name": "Aloo SMM Panel",
-  "short_name": "Aloo SMM",
+  "name": "aloo SMM Panel",
+  "short_name": "aloo SMM",
   "description": "SMM va marketing boshqaruv tizimi",
   "start_url": "/",
   "display": "standalone",

@@ -734,12 +734,19 @@ const LOGIN_LOGO =
     </svg>
   `);
 
+function normalizeAlooText(value = "") {
+  return String(value || "").replace(/aloo/gi, "aloo");
+}
+
 function LoginPage({ onLoggedIn, settings }) {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const logoSrc = settings?.logo_url || LOGIN_LOGO;
+  const companyLabel = normalizeAlooText(settings?.company_name || "aloo SMM");
+  const platformLabel = normalizeAlooText(settings?.platform_name || "Yagona boshqaruv platformasi");
+  const loginSignals = ["kontent flow", "filiallar sync", "bonus live"];
 
   async function submit(e) {
     e.preventDefault();
@@ -773,89 +780,109 @@ function LoginPage({ onLoggedIn, settings }) {
       </div>
       <div className="login-orb orb-one" />
       <div className="login-orb orb-two" />
+      <div className="login-orb orb-three" />
       <div className="login-grid-line" />
+      <div className="login-noise" />
 
-      <div className="login-copy">
-        <div className="brand-kicker">aloo - yagona platforma</div>
-        <div className="login-logo-lockup">
-          <img src={logoSrc} alt="aloo logo" className="login-logo-image" />
-          <div className="login-logo-copy">
-            <strong>{settings?.company_name || "aloo SMM"}</strong>
-            <span>{settings?.platform_name || "Yagona boshqaruv platformasi"}</span>
+      <div className="login-shell">
+        <div className="login-copy">
+          <div className="brand-kicker">aloo - yagona platforma</div>
+          <div className="login-logo-lockup">
+            <img src={logoSrc} alt="aloo logo" className="login-logo-image" />
+            <div className="login-logo-copy">
+              <strong>{companyLabel}</strong>
+              <span>{platformLabel}</span>
+            </div>
+          </div>
+          <h1>aloo SMM Panel</h1>
+          <p>SMM va marketing boshqaruv tizimi</p>
+          <h2>aloo do'konlar tarmog'i SMM jamoasi yagona ma'lumotlar platformasiga xush kelibsiz</h2>
+          <p>Kirish uchun login va parolingizni kiriting.</p>
+          <div className="login-status-row">
+            {loginSignals.map((item) => (
+              <span key={item} className="login-status-pill">{item}</span>
+            ))}
+          </div>
+          <div className="login-feature-row">
+            <div className="login-feature-card">
+              <strong>Kontent</strong>
+              <span>Reja, bonus va ijro jarayonlari bir joyda.</span>
+            </div>
+            <div className="login-feature-card">
+              <strong>Jamoa</strong>
+              <span>Chat, vazifa va hisobotlar bir panelda boshqariladi.</span>
+            </div>
+          </div>
+          <div className="login-seo-block">
+            <div className="login-seo-grid">
+              <article className="login-seo-card">
+                <strong>SMM boshqaruvi</strong>
+                <p>Kontent reja, bonus tizimi, reklama kampaniyalari va media kutubxona bitta platformada ishlaydi.</p>
+              </article>
+              <article className="login-seo-card">
+                <strong>Filial nazorati</strong>
+                <p>Bosh ofis va barcha filiallar bo'yicha hisobotlar, KPI va kunlik jarayonlar yagona panelda jamlanadi.</p>
+              </article>
+              <article className="login-seo-card">
+                <strong>Marketing workflow</strong>
+                <p>Vazifalar, safar rejalari, posting va ichki jamoa kommunikatsiyasi markazlashtirilgan boshqaruv bilan yuritiladi.</p>
+              </article>
+            </div>
+            <p className="login-seo-note">
+              Bosh ofis, Ohangaron, Angren, Chirchiq, Guliston, Jarqo'rg'on, Sherobod, Qibray, G'azalkent,
+              Olmaliq, Piskent, Oqqo'rg'on, Chinoz, Sho'rchi va Parkent filiallari uchun SMM va marketing boshqaruv tizimi.
+            </p>
           </div>
         </div>
-        <h1>Aloo SMM Panel</h1>
-        <p>SMM va marketing boshqaruv tizimi</p>
-        <h2>aloo do'konlar tarmog'i SMM jamoasi yagona ma'lumotlar platformasiga xush kelibsiz</h2>
-        <p>Kirish uchun login va parolingizni kiriting.</p>
-        <div className="login-feature-row">
-          <div className="login-feature-card">
-            <strong>Kontent</strong>
-            <span>Reja, bonus va ijro jarayonlari bir joyda.</span>
+
+        <form className="login-card" onSubmit={submit}>
+          <div className="login-card-shine" />
+          <div className="login-card-glow" />
+          {loading ? (
+            <div className="login-loading">
+              <div className="login-loader-ring" />
+              <span>Kirish tekshirilmoqda...</span>
+            </div>
+          ) : null}
+          <div className="login-card-top">
+            <div className="small-label">Kirish</div>
+            <div className="login-card-badges">
+              <span className="login-card-badge">live</span>
+              <span className="login-card-badge">secure</span>
+            </div>
           </div>
-          <div className="login-feature-card">
-            <strong>Jamoa</strong>
-            <span>Chat, vazifa va hisobotlar bir panelda boshqariladi.</span>
+          <div className="login-title">Xush kelibsiz</div>
+
+          <label>
+            <span>Telefon raqam yoki login</span>
+            <input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="998939000 yoki admin"
+            />
+          </label>
+
+          <label>
+            <span>Parol</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Parol"
+            />
+          </label>
+
+          {error ? <div className="error-box">{error}</div> : null}
+
+          <button type="submit" className="btn primary large" disabled={loading}>
+            {loading ? "Kirilmoqda..." : "Kirish"}
+          </button>
+          <div className="login-card-footer">
+            <span>aloo boshqaruv paneli</span>
+            <span className="login-card-pulse">online</span>
           </div>
-        </div>
-        <div className="login-seo-block">
-          <div className="login-seo-grid">
-            <article className="login-seo-card">
-              <strong>SMM boshqaruvi</strong>
-              <p>Kontent reja, bonus tizimi, reklama kampaniyalari va media kutubxona bitta platformada ishlaydi.</p>
-            </article>
-            <article className="login-seo-card">
-              <strong>Filial nazorati</strong>
-              <p>Bosh ofis va barcha filiallar bo'yicha hisobotlar, KPI va kunlik jarayonlar yagona panelda jamlanadi.</p>
-            </article>
-            <article className="login-seo-card">
-              <strong>Marketing workflow</strong>
-              <p>Vazifalar, safar rejalari, posting va ichki jamoa kommunikatsiyasi markazlashtirilgan boshqaruv bilan yuritiladi.</p>
-            </article>
-          </div>
-          <p className="login-seo-note">
-            Bosh ofis, Ohangaron, Angren, Chirchiq, Guliston, Jarqo'rg'on, Sherobod, Qibray, G'azalkent,
-            Olmaliq, Piskent, Oqqo'rg'on, Chinoz, Sho'rchi va Parkent filiallari uchun SMM va marketing boshqaruv tizimi.
-          </p>
-        </div>
+        </form>
       </div>
-
-      <form className="login-card" onSubmit={submit}>
-        <div className="login-card-shine" />
-        {loading ? (
-          <div className="login-loading">
-            <div className="login-loader-ring" />
-            <span>Kirish tekshirilmoqda...</span>
-          </div>
-        ) : null}
-        <div className="small-label">Kirish</div>
-        <div className="login-title">Xush kelibsiz</div>
-
-        <label>
-          <span>Telefon raqam yoki login</span>
-          <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="998939000 yoki admin"
-          />
-        </label>
-
-        <label>
-          <span>Parol</span>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Parol"
-          />
-        </label>
-
-        {error ? <div className="error-box">{error}</div> : null}
-
-        <button type="submit" className="btn primary large" disabled={loading}>
-          {loading ? "Kirilmoqda..." : "Kirish"}
-        </button>
-      </form>
     </div>
   );
 }
@@ -5241,20 +5268,54 @@ img{display:block;max-width:100%}
 
 .login-page{
   min-height:100vh;
-  width:min(100%, 1560px);
-  margin:0 auto;
-  display:grid;
-  grid-template-columns:minmax(0, 1fr) minmax(420px, 560px);
-  align-items:center;
-  gap:clamp(44px, 6vw, 110px);
-  padding:clamp(32px, 4vw, 64px);
+  width:100%;
   position:relative;
   overflow:hidden;
+  padding:clamp(18px, 3vw, 38px);
   background:
-    radial-gradient(circle at 12% 18%, rgba(56,189,248,.24), transparent 26%),
-    radial-gradient(circle at 86% 20%, rgba(99,102,241,.18), transparent 22%),
-    radial-gradient(circle at 78% 78%, rgba(29,78,216,.16), transparent 24%),
-    linear-gradient(135deg,#eaf4ff 0%, #f8fbff 34%, #eef9f7 66%, #ecfeff 100%);
+    radial-gradient(circle at 10% 14%, rgba(56,189,248,.30), transparent 26%),
+    radial-gradient(circle at 84% 14%, rgba(59,130,246,.18), transparent 20%),
+    radial-gradient(circle at 86% 84%, rgba(14,165,233,.18), transparent 20%),
+    radial-gradient(circle at 14% 88%, rgba(110,231,183,.20), transparent 24%),
+    linear-gradient(135deg, #ecf8ff 0%, #f7fbff 28%, #eef9ff 58%, #effef7 100%);
+  isolation:isolate;
+}
+.login-page::before{
+  content:"";
+  position:absolute;
+  inset:-12%;
+  background:
+    radial-gradient(circle at 24% 28%, rgba(255,255,255,.42), transparent 18%),
+    radial-gradient(circle at 72% 26%, rgba(125,211,252,.18), transparent 22%),
+    radial-gradient(circle at 76% 72%, rgba(59,130,246,.12), transparent 18%);
+  filter:blur(30px);
+  opacity:.95;
+  animation:aurora-drift 16s ease-in-out infinite alternate;
+  pointer-events:none;
+  z-index:0;
+}
+.login-page::after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,.26) 50%, rgba(255,255,255,0) 100%);
+  mix-blend-mode:screen;
+  opacity:.42;
+  animation:login-pan 18s linear infinite;
+  pointer-events:none;
+  z-index:0;
+}
+.login-shell{
+  position:relative;
+  z-index:2;
+  width:min(100%, 1500px);
+  min-height:calc(100vh - clamp(36px, 6vw, 76px));
+  margin:0 auto;
+  display:grid;
+  grid-template-columns:minmax(0, 780px) minmax(420px, 560px);
+  align-items:center;
+  justify-content:space-between;
+  gap:clamp(48px, 7vw, 130px);
 }
 .login-particles{
   position:absolute;
@@ -5280,47 +5341,63 @@ img{display:block;max-width:100%}
   position:relative;
   z-index:2;
   animation:login-fade-up .7s ease;
-  max-width:820px;
+  max-width:860px;
+  padding-inline:clamp(4px, .8vw, 18px);
 }
 .brand-kicker{
   display:inline-flex;
   width:max-content;
-  padding:10px 16px;
+  padding:12px 18px;
   border-radius:999px;
-  background:rgba(255,255,255,.64);
+  background:rgba(255,255,255,.56);
   backdrop-filter:blur(10px);
-  border:1px solid rgba(22,144,245,.18);
-  color:var(--blue);
+  border:1px solid rgba(22,144,245,.14);
+  color:#1277da;
   font-size:12px;
-  text-transform:uppercase;
-  letter-spacing:.16em;
-  box-shadow:0 14px 30px rgba(22,144,245,.08);
+  text-transform:none;
+  letter-spacing:.18em;
+  box-shadow:0 16px 34px rgba(22,144,245,.10);
+  animation:brand-drift 8s ease-in-out infinite;
 }
 .login-copy h1{
-  font-size:68px;
+  font-size:clamp(58px, 6.3vw, 92px);
   margin:18px 0 0;
-  line-height:.98;
+  line-height:.94;
   letter-spacing:-.04em;
+  max-width:780px;
+  background:linear-gradient(135deg, #0f172a 0%, #15233c 62%, #116dce 100%);
+  -webkit-background-clip:text;
+  color:transparent;
+  animation:login-fade-up .9s ease both, headline-wave 12s ease-in-out infinite 1s;
 }
 .login-copy h2{
-  font-size:32px;
+  font-size:clamp(30px, 3.3vw, 38px);
   line-height:1.12;
   margin:18px 0 0;
   max-width:760px;
+  animation:login-fade-up 1s ease both, login-float 12s ease-in-out infinite -2.3s;
 }
-.login-copy p{color:var(--muted);font-size:18px;max-width:620px;line-height:1.6}
+.login-copy > p:not(.login-seo-note){
+  color:var(--muted);
+  font-size:18px;
+  max-width:680px;
+  line-height:1.6;
+  animation:login-fade-up 1.08s ease both;
+}
 .login-logo-lockup{
   display:flex;
   align-items:center;
   gap:16px;
   margin-top:26px;
   margin-bottom:4px;
+  animation:login-float 9s ease-in-out infinite -1.4s;
 }
 .login-logo-image{
   width:78px;
   height:78px;
   border-radius:26px;
   box-shadow:0 18px 34px rgba(29,78,216,.18);
+  animation:pulse-glow 7s ease-in-out infinite;
 }
 .login-logo-copy{
   display:grid;
@@ -5334,43 +5411,70 @@ img{display:block;max-width:100%}
   color:var(--muted);
   font-size:14px;
 }
+.login-status-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:12px;
+  margin-top:24px;
+  animation:login-fade-up 1.15s ease both;
+}
+.login-status-pill{
+  padding:10px 14px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.74);
+  background:rgba(255,255,255,.48);
+  backdrop-filter:blur(12px);
+  box-shadow:0 16px 30px rgba(15,23,42,.05);
+  color:#1277da;
+  font-size:12px;
+  letter-spacing:.14em;
+  text-transform:lowercase;
+  animation:login-float 7.5s ease-in-out infinite;
+}
+.login-status-pill:nth-child(2){animation-delay:-2.2s}
+.login-status-pill:nth-child(3){animation-delay:-4.4s}
 .login-feature-row{
   display:grid;
-  grid-template-columns:repeat(2,minmax(0,220px));
+  grid-template-columns:repeat(2,minmax(0,230px));
   gap:14px;
   margin-top:28px;
+  animation:login-fade-up 1.2s ease both;
 }
 .login-feature-card{
-  padding:16px 18px;
-  border-radius:22px;
-  background:rgba(255,255,255,.58);
-  border:1px solid rgba(255,255,255,.75);
-  backdrop-filter:blur(14px);
-  box-shadow:0 18px 36px rgba(30,41,59,.06);
-  animation:login-float 5s ease-in-out infinite;
+  padding:18px 20px;
+  border-radius:24px;
+  background:rgba(255,255,255,.54);
+  border:1px solid rgba(255,255,255,.76);
+  backdrop-filter:blur(16px);
+  box-shadow:0 20px 40px rgba(30,41,59,.08);
+  animation:login-float 6.2s ease-in-out infinite;
 }
 .login-feature-card:nth-child(2){animation-delay:-2.2s}
 .login-feature-card strong{display:block;font-size:16px;margin-bottom:6px}
 .login-feature-card span{color:var(--muted);font-size:14px;line-height:1.5}
 .login-seo-block{
-  margin-top:24px;
+  margin-top:26px;
   display:grid;
-  gap:14px;
+  gap:16px;
   max-width:860px;
+  animation:login-fade-up 1.3s ease both;
 }
 .login-seo-grid{
   display:grid;
   grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:14px;
+  gap:16px;
 }
 .login-seo-card{
-  padding:18px;
-  border-radius:22px;
-  background:rgba(255,255,255,.54);
-  border:1px solid rgba(255,255,255,.72);
-  backdrop-filter:blur(14px);
-  box-shadow:0 18px 36px rgba(30,41,59,.06);
+  padding:20px;
+  border-radius:24px;
+  background:rgba(255,255,255,.50);
+  border:1px solid rgba(255,255,255,.74);
+  backdrop-filter:blur(16px);
+  box-shadow:0 20px 42px rgba(30,41,59,.08);
+  animation:login-float 8.6s ease-in-out infinite;
 }
+.login-seo-card:nth-child(2){animation-delay:-2.2s}
+.login-seo-card:nth-child(3){animation-delay:-4.7s}
 .login-seo-card strong{
   display:block;
   font-size:16px;
@@ -5397,47 +5501,105 @@ img{display:block;max-width:100%}
   position:relative;
   z-index:2;
   overflow:hidden;
-  background:rgba(255,255,255,.68);
-  backdrop-filter:blur(18px);
-  border:1px solid rgba(255,255,255,.72);
-  border-radius:34px;
-  padding:30px;
+  background:rgba(255,255,255,.72);
+  backdrop-filter:blur(22px);
+  border:1px solid rgba(255,255,255,.78);
+  border-radius:38px;
+  padding:34px;
   display:grid;
   gap:16px;
-  box-shadow:0 24px 60px rgba(20,86,140,.12);
-  animation:login-card-in .75s cubic-bezier(.2,.9,.2,1);
+  box-shadow:0 30px 84px rgba(20,86,140,.15);
+  animation:login-card-in .75s cubic-bezier(.2,.9,.2,1) both, login-card-drift 11s ease-in-out infinite 1.1s;
+}
+.login-card::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.28) 0%, transparent 34%),
+    linear-gradient(135deg, transparent 55%, rgba(56,189,248,.14) 100%);
+  pointer-events:none;
+  opacity:.9;
+  animation:login-pan 12s linear infinite;
+}
+.login-card-top{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.login-card-badges{
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:8px;
+}
+.login-card-badge{
+  padding:7px 11px;
+  border-radius:999px;
+  border:1px solid rgba(22,144,245,.12);
+  background:rgba(22,144,245,.08);
+  color:#1277da;
+  font-size:11px;
+  letter-spacing:.12em;
+  text-transform:lowercase;
+  animation:brand-drift 6s ease-in-out infinite;
+}
+.login-card-badge:nth-child(2){animation-delay:-1.8s}
+.login-card-glow{
+  position:absolute;
+  right:-18%;
+  bottom:-24%;
+  width:240px;
+  height:240px;
+  border-radius:50%;
+  background:radial-gradient(circle, rgba(56,189,248,.22), transparent 68%);
+  filter:blur(12px);
+  animation:aurora-drift 12s ease-in-out infinite alternate-reverse;
+  pointer-events:none;
 }
 .login-card-shine{
   position:absolute;
-  inset:-20% auto auto -30%;
-  width:180px;
-  height:180px;
-  background:radial-gradient(circle, rgba(255,255,255,.72), transparent 70%);
+  inset:-26% auto auto -22%;
+  width:220px;
+  height:220px;
+  background:radial-gradient(circle, rgba(255,255,255,.78), transparent 70%);
   opacity:.85;
   animation:login-shine 7s linear infinite;
   pointer-events:none;
 }
 .small-label{font-size:12px;color:var(--muted);letter-spacing:.16em;text-transform:uppercase}
 .login-title{font-size:30px;font-weight:800}
-.login-card label{display:grid;gap:8px}
+.login-card label{
+  display:grid;
+  gap:8px;
+  position:relative;
+  z-index:1;
+  animation:login-fade-up .8s ease both;
+}
+.login-card label:nth-of-type(1){animation-delay:.1s}
+.login-card label:nth-of-type(2){animation-delay:.18s}
 .login-card label span{font-size:13px;color:var(--muted)}
 .login-card input{
-  background:rgba(248,251,255,.9);
-  border:1px solid rgba(22,144,245,.12);
+  background:rgba(248,251,255,.88);
+  border:1px solid rgba(22,144,245,.14);
   color:var(--text);
   border-radius:18px;
   padding:15px 16px;
-  transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+  transition:border-color .2s ease, box-shadow .2s ease, transform .2s ease, background .2s ease;
 }
 .login-card input:focus{
   border-color:rgba(22,144,245,.45);
   box-shadow:0 0 0 4px rgba(22,144,245,.12), 0 14px 30px rgba(56,189,248,.12);
   transform:translateY(-1px);
+  background:rgba(255,255,255,.96);
 }
 .login-card .btn.primary{
   position:relative;
   overflow:hidden;
   min-height:54px;
+  z-index:1;
+  box-shadow:0 18px 38px rgba(22,144,245,.24);
 }
 .login-card .btn.primary::after{
   content:"";
@@ -5470,6 +5632,14 @@ img{display:block;max-width:100%}
   background:radial-gradient(circle, rgba(110,231,183,.28), rgba(56,189,248,.08) 58%, transparent 74%);
   animation:login-float 9s ease-in-out infinite reverse;
 }
+.orb-three{
+  width:320px;
+  height:320px;
+  right:6%;
+  bottom:-100px;
+  background:radial-gradient(circle, rgba(255,255,255,.42), rgba(56,189,248,.12) 48%, transparent 74%);
+  animation:login-float 10s ease-in-out infinite -3s;
+}
 .login-grid-line{
   position:absolute;
   inset:0;
@@ -5479,6 +5649,19 @@ img{display:block;max-width:100%}
   background-size:34px 34px;
   mask-image:radial-gradient(circle at center, black 36%, transparent 88%);
   pointer-events:none;
+  opacity:.9;
+  animation:grid-drift 20s linear infinite;
+}
+.login-noise{
+  position:absolute;
+  inset:0;
+  background-image:radial-gradient(rgba(255,255,255,.65) .8px, transparent .8px);
+  background-size:24px 24px;
+  opacity:.12;
+  mix-blend-mode:screen;
+  pointer-events:none;
+  z-index:1;
+  animation:noise-shift 24s linear infinite;
 }
 .login-loading{
   position:absolute;
@@ -5495,6 +5678,34 @@ img{display:block;max-width:100%}
 .login-loading span{
   font-size:14px;
   color:var(--muted);
+}
+.login-card-footer{
+  position:relative;
+  z-index:1;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding-top:8px;
+  color:var(--muted);
+  font-size:13px;
+}
+.login-card-pulse{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  color:#0f766e;
+  font-weight:700;
+  text-transform:lowercase;
+}
+.login-card-pulse::before{
+  content:"";
+  width:8px;
+  height:8px;
+  border-radius:999px;
+  background:#2dd4bf;
+  box-shadow:0 0 0 0 rgba(45,212,191,.55);
+  animation:signal-ping 1.8s ease-out infinite;
 }
 .login-loader-ring{
   width:58px;
@@ -6783,21 +6994,34 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   height:42px;
 }
 @media (max-width: 1100px){
-  .login-page,.app-shell,.stats-grid,.two-grid,.form-grid{grid-template-columns:1fr}
+  .login-shell,.app-shell,.stats-grid,.two-grid,.form-grid{grid-template-columns:1fr}
   .main-area{padding:14px}
+  .login-page{padding:18px}
   .topbar h1{font-size:28px}
   .hero-banner h1{font-size:34px}
   .login-copy h1{font-size:46px}
   .login-copy h2{font-size:24px}
+  .login-copy{padding-inline:0;max-width:none}
   .login-logo-lockup{margin-top:18px}
   .login-logo-image{width:64px;height:64px}
+  .login-status-row{margin-top:20px}
   .login-feature-row{grid-template-columns:1fr}
   .login-seo-grid{grid-template-columns:1fr}
+  .login-card{width:min(100%, 620px)}
   .permission-grid{grid-template-columns:1fr}
   .media-grid{grid-template-columns:1fr}
   .detail-grid{grid-template-columns:1fr}
   .chat-layout{grid-template-columns:1fr}
   .workflow-strip{grid-template-columns:1fr 1fr}
+}
+@media (max-width: 720px){
+  .login-shell{min-height:auto}
+  .brand-kicker{letter-spacing:.12em}
+  .login-copy h1{font-size:40px}
+  .login-copy h2{font-size:21px}
+  .login-card{padding:24px;border-radius:30px}
+  .login-card-top,.login-card-footer{flex-direction:column;align-items:flex-start}
+  .login-card-badges{justify-content:flex-start}
 }
 @keyframes login-fade-up{
   from{opacity:0;transform:translateY(18px)}
@@ -6837,6 +7061,43 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
 @keyframes button-shimmer{
   0%{transform:translateX(-130%)}
   55%,100%{transform:translateX(130%)}
+}
+@keyframes aurora-drift{
+  0%{transform:translate3d(-2%, -1%, 0) scale(1)}
+  50%{transform:translate3d(2%, 2%, 0) scale(1.04)}
+  100%{transform:translate3d(-1%, 3%, 0) scale(1.02)}
+}
+@keyframes login-pan{
+  0%{transform:translateX(-28%)}
+  100%{transform:translateX(28%)}
+}
+@keyframes headline-wave{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-4px)}
+}
+@keyframes brand-drift{
+  0%,100%{transform:translateY(0)}
+  50%{transform:translateY(-6px)}
+}
+@keyframes login-card-drift{
+  0%,100%{transform:translateY(0) rotate(0deg)}
+  50%{transform:translateY(-10px) rotate(-.35deg)}
+}
+@keyframes grid-drift{
+  0%{background-position:0 0, 0 0}
+  100%{background-position:34px 34px, 34px 34px}
+}
+@keyframes noise-shift{
+  0%{transform:translate3d(0,0,0)}
+  25%{transform:translate3d(8px,-6px,0)}
+  50%{transform:translate3d(-6px,8px,0)}
+  75%{transform:translate3d(10px,4px,0)}
+  100%{transform:translate3d(0,0,0)}
+}
+@keyframes signal-ping{
+  0%{box-shadow:0 0 0 0 rgba(45,212,191,.55)}
+  70%{box-shadow:0 0 0 10px rgba(45,212,191,0)}
+  100%{box-shadow:0 0 0 0 rgba(45,212,191,0)}
 }
 @keyframes panel-in{
   from{opacity:0;transform:translateY(10px)}

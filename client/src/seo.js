@@ -1,5 +1,5 @@
 export const DEFAULT_SITE_URL = "https://smm-admin-panel-fron-production.up.railway.app";
-export const DEFAULT_SEO_TITLE = "Aloo SMM Panel";
+export const DEFAULT_SEO_TITLE = "aloo SMM Panel";
 export const DEFAULT_SEO_DESCRIPTION = "SMM va marketing boshqaruv tizimi";
 
 function normalizeSiteUrl(value) {

@@ -1,4 +1,4 @@
-# Aloo SMM Panel
+# aloo SMM Panel
 > SMM va marketing boshqaruv tizimi
 
 URL: https://smm-admin-panel-fron-production.up.railway.app/
