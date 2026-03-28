@@ -750,6 +750,25 @@ function rowMatchesSearch(fields = [], search = "") {
   return fields.some((field) => String(field || "").toLowerCase().includes(query));
 }
 
+const CONTENT_TYPE_OPTIONS = [
+  { value: "post", label: "Post" },
+  { value: "story", label: "Story" },
+  { value: "reels", label: "Reels" },
+  { value: "video", label: "Video" },
+  { value: "mobi-video", label: "Mobi-video" },
+  { value: "banner", label: "Banner" },
+  { value: "flayer", label: "Flayer" },
+  { value: "dokon-dizayni", label: "Do'kon dizayni" },
+  { value: "boshqa-ishlar", label: "Boshqa ishlar" },
+  { value: "aloo-uz-sayti", label: "aloo.uz sayti" },
+  { value: "boshqalar", label: "Boshqalar" }
+];
+
+function formatContentType(value) {
+  const match = CONTENT_TYPE_OPTIONS.find((item) => item.value === value);
+  return match?.label || value || "-";
+}
+
 const LOGIN_LOGO =
   'data:image/svg+xml;utf8,' +
   encodeURIComponent(`
@@ -1507,12 +1526,9 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
           <label>
             <span>Kontent turi</span>
             <select value={form.content_type} onChange={(e) => setField("content_type", e.target.value)} disabled={formLocked}>
-              <option value="post">Post</option>
-              <option value="story">Story</option>
-              <option value="reels">Reels</option>
-              <option value="video">Video</option>
-              <option value="mobi-video">Mobi-video</option>
-              <option value="banner">Banner</option>
+              {CONTENT_TYPE_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
             </select>
           </label>
 
@@ -1615,7 +1631,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                     <td>{formatDate(row.publish_date)}</td>
                     <td><span className={approvalStatusClass(row.status)}>{formatApprovalStatus(row.status)}</span></td>
                     <td>{row.platform || "-"}</td>
-                    <td>{row.content_type || "-"}</td>
+                    <td>{formatContentType(row.content_type)}</td>
                     <td>
                       {row.content_type === "video"
                         ? `${row.video_editor_name || "-"} / ${row.video_face_name || "-"}`
@@ -1719,7 +1735,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               <div><strong>Sana:</strong> {formatDate(viewRow.publish_date)}</div>
               <div><strong>Holati:</strong> <span className={approvalStatusClass(viewRow.status)}>{formatApprovalStatus(viewRow.status)}</span></div>
               <div><strong>Platforma:</strong> {viewRow.platform || "-"}</div>
-              <div><strong>Turi:</strong> {viewRow.content_type || "-"}</div>
+              <div><strong>Turi:</strong> {formatContentType(viewRow.content_type)}</div>
               <div><strong>Bonus:</strong> {viewRow.bonus_enabled ? "Ha" : "Yo'q"}</div>
               <div><strong>Taklif soni:</strong> {viewRow.proposal_count || 0}</div>
               <div><strong>Tasdiq soni:</strong> {viewRow.approved_count || 0}</div>
@@ -2317,12 +2333,9 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
           <label>
             <span>Kontent turi</span>
             <select value={form.content_type} onChange={(e) => setField("content_type", e.target.value)} disabled={bonusFormLocked}>
-              <option value="post">Post</option>
-              <option value="story">Story</option>
-              <option value="reels">Reels</option>
-              <option value="video">Video</option>
-              <option value="mobi-video">Mobi-video</option>
-              <option value="banner">Banner</option>
+              {CONTENT_TYPE_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
             </select>
           </label>
 
@@ -2479,7 +2492,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                     <tr key={row.id} className={difficultyMeta.rowClass}>
                       <td>{row.content_title || "-"}</td>
                       <td>{formatDate(row.work_date)}</td>
-                      <td>{row.content_type || "-"}</td>
+                      <td>{formatContentType(row.content_type)}</td>
                       <td>{getBonusAssigneeLabel(row)}</td>
                       <td><span className={difficultyMeta.badgeClass}>{difficultyMeta.label}</span></td>
                       <td>{row.proposal_count || 0}</td>
@@ -2545,7 +2558,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                       <tr key={`approval-${row.id}`} className={difficultyMeta.rowClass}>
                         <td>{row.content_title || "-"}</td>
                         <td>{formatDate(row.work_date)}</td>
-                        <td>{row.content_type || "-"}</td>
+                        <td>{formatContentType(row.content_type)}</td>
                         <td>{getBonusAssigneeLabel(row)}</td>
                         <td><span className={difficultyMeta.badgeClass}>{difficultyMeta.label}</span></td>
                         <td>{row.proposal_count || 0}</td>
@@ -2635,7 +2648,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
             <div className="detail-grid">
               <div><strong>Kontent nomi:</strong> {viewRow.content_title || "-"}</div>
               <div><strong>Sana:</strong> {formatDate(viewRow.work_date)}</div>
-              <div><strong>Turi:</strong> {viewRow.content_type || "-"}</div>
+              <div><strong>Turi:</strong> {formatContentType(viewRow.content_type)}</div>
               <div><strong>Hodim / Video:</strong> {getBonusAssigneeLabel(viewRow)}</div>
               <div><strong>Kontent holati:</strong> {getBonusDifficultyMeta(viewRow).label}</div>
               <div><strong>Taklif:</strong> {viewRow.proposal_count || 0}</div>
@@ -5235,7 +5248,14 @@ function AiAssistantPage({ branches = [], onToast }) {
         <SectionTitle title="AI yordamchi" desc="Sarlavha, caption, ssenariy va g'oya generator" />
         <div className="form-grid">
           <label><span>Mode</span><select value={mode} onChange={(e) => setMode(e.target.value)}><option value="ideas">ideas</option><option value="title">title</option><option value="caption">caption</option><option value="script">script</option><option value="hook">hook</option><option value="cta">cta</option><option value="plan">plan</option></select></label>
-          <label><span>Kontent turi</span><select value={contentType} onChange={(e) => setContentType(e.target.value)}><option value="reels">reels</option><option value="video">video</option><option value="mobi-video">mobi-video</option><option value="story">story</option><option value="post">post</option></select></label>
+          <label>
+            <span>Kontent turi</span>
+            <select value={contentType} onChange={(e) => setContentType(e.target.value)}>
+              {CONTENT_TYPE_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+          </label>
           <label><span>Filial</span><select value={branchName} onChange={(e) => setBranchName(e.target.value)}><option value="">Tanlang</option>{branches.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select></label>
           <label className="full-col"><span>Mavzu</span><textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} /></label>
           <button className="btn primary" type="button" onClick={async () => {
