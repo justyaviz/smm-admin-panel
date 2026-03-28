@@ -31,6 +31,7 @@ import {
   X
 } from "lucide-react";
 import { io } from "socket.io-client";
+import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api, clearAuth, getAuthToken, getCurrentUser, SOCKET_BASE } from "./api";
 
 const MENU = [
@@ -320,6 +321,20 @@ function DiscussionPanel({ entityType, entityId, onToast }) {
     }
   }
 
+  function renderAttachmentPreview(item) {
+    const mime = String(item.mime_type || "");
+    if (mime.startsWith("image/")) {
+      return <img src={item.file_url} alt={item.original_name} className="attachment-preview-image" />;
+    }
+    if (mime.startsWith("video/")) {
+      return <video src={item.file_url} className="attachment-preview-video" controls preload="metadata" />;
+    }
+    if (mime.includes("pdf")) {
+      return <iframe title={item.original_name} src={item.file_url} className="attachment-preview-pdf" />;
+    }
+    return <div className="attachment-preview-generic">{mime || "FILE"}</div>;
+  }
+
   return (
     <div className="discussion-panel">
       <div className="discussion-col">
@@ -343,6 +358,7 @@ function DiscussionPanel({ entityType, entityId, onToast }) {
         <div className="discussion-list">
           {attachments.length ? attachments.map((item) => (
             <a key={item.id} href={item.file_url} target="_blank" rel="noreferrer" className="attachment-item">
+              {renderAttachmentPreview(item)}
               <strong>{item.original_name}</strong>
               <span>{item.mime_type || "file"}</span>
             </a>
@@ -554,6 +570,8 @@ function approvalStatusMeta(status, kind = "content") {
     tasvirga_olindi: { label: "Jarayonda", tone: "doing" },
     joylangan: { label: "Yakunlandi", tone: "done" },
     yakunlandi: { label: "Yakunlandi", tone: "done" },
+    qayta_ishlash: { label: "Qayta ishlash", tone: "warning" },
+    rad_etildi: { label: "Rad etildi", tone: "cancelled" },
     bekor_qilingan: { label: "Bekor qilingan", tone: "cancelled" }
   };
   const travelMap = {
@@ -561,7 +579,9 @@ function approvalStatusMeta(status, kind = "content") {
     tasdiqlandi: { label: "Tasdiqlandi", tone: "warning" },
     jarayonda: { label: "Jarayonda", tone: "doing" },
     tasvirga_olindi: { label: "Jarayonda", tone: "doing" },
-    yakunlandi: { label: "Yakunlandi", tone: "done" }
+    yakunlandi: { label: "Yakunlandi", tone: "done" },
+    qayta_ishlash: { label: "Qayta ishlash", tone: "warning" },
+    rad_etildi: { label: "Rad etildi", tone: "cancelled" }
   };
   const map = kind === "travel" ? travelMap : contentMap;
   return map[normalized] || { label: status || "-", tone: "default" };
@@ -1114,6 +1134,8 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
     reja: rows.filter((item) => item.status === "reja").length,
     tasdiqlandi: rows.filter((item) => item.status === "tasdiqlandi").length,
     jarayonda: rows.filter((item) => ["jarayonda", "tayyorlanmoqda", "tayyor"].includes(item.status)).length,
+    qayta_ishlash: rows.filter((item) => item.status === "qayta_ishlash").length,
+    rad_etildi: rows.filter((item) => item.status === "rad_etildi").length,
     yakunlandi: rows.filter((item) => ["yakunlandi", "joylangan"].includes(item.status)).length
   };
 
@@ -1304,6 +1326,8 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
               <option value="reja">Reja</option>
               <option value="tasdiqlandi">Tasdiqlandi</option>
               <option value="jarayonda">Jarayonda</option>
+              <option value="qayta_ishlash">Qayta ishlash</option>
+              <option value="rad_etildi">Rad etildi</option>
               <option value="yakunlandi">Yakunlandi</option>
               <option value="bekor_qilingan">Bekor qilingan</option>
             </select>
@@ -1416,7 +1440,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
       <div className="card">
         <SectionTitle title="Approval workflow" desc="Kontent bo'limi uchun keyingi bosqich signalari" />
         <div className="workflow-strip">
-          {["reja", "tasdiqlandi", "jarayonda", "yakunlandi"].map((statusKey) => (
+          {["reja", "tasdiqlandi", "jarayonda", "qayta_ishlash", "rad_etildi", "yakunlandi"].map((statusKey) => (
             <div key={statusKey} className={`workflow-step ${approvalStatusMeta(statusKey).tone}`}>
               <span className={approvalStatusClass(statusKey)}>{formatApprovalStatus(statusKey)}</span>
               <strong>{workflowCounts[statusKey] || 0}</strong>
@@ -1534,6 +1558,8 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
               { id: "reja", label: "Reja", tone: "default" },
               { id: "tasdiqlandi", label: "Tasdiqlandi", tone: "warning" },
               { id: "jarayonda", label: "Jarayonda", tone: "info" },
+              { id: "qayta_ishlash", label: "Qayta ishlash", tone: "warning" },
+              { id: "rad_etildi", label: "Rad etildi", tone: "danger" },
               { id: "yakunlandi", label: "Yakunlandi", tone: "success" }
             ]}
             rows={rows.map((item) => ({
@@ -3471,6 +3497,8 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
   const [form, setForm] = useState(settings || {});
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
+  const [backupPreview, setBackupPreview] = useState(null);
+  const [pendingPayload, setPendingPayload] = useState(null);
 
   useEffect(() => {
     setForm(settings || {});
@@ -3550,9 +3578,9 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
                 setImporting(true);
                 const text = await file.text();
                 const payload = JSON.parse(text);
-                await api.create("backup/import", { payload });
-                alert("Backup restore muvaffaqiyatli tugadi");
-                window.location.reload();
+                const preview = await api.create("backup/preview", { payload });
+                setPendingPayload(payload);
+                setBackupPreview(preview);
               } catch (err) {
                 alert(err.message || "Backup restore bo'lmadi");
               } finally {
@@ -3562,6 +3590,48 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
             }}
           />
         </div>
+        {backupPreview ? (
+          <div className="backup-preview-card">
+            <h4>Restore preview</h4>
+            <div className="quick-list">
+              <div className="quick-item">Jadvallar: <strong>{backupPreview.total_tables}</strong></div>
+              <div className="quick-item">Yangilanadigan yozuvlar: <strong>{backupPreview.total_replace}</strong></div>
+              <div className="quick-item">Kiritiladigan yozuvlar: <strong>{backupPreview.total_insert}</strong></div>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Jadval</th><th>Hozirgi</th><th>Keladigan</th><th>O'chadi</th></tr></thead>
+                <tbody>
+                  {(backupPreview.tables || []).map((row) => (
+                    <tr key={row.table}>
+                      <td>{row.table}</td>
+                      <td>{row.current_count}</td>
+                      <td>{row.incoming_count}</td>
+                      <td>{row.rows_to_replace}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="toolbar-actions">
+              <button className="btn secondary" type="button" onClick={() => { setBackupPreview(null); setPendingPayload(null); }}>Bekor qilish</button>
+              <button className="btn primary" type="button" onClick={async () => {
+                try {
+                  setImporting(true);
+                  await api.create("backup/import", { payload: pendingPayload });
+                  alert("Backup restore muvaffaqiyatli tugadi");
+                  window.location.reload();
+                } catch (err) {
+                  alert(err.message || "Backup restore bo'lmadi");
+                } finally {
+                  setImporting(false);
+                }
+              }}>
+                Confirm restore
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -3836,6 +3906,8 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
     reja: filteredTravelPlans.filter((item) => item.status === "reja").length,
     tasdiqlandi: filteredTravelPlans.filter((item) => item.status === "tasdiqlandi").length,
     jarayonda: filteredTravelPlans.filter((item) => ["jarayonda", "tasvirga_olindi"].includes(item.status)).length,
+    qayta_ishlash: filteredTravelPlans.filter((item) => item.status === "qayta_ishlash").length,
+    rad_etildi: filteredTravelPlans.filter((item) => item.status === "rad_etildi").length,
     yakunlandi: filteredTravelPlans.filter((item) => item.status === "yakunlandi").length
   };
 
@@ -3849,7 +3921,7 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
           <label><span>Qaysi video olinadi</span><input value={form.video_title} onChange={(e) => setField("video_title", e.target.value)} required /></label>
           <label><span>Kimlar ishtirok etadi</span><input value={form.participants_text} onChange={(e) => setField("participants_text", e.target.value)} placeholder="Ismlar vergul bilan" /></label>
           <label><span>Videodek URL</span><input value={form.videodek_url} onChange={(e) => setField("videodek_url", e.target.value)} placeholder="https://..." /></label>
-          <label><span>Status</span><select value={form.status} onChange={(e) => setField("status", e.target.value)}><option value="reja">Reja</option><option value="tasdiqlandi">Tasdiqlandi</option><option value="jarayonda">Jarayonda</option><option value="yakunlandi">Yakunlandi</option></select></label>
+          <label><span>Status</span><select value={form.status} onChange={(e) => setField("status", e.target.value)}><option value="reja">Reja</option><option value="tasdiqlandi">Tasdiqlandi</option><option value="jarayonda">Jarayonda</option><option value="qayta_ishlash">Qayta ishlash</option><option value="rad_etildi">Rad etildi</option><option value="yakunlandi">Yakunlandi</option></select></label>
           <label className="full-col"><span>Ssenariy</span><input value={form.scenario_text} onChange={(e) => setField("scenario_text", e.target.value)} placeholder="Qisqa ssenariy yoki outline" /></label>
           <label><span>Budget</span><input type="number" min="0" value={form.budget_amount} onChange={(e) => setField("budget_amount", Number(e.target.value))} /></label>
           <label><span>Transport</span><input value={form.transport_text} onChange={(e) => setField("transport_text", e.target.value)} /></label>
@@ -3865,7 +3937,7 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
       <div className="card">
         <SectionTitle title="Safar rejalari" right={<select value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}><option value="">Barcha filiallar</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>} />
         <div className="workflow-strip">
-          {["reja", "tasdiqlandi", "jarayonda", "yakunlandi"].map((statusKey) => (
+          {["reja", "tasdiqlandi", "jarayonda", "qayta_ishlash", "rad_etildi", "yakunlandi"].map((statusKey) => (
             <div key={statusKey} className={`workflow-step ${approvalStatusMeta(statusKey, "travel").tone}`}>
               <span className={approvalStatusClass(statusKey, "travel")}>{formatApprovalStatus(statusKey, "travel")}</span>
               <strong>{travelWorkflowCounts[statusKey] || 0}</strong>
@@ -4009,8 +4081,36 @@ function AnalyticsPage({ analyticsData }) {
   return (
     <div className="page-grid">
       <div className="two-grid">
-        <div className="card"><SectionTitle title="Bonus trend" /><div className="bar-chart">{bonusSeries.map((i) => <div key={i.month_label} className="bar-item"><span>{i.month_label}</span><div className="bar-track"><i style={{ width: `${Math.max(Number(i.total) / Math.max(...bonusSeries.map((x) => Number(x.total || 0)), 1) * 100, 8)}%` }} /></div><strong>{formatMoney(i.total)}</strong></div>)}</div></div>
-        <div className="card"><SectionTitle title="Reklama sarfi" /><div className="bar-chart">{spendSeries.map((i) => <div key={i.month_label} className="bar-item"><span>{i.month_label}</span><div className="bar-track branch"><i style={{ width: `${Math.max(Number(i.total) / Math.max(...spendSeries.map((x) => Number(x.total || 0)), 1) * 100, 8)}%` }} /></div><strong>{formatMoney(i.total)}</strong></div>)}</div></div>
+        <div className="card">
+          <SectionTitle title="Bonus trend" />
+          <div className="chart-shell">
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={bonusSeries}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,.25)" />
+                <XAxis dataKey="month_label" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatMoney(value)} />
+                <Line type="monotone" dataKey="total" stroke="#1690F5" strokeWidth={3} dot={{ r: 4 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+        <div className="card">
+          <SectionTitle title="Reklama sarfi" />
+          <div className="chart-shell">
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={spendSeries}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148,163,184,.25)" />
+                <XAxis dataKey="month_label" />
+                <YAxis />
+                <Tooltip formatter={(value) => formatMoney(value)} />
+                <Bar dataKey="total" radius={[10, 10, 0, 0]}>
+                  {spendSeries.map((_, index) => <Cell key={`cell-${index}`} fill={index % 2 ? "#6dd5fa" : "#1690F5"} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </div>
       <div className="two-grid">
         <div className="card"><SectionTitle title="Kontent statuslari" /><div className="quick-list">{statuses.map((i) => <div key={i.status} className="quick-item">{formatApprovalStatus(i.status)}: <strong>{i.count}</strong></div>)}</div></div>
@@ -6366,6 +6466,40 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   padding:18px;
   white-space:pre-wrap;
   line-height:1.6;
+}
+.chart-shell{
+  width:100%;
+  height:280px;
+}
+.backup-preview-card{
+  margin-top:18px;
+  border:1px solid var(--line);
+  background:var(--soft);
+  border-radius:18px;
+  padding:18px;
+  display:grid;
+  gap:14px;
+}
+.attachment-preview-image,
+.attachment-preview-video,
+.attachment-preview-pdf{
+  width:100%;
+  border-radius:12px;
+  border:1px solid var(--line);
+  background:#fff;
+  min-height:120px;
+  object-fit:cover;
+}
+.attachment-preview-video{max-height:180px}
+.attachment-preview-pdf{height:180px}
+.attachment-preview-generic{
+  border:1px dashed var(--line);
+  border-radius:12px;
+  min-height:90px;
+  display:grid;
+  place-items:center;
+  color:var(--muted);
+  font-weight:700;
 }
 .install-pill{
   background:linear-gradient(135deg,#1690F5,#6dd5fa);
