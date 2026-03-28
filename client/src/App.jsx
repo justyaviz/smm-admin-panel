@@ -36,6 +36,7 @@ import {
 import { io } from "socket.io-client";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api, API_BASE, clearAuth, getAuthToken, getCurrentUser, SOCKET_BASE } from "./api";
+import { applySeo } from "./seo";
 
 const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: Home },
@@ -4587,6 +4588,10 @@ function App() {
     localStorage.setItem("aloo_theme", theme);
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    applySeo(settings);
+  }, [settings]);
 
   useEffect(() => {
     function handleBeforeInstallPrompt(event) {

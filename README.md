@@ -39,6 +39,7 @@ npm run dev
 Ixtiyoriy:
 
 - `VITE_API_BASE=http://localhost:8080`
+- `VITE_SITE_URL=https://smm-admin-panel-fron-production.up.railway.app`
 
 ## Tekshiruv
 
