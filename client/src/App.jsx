@@ -1152,12 +1152,6 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
     face_voice_user_id: "",
     proposal_count: "",
     approved_count: "",
-    branch_ids_json: [],
-    scenario_text: "",
-    shot_list_text: "",
-    preview_url: "",
-    final_url: "",
-    edit_file_url: "",
     approval_comment: "",
     content_template: "custom",
     idea_score: 0,
@@ -1230,12 +1224,6 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
       face_voice_user_id: row.video_face_user_id || "",
       proposal_count: row.proposal_count ?? "",
       approved_count: row.approved_count ?? "",
-      branch_ids_json: Array.isArray(row.branch_ids_json) ? row.branch_ids_json : [],
-      scenario_text: row.scenario_text || "",
-      shot_list_text: row.shot_list_text || "",
-      preview_url: row.preview_url || "",
-      final_url: row.final_url || "",
-      edit_file_url: row.edit_file_url || "",
       approval_comment: row.approval_comment || "",
       content_template: row.content_template || "custom",
       idea_score: row.idea_score || 0,
@@ -1284,12 +1272,6 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
         proposal_count: bonusMode ? Number(form.proposal_count || 0) : 0,
         approved_count: bonusMode ? Number(form.approved_count || 0) : 0,
         notes: "",
-        branch_ids_json: form.branch_ids_json || [],
-        scenario_text: form.scenario_text || "",
-        shot_list_text: form.shot_list_text || "",
-        preview_url: form.preview_url || "",
-        final_url: form.final_url || "",
-        edit_file_url: form.edit_file_url || "",
         approval_comment: form.approval_comment || "",
         content_template: form.content_template || "custom",
         idea_score: Number(form.idea_score || 0),
@@ -1322,7 +1304,13 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
     if (!ok) return;
 
     try {
-      await api.remove("content", id);
+      const numericId = Number(id);
+      if (!numericId) {
+        onToast("Kontent ID topilmadi", "error");
+        return;
+      }
+      await api.remove("content", numericId);
+      setRows((prev) => prev.filter((row) => Number(row.id) !== numericId));
       await loadMonth(selectedMonth);
       await reload();
       onToast("Kontent oвЂchirildi", "success");
@@ -1808,7 +1796,12 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
     const ok = window.confirm("Rostdan ham oвЂchirilsinmi?");
     if (!ok) return;
     try {
-      await api.remove("bonus-items", id);
+      const numericId = Number(id);
+      if (!numericId) {
+        onToast("Bonus ID topilmadi", "error");
+        return;
+      }
+      await api.remove("bonus-items", numericId);
       await reload();
       onToast("Bonus yozuvi oвЂchirildi", "success");
     } catch (err) {
