@@ -3,6 +3,7 @@ import {
   Bot,
   BarChart3,
   Bell,
+  Clock3,
   CreditCard,
   Eye,
   FileBarChart2,
@@ -14,6 +15,7 @@ import {
   LogOut,
   MessageCircle,
   Megaphone,
+  Mic,
   Moon,
   MapPinned,
   Repeat2,
@@ -23,6 +25,7 @@ import {
   Send,
   Settings,
   SunMedium,
+  SmilePlus,
   Trash2,
   Upload,
   User,
@@ -43,6 +46,8 @@ const MENU = [
   { id: "travelPlans", title: "Safar rejasi", icon: MapPinned },
   { id: "reports", title: "Advanced report", icon: FileBarChart2 },
   { id: "analytics", title: "Analytics", icon: BarChart3 },
+  { id: "postingInsights", title: "Posting insights", icon: Clock3 },
+  { id: "moodPulse", title: "Mood pulse", icon: SmilePlus },
   { id: "employeeKpi", title: "Employee KPI", icon: UsersIcon },
   { id: "health", title: "Health", icon: ShieldCheck },
   { id: "recurring", title: "Recurring", icon: Repeat2 },
@@ -77,6 +82,8 @@ const PERMISSION_OPTIONS = [
   { id: "travelPlans", label: "Safar rejasi" },
   { id: "reports", label: "Advanced report" },
   { id: "analytics", label: "Analytics" },
+  { id: "postingInsights", label: "Posting insights" },
+  { id: "moodPulse", label: "Mood pulse" },
   { id: "employeeKpi", label: "Employee KPI" },
   { id: "health", label: "Health" },
   { id: "recurring", label: "Recurring" },
@@ -1466,21 +1473,6 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
             </>
           ) : null}
 
-          <label className="full-col">
-            <span>Filiallar</span>
-            <select
-              multiple
-              value={form.branch_ids_json || []}
-              onChange={(e) => setField("branch_ids_json", Array.from(e.target.selectedOptions).map((item) => Number(item.value)))}
-            >
-              {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </select>
-          </label>
-          <label className="full-col"><span>Ssenariy</span><textarea value={form.scenario_text} onChange={(e) => setField("scenario_text", e.target.value)} rows={3} /></label>
-          <label className="full-col"><span>Shot list</span><textarea value={form.shot_list_text} onChange={(e) => setField("shot_list_text", e.target.value)} rows={3} /></label>
-          <label><span>Preview URL</span><input value={form.preview_url} onChange={(e) => setField("preview_url", e.target.value)} /></label>
-          <label><span>Final link</span><input value={form.final_url} onChange={(e) => setField("final_url", e.target.value)} /></label>
-          <label><span>Montaj fayli</span><input value={form.edit_file_url} onChange={(e) => setField("edit_file_url", e.target.value)} /></label>
           <label className="full-col"><span>Approval izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} placeholder="Tasdiqlash yoki qayta ishlash bo'yicha izoh" /></label>
           <label><span>Idea score</span><input type="number" min="0" max="10" value={form.idea_score} onChange={(e) => setField("idea_score", e.target.value)} /></label>
           <label><span>Visual score</span><input type="number" min="0" max="10" value={form.visual_score} onChange={(e) => setField("visual_score", e.target.value)} /></label>
@@ -1673,10 +1665,6 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
               <div><strong>Taklif soni:</strong> {viewRow.proposal_count || 0}</div>
               <div><strong>Tasdiq soni:</strong> {viewRow.approved_count || 0}</div>
               <div className="full-col"><strong>Approval izohi:</strong> {viewRow.approval_comment || "-"}</div>
-              <div className="full-col"><strong>Ssenariy:</strong> {viewRow.scenario_text || "-"}</div>
-              <div className="full-col"><strong>Shot list:</strong> {viewRow.shot_list_text || "-"}</div>
-              <div className="full-col"><strong>Preview URL:</strong> {viewRow.preview_url || "-"}</div>
-              <div className="full-col"><strong>Final link:</strong> {viewRow.final_url || "-"}</div>
             </div>
             <DiscussionPanel entityType="content" entityId={viewRow.id} onToast={onToast} />
           </>
@@ -2866,6 +2854,9 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
   const [editRow, setEditRow] = useState(null);
   const [viewMode, setViewMode] = useState("table");
   const [selectedMonth, setSelectedMonth] = useState(getMonthLabel());
+  const [voiceDraft, setVoiceDraft] = useState("");
+  const [recording, setRecording] = useState(false);
+  const recognitionRef = useRef(null);
   const isPrivileged = user?.role === "admin" || user?.role === "manager";
 
   const emptyForm = {
@@ -2921,6 +2912,39 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
       setForm((prev) => ({ ...prev, assignee_user_id: user?.id || "" }));
     }
   }, [isPrivileged, user]);
+
+  function handleVoiceTask() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      onToast("Brauzer voice recognition qo'llab-quvvatlamaydi", "error");
+      return;
+    }
+    if (recognitionRef.current && recording) {
+      recognitionRef.current.stop();
+      return;
+    }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "uz-UZ";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+    recognitionRef.current = recognition;
+    recognition.onstart = () => setRecording(true);
+    recognition.onend = () => setRecording(false);
+    recognition.onerror = () => {
+      setRecording(false);
+      onToast("Ovozdan task olishda xatolik", "error");
+    };
+    recognition.onresult = (event) => {
+      const transcript = Array.from(event.results).map((item) => item[0]?.transcript || "").join(" ").trim();
+      setVoiceDraft(transcript);
+      setForm((prev) => ({
+        ...prev,
+        title: prev.title || transcript.slice(0, 70),
+        description: transcript
+      }));
+    };
+    recognition.start();
+  }
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -3009,6 +3033,17 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
             </select>
           </label>
           <label className="full-col"><span>Izoh</span><input value={form.description} onChange={(e) => setField("description", e.target.value)} /></label>
+          <div className="full-col voice-task-card">
+            <div className="voice-task-head">
+              <strong>Voice to task</strong>
+              <button type="button" className={`btn ${recording ? "danger" : "secondary"}`} onClick={handleVoiceTask}>
+                <Mic size={16} />
+                {recording ? "To'xtatish" : "Mikrofon"}
+              </button>
+            </div>
+            <textarea rows={3} value={voiceDraft} onChange={(e) => setVoiceDraft(e.target.value)} placeholder="Ovozdan olingan task matni shu yerga tushadi" />
+            <div className="voice-task-hint">Mikrofon orqali gapiring, matn task nomi va izohiga tushadi.</div>
+          </div>
           <button className="btn primary" type="submit" disabled={saving}>
             {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Vazifa qo‘shish"}
           </button>
@@ -4367,6 +4402,115 @@ function HealthPage({ data = {} }) {
   );
 }
 
+function MoodPulsePage({ rows = [], user, onToast, reload }) {
+  const [moodScore, setMoodScore] = useState(3);
+  const [note, setNote] = useState("");
+  const recentRows = rows.slice(0, 20);
+  const avgMood = rows.length ? (rows.reduce((sum, row) => sum + Number(row.mood_score || 0), 0) / rows.length).toFixed(2) : "0.00";
+
+  return (
+    <div className="page-grid">
+      <div className="stats-grid">
+        <StatCard title="Jamoa kayfiyati" value={avgMood} hint="oxirgi yozuvlar bo'yicha" tone={Number(avgMood) >= 4 ? "success" : Number(avgMood) >= 3 ? "warning" : "danger"} />
+        <StatCard title="Mening bugungi holatim" value={moodScore} hint={user?.full_name || "hodim"} tone={moodScore >= 4 ? "success" : moodScore >= 3 ? "warning" : "danger"} />
+      </div>
+      <div className="card">
+        <SectionTitle title="Team mood pulse" desc="Bugungi holatingizni qoldiring" />
+        <div className="mood-picker">
+          {[1, 2, 3, 4, 5].map((score) => (
+            <button key={`mood-${score}`} type="button" className={`mood-pill ${moodScore === score ? "active" : ""}`} onClick={() => setMoodScore(score)}>
+              {score}
+            </button>
+          ))}
+        </div>
+        <div className="form-grid">
+          <label className="full-col"><span>Izoh</span><textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Bugungi holat, blok yoki kayfiyat..." /></label>
+          <button className="btn primary" type="button" onClick={async () => {
+            try {
+              await api.create("team-mood", { mood_score: moodScore, note });
+              setNote("");
+              await reload();
+              onToast("Mood pulse saqlandi", "success");
+            } catch (err) {
+              onToast(err.message || "Mood pulse saqlanmadi", "error");
+            }
+          }}>Saqlash</button>
+        </div>
+      </div>
+      <div className="card">
+        <SectionTitle title="So'nggi mood yozuvlari" />
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Hodim</th><th>Sana</th><th>Mood</th><th>Izoh</th></tr></thead>
+            <tbody>
+              {recentRows.length ? recentRows.map((row) => (
+                <tr key={`mood-row-${row.id}`}>
+                  <td>{row.full_name || "-"}</td>
+                  <td>{formatDate(row.entry_date)}</td>
+                  <td><span className={`mood-badge mood-${row.mood_score}`}>{row.mood_score}/5</span></td>
+                  <td>{row.note || "-"}</td>
+                </tr>
+              )) : <tr><td colSpan="4" className="empty-cell">Mood yozuvlari yo'q</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PostingInsightsPage({ data = {} }) {
+  const byHour = data?.by_hour || [];
+  const byDay = data?.by_day || [];
+  const bestHour = data?.best_hour;
+  const bestDay = data?.best_day;
+
+  return (
+    <div className="page-grid">
+      <div className="stats-grid">
+        <StatCard title="Eng yaxshi soat" value={bestHour ? `${bestHour.hour_label}:00` : "-"} hint={bestHour ? `Avg reach ${bestHour.avg_reach}` : "ma'lumot yo'q"} tone="info" />
+        <StatCard title="Eng yaxshi kun" value={bestDay?.day_label || "-"} hint={bestDay ? `Avg reach ${bestDay.avg_reach}` : "ma'lumot yo'q"} tone="success" />
+      </div>
+      <div className="two-grid">
+        <div className="card">
+          <SectionTitle title="Best posting time analyzer" desc="Soat kesimida natijalar" />
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Soat</th><th>Kontent</th><th>Avg reach</th></tr></thead>
+              <tbody>
+                {byHour.length ? byHour.map((row) => (
+                  <tr key={`hour-${row.hour_label}`}>
+                    <td>{row.hour_label}:00</td>
+                    <td>{row.content_count}</td>
+                    <td>{row.avg_reach}</td>
+                  </tr>
+                )) : <tr><td colSpan="3" className="empty-cell">Ma'lumot yo'q</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div className="card">
+          <SectionTitle title="Kun kesimidagi natija" />
+          <div className="table-wrap">
+            <table>
+              <thead><tr><th>Kun</th><th>Kontent</th><th>Avg reach</th></tr></thead>
+              <tbody>
+                {byDay.length ? byDay.map((row) => (
+                  <tr key={`day-${row.day_label}`}>
+                    <td>{row.day_label}</td>
+                    <td>{row.content_count}</td>
+                    <td>{row.avg_reach}</td>
+                  </tr>
+                )) : <tr><td colSpan="3" className="empty-cell">Ma'lumot yo'q</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FinanceDashboardPage({ expenses = [], campaigns = [], bonusItems = [], travelPlans = [], budgets = [], onToast, reload }) {
   const currentMonth = getMonthLabel();
   const [form, setForm] = useState({ month_label: currentMonth, category: "servis", limit_amount: "" });
@@ -4497,6 +4641,8 @@ function App() {
   const [executiveSummary, setExecutiveSummary] = useState(null);
   const [employeeKpi, setEmployeeKpi] = useState([]);
   const [healthData, setHealthData] = useState(null);
+  const [moodEntries, setMoodEntries] = useState([]);
+  const [postingInsights, setPostingInsights] = useState(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const unreadChatCount = (threads || []).reduce((sum, thread) => sum + Number(thread.unread_count || 0), 0);
 
@@ -4548,7 +4694,9 @@ function App() {
         topPerformersRes,
         executiveSummaryRes,
         employeeKpiRes,
-        healthRes
+        healthRes,
+        moodRes,
+        postingInsightsRes
       ] = await Promise.all([
         api.dashboard().catch(() => ({})),
         api.settings.get().catch(() => null),
@@ -4573,7 +4721,9 @@ function App() {
         api.list("/api/top-performers").catch(() => null),
         api.list("/api/executive-summary").catch(() => null),
         api.list("/api/employee-kpi").catch(() => []),
-        api.list("/api/health").catch(() => null)
+        api.list("/api/health").catch(() => null),
+        api.list("/api/team-mood").catch(() => []),
+        api.list("/api/analytics/posting-insights").catch(() => null)
       ]);
 
       setSummary(dashboardRes || {});
@@ -4600,6 +4750,8 @@ function App() {
       setExecutiveSummary(executiveSummaryRes || null);
       setEmployeeKpi(employeeKpiRes || []);
       setHealthData(healthRes || null);
+      setMoodEntries(moodRes || []);
+      setPostingInsights(postingInsightsRes || null);
     } catch (err) {
       console.error(err);
     }
@@ -4782,6 +4934,10 @@ function App() {
     page = <AdvancedReportsPage advancedReports={advancedReports} />;
   } else if (active === "analytics") {
     page = <AnalyticsPage analyticsData={{ ...(analyticsData || {}), employee_kpi: employeeKpi, executive_summary: executiveSummary?.text }} />;
+  } else if (active === "postingInsights") {
+    page = <PostingInsightsPage data={postingInsights} />;
+  } else if (active === "moodPulse") {
+    page = <MoodPulsePage rows={moodEntries} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "employeeKpi") {
     page = <EmployeeKpiPage rows={employeeKpi} />;
   } else if (active === "health") {
@@ -6805,6 +6961,55 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   background:linear-gradient(90deg,#1690F5,#6dd5fa);
   box-shadow:0 8px 18px rgba(22,144,245,.25);
 }
+.voice-task-card{
+  border:1px dashed var(--line);
+  border-radius:16px;
+  padding:14px;
+  background:var(--soft);
+  display:grid;
+  gap:10px;
+}
+.voice-task-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.voice-task-hint{
+  color:var(--muted);
+  font-size:13px;
+}
+.mood-picker{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.mood-pill{
+  min-width:52px;
+  height:52px;
+  border-radius:16px;
+  border:1px solid var(--line);
+  background:#fff;
+  font-weight:800;
+}
+.mood-pill.active{
+  background:linear-gradient(135deg,#1690F5,#6dd5fa);
+  color:#fff;
+  border-color:transparent;
+  box-shadow:0 12px 24px rgba(22,144,245,.22);
+}
+.mood-badge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:56px;
+  padding:6px 12px;
+  border-radius:999px;
+  font-weight:800;
+}
+.mood-1,.mood-2{background:rgba(239,68,68,.12);color:#b91c1c}
+.mood-3{background:rgba(245,158,11,.16);color:#b45309}
+.mood-4,.mood-5{background:rgba(16,185,129,.14);color:#047857}
 @media (max-width: 1100px){
   .kanban-board{grid-template-columns:1fr 1fr}
 }
