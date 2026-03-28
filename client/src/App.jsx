@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import { io } from "socket.io-client";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { api, clearAuth, getAuthToken, getCurrentUser, SOCKET_BASE } from "./api";
+import { api, API_BASE, clearAuth, getAuthToken, getCurrentUser, SOCKET_BASE } from "./api";
 
 const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: Home },
@@ -43,6 +43,8 @@ const MENU = [
   { id: "travelPlans", title: "Safar rejasi", icon: MapPinned },
   { id: "reports", title: "Advanced report", icon: FileBarChart2 },
   { id: "analytics", title: "Analytics", icon: BarChart3 },
+  { id: "employeeKpi", title: "Employee KPI", icon: UsersIcon },
+  { id: "health", title: "Health", icon: ShieldCheck },
   { id: "recurring", title: "Recurring", icon: Repeat2 },
   { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: FileBarChart2 },
   { id: "campaigns", title: "Reklama kampaniyalari", icon: Megaphone },
@@ -75,6 +77,8 @@ const PERMISSION_OPTIONS = [
   { id: "travelPlans", label: "Safar rejasi" },
   { id: "reports", label: "Advanced report" },
   { id: "analytics", label: "Analytics" },
+  { id: "employeeKpi", label: "Employee KPI" },
+  { id: "health", label: "Health" },
   { id: "recurring", label: "Recurring" },
   { id: "travelPlans_create", label: "Safar reja qo'shish" },
   { id: "travelPlans_edit", label: "Safar reja tahrirlash" },
@@ -313,6 +317,7 @@ function DiscussionPanel({ entityType, entityId, onToast }) {
       const attachmentsRes = await api.list(`/api/attachments/${entityType}/${entityId}`);
       setAttachments(attachmentsRes || []);
       setFile(null);
+      setTagText("");
       onToast?.("Fayl biriktirildi", "success");
     } catch (err) {
       onToast?.(err.message || "Fayl yuklab bo‘lmadi", "error");
@@ -907,6 +912,14 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   const maxContentPoint = Math.max(...contentSeries.map((item) => item.value), 1);
   const maxSpendPoint = Math.max(...spendSeries.map((item) => item.amount), 1);
   const maxBranchScore = Math.max(...branchKpis.map((item) => item.score), 1);
+  const smartAlerts = summary?.smart_alerts || [];
+  const approvalSlaBreaches = [...(contentRows || []), ...(travelPlans || [])].filter((row) => {
+    const status = String(row.status || "");
+    if (["tasdiqlandi", "yakunlandi", "joylangan", "published", "approved", "archived"].includes(status)) return false;
+    const createdAt = new Date(row.created_at || row.plan_date || row.publish_date || Date.now());
+    if (Number.isNaN(createdAt.getTime())) return false;
+    return (Date.now() - createdAt.getTime()) / 3600000 >= 48;
+  }).length;
 
   return (
     <div className="page-grid">
@@ -915,8 +928,23 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
           <div className="small-label">Boshqaruv markazi</div>
           <h1>{heroTitle}</h1>
           <p>{heroText}</p>
+          <div className="hero-summary">{summary?.executive_summary || "Executive summary tayyorlanmoqda..."}</div>
         </div>
       </div>
+
+      {smartAlerts.length ? (
+        <div className="card">
+          <SectionTitle title="Smart alerts" desc="Muhim signal va ogohlantirishlar" />
+          <div className="workflow-strip">
+            {smartAlerts.map((item, index) => (
+              <div key={`alert-${index}`} className={`reminder-card ${item.type === "danger" ? "danger" : "warning"}`}>
+                <strong>{item.type === "danger" ? "Diqqat" : "Eslatma"}</strong>
+                <span>{item.text}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
 
       <div className="stats-grid">
         <StatCard
@@ -950,6 +978,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
         <StatCard title="Kechikkan vazifalar" value={summary?.overdue_task_count || 0} hint="darhol ko'rib chiqing" tone={(summary?.overdue_task_count || 0) > 0 ? "danger" : "success"} />
         <StatCard title="3 kun ichidagi vazifalar" value={summary?.due_soon_task_count || 0} hint="eslatma kerak" tone={(summary?.due_soon_task_count || 0) > 0 ? "warning" : "success"} />
         <StatCard title="Oy reklama sarfi" value={formatMoney(summary?.monthly_campaign_spend || 0)} hint={getMonthTitle(currentMonth)} tone="info" />
+        <StatCard title="Approval SLA" value={approvalSlaBreaches} hint="48 soatdan oshgan jarayonlar" tone={approvalSlaBreaches > 0 ? "danger" : "success"} />
       </div>
 
       <div className="two-grid">
@@ -1122,7 +1151,13 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
     preview_url: "",
     final_url: "",
     edit_file_url: "",
-    approval_comment: ""
+    approval_comment: "",
+    content_template: "custom",
+    idea_score: 0,
+    visual_score: 0,
+    editing_score: 0,
+    result_score: 0,
+    reach_value: 0
   };
 
   const [form, setForm] = useState(emptyForm);
@@ -1194,7 +1229,13 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
       preview_url: row.preview_url || "",
       final_url: row.final_url || "",
       edit_file_url: row.edit_file_url || "",
-      approval_comment: row.approval_comment || ""
+      approval_comment: row.approval_comment || "",
+      content_template: row.content_template || "custom",
+      idea_score: row.idea_score || 0,
+      visual_score: row.visual_score || 0,
+      editing_score: row.editing_score || 0,
+      result_score: row.result_score || 0,
+      reach_value: row.reach_value || 0
     });
 
     setBonusMode(!!row.bonus_enabled);
@@ -1242,7 +1283,13 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
         preview_url: form.preview_url || "",
         final_url: form.final_url || "",
         edit_file_url: form.edit_file_url || "",
-        approval_comment: form.approval_comment || ""
+        approval_comment: form.approval_comment || "",
+        content_template: form.content_template || "custom",
+        idea_score: Number(form.idea_score || 0),
+        visual_score: Number(form.visual_score || 0),
+        editing_score: Number(form.editing_score || 0),
+        result_score: Number(form.result_score || 0),
+        reach_value: Number(form.reach_value || 0)
       };
 
       if (editRow?.id) {
@@ -1308,6 +1355,18 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
 
         <div className="info-banner">
           Bonus formulasi: 1 ta taklif yoki tasdiq = <strong>{formatMoney(bonusRate)}</strong>
+        </div>
+        <div className="workflow-strip">
+          {[
+            { key: "product_reels", label: "Product reels" },
+            { key: "branch_backstage", label: "Branch backstage" },
+            { key: "feedback_story", label: "Feedback story" },
+            { key: "promo_post", label: "Promo post" }
+          ].map((tpl) => (
+            <button key={tpl.key} type="button" className={`template-chip ${form.content_template === tpl.key ? "active" : ""}`} onClick={() => setField("content_template", tpl.key)}>
+              {tpl.label}
+            </button>
+          ))}
         </div>
         <SavedViews
           storageKey="aloo_content_views"
@@ -1423,6 +1482,11 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
           <label><span>Final link</span><input value={form.final_url} onChange={(e) => setField("final_url", e.target.value)} /></label>
           <label><span>Montaj fayli</span><input value={form.edit_file_url} onChange={(e) => setField("edit_file_url", e.target.value)} /></label>
           <label className="full-col"><span>Approval izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} placeholder="Tasdiqlash yoki qayta ishlash bo'yicha izoh" /></label>
+          <label><span>Idea score</span><input type="number" min="0" max="10" value={form.idea_score} onChange={(e) => setField("idea_score", e.target.value)} /></label>
+          <label><span>Visual score</span><input type="number" min="0" max="10" value={form.visual_score} onChange={(e) => setField("visual_score", e.target.value)} /></label>
+          <label><span>Editing score</span><input type="number" min="0" max="10" value={form.editing_score} onChange={(e) => setField("editing_score", e.target.value)} /></label>
+          <label><span>Result score</span><input type="number" min="0" max="10" value={form.result_score} onChange={(e) => setField("result_score", e.target.value)} /></label>
+          <label><span>Reach</span><input type="number" min="0" value={form.reach_value} onChange={(e) => setField("reach_value", e.target.value)} /></label>
 
           <button className="btn primary" type="submit" disabled={saving}>
             {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}
@@ -2351,13 +2415,19 @@ function MediaPage({ uploads = [], onToast, reload }) {
   const [viewRow, setViewRow] = useState(null);
   const [typeFilter, setTypeFilter] = useState("");
   const [search, setSearch] = useState("");
+  const [folderFilter, setFolderFilter] = useState("all");
+  const [folderName, setFolderName] = useState("content-assets");
+  const [versionLabel, setVersionLabel] = useState("v1");
+  const [tagText, setTagText] = useState("");
 
   const filteredUploads = uploads.filter((u) => {
     const typeOk = typeFilter ? String(u.mime_type || "").toLowerCase().includes(typeFilter) : true;
     const searchOk = search
       ? String(u.original_name || "").toLowerCase().includes(search.toLowerCase())
       : true;
-    return typeOk && searchOk;
+    const folderOk = folderFilter === "all" ? true : String(u.folder_name || "general") === folderFilter;
+    const tagOk = !tagText.trim() ? true : JSON.stringify(u.tags_json || []).toLowerCase().includes(tagText.trim().toLowerCase());
+    return typeOk && searchOk && folderOk && tagOk;
   });
 
   async function handleUpload(e) {
@@ -2368,6 +2438,9 @@ function MediaPage({ uploads = [], onToast, reload }) {
       setSaving(true);
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("folder_name", folderName);
+      formData.append("version_label", versionLabel);
+      formData.append("tags_json", tagText);
       await api.upload(formData);
       await reload();
       setFile(null);
@@ -2419,11 +2492,26 @@ function MediaPage({ uploads = [], onToast, reload }) {
                 <option value="pdf">PDF</option>
                 <option value="sheet">Excel</option>
               </select>
+              <select value={folderFilter} onChange={(e) => setFolderFilter(e.target.value)}>
+                <option value="all">Barcha papkalar</option>
+                <option value="content-assets">content-assets</option>
+                <option value="travel-execution">travel-execution</option>
+                <option value="brand-kit">brand-kit</option>
+                <option value="quick-updates">quick-updates</option>
+              </select>
             </div>
           }
         />
         <form className="upload-row" onSubmit={handleUpload}>
           <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          <select value={folderName} onChange={(e) => setFolderName(e.target.value)}>
+            <option value="content-assets">content-assets</option>
+            <option value="travel-execution">travel-execution</option>
+            <option value="brand-kit">brand-kit</option>
+            <option value="quick-updates">quick-updates</option>
+          </select>
+          <input value={versionLabel} onChange={(e) => setVersionLabel(e.target.value)} placeholder="Versiya" />
+          <input value={tagText} onChange={(e) => setTagText(e.target.value)} placeholder="Taglar: logo, brand, mart" />
           <button className="btn primary" type="submit" disabled={!file || saving}>
             <Upload size={16} />
             {saving ? "Yuklanmoqda..." : "Yuklash"}
@@ -2446,6 +2534,8 @@ function MediaPage({ uploads = [], onToast, reload }) {
               <div className="media-info">
                 <div className="media-name">{row.original_name}</div>
                 <div className="media-meta">{row.mime_type}</div>
+                <div className="media-meta">{row.folder_name || "general"} • {row.version_label || "v1"}</div>
+                <div className="media-meta">{Array.isArray(row.tags_json) ? row.tags_json.join(", ") : "-"}</div>
                 <div className="media-meta">{row.file_size}</div>
               </div>
               <div className="media-actions">
@@ -2483,6 +2573,9 @@ function MediaPage({ uploads = [], onToast, reload }) {
             <div className="detail-grid">
               <div><strong>Nomi:</strong> {viewRow.original_name}</div>
               <div><strong>Turi:</strong> {viewRow.mime_type}</div>
+              <div><strong>Papka:</strong> {viewRow.folder_name || "general"}</div>
+              <div><strong>Versiya:</strong> {viewRow.version_label || "v1"}</div>
+              <div className="full-col"><strong>Taglar:</strong> {Array.isArray(viewRow.tags_json) ? viewRow.tags_json.join(", ") : "-"}</div>
               <div><strong>Hajmi:</strong> {viewRow.file_size}</div>
               <div className="full-col"><strong>Link:</strong> {viewRow.file_url}</div>
             </div>
@@ -3047,6 +3140,8 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
 
 function AuditPage({ logs = [] }) {
   const [entityFilter, setEntityFilter] = useState("");
+  const [historyRows, setHistoryRows] = useState([]);
+  const [historyMeta, setHistoryMeta] = useState(null);
   const filteredLogs = logs.filter((row) => !entityFilter || row.entity_type === entityFilter);
   const entityOptions = [...new Set(logs.map((row) => row.entity_type).filter(Boolean))];
 
@@ -3090,6 +3185,7 @@ function AuditPage({ logs = [] }) {
                 <th>Entity</th>
                 <th>ID</th>
                 <th>Sana</th>
+                <th>History</th>
               </tr>
             </thead>
             <tbody>
@@ -3101,6 +3197,15 @@ function AuditPage({ logs = [] }) {
                     <td>{row.entity_type}</td>
                     <td>{row.entity_id || "-"}</td>
                     <td>{formatDate(row.created_at)}</td>
+                    <td>
+                      {row.entity_id ? <button type="button" className="btn tiny secondary" onClick={async () => {
+                        try {
+                          const data = await api.list(`/api/version-history/${row.entity_type}/${row.entity_id}`);
+                          setHistoryMeta({ entityType: row.entity_type, entityId: row.entity_id });
+                          setHistoryRows(data || []);
+                        } catch {}
+                      }}>History</button> : "-"}
+                    </td>
                   </tr>
                 ))
               ) : (
@@ -3110,6 +3215,23 @@ function AuditPage({ logs = [] }) {
           </table>
         </div>
       </div>
+      <Modal open={!!historyMeta} onClose={() => { setHistoryMeta(null); setHistoryRows([]); }} title="Version history" wide>
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Kim</th><th>Amal</th><th>Sana</th><th>Meta</th></tr></thead>
+            <tbody>
+              {historyRows.length ? historyRows.map((row) => (
+                <tr key={`history-${row.id}`}>
+                  <td>{row.full_name || "-"}</td>
+                  <td>{row.action_type}</td>
+                  <td>{formatDateTime(row.created_at)}</td>
+                  <td>{row.meta ? JSON.stringify(row.meta).slice(0, 180) : "-"}</td>
+                </tr>
+              )) : <tr><td colSpan="4" className="empty-cell">History yo'q</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </Modal>
     </div>
   );
 }
@@ -3493,12 +3615,13 @@ function ProfilePage({ user = {}, onToast, refreshUser }) {
   );
 }
 
-function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
+function SettingsPage({ settings, onSave, saving, theme, setTheme, onToast, reload }) {
   const [form, setForm] = useState(settings || {});
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef(null);
   const [backupPreview, setBackupPreview] = useState(null);
   const [pendingPayload, setPendingPayload] = useState(null);
+  const shareUrl = settings?.public_share_token ? `${API_BASE}/api/share/report/${settings.public_share_token}` : "";
 
   useEffect(() => {
     setForm(settings || {});
@@ -3566,6 +3689,24 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
               alert(err.message || "Telegram test yuborilmadi");
             }
           }}>Telegram test</button>
+          <button className="btn secondary" onClick={async () => {
+            try {
+              await api.create("settings/share-token", {});
+              await reload();
+              onToast("Share token yaratildi", "success");
+            } catch (err) {
+              onToast(err.message || "Share token yaratilmadi", "error");
+            }
+          }}>Public share</button>
+          <button className="btn secondary" onClick={async () => {
+            try {
+              await api.create("monthly-close", { month_label: getMonthLabel() });
+              await reload();
+              onToast("Monthly close bajarildi", "success");
+            } catch (err) {
+              onToast(err.message || "Monthly close bajarilmadi", "error");
+            }
+          }}>Monthly close</button>
           <input
             ref={fileInputRef}
             type="file"
@@ -3629,6 +3770,21 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme }) {
               }}>
                 Confirm restore
               </button>
+            </div>
+          </div>
+        ) : null}
+        {shareUrl ? (
+          <div className="backup-preview-card">
+            <h4>Public share report</h4>
+            <div className="quick-item">Link: <strong>{shareUrl}</strong></div>
+            <div className="toolbar-actions">
+              <button className="btn secondary" type="button" onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(shareUrl);
+                  onToast("Share link nusxalandi", "success");
+                } catch {}
+              }}>Copy link</button>
+              <a className="btn primary" href={shareUrl} target="_blank" rel="noreferrer">Ochish</a>
             </div>
           </div>
         ) : null}
@@ -4073,11 +4229,18 @@ function RecurringPage({ recurringTasks = [], recurringExpenses = [], users = []
 }
 
 function AnalyticsPage({ analyticsData }) {
+  const [leftBranch, setLeftBranch] = useState("");
+  const [rightBranch, setRightBranch] = useState("");
   const bonusSeries = analyticsData?.bonus_by_month || [];
   const spendSeries = analyticsData?.spend_by_month || [];
   const statuses = analyticsData?.content_by_status || [];
   const branches = analyticsData?.branch_kpi || [];
   const topPerformers = analyticsData?.top_performers || [];
+  const employeeRows = analyticsData?.employee_kpi || [];
+  const branchNames = branches.map((item) => item.name);
+  const leftData = branches.find((item) => item.name === leftBranch) || branches[0];
+  const rightData = branches.find((item) => item.name === rightBranch) || branches[1];
+  const workloadMax = Math.max(...employeeRows.map((item) => Number(item.total_tasks || 0) + Number(item.content_count || 0) + Number(item.travel_count || 0)), 1);
   return (
     <div className="page-grid">
       <div className="two-grid">
@@ -4117,6 +4280,89 @@ function AnalyticsPage({ analyticsData }) {
         <div className="card"><SectionTitle title="Filial KPI" /><div className="bar-chart">{branches.map((i) => <div key={i.name} className="bar-item"><span>{i.name}</span><div className="bar-track branch"><i style={{ width: `${Math.max((Number(i.content_score || 0) + Number(i.subscriber_growth || 0)) / Math.max(...branches.map((x) => Number(x.content_score || 0) + Number(x.subscriber_growth || 0)), 1) * 100, 8)}%` }} /></div><strong>{Number(i.content_score || 0) + Number(i.subscriber_growth || 0)}</strong></div>)}</div></div>
       </div>
       <div className="card"><SectionTitle title="Top performer board" /><div className="table-wrap"><table><thead><tr><th>Hodim</th><th>Bajarilgan vazifa</th><th>Bonus</th></tr></thead><tbody>{topPerformers.length ? topPerformers.map((row, index) => <tr key={`${row.full_name}-${index}`}><td>{row.full_name}</td><td>{row.done_tasks}</td><td>{formatMoney(row.bonus_total)}</td></tr>) : <tr><td colSpan="3" className="empty-cell">Hozircha ma'lumot yo'q</td></tr>}</tbody></table></div></div>
+      <div className="two-grid">
+        <div className="card">
+          <SectionTitle title="Branch comparison mode" />
+          <div className="toolbar-actions">
+            <select value={leftBranch} onChange={(e) => setLeftBranch(e.target.value)}>
+              <option value="">Filial 1</option>
+              {branchNames.map((item) => <option key={`left-${item}`} value={item}>{item}</option>)}
+            </select>
+            <select value={rightBranch} onChange={(e) => setRightBranch(e.target.value)}>
+              <option value="">Filial 2</option>
+              {branchNames.map((item) => <option key={`right-${item}`} value={item}>{item}</option>)}
+            </select>
+          </div>
+          <div className="two-grid">
+            {[leftData, rightData].filter(Boolean).map((item, index) => (
+              <div key={`${item?.name}-${index}`} className="chart-card">
+                <div className="chart-title">{item?.name}</div>
+                <div className="quick-list">
+                  <div className="quick-item">Kontent score: <strong>{Number(item?.content_score || 0)}</strong></div>
+                  <div className="quick-item">Subscriber growth: <strong>{Number(item?.subscriber_growth || 0)}</strong></div>
+                  <div className="quick-item">Campaign score: <strong>{Number(item?.campaign_score || 0)}</strong></div>
+                  <div className="quick-item">Travel score: <strong>{Number(item?.travel_score || 0)}</strong></div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="card">
+          <SectionTitle title="Production workload heatmap" />
+          <div className="heatmap-grid">
+            {employeeRows.length ? employeeRows.map((row) => {
+              const load = Number(row.total_tasks || 0) + Number(row.content_count || 0) + Number(row.travel_count || 0);
+              return (
+                <div key={`heat-${row.id}`} className="heatmap-item">
+                  <strong>{row.full_name}</strong>
+                  <div className="heatmap-track"><span style={{ width: `${Math.max((load / workloadMax) * 100, load ? 10 : 0)}%` }} /></div>
+                  <span>{load} birlik</span>
+                </div>
+              );
+            }) : <div className="empty-block">Workload ma'lumotlari yo'q</div>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmployeeKpiPage({ rows = [] }) {
+  return (
+    <div className="page-grid">
+      <div className="card">
+        <SectionTitle title="Employee KPI page" desc="Hodim samaradorligi va yuklamasi" />
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Hodim</th><th>Task</th><th>Done</th><th>Kontent</th><th>Safar</th><th>Bonus</th></tr></thead>
+            <tbody>
+              {rows.length ? rows.map((row) => (
+                <tr key={`employee-kpi-${row.id}`}>
+                  <td>{row.full_name}</td>
+                  <td>{row.total_tasks}</td>
+                  <td>{row.done_tasks}</td>
+                  <td>{row.content_count}</td>
+                  <td>{row.travel_count}</td>
+                  <td>{formatMoney(row.bonus_total)}</td>
+                </tr>
+              )) : <tr><td colSpan="6" className="empty-cell">KPI ma'lumoti yo'q</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HealthPage({ data = {} }) {
+  return (
+    <div className="page-grid">
+      <div className="stats-grid">
+        <StatCard title="Socket" value={data?.socket_connections || 0} hint="live foydalanuvchilar" tone="info" />
+        <StatCard title="Unread" value={data?.unread_notifications || 0} hint="ochilmagan notification" tone={(data?.unread_notifications || 0) > 0 ? "warning" : "success"} />
+        <StatCard title="Snapshots" value={data?.monthly_snapshots || 0} hint="monthly close backup" tone="default" />
+        <StatCard title="Telegram" value={data?.telegram_configured ? "On" : "Off"} hint={data?.timestamp ? formatDateTime(data.timestamp) : "holat"} tone={data?.telegram_configured ? "success" : "danger"} />
+      </div>
     </div>
   );
 }
@@ -4195,7 +4441,7 @@ function AiAssistantPage({ branches = [], onToast }) {
       <div className="card">
         <SectionTitle title="AI yordamchi" desc="Sarlavha, caption, ssenariy va g'oya generator" />
         <div className="form-grid">
-          <label><span>Mode</span><select value={mode} onChange={(e) => setMode(e.target.value)}><option value="ideas">ideas</option><option value="title">title</option><option value="caption">caption</option><option value="script">script</option></select></label>
+          <label><span>Mode</span><select value={mode} onChange={(e) => setMode(e.target.value)}><option value="ideas">ideas</option><option value="title">title</option><option value="caption">caption</option><option value="script">script</option><option value="hook">hook</option><option value="cta">cta</option><option value="plan">plan</option></select></label>
           <label><span>Kontent turi</span><select value={contentType} onChange={(e) => setContentType(e.target.value)}><option value="reels">reels</option><option value="video">video</option><option value="story">story</option><option value="post">post</option></select></label>
           <label><span>Filial</span><select value={branchName} onChange={(e) => setBranchName(e.target.value)}><option value="">Tanlang</option>{branches.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select></label>
           <label className="full-col"><span>Mavzu</span><textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} /></label>
@@ -4248,6 +4494,9 @@ function App() {
   const [analyticsData, setAnalyticsData] = useState(null);
   const [advancedReports, setAdvancedReports] = useState(null);
   const [topPerformers, setTopPerformers] = useState(null);
+  const [executiveSummary, setExecutiveSummary] = useState(null);
+  const [employeeKpi, setEmployeeKpi] = useState([]);
+  const [healthData, setHealthData] = useState(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const unreadChatCount = (threads || []).reduce((sum, thread) => sum + Number(thread.unread_count || 0), 0);
 
@@ -4296,7 +4545,10 @@ function App() {
         budgetsRes,
         analyticsRes,
         reportsRes,
-        topPerformersRes
+        topPerformersRes,
+        executiveSummaryRes,
+        employeeKpiRes,
+        healthRes
       ] = await Promise.all([
         api.dashboard().catch(() => ({})),
         api.settings.get().catch(() => null),
@@ -4318,7 +4570,10 @@ function App() {
         api.list("budgets").catch(() => []),
         api.list("/api/analytics/overview").catch(() => null),
         api.list("/api/reports/advanced", { range: "monthly" }).catch(() => null),
-        api.list("/api/top-performers").catch(() => null)
+        api.list("/api/top-performers").catch(() => null),
+        api.list("/api/executive-summary").catch(() => null),
+        api.list("/api/employee-kpi").catch(() => []),
+        api.list("/api/health").catch(() => null)
       ]);
 
       setSummary(dashboardRes || {});
@@ -4342,6 +4597,9 @@ function App() {
       setAnalyticsData(analyticsRes || null);
       setAdvancedReports(reportsRes || null);
       setTopPerformers(topPerformersRes || null);
+      setExecutiveSummary(executiveSummaryRes || null);
+      setEmployeeKpi(employeeKpiRes || []);
+      setHealthData(healthRes || null);
     } catch (err) {
       console.error(err);
     }
@@ -4523,7 +4781,11 @@ function App() {
   } else if (active === "reports") {
     page = <AdvancedReportsPage advancedReports={advancedReports} />;
   } else if (active === "analytics") {
-    page = <AnalyticsPage analyticsData={analyticsData} />;
+    page = <AnalyticsPage analyticsData={{ ...(analyticsData || {}), employee_kpi: employeeKpi, executive_summary: executiveSummary?.text }} />;
+  } else if (active === "employeeKpi") {
+    page = <EmployeeKpiPage rows={employeeKpi} />;
+  } else if (active === "health") {
+    page = <HealthPage data={healthData} />;
   } else if (active === "recurring") {
     page = <RecurringPage recurringTasks={recurringTasks} recurringExpenses={recurringExpenses} users={users} onToast={showToast} reload={reloadData} />;
   } else if (active === "dailyReports") {
@@ -4543,7 +4805,7 @@ function App() {
   } else if (active === "profile") {
     page = <ProfilePage user={user} onToast={showToast} refreshUser={setUser} />;
   } else if (active === "settings") {
-    page = <SettingsPage settings={settings} onSave={saveSettings} saving={savingSettings} theme={theme} setTheme={setTheme} />;
+    page = <SettingsPage settings={settings} onSave={saveSettings} saving={savingSettings} theme={theme} setTheme={setTheme} onToast={showToast} reload={reloadData} />;
   } else if (active === "aiAssistant") {
     page = <AiAssistantPage branches={branches} onToast={showToast} />;
   }
@@ -6517,6 +6779,31 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
 }
 .calendar-items > div[draggable="true"]{
   cursor:grab;
+}
+.heatmap-grid{
+  display:grid;
+  gap:12px;
+}
+.heatmap-item{
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:var(--panel);
+  padding:12px 14px;
+  display:grid;
+  gap:8px;
+}
+.heatmap-track{
+  height:12px;
+  border-radius:999px;
+  background:rgba(148,163,184,.18);
+  overflow:hidden;
+}
+.heatmap-track span{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:linear-gradient(90deg,#1690F5,#6dd5fa);
+  box-shadow:0 8px 18px rgba(22,144,245,.25);
 }
 @media (max-width: 1100px){
   .kanban-board{grid-template-columns:1fr 1fr}
