@@ -798,6 +798,26 @@ function LoginPage({ onLoggedIn, settings }) {
             <span>Chat, vazifa va hisobotlar bir panelda boshqariladi.</span>
           </div>
         </div>
+        <div className="login-seo-block">
+          <div className="login-seo-grid">
+            <article className="login-seo-card">
+              <strong>SMM boshqaruvi</strong>
+              <p>Kontent reja, bonus tizimi, reklama kampaniyalari va media kutubxona bitta platformada ishlaydi.</p>
+            </article>
+            <article className="login-seo-card">
+              <strong>Filial nazorati</strong>
+              <p>Bosh ofis va barcha filiallar bo'yicha hisobotlar, KPI va kunlik jarayonlar yagona panelda jamlanadi.</p>
+            </article>
+            <article className="login-seo-card">
+              <strong>Marketing workflow</strong>
+              <p>Vazifalar, safar rejalari, posting va ichki jamoa kommunikatsiyasi markazlashtirilgan boshqaruv bilan yuritiladi.</p>
+            </article>
+          </div>
+          <p className="login-seo-note">
+            Bosh ofis, Ohangaron, Angren, Chirchiq, Guliston, Jarqo'rg'on, Sherobod, Qibray, G'azalkent,
+            Olmaliq, Piskent, Oqqo'rg'on, Chinoz, Sho'rchi va Parkent filiallari uchun SMM va marketing boshqaruv tizimi.
+          </p>
+        </div>
       </div>
 
       <form className="login-card" onSubmit={submit}>
@@ -5221,10 +5241,13 @@ img{display:block;max-width:100%}
 
 .login-page{
   min-height:100vh;
+  width:min(100%, 1560px);
+  margin:0 auto;
   display:grid;
-  grid-template-columns:1.15fr .85fr;
-  gap:32px;
-  padding:40px;
+  grid-template-columns:minmax(0, 1fr) minmax(420px, 560px);
+  align-items:center;
+  gap:clamp(44px, 6vw, 110px);
+  padding:clamp(32px, 4vw, 64px);
   position:relative;
   overflow:hidden;
   background:
@@ -5257,8 +5280,9 @@ img{display:block;max-width:100%}
   position:relative;
   z-index:2;
   animation:login-fade-up .7s ease;
+  max-width:820px;
 }
-        <div className="brand-kicker">aloo - yagona platforma</div>
+.brand-kicker{
   display:inline-flex;
   width:max-content;
   padding:10px 16px;
@@ -5328,9 +5352,47 @@ img{display:block;max-width:100%}
 .login-feature-card:nth-child(2){animation-delay:-2.2s}
 .login-feature-card strong{display:block;font-size:16px;margin-bottom:6px}
 .login-feature-card span{color:var(--muted);font-size:14px;line-height:1.5}
+.login-seo-block{
+  margin-top:24px;
+  display:grid;
+  gap:14px;
+  max-width:860px;
+}
+.login-seo-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:14px;
+}
+.login-seo-card{
+  padding:18px;
+  border-radius:22px;
+  background:rgba(255,255,255,.54);
+  border:1px solid rgba(255,255,255,.72);
+  backdrop-filter:blur(14px);
+  box-shadow:0 18px 36px rgba(30,41,59,.06);
+}
+.login-seo-card strong{
+  display:block;
+  font-size:16px;
+  margin-bottom:8px;
+}
+.login-seo-card p{
+  margin:0;
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.6;
+  max-width:none;
+}
+.login-seo-note{
+  margin:0;
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.7;
+  max-width:780px;
+}
 .login-card{
   align-self:center;
-  justify-self:end;
+  justify-self:stretch;
   width:min(100%, 560px);
   position:relative;
   z-index:2;
@@ -6730,6 +6792,7 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   .login-logo-lockup{margin-top:18px}
   .login-logo-image{width:64px;height:64px}
   .login-feature-row{grid-template-columns:1fr}
+  .login-seo-grid{grid-template-columns:1fr}
   .permission-grid{grid-template-columns:1fr}
   .media-grid{grid-template-columns:1fr}
   .detail-grid{grid-template-columns:1fr}
