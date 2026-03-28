@@ -783,7 +783,8 @@ function LoginPage({ onLoggedIn, settings }) {
             <span>{settings?.platform_name || "Yagona boshqaruv platformasi"}</span>
           </div>
         </div>
-        <h1>Assalomu alaykum</h1>
+        <h1>Aloo SMM Panel</h1>
+        <p>SMM va marketing boshqaruv tizimi</p>
         <h2>aloo do'konlar tarmog'i SMM jamoasi yagona ma'lumotlar platformasiga xush kelibsiz</h2>
         <p>Kirish uchun login va parolingizni kiriting.</p>
         <div className="login-feature-row">
