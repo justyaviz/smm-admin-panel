@@ -1310,7 +1310,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
       await reload();
       onToast("Kontent o'chirildi", "success");
     } catch (err) {
-      onToast(err.message || err.message || "O'chirishda xatolik", "error"), "error");
+      onToast(err.message || "O'chirishda xatolik", "error");
     }
   }
 
