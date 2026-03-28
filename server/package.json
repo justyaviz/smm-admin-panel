@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "reset:test-data": "node scripts/reset-test-data.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

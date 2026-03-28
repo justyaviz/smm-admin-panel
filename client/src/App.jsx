@@ -1392,6 +1392,7 @@ function ContentPage({ users = [], branches = [], settings, onToast, reload }) {
               <option value="story">Story</option>
               <option value="reels">Reels</option>
               <option value="video">Video</option>
+              <option value="mobi-video">Mobi-video</option>
               <option value="banner">Banner</option>
             </select>
           </label>
@@ -1805,6 +1806,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, onToa
               <option value="story">Story</option>
               <option value="reels">Reels</option>
               <option value="video">Video</option>
+              <option value="mobi-video">Mobi-video</option>
               <option value="banner">Banner</option>
             </select>
           </label>
@@ -4520,7 +4522,7 @@ function AiAssistantPage({ branches = [], onToast }) {
         <SectionTitle title="AI yordamchi" desc="Sarlavha, caption, ssenariy va g'oya generator" />
         <div className="form-grid">
           <label><span>Mode</span><select value={mode} onChange={(e) => setMode(e.target.value)}><option value="ideas">ideas</option><option value="title">title</option><option value="caption">caption</option><option value="script">script</option><option value="hook">hook</option><option value="cta">cta</option><option value="plan">plan</option></select></label>
-          <label><span>Kontent turi</span><select value={contentType} onChange={(e) => setContentType(e.target.value)}><option value="reels">reels</option><option value="video">video</option><option value="story">story</option><option value="post">post</option></select></label>
+          <label><span>Kontent turi</span><select value={contentType} onChange={(e) => setContentType(e.target.value)}><option value="reels">reels</option><option value="video">video</option><option value="mobi-video">mobi-video</option><option value="story">story</option><option value="post">post</option></select></label>
           <label><span>Filial</span><select value={branchName} onChange={(e) => setBranchName(e.target.value)}><option value="">Tanlang</option>{branches.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select></label>
           <label className="full-col"><span>Mavzu</span><textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} /></label>
           <button className="btn primary" type="button" onClick={async () => {
