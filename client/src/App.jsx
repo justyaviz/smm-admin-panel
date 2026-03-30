@@ -6043,7 +6043,7 @@ function App() {
       </Modal>
       <Modal open={showInstallGuide} onClose={() => setShowInstallGuide(false)} title="iPhonega ilova qilib o'rnatish">
         <div className="ios-install-guide">
-          <p>Bu panelni bosh ekranga qo'shsangiz, iPhone’da alohida ilova kabi full-screen ochiladi.</p>
+          <p>Bu panelni bosh ekranga qo'shsangiz, iPhone'da alohida ilova kabi full-screen ochiladi.</p>
           <div className="ios-install-steps">
             <div className="ios-install-step"><strong>1.</strong><span>Panelni <strong>Safari</strong> orqali oching.</span></div>
             <div className="ios-install-step"><strong>2.</strong><span>Pastdagi <strong>Ulashish</strong> ikonkasini bosing.</span></div>
@@ -8482,10 +8482,12 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   }
   .topbar-main{
     align-items:center;
+    width:100%;
   }
   .topbar h1{
-    font-size:24px;
-    line-height:1.1;
+    font-size:20px;
+    line-height:1.12;
+    margin-top:4px;
   }
   .topbar-right{
     width:100%;
@@ -8502,11 +8504,22 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   .user-chip{
     max-width:100%;
   }
+  .user-chip span{
+    max-width:120px;
+    overflow:hidden;
+    text-overflow:ellipsis;
+    white-space:nowrap;
+  }
   .mobile-menu-btn{
     display:inline-flex;
+    min-height:42px;
+    padding:10px 12px;
+    font-size:13px;
   }
   .theme-toggle,.notif-pill{
-    min-height:44px;
+    min-height:42px;
+    padding:10px 12px;
+    font-size:13px;
   }
   .mobile-bottom-nav{
     position:fixed;
@@ -8529,6 +8542,145 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   }
   .mobile-menu-grid{
     grid-template-columns:1fr 1fr;
+  }
+  .page-grid{
+    gap:12px;
+    margin-top:12px;
+  }
+  .hero-banner,.card,.stat-card{
+    border-radius:18px;
+    padding:14px;
+  }
+  .hero-banner h1{
+    font-size:25px;
+    line-height:1.08;
+    margin:6px 0;
+  }
+  .hero-banner p{
+    font-size:14px;
+    line-height:1.55;
+  }
+  .stat-card-title{
+    font-size:12px;
+  }
+  .stat-card-value{
+    font-size:25px;
+    margin-top:6px;
+  }
+  .stat-card-hint{
+    font-size:12px;
+    margin-top:4px;
+  }
+  .section-title-row{
+    gap:10px;
+    margin-bottom:12px;
+  }
+  .section-title-row h2{
+    font-size:18px;
+    line-height:1.2;
+  }
+  .section-title-row p{
+    margin-top:4px;
+    font-size:13px;
+    line-height:1.5;
+  }
+  .small-label{
+    font-size:10px;
+    letter-spacing:.14em;
+  }
+  .quick-item,
+  .info-banner,
+  .reminder-card{
+    padding:12px 13px;
+  }
+  .quick-item,
+  .info-banner,
+  .reminder-card,
+  .login-feature-card span,
+  .login-seo-card p,
+  .login-seo-note{
+    font-size:13px;
+    line-height:1.55;
+  }
+  .toolbar-actions{
+    width:100%;
+    gap:6px;
+  }
+  .toolbar-actions .btn{
+    flex:1 1 calc(50% - 6px);
+  }
+  .table-search{
+    min-width:0;
+    width:100%;
+    padding:10px 12px;
+    border-radius:14px;
+    font-size:13px;
+  }
+  .form-grid{
+    gap:10px;
+  }
+  .form-grid label{
+    gap:6px;
+  }
+  .form-grid label span,
+  .field-note{
+    font-size:12px;
+  }
+  .form-grid input,.form-grid select,.form-grid textarea{
+    border-radius:12px;
+    padding:11px 12px;
+    font-size:14px;
+  }
+  .btn{
+    min-height:42px;
+    padding:10px 12px;
+    font-size:13px;
+    border-radius:12px;
+  }
+  th,td{
+    padding:9px 10px;
+    font-size:12px;
+  }
+  .empty-cell{
+    padding:18px 12px;
+    font-size:13px;
+  }
+  .table-avatar{
+    width:34px;
+    height:34px;
+  }
+  .table-wrap{
+    border-radius:14px;
+  }
+  .modal-card{
+    width:min(96vw, calc(100vw - 16px));
+    margin:14px auto;
+    border-radius:20px;
+    padding:14px;
+  }
+  .modal-card.wide{
+    width:min(96vw, calc(100vw - 16px));
+  }
+  .modal-head{
+    margin-bottom:12px;
+  }
+  .modal-head h3{
+    font-size:18px;
+    line-height:1.25;
+  }
+  .modal-body{
+    max-height:72vh;
+  }
+  .detail-grid{
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  .table-actions{
+    gap:6px;
+  }
+  .icon-btn{
+    width:34px;
+    height:34px;
   }
 }
 `;
