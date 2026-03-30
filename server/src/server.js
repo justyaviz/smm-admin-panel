@@ -1615,7 +1615,7 @@ app.post("/api/users", authRequired, async (req, res) => {
         hashed,
         role || "viewer",
         avatar_url || null,
-        department_role || (role === "director" ? "Direktor" : null),
+        department_role || (role === "director" ? "Rahbar" : null),
         JSON.stringify(permissions),
         true
       ]
@@ -1681,7 +1681,7 @@ app.put("/api/users/:id", authRequired, async (req, res) => {
         login || null,
         role,
         avatar_url || null,
-        department_role || (role === "director" ? "Direktor" : null),
+        department_role || (role === "director" ? "Rahbar" : null),
         JSON.stringify(permissions),
         id
       ]

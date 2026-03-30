@@ -123,12 +123,17 @@ function isLeadershipRole(role) {
 function getRolePreset(role) {
   if (role === "director") {
     return {
-      department_role: "Direktor",
+      department_role: "Rahbar",
       permissions_json: DIRECTOR_PERMISSION_PRESET
     };
   }
 
   return null;
+}
+
+function formatRoleLabel(role) {
+  if (role === "director") return "rahbar";
+  return role || "-";
 }
 
 function getMonthLabel(date = new Date()) {
@@ -984,7 +989,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   const roleLabelMap = {
     admin: "Admin boshqaruv paneli",
     manager: "Manager nazorat paneli",
-    director: "Direktor nazorat paneli",
+    director: "Rahbar nazorat paneli",
     mobilograf: "Mobilograf ish maydoni",
     editor: "Editor ish maydoni",
     viewer: "Kuzatuv paneli"
@@ -3449,7 +3454,7 @@ function UsersPage({ users = [], onToast, reload }) {
             <select value={form.role} onChange={(e) => handleRoleChange(e.target.value)}>
               <option value="admin">admin</option>
               <option value="manager">manager</option>
-              <option value="director">director</option>
+              <option value="director">rahbar</option>
               <option value="editor">editor</option>
               <option value="mobilograf">mobilograf</option>
               <option value="viewer">viewer</option>
@@ -3529,7 +3534,7 @@ function UsersPage({ users = [], onToast, reload }) {
                     <td>{row.full_name}</td>
                     <td>{row.phone}</td>
                     <td>{row.login || "-"}</td>
-                    <td>{row.role}</td>
+                    <td>{formatRoleLabel(row.role)}</td>
                     <td>{row.department_role || "-"}</td>
                     <td>{row.is_active ? "Faol" : "Bloklangan"}</td>
                     <td>
@@ -3561,7 +3566,7 @@ function UsersPage({ users = [], onToast, reload }) {
             <div><strong>Ism:</strong> {viewRow.full_name}</div>
             <div><strong>Telefon:</strong> {viewRow.phone}</div>
             <div><strong>Login:</strong> {viewRow.login || "-"}</div>
-            <div><strong>Rol:</strong> {viewRow.role}</div>
+            <div><strong>Rol:</strong> {formatRoleLabel(viewRow.role)}</div>
             <div><strong>Lavozim:</strong> {viewRow.department_role || "-"}</div>
             <div><strong>Holat:</strong> {viewRow.is_active ? "Faol" : "Bloklangan"}</div>
             <div className="full-col"><strong>Ruxsatlar:</strong> {safePermissions(viewRow.permissions_json).join(", ") || "-"}</div>
