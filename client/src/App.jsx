@@ -18,6 +18,7 @@ import {
   Mic,
   Moon,
   MapPinned,
+  Menu,
   Repeat2,
   Wallet,
   Pencil,
@@ -5381,6 +5382,7 @@ function App() {
   const [globalSearch, setGlobalSearch] = useState("");
   const [globalResults, setGlobalResults] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [isAppleMobile, setIsAppleMobile] = useState(false);
@@ -5632,12 +5634,25 @@ function App() {
     }
   }, [allowedMenu, active]);
 
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [active]);
+
   const filteredMenu = useMemo(() => {
     if (!search.trim()) return allowedMenu;
     return allowedMenu.filter((item) =>
       item.title.toLowerCase().includes(search.toLowerCase())
     );
   }, [search, allowedMenu]);
+
+  const mobilePrimaryMenu = useMemo(() => {
+    const preferred = ["dashboard", "content", "bonus", "tasks", "profile"];
+    const pinned = preferred
+      .map((id) => allowedMenu.find((item) => item.id === id))
+      .filter(Boolean);
+    const extras = allowedMenu.filter((item) => !pinned.some((entry) => entry.id === item.id));
+    return [...pinned, ...extras].slice(0, 4);
+  }, [allowedMenu]);
 
   function showToast(message = "Saqlandi", type = "success") {
     setToast({ message, type });
@@ -5846,9 +5861,19 @@ function App() {
 
         <main className="main-area">
           <div className="topbar">
-            <div>
-              <div className="small-label">{(settings?.company_name || "aloo")} platforma</div>
-              <h1>{MENU.find((m) => m.id === active)?.title || "Bosh sahifa"}</h1>
+            <div className="topbar-main">
+              <div>
+                <div className="small-label">{(settings?.company_name || "aloo")} platforma</div>
+                <h1>{MENU.find((m) => m.id === active)?.title || "Bosh sahifa"}</h1>
+              </div>
+              <button
+                type="button"
+                className="mobile-menu-btn"
+                onClick={() => setMobileMenuOpen(true)}
+              >
+                <Menu size={18} />
+                <span>Menu</span>
+              </button>
             </div>
 
             <div className="topbar-right">
@@ -5945,6 +5970,31 @@ function App() {
         </main>
       </div>
 
+      <div className="mobile-bottom-nav">
+        {mobilePrimaryMenu.map((item) => {
+          const Icon = item.icon;
+          return (
+            <button
+              key={item.id}
+              type="button"
+              className={`mobile-nav-item ${active === item.id ? "active" : ""}`}
+              onClick={() => setActive(item.id)}
+            >
+              <Icon size={18} />
+              <span>{item.title}</span>
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          className={`mobile-nav-item ${mobileMenuOpen ? "active" : ""}`}
+          onClick={() => setMobileMenuOpen(true)}
+        >
+          <Menu size={18} />
+          <span>Menu</span>
+        </button>
+      </div>
+
       <NotificationsDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
@@ -5952,6 +6002,45 @@ function App() {
         onRead={handleReadNotification}
         onReadAll={handleReadAll}
       />
+      <Modal open={mobileMenuOpen} onClose={() => setMobileMenuOpen(false)} title="Bo'limlar">
+        <div className="mobile-menu-sheet">
+          <div className="sidebar-search mobile-menu-search">
+            <Search size={16} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Bo'lim qidiring..."
+            />
+          </div>
+
+          <div className="mobile-menu-grid">
+            {filteredMenu.map((item) => {
+              const Icon = item.icon;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={`mobile-menu-card ${active === item.id ? "active" : ""}`}
+                  onClick={() => {
+                    setActive(item.id);
+                    setMobileMenuOpen(false);
+                  }}
+                >
+                  <span className="menu-icon-wrap">
+                    <Icon size={16} />
+                  </span>
+                  <span>{item.title}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <button className="logout-btn mobile-logout-btn" type="button" onClick={logout}>
+            <LogOut size={16} />
+            Chiqish
+          </button>
+        </div>
+      </Modal>
       <Modal open={showInstallGuide} onClose={() => setShowInstallGuide(false)} title="iPhonega ilova qilib o'rnatish">
         <div className="ios-install-guide">
           <p>Bu panelni bosh ekranga qo'shsangiz, iPhone’da alohida ilova kabi full-screen ochiladi.</p>
@@ -6721,8 +6810,25 @@ body.standalone-app .login-page{
   padding:20px 22px;
   display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;
 }
+.topbar-main{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+}
 .topbar h1{margin:8px 0 0;font-size:34px}
 .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.mobile-menu-btn{
+  display:none;
+  border:1px solid var(--line);
+  background:linear-gradient(180deg, rgba(255,255,255,.95), var(--soft));
+  color:var(--text);
+  border-radius:16px;
+  padding:12px 14px;
+  align-items:center;
+  gap:8px;
+  font-weight:800;
+}
 .global-search{
   position:relative;
   min-width:280px;
@@ -8156,6 +8262,57 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   border-color:transparent;
   box-shadow:0 12px 28px rgba(22,144,245,.22);
 }
+.mobile-bottom-nav{
+  display:none;
+}
+.mobile-nav-item{
+  border:0;
+  background:transparent;
+  color:var(--muted);
+  display:grid;
+  place-items:center;
+  gap:5px;
+  font-size:11px;
+  font-weight:800;
+  padding:8px 6px;
+  border-radius:16px;
+}
+.mobile-nav-item.active{
+  color:var(--blue);
+  background:rgba(22,144,245,.1);
+}
+.mobile-menu-sheet{
+  display:grid;
+  gap:14px;
+}
+.mobile-menu-search{
+  margin-bottom:2px;
+}
+.mobile-menu-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;
+}
+.mobile-menu-card{
+  border:1px solid var(--line);
+  background:linear-gradient(180deg, rgba(255,255,255,.96), var(--soft));
+  color:var(--text);
+  border-radius:18px;
+  padding:14px 12px;
+  display:grid;
+  justify-items:start;
+  align-content:start;
+  gap:10px;
+  font-weight:800;
+  text-align:left;
+}
+.mobile-menu-card.active{
+  border-color:rgba(22,144,245,.24);
+  background:linear-gradient(135deg,rgba(22,144,245,.14),rgba(98,210,255,.14),rgba(110,231,183,.10));
+}
+.mobile-logout-btn{
+  margin-top:4px;
+}
 .ios-install-pill{
   display:flex;
   align-items:center;
@@ -8309,29 +8466,69 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
 }
 @media (max-width: 760px){
   .kanban-board{grid-template-columns:1fr}
-  .sidebar{
-    width:100%;
-    position:sticky;
-    top:0;
-    z-index:30;
-    padding-bottom:12px;
-  }
-  .menu-list{
-    display:grid;
-    grid-template-columns:repeat(2,minmax(0,1fr));
-    gap:10px;
+  .app-shell{display:block}
+  .sidebar{display:none}
+  .main-area{
+    padding:12px 12px 104px;
   }
   .topbar{
+    position:sticky;
+    top:max(10px, env(safe-area-inset-top));
+    z-index:28;
+    padding:16px;
     flex-direction:column;
     align-items:flex-start;
     gap:14px;
   }
+  .topbar-main{
+    align-items:center;
+  }
+  .topbar h1{
+    font-size:24px;
+    line-height:1.1;
+  }
   .topbar-right{
     width:100%;
     flex-wrap:wrap;
+    gap:8px;
   }
   .global-search{
     width:100%;
+    min-width:0;
+  }
+  .global-search-panel{
+    width:min(94vw, 420px);
+  }
+  .user-chip{
+    max-width:100%;
+  }
+  .mobile-menu-btn{
+    display:inline-flex;
+  }
+  .theme-toggle,.notif-pill{
+    min-height:44px;
+  }
+  .mobile-bottom-nav{
+    position:fixed;
+    left:10px;
+    right:10px;
+    bottom:max(10px, calc(env(safe-area-inset-bottom) + 8px));
+    display:grid;
+    grid-template-columns:repeat(5,minmax(0,1fr));
+    gap:6px;
+    padding:8px;
+    border:1px solid var(--line);
+    border-radius:22px;
+    background:rgba(255,255,255,.94);
+    backdrop-filter:blur(16px);
+    box-shadow:0 18px 40px rgba(15,23,42,.14);
+    z-index:35;
+  }
+  :root[data-theme='dark'] .mobile-bottom-nav{
+    background:rgba(17,24,39,.94);
+  }
+  .mobile-menu-grid{
+    grid-template-columns:1fr 1fr;
   }
 }
 `;
