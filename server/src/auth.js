@@ -8,6 +8,12 @@ function safePermissions(raw) {
   return Array.isArray(raw) ? raw : [];
 }
 
+function roleAllowed(userRole, roles = []) {
+  if (roles.includes(userRole)) return true;
+  if (userRole === "director" && roles.includes("manager")) return true;
+  return false;
+}
+
 export function hasPermission(user, permission) {
   if (user?.role === "admin") return true;
   return safePermissions(user?.permissions_json).includes(permission);
@@ -86,7 +92,7 @@ export function rolesAllowed(...roles) {
       return res.status(401).json({ message: "Token required" });
     }
 
-    if (!roles.includes(req.user.role)) {
+    if (!roleAllowed(req.user.role, roles)) {
       return res.status(403).json({ message: "Sizda bu amal uchun ruxsat yo'q" });
     }
 

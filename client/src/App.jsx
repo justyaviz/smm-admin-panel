@@ -114,6 +114,23 @@ const PERMISSION_OPTIONS = [
   { id: "aiAssistant", label: "AI yordamchi" }
 ];
 
+const DIRECTOR_PERMISSION_PRESET = PERMISSION_OPTIONS.map((item) => item.id);
+
+function isLeadershipRole(role) {
+  return ["admin", "manager", "director"].includes(role);
+}
+
+function getRolePreset(role) {
+  if (role === "director") {
+    return {
+      department_role: "Direktor",
+      permissions_json: DIRECTOR_PERMISSION_PRESET
+    };
+  }
+
+  return null;
+}
+
 function getMonthLabel(date = new Date()) {
   const d = new Date(date);
   const y = d.getFullYear();
@@ -967,6 +984,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   const roleLabelMap = {
     admin: "Admin boshqaruv paneli",
     manager: "Manager nazorat paneli",
+    director: "Direktor nazorat paneli",
     mobilograf: "Mobilograf ish maydoni",
     editor: "Editor ish maydoni",
     viewer: "Kuzatuv paneli"
@@ -2055,7 +2073,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   const showBranchField = form.content_type === "video";
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
   const bonusRate = Number(settings?.bonus_rate || 25000);
-  const canApproveBonus = user?.role === "admin" || user?.role === "manager";
+  const canApproveBonus = isLeadershipRole(user?.role);
   const canCreateBonus = canDoAction(user, "bonus", "create");
   const canEditBonus = canDoAction(user, "bonus", "edit");
   const canDeleteBonus = canDoAction(user, "bonus", "delete");
@@ -3289,6 +3307,16 @@ function UsersPage({ users = [], onToast, reload }) {
 
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
+  function handleRoleChange(role) {
+    const preset = getRolePreset(role);
+    setForm((prev) => ({
+      ...prev,
+      role,
+      department_role: preset?.department_role ?? prev.department_role,
+      permissions_json: preset?.permissions_json ? [...preset.permissions_json] : prev.permissions_json
+    }));
+  }
+
   function togglePermission(permissionId) {
     setForm((prev) => {
       const current = Array.isArray(prev.permissions_json) ? prev.permissions_json : [];
@@ -3418,9 +3446,10 @@ function UsersPage({ users = [], onToast, reload }) {
 
           <label>
             <span>Rol</span>
-            <select value={form.role} onChange={(e) => setField("role", e.target.value)}>
+            <select value={form.role} onChange={(e) => handleRoleChange(e.target.value)}>
               <option value="admin">admin</option>
               <option value="manager">manager</option>
+              <option value="director">director</option>
               <option value="editor">editor</option>
               <option value="mobilograf">mobilograf</option>
               <option value="viewer">viewer</option>
@@ -3553,7 +3582,7 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
   const [voiceDraft, setVoiceDraft] = useState("");
   const [recording, setRecording] = useState(false);
   const recognitionRef = useRef(null);
-  const isPrivileged = user?.role === "admin" || user?.role === "manager";
+  const isPrivileged = isLeadershipRole(user?.role);
 
   const emptyForm = {
     title: "",

@@ -64,6 +64,66 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+const DIRECTOR_PERMISSION_PRESET = [
+  "dashboard",
+  "content",
+  "content_create",
+  "content_edit",
+  "content_delete",
+  "bonus",
+  "bonus_create",
+  "bonus_edit",
+  "bonus_delete",
+  "expenses",
+  "finance",
+  "expenses_edit",
+  "expenses_delete",
+  "travelPlans",
+  "reports",
+  "analytics",
+  "postingInsights",
+  "moodPulse",
+  "employeeKpi",
+  "health",
+  "recurring",
+  "travelPlans_create",
+  "travelPlans_edit",
+  "travelPlans_delete",
+  "dailyReports",
+  "dailyReports_edit",
+  "dailyReports_delete",
+  "campaigns",
+  "campaigns_edit",
+  "campaigns_delete",
+  "uploads",
+  "uploads_create",
+  "uploads_delete",
+  "users",
+  "users_edit",
+  "users_delete",
+  "tasks",
+  "tasks_edit",
+  "tasks_delete",
+  "chat",
+  "chat_send",
+  "audit",
+  "profile",
+  "settings",
+  "aiAssistant"
+];
+
+function isLeadershipRole(role) {
+  return ["admin", "manager", "director"].includes(role);
+}
+
+function normalizeUserPermissions(role, permissions) {
+  const safePermissions = Array.isArray(permissions) ? permissions : [];
+  if (role === "director" && !safePermissions.length) {
+    return DIRECTOR_PERMISSION_PRESET;
+  }
+  return safePermissions;
+}
+
 function formatDateOnly(value) {
   if (!value) return null;
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
@@ -1126,7 +1186,7 @@ app.get("/api/dashboard/summary", authRequired, async (req, res) => {
     await runRecurringAutomation();
     const currentMonth = getMonthLabel();
     const reminderSql =
-      req.user.role === "admin" || req.user.role === "manager"
+      isLeadershipRole(req.user.role)
         ? `
         SELECT id, title, due_date, status, priority
         FROM tasks
@@ -1146,12 +1206,12 @@ app.get("/api/dashboard/summary", authRequired, async (req, res) => {
         `;
 
     const overdueSql =
-      req.user.role === "admin" || req.user.role === "manager"
+      isLeadershipRole(req.user.role)
         ? `SELECT COUNT(*)::int AS count FROM tasks WHERE status <> 'done' AND due_date < CURRENT_DATE`
         : `SELECT COUNT(*)::int AS count FROM tasks WHERE assignee_user_id = $1 AND status <> 'done' AND due_date < CURRENT_DATE`;
 
     const dueSoonSql =
-      req.user.role === "admin" || req.user.role === "manager"
+      isLeadershipRole(req.user.role)
         ? `SELECT COUNT(*)::int AS count FROM tasks WHERE status <> 'done' AND due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 day'`
         : `SELECT COUNT(*)::int AS count FROM tasks WHERE assignee_user_id = $1 AND status <> 'done' AND due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 day'`;
 
@@ -1169,12 +1229,12 @@ app.get("/api/dashboard/summary", authRequired, async (req, res) => {
         FROM tasks
         `
       ),
-      req.user.role === "admin" || req.user.role === "manager" ? query(overdueSql) : query(overdueSql, [req.user.id]),
-      req.user.role === "admin" || req.user.role === "manager" ? query(dueSoonSql) : query(dueSoonSql, [req.user.id]),
+      isLeadershipRole(req.user.role) ? query(overdueSql) : query(overdueSql, [req.user.id]),
+      isLeadershipRole(req.user.role) ? query(dueSoonSql) : query(dueSoonSql, [req.user.id]),
       query(`SELECT COUNT(*)::int AS count FROM content_items WHERE plan_month = $1`, [currentMonth]),
       query(`SELECT COALESCE(SUM(total_amount), 0)::numeric AS amount FROM bonus_items WHERE month_label = $1`, [currentMonth]),
       query(`SELECT COALESCE(SUM(spend), 0)::numeric AS amount FROM campaigns WHERE to_char(start_date, 'YYYY-MM') = $1 OR to_char(end_date, 'YYYY-MM') = $1`, [currentMonth]),
-      req.user.role === "admin" || req.user.role === "manager" ? query(reminderSql) : query(reminderSql, [req.user.id]),
+      isLeadershipRole(req.user.role) ? query(reminderSql) : query(reminderSql, [req.user.id]),
       query(`SELECT COALESCE(bonus_rate, 25000)::numeric AS rate FROM app_settings ORDER BY id ASC LIMIT 1`),
       query(`SELECT category, limit_amount FROM budgets WHERE month_label = $1`, [currentMonth]),
       query(`SELECT category, COALESCE(SUM(amount), 0)::numeric AS amount FROM expenses WHERE to_char(expense_date, 'YYYY-MM') = $1 GROUP BY category`, [currentMonth])
@@ -1519,7 +1579,7 @@ app.post("/api/users", authRequired, async (req, res) => {
     }
 
     const hashed = await bcrypt.hash(password, 10);
-    const permissions = Array.isArray(permissions_json) ? permissions_json : [];
+    const permissions = normalizeUserPermissions(role, permissions_json);
 
     const inserted = await query(
       `
@@ -1555,7 +1615,7 @@ app.post("/api/users", authRequired, async (req, res) => {
         hashed,
         role || "viewer",
         avatar_url || null,
-        department_role || null,
+        department_role || (role === "director" ? "Direktor" : null),
         JSON.stringify(permissions),
         true
       ]
@@ -1589,7 +1649,7 @@ app.put("/api/users/:id", authRequired, async (req, res) => {
       permissions_json
     } = req.body;
 
-    const permissions = Array.isArray(permissions_json) ? permissions_json : [];
+    const permissions = normalizeUserPermissions(role, permissions_json);
 
     const updated = await query(
       `
@@ -1621,7 +1681,7 @@ app.put("/api/users/:id", authRequired, async (req, res) => {
         login || null,
         role,
         avatar_url || null,
-        department_role || null,
+        department_role || (role === "director" ? "Direktor" : null),
         JSON.stringify(permissions),
         id
       ]
@@ -2759,7 +2819,7 @@ app.get("/api/tasks", authRequired, async (req, res) => {
       WHERE 1=1
     `;
 
-    if (req.user.role !== "admin" && req.user.role !== "manager") {
+    if (!isLeadershipRole(req.user.role)) {
       sql += ` AND t.assignee_user_id = $${index} `;
       params.push(req.user.id);
       index++;
@@ -2784,7 +2844,7 @@ app.post("/api/tasks", authRequired, async (req, res) => {
   try {
     const { title, description, status, priority, due_date, assignee_user_id } = req.body;
     const finalAssigneeUserId =
-      req.user.role === "admin" || req.user.role === "manager"
+      isLeadershipRole(req.user.role)
         ? assignee_user_id || null
         : req.user.id;
 
@@ -2839,10 +2899,10 @@ app.put("/api/tasks/:id", authRequired, async (req, res) => {
   try {
     const { title, description, status, priority, due_date, assignee_user_id } = req.body;
     const finalAssigneeUserId =
-      req.user.role === "admin" || req.user.role === "manager"
+      isLeadershipRole(req.user.role)
         ? assignee_user_id || null
         : req.user.id;
-    const isPrivileged = req.user.role === "admin" || req.user.role === "manager";
+    const isPrivileged = isLeadershipRole(req.user.role);
     const updateSql = isPrivileged
       ? `
       UPDATE tasks
@@ -2907,7 +2967,7 @@ app.put("/api/tasks/:id", authRequired, async (req, res) => {
 
 app.delete("/api/tasks/:id", authRequired, async (req, res) => {
   try {
-    const isPrivileged = req.user.role === "admin" || req.user.role === "manager";
+    const isPrivileged = isLeadershipRole(req.user.role);
     const deleted = isPrivileged
       ? await query(`DELETE FROM tasks WHERE id = $1 RETURNING id`, [req.params.id])
       : await query(
