@@ -764,8 +764,30 @@ const CONTENT_TYPE_OPTIONS = [
   { value: "boshqalar", label: "Boshqalar" }
 ];
 
+const RUBRIC_OPTIONS = [
+  { value: "rubrika-yoq", label: "Rubrika yo'q" },
+  { value: "sotuv", label: "Sotuv" },
+  { value: "locatsiya", label: "Locatsiya" },
+  { value: "chegirma", label: "Chegirma" },
+  { value: "foydali-malumot", label: "Foydali ma'lumot" },
+  { value: "aksiyalar", label: "Aksiyalar" },
+  { value: "lifehack", label: "Lifehack" },
+  { value: "abzor", label: "Abzor" },
+  { value: "trend-video", label: "Trend video" },
+  { value: "xodimlar-bilan", label: "Xodimlar bilan" },
+  { value: "sovgali-oyin", label: "Sovg'ali o'yin" },
+  { value: "intervyu", label: "Intervyu" },
+  { value: "unboxing", label: "Unboxing" },
+  { value: "sale-promo", label: "Sale & promo" }
+];
+
 function formatContentType(value) {
   const match = CONTENT_TYPE_OPTIONS.find((item) => item.value === value);
+  return match?.label || value || "-";
+}
+
+function formatRubric(value) {
+  const match = RUBRIC_OPTIONS.find((item) => item.value === value);
   return match?.label || value || "-";
 }
 
@@ -1245,6 +1267,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     platform_primary: "Instagram",
     platform_secondary: "",
     content_type: "post",
+    rubric: "rubrika-yoq",
     assigned_user_id: "",
     editor_user_id: "",
     face_voice_user_id: "",
@@ -1282,6 +1305,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         row.title,
         row.platform,
         row.content_type,
+        formatRubric(row.rubric),
         row.status,
         row.assignee_name,
         row.video_editor_name,
@@ -1335,6 +1359,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
       platform_primary: platforms[0] || "Instagram",
       platform_secondary: platforms[1] || "",
       content_type: row.content_type || "post",
+      rubric: row.rubric || "rubrika-yoq",
       assigned_user_id: row.assigned_user_id || "",
       editor_user_id: row.video_editor_user_id || "",
       face_voice_user_id: row.video_face_user_id || "",
@@ -1391,6 +1416,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         status: form.status,
         platform: [form.platform_primary, form.platform_secondary].filter(Boolean).join(", "),
         content_type: form.content_type,
+        rubric: form.rubric || "rubrika-yoq",
         assigned_user_id: isVideo ? null : form.assigned_user_id || null,
         video_editor_user_id: isVideo ? form.editor_user_id || null : null,
         video_face_user_id: isVideo ? form.face_voice_user_id || null : null,
@@ -1532,6 +1558,15 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
             </select>
           </label>
 
+          <label>
+            <span>Rubrika</span>
+            <select value={form.rubric} onChange={(e) => setField("rubric", e.target.value)} disabled={formLocked}>
+              {RUBRIC_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
+            </select>
+          </label>
+
           {isVideo ? (
             <>
               <label>
@@ -1616,6 +1651,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                 <th>Holati</th>
                 <th>Platforma</th>
                 <th>Kontent turi</th>
+                <th>Rubrika</th>
                 <th>Mas'ul / Video</th>
                 <th>Bonus</th>
                 <th>Amallar</th>
@@ -1623,7 +1659,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan="8" className="empty-cell">Yuklanmoqda...</td></tr>
+                <tr><td colSpan="9" className="empty-cell">Yuklanmoqda...</td></tr>
               ) : visibleRows.length ? (
                 visibleRows.map((row) => (
                   <tr key={row.id}>
@@ -1632,6 +1668,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                     <td><span className={approvalStatusClass(row.status)}>{formatApprovalStatus(row.status)}</span></td>
                     <td>{row.platform || "-"}</td>
                     <td>{formatContentType(row.content_type)}</td>
+                    <td>{formatRubric(row.rubric)}</td>
                     <td>
                       {row.content_type === "video"
                         ? `${row.video_editor_name || "-"} / ${row.video_face_name || "-"}`
@@ -1648,7 +1685,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="8" className="empty-cell">{tableSearch.trim() ? "Qidiruv bo'yicha kontent topilmadi" : "Bu oy uchun reja yo'q"}</td></tr>
+                <tr><td colSpan="9" className="empty-cell">{tableSearch.trim() ? "Qidiruv bo'yicha kontent topilmadi" : "Bu oy uchun reja yo'q"}</td></tr>
               )}
             </tbody>
           </table>
@@ -1736,6 +1773,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               <div><strong>Holati:</strong> <span className={approvalStatusClass(viewRow.status)}>{formatApprovalStatus(viewRow.status)}</span></div>
               <div><strong>Platforma:</strong> {viewRow.platform || "-"}</div>
               <div><strong>Turi:</strong> {formatContentType(viewRow.content_type)}</div>
+              <div><strong>Rubrika:</strong> {formatRubric(viewRow.rubric)}</div>
               <div><strong>Bonus:</strong> {viewRow.bonus_enabled ? "Ha" : "Yo'q"}</div>
               <div><strong>Taklif soni:</strong> {viewRow.proposal_count || 0}</div>
               <div><strong>Tasdiq soni:</strong> {viewRow.approved_count || 0}</div>

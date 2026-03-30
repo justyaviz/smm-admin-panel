@@ -69,6 +69,7 @@ CREATE TABLE content_items (
   title TEXT NOT NULL,
   platform TEXT NOT NULL DEFAULT '',
   content_type TEXT NOT NULL DEFAULT 'post',
+  rubric TEXT NOT NULL DEFAULT 'rubrika-yoq',
   status TEXT NOT NULL DEFAULT 'reja',
   publish_date DATE,
   assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
