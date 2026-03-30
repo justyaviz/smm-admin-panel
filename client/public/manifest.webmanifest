@@ -2,23 +2,33 @@
   "name": "aloo SMM Panel",
   "short_name": "aloo SMM",
   "description": "SMM va marketing boshqaruv tizimi",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait",
   "background_color": "#f5f8fc",
   "theme_color": "#1690F5",
   "lang": "uz",
   "icons": [
     {
-      "src": "/icon-192.svg",
+      "src": "/pwa-192.png",
       "sizes": "192x192",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-512.svg",
+      "src": "/pwa-512.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }

@@ -136,6 +136,17 @@ function formatRoleLabel(role) {
   return role || "-";
 }
 
+function isAppleMobileDevice() {
+  if (typeof window === "undefined") return false;
+  const ua = String(window.navigator.userAgent || "").toLowerCase();
+  return /iphone|ipad|ipod/.test(ua);
+}
+
+function isStandaloneMode() {
+  if (typeof window === "undefined") return false;
+  return window.navigator.standalone === true || window.matchMedia("(display-mode: standalone)").matches;
+}
+
 function getMonthLabel(date = new Date()) {
   const d = new Date(date);
   const y = d.getFullYear();
@@ -835,7 +846,7 @@ function normalizeAlooText(value = "") {
   return String(value || "").replace(/aloo/gi, "aloo");
 }
 
-function LoginPage({ onLoggedIn, settings }) {
+function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpenInstallGuide }) {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -974,6 +985,17 @@ function LoginPage({ onLoggedIn, settings }) {
           <button type="submit" className="btn primary large" disabled={loading}>
             {loading ? "Kirilmoqda..." : "Kirish"}
           </button>
+          {showInstallGuideAction ? (
+            <button type="button" className="btn ghost large install-guide-btn" onClick={onOpenInstallGuide}>
+              <Upload size={16} />
+              iPhonega o'rnatish
+            </button>
+          ) : null}
+          {showInstallGuideAction ? (
+            <div className="ios-install-inline-note">
+              Safari ichida <strong>Ulashish</strong> tugmasini bosing va <strong>Add to Home Screen</strong> ni tanlang.
+            </div>
+          ) : null}
           <div className="login-card-footer">
             <span>aloo boshqaruv paneli</span>
             <span className="login-card-pulse">online</span>
@@ -5360,6 +5382,9 @@ function App() {
   const [globalResults, setGlobalResults] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstallGuide, setShowInstallGuide] = useState(false);
+  const [isAppleMobile, setIsAppleMobile] = useState(false);
+  const [isStandalone, setIsStandalone] = useState(false);
 
   const [summary, setSummary] = useState({});
   const [settings, setSettings] = useState(null);
@@ -5400,12 +5425,43 @@ function App() {
   }, [settings]);
 
   useEffect(() => {
+    const appleMobile = isAppleMobileDevice();
+    const media = window.matchMedia("(display-mode: standalone)");
+
+    const syncMode = () => {
+      const standalone = isStandaloneMode();
+      setIsAppleMobile(appleMobile);
+      setIsStandalone(standalone);
+      document.body.classList.toggle("standalone-app", standalone);
+    };
+
+    syncMode();
+
+    if (media.addEventListener) {
+      media.addEventListener("change", syncMode);
+    } else {
+      media.addListener(syncMode);
+    }
+
+    return () => {
+      document.body.classList.remove("standalone-app");
+      if (media.removeEventListener) {
+        media.removeEventListener("change", syncMode);
+      } else {
+        media.removeListener(syncMode);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     function handleBeforeInstallPrompt(event) {
       event.preventDefault();
       setDeferredPrompt(event);
     }
     function handleInstalled() {
       setDeferredPrompt(null);
+      setIsStandalone(true);
+      document.body.classList.add("standalone-app");
       showToast("Ilova qurilmaga o'rnatildi", "success");
     }
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
@@ -5658,7 +5714,26 @@ function App() {
   if (!user) {
     return (
       <>
-        <LoginPage onLoggedIn={setUser} settings={settings} />
+        <LoginPage
+          onLoggedIn={setUser}
+          settings={settings}
+          showInstallGuideAction={isAppleMobile && !isStandalone}
+          onOpenInstallGuide={() => setShowInstallGuide(true)}
+        />
+        <Modal open={showInstallGuide} onClose={() => setShowInstallGuide(false)} title="iPhonega ilova qilib o'rnatish">
+          <div className="ios-install-guide">
+            <p>aloo panelini iPhone bosh ekraniga qo'shsangiz, u oddiy sayt emas, alohida ilova kabi ochiladi.</p>
+            <div className="ios-install-steps">
+              <div className="ios-install-step"><strong>1.</strong><span>Saytni aynan <strong>Safari</strong> ichida oching.</span></div>
+              <div className="ios-install-step"><strong>2.</strong><span>Pastdagi <strong>Ulashish</strong> ikonkasini bosing.</span></div>
+              <div className="ios-install-step"><strong>3.</strong><span><strong>Add to Home Screen</strong> ni tanlang.</span></div>
+              <div className="ios-install-step"><strong>4.</strong><span><strong>Add</strong> bosing va bosh ekrandan app kabi oching.</span></div>
+            </div>
+            <div className="ios-install-note">
+              Shundan keyin panel full-screen ochiladi, Safari paneli kamayadi va foydalanish ilovaga yaqinlashadi.
+            </div>
+          </div>
+        </Modal>
         <Toast toast={toast} onClose={() => setToast(null)} />
         <style>{styles}</style>
       </>
@@ -5842,6 +5917,16 @@ function App() {
                   Install
                 </button>
               ) : null}
+              {isAppleMobile && !isStandalone ? (
+                <button
+                  className="notif-pill install-pill ios-install-pill"
+                  type="button"
+                  onClick={() => setShowInstallGuide(true)}
+                >
+                  <Upload size={16} />
+                  iPhonega o'rnatish
+                </button>
+              ) : null}
               <ThemeToggle theme={theme} setTheme={setTheme} />
               <button type="button" className="user-chip" onClick={() => setActive("profile")}>
                 {user?.avatar_url ? (
@@ -5867,6 +5952,20 @@ function App() {
         onRead={handleReadNotification}
         onReadAll={handleReadAll}
       />
+      <Modal open={showInstallGuide} onClose={() => setShowInstallGuide(false)} title="iPhonega ilova qilib o'rnatish">
+        <div className="ios-install-guide">
+          <p>Bu panelni bosh ekranga qo'shsangiz, iPhone’da alohida ilova kabi full-screen ochiladi.</p>
+          <div className="ios-install-steps">
+            <div className="ios-install-step"><strong>1.</strong><span>Panelni <strong>Safari</strong> orqali oching.</span></div>
+            <div className="ios-install-step"><strong>2.</strong><span>Pastdagi <strong>Ulashish</strong> ikonkasini bosing.</span></div>
+            <div className="ios-install-step"><strong>3.</strong><span><strong>Add to Home Screen</strong> ni tanlang.</span></div>
+            <div className="ios-install-step"><strong>4.</strong><span><strong>Add</strong> bosing va ikonka orqali kirishni boshlang.</span></div>
+          </div>
+          <div className="ios-install-note">
+            iPhone Safari `Install` popup bermaydi, shu sabab o'rnatish qo'lda `Add to Home Screen` orqali qilinadi.
+          </div>
+        </div>
+      </Modal>
 
       <Toast toast={toast} onClose={() => setToast(null)} />
       <style>{styles}</style>
@@ -5899,10 +5998,27 @@ const styles = `
 }
 *{box-sizing:border-box}
 html,body,#root{margin:0;min-height:100%;font-family:Inter,Arial,sans-serif;background:var(--bg);color:var(--text)}
+html{background:var(--bg)}
+body{padding:0}
 button,input,select,textarea{font:inherit}
 input,select,textarea{outline:none}
 a{color:var(--blue);text-decoration:none}
 img{display:block;max-width:100%}
+body.standalone-app{overscroll-behavior:none}
+body.standalone-app .app-shell{min-height:100dvh}
+body.standalone-app .sidebar{
+  padding-top:max(18px, calc(env(safe-area-inset-top) + 18px));
+  padding-bottom:max(18px, calc(env(safe-area-inset-bottom) + 18px));
+}
+body.standalone-app .main-area{
+  padding-top:max(16px, calc(env(safe-area-inset-top) + 12px));
+  padding-bottom:max(18px, calc(env(safe-area-inset-bottom) + 18px));
+}
+body.standalone-app .login-page{
+  min-height:100dvh;
+  padding-top:max(22px, calc(env(safe-area-inset-top) + 22px));
+  padding-bottom:max(22px, calc(env(safe-area-inset-bottom) + 22px));
+}
 
 .loading-screen{
   min-height:100vh;
@@ -7858,6 +7974,19 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   .login-card{padding:24px;border-radius:30px}
   .login-card-top,.login-card-footer{flex-direction:column;align-items:flex-start}
   .login-card-badges{justify-content:flex-start}
+  body.standalone-app .main-area{
+    padding-left:12px;
+    padding-right:12px;
+  }
+  .ios-install-step{
+    grid-template-columns:30px 1fr;
+    padding:12px;
+  }
+  .ios-install-step strong{
+    width:30px;
+    height:30px;
+    border-radius:10px;
+  }
 }
 @keyframes login-fade-up{
   from{opacity:0;transform:translateY(18px)}
@@ -8026,6 +8155,69 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   color:#fff;
   border-color:transparent;
   box-shadow:0 12px 28px rgba(22,144,245,.22);
+}
+.ios-install-pill{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.install-guide-btn{
+  margin-top:10px;
+  width:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+}
+.ios-install-inline-note{
+  margin-top:10px;
+  padding:12px 14px;
+  border-radius:16px;
+  border:1px solid rgba(22,144,245,.14);
+  background:rgba(22,144,245,.08);
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.55;
+}
+.ios-install-guide{
+  display:grid;
+  gap:16px;
+}
+.ios-install-guide p{
+  margin:0;
+  color:var(--muted);
+  line-height:1.65;
+}
+.ios-install-steps{
+  display:grid;
+  gap:10px;
+}
+.ios-install-step{
+  display:grid;
+  grid-template-columns:34px 1fr;
+  gap:10px;
+  align-items:flex-start;
+  padding:12px 14px;
+  border-radius:16px;
+  background:var(--soft);
+  border:1px solid var(--line);
+}
+.ios-install-step strong{
+  width:34px;
+  height:34px;
+  border-radius:12px;
+  display:grid;
+  place-items:center;
+  background:linear-gradient(135deg,#1690F5,#6dd5fa);
+  color:#fff;
+}
+.ios-install-note{
+  padding:14px 16px;
+  border-radius:18px;
+  background:linear-gradient(135deg, rgba(22,144,245,.1), rgba(109,213,250,.08));
+  border:1px solid rgba(22,144,245,.14);
+  color:var(--text);
+  line-height:1.6;
 }
 .calendar-cell.droppable{
   transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease;
