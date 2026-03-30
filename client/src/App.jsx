@@ -669,11 +669,26 @@ function expenseCategoryClass(category) {
   return "mini-badge default";
 }
 
+function expenseCategoryLabel(category) {
+  if (category === "reklama") return "Reklama";
+  if (category === "safar") return "Safar";
+  if (category === "servis") return "Servis";
+  if (category === "boshqa") return "Boshqa";
+  return category || "-";
+}
+
 function paymentTypeClass(paymentType) {
   if (paymentType === "visa") return "mini-badge danger";
   if (paymentType === "bank") return "mini-badge info";
   if (paymentType === "cash") return "mini-badge warning";
   return "mini-badge default";
+}
+
+function paymentTypeLabel(paymentType) {
+  if (paymentType === "visa") return "Visa karta";
+  if (paymentType === "bank") return "Bank";
+  if (paymentType === "cash") return "Naqd";
+  return paymentType || "-";
 }
 
 function notificationCategoryClass(category) {
@@ -1688,54 +1703,106 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
           }
         />
 
-        {viewMode === "table" ? <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Kontent nomi</th>
-                <th>Joylash sanasi</th>
-                <th>Holati</th>
-                <th>Platforma</th>
-                <th>Kontent turi</th>
-                <th>Rubrika</th>
-                <th>Mas'ul / Video</th>
-                <th>Bonus</th>
-                <th>Amallar</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr><td colSpan="9" className="empty-cell">Yuklanmoqda...</td></tr>
-              ) : visibleRows.length ? (
-                visibleRows.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.title}</td>
-                    <td>{formatDate(row.publish_date)}</td>
-                    <td><span className={approvalStatusClass(row.status)}>{formatApprovalStatus(row.status)}</span></td>
-                    <td>{row.platform || "-"}</td>
-                    <td>{formatContentType(row.content_type)}</td>
-                    <td>{formatRubric(row.rubric)}</td>
-                    <td>
-                      {row.content_type === "video"
-                        ? `${row.video_editor_name || "-"} / ${row.video_face_name || "-"}`
-                        : row.assignee_name || "-"}
-                    </td>
-                    <td>{row.bonus_enabled ? "Ha" : "Yo'q"}</td>
-                    <td>
-                      <IconActions
-                        onView={() => setViewRow(row)}
-                        onEdit={canEditContent ? () => startEdit(row) : null}
-                        onDelete={canDeleteContent ? () => removeRow(row.id) : null}
-                      />
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr><td colSpan="9" className="empty-cell">{tableSearch.trim() ? "Qidiruv bo'yicha kontent topilmadi" : "Bu oy uchun reja yo'q"}</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div> : viewMode === "calendar" ? (
+        {viewMode === "table" ? <>
+          <div className="table-wrap desktop-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Kontent nomi</th>
+                  <th>Joylash sanasi</th>
+                  <th>Holati</th>
+                  <th>Platforma</th>
+                  <th>Kontent turi</th>
+                  <th>Rubrika</th>
+                  <th>Mas'ul / Video</th>
+                  <th>Bonus</th>
+                  <th>Amallar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan="9" className="empty-cell">Yuklanmoqda...</td></tr>
+                ) : visibleRows.length ? (
+                  visibleRows.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.title}</td>
+                      <td>{formatDate(row.publish_date)}</td>
+                      <td><span className={approvalStatusClass(row.status)}>{formatApprovalStatus(row.status)}</span></td>
+                      <td>{row.platform || "-"}</td>
+                      <td>{formatContentType(row.content_type)}</td>
+                      <td>{formatRubric(row.rubric)}</td>
+                      <td>
+                        {row.content_type === "video"
+                          ? `${row.video_editor_name || "-"} / ${row.video_face_name || "-"}`
+                          : row.assignee_name || "-"}
+                      </td>
+                      <td>{row.bonus_enabled ? "Ha" : "Yo'q"}</td>
+                      <td>
+                        <IconActions
+                          onView={() => setViewRow(row)}
+                          onEdit={canEditContent ? () => startEdit(row) : null}
+                          onDelete={canDeleteContent ? () => removeRow(row.id) : null}
+                        />
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr><td colSpan="9" className="empty-cell">{tableSearch.trim() ? "Qidiruv bo'yicha kontent topilmadi" : "Bu oy uchun reja yo'q"}</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          <div className="mobile-card-list">
+            {loading ? (
+              <div className="mobile-record-card empty">Yuklanmoqda...</div>
+            ) : visibleRows.length ? (
+              visibleRows.map((row) => (
+                <div key={`content-card-${row.id}`} className={`mobile-record-card ${row.bonus_enabled ? "bonus" : ""}`}>
+                  <div className="mobile-record-head">
+                    <div className="mobile-record-title">
+                      <strong>{row.title}</strong>
+                      <span>{formatDate(row.publish_date)} • {formatContentType(row.content_type)}</span>
+                    </div>
+                    <span className={approvalStatusClass(row.status)}>{formatApprovalStatus(row.status)}</span>
+                  </div>
+                  <div className="mobile-record-grid">
+                    <div className="mobile-record-field">
+                      <label>Platforma</label>
+                      <div>{row.platform || "-"}</div>
+                    </div>
+                    <div className="mobile-record-field">
+                      <label>Rubrika</label>
+                      <div>{formatRubric(row.rubric)}</div>
+                    </div>
+                    <div className="mobile-record-field full">
+                      <label>Mas'ul / Video</label>
+                      <div>
+                        {row.content_type === "video"
+                          ? `${row.video_editor_name || "-"} / ${row.video_face_name || "-"}`
+                          : row.assignee_name || "-"}
+                      </div>
+                    </div>
+                    <div className="mobile-record-field">
+                      <label>Bonus</label>
+                      <div>{row.bonus_enabled ? "Ha" : "Yo'q"}</div>
+                    </div>
+                  </div>
+                  <div className="mobile-record-actions">
+                    <IconActions
+                      onView={() => setViewRow(row)}
+                      onEdit={canEditContent ? () => startEdit(row) : null}
+                      onDelete={canDeleteContent ? () => removeRow(row.id) : null}
+                    />
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="mobile-record-card empty">
+                {tableSearch.trim() ? "Qidiruv bo'yicha kontent topilmadi" : "Bu oy uchun reja yo'q"}
+              </div>
+            )}
+          </div>
+        </> : viewMode === "calendar" ? (
           <MiniCalendar
             monthLabel={selectedMonth}
             rows={visibleRows}
@@ -2555,7 +2622,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
             </label>
           }
         />
-        <div className="table-wrap">
+        <div className="table-wrap desktop-table">
           <table>
             <thead>
               <tr>
@@ -2605,6 +2672,59 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               )}
             </tbody>
           </table>
+        </div>
+        <div className="mobile-card-list">
+          {visibleItems.length ? (
+            visibleItems.map((row) => {
+              const difficultyMeta = getBonusDifficultyMeta(row);
+              return (
+                <div key={`bonus-card-${row.id}`} className={`mobile-record-card ${row.difficulty_level === "qiyin" ? "danger" : ""}`}>
+                  <div className="mobile-record-head">
+                    <div className="mobile-record-title">
+                      <strong>{row.content_title || "-"}</strong>
+                      <span>{formatDate(row.work_date)} • {formatContentType(row.content_type)}</span>
+                    </div>
+                    <span className={`mini-badge ${row.approval_status === "approved" ? "success" : "warning"}`}>
+                      {row.approval_status === "approved" ? "Tasdiqlandi" : "Draft"}
+                    </span>
+                  </div>
+                  <div className="mobile-record-grid">
+                    <div className="mobile-record-field full">
+                      <label>Hodim / Video</label>
+                      <div>{getBonusAssigneeLabel(row)}</div>
+                    </div>
+                    <div className="mobile-record-field">
+                      <label>Kontent holati</label>
+                      <div><span className={difficultyMeta.badgeClass}>{difficultyMeta.label}</span></div>
+                    </div>
+                    <div className="mobile-record-field">
+                      <label>Taklif</label>
+                      <div>{row.proposal_count || 0}</div>
+                    </div>
+                    <div className="mobile-record-field">
+                      <label>Tasdiq</label>
+                      <div>{row.approved_count || 0}</div>
+                    </div>
+                    <div className="mobile-record-field">
+                      <label>Jami</label>
+                      <div>{formatMoney(row.total_amount || row.amount || 0)}</div>
+                    </div>
+                  </div>
+                  <div className="mobile-record-actions">
+                    <IconActions
+                      onView={() => setViewRow(row)}
+                      onEdit={canEditBonus ? () => startEdit(row) : null}
+                      onDelete={canDeleteBonus ? () => removeRow(row.id) : null}
+                    />
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <div className="mobile-record-card empty">
+              {tableSearch.trim() ? "Qidiruv bo'yicha bonus yozuvi topilmadi" : "Bu oy uchun bonus yozuvi yo'q"}
+            </div>
+          )}
         </div>
       </div>
 
@@ -4725,7 +4845,7 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
 
       <div className="card">
         <SectionTitle title="Harajatlar ro'yxati" desc={getMonthTitle(monthFilter)} />
-        <div className="table-wrap">
+        <div className="table-wrap desktop-table">
           <table>
             <thead><tr><th>Sana</th><th>Nomi</th><th>Xizmat</th><th>Holat</th><th>Summa</th><th>Amallar</th></tr></thead>
             <tbody>
@@ -4746,6 +4866,45 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
               )) : <tr><td colSpan="6" className="empty-cell">Bu oy uchun harajat yo'q</td></tr>}
             </tbody>
           </table>
+        </div>
+        <div className="mobile-card-list">
+          {filteredExpenses.length ? filteredExpenses.map((row) => (
+            <div key={row.id} className="mobile-record-card">
+              <div className="mobile-record-head">
+                <div className="mobile-record-title">
+                  <strong>{row.title}</strong>
+                  <span>{formatDate(row.expense_date)}</span>
+                </div>
+                <div className="table-badge-stack">
+                  <span className={expenseCategoryClass(row.category)}>{expenseCategoryLabel(row.category)}</span>
+                  <span className={paymentTypeClass(row.payment_type)}>{paymentTypeLabel(row.payment_type)}</span>
+                </div>
+              </div>
+              <div className="mobile-record-grid">
+                <div className="mobile-record-field">
+                  <label>Xizmat</label>
+                  <div>{row.vendor_name || "-"}</div>
+                </div>
+                <div className="mobile-record-field">
+                  <label>Summa</label>
+                  <div>{Number(row.amount || 0).toLocaleString()} {row.currency || "UZS"}</div>
+                </div>
+                <div className="mobile-record-field">
+                  <label>Karta egasi</label>
+                  <div>{row.card_holder || "-"}</div>
+                </div>
+                <div className="mobile-record-field">
+                  <label>Izoh</label>
+                  <div>{row.notes || "-"}</div>
+                </div>
+              </div>
+              <div className="mobile-record-actions">
+                <IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} />
+              </div>
+            </div>
+          )) : (
+            <div className="mobile-record-card empty">Bu oy uchun harajat yo'q</div>
+          )}
         </div>
       </div>
 
@@ -7208,6 +7367,75 @@ body.standalone-app .login-page{
   border:1px solid var(--line);
   border-radius:16px;
 }
+.desktop-table{display:block}
+.mobile-card-list{display:none}
+.mobile-record-card{
+  display:grid;
+  gap:12px;
+  padding:14px;
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:var(--panel);
+}
+.mobile-record-card.empty{
+  text-align:center;
+  color:var(--muted);
+  place-items:center;
+}
+.mobile-record-card.danger{
+  border-color:rgba(239,68,68,.22);
+  background:linear-gradient(135deg, rgba(239,68,68,.08), rgba(255,255,255,.98));
+}
+.mobile-record-card.bonus{
+  background:linear-gradient(135deg, rgba(22,144,245,.08), rgba(255,255,255,.98));
+}
+.mobile-record-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:10px;
+}
+.mobile-record-title{
+  display:grid;
+  gap:4px;
+}
+.mobile-record-title strong{
+  font-size:15px;
+  line-height:1.35;
+}
+.mobile-record-title span{
+  font-size:12px;
+  color:var(--muted);
+}
+.mobile-record-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px 12px;
+}
+.mobile-record-field{
+  display:grid;
+  gap:4px;
+}
+.mobile-record-field.full{
+  grid-column:1 / -1;
+}
+.mobile-record-field label{
+  font-size:11px;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+.mobile-record-field div{
+  font-size:13px;
+  line-height:1.45;
+  color:var(--text);
+}
+.mobile-record-actions{
+  display:flex;
+  justify-content:flex-end;
+  padding-top:8px;
+  border-top:1px solid var(--line);
+}
 table{width:100%;border-collapse:collapse}
 th,td{padding:12px 14px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
 th{background:rgba(22,144,245,.05);color:var(--muted)}
@@ -8651,6 +8879,37 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
   }
   .table-wrap{
     border-radius:14px;
+  }
+  .desktop-table{
+    display:none;
+  }
+  .mobile-card-list{
+    display:grid;
+    gap:10px;
+  }
+  .mobile-record-card{
+    border-radius:16px;
+    padding:12px;
+    gap:10px;
+  }
+  .mobile-record-head{
+    gap:8px;
+  }
+  .mobile-record-title strong{
+    font-size:14px;
+  }
+  .mobile-record-title span{
+    font-size:11px;
+  }
+  .mobile-record-grid{
+    grid-template-columns:1fr;
+    gap:8px;
+  }
+  .mobile-record-field label{
+    font-size:10px;
+  }
+  .mobile-record-field div{
+    font-size:12px;
   }
   .modal-card{
     width:min(96vw, calc(100vw - 16px));
