@@ -14,6 +14,7 @@ import { getClient, query } from "./db.js";
 import { actionPermissionAllowed, authRequired, pagePermissionAllowed, rolesAllowed, signToken } from "./auth.js";
 import { buildBranchOrderSql, DEFAULT_BRANCHES } from "./defaultBranches.js";
 import { sendExcel, sendSimplePdf } from "./exports.js";
+import { isMySeOneSyncEnabled, syncBonusDeleteToMySeOne, syncBonusUpsertToMySeOne } from "./mySeOneSync.js";
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -494,6 +495,123 @@ function getApprovalNotificationMeta(status, label) {
   return null;
 }
 
+const BONUS_SYNC_SELECT = `
+  SELECT
+    bi.*,
+    u.full_name,
+    ve.full_name AS video_editor_name,
+    vf.full_name AS video_face_name
+  FROM bonus_items bi
+  LEFT JOIN users u ON u.id = bi.user_id
+  LEFT JOIN users ve ON ve.id = bi.video_editor_user_id
+  LEFT JOIN users vf ON vf.id = bi.video_face_user_id
+`;
+
+async function runDbQuery(db, text, params = []) {
+  if (typeof db === "function") {
+    return db(text, params);
+  }
+  return db.query(text, params);
+}
+
+async function getBonusSyncRowById(db, id) {
+  const result = await runDbQuery(
+    db,
+    `
+    ${BONUS_SYNC_SELECT}
+    WHERE bi.id = $1
+    LIMIT 1
+    `,
+    [id]
+  );
+  return result.rows[0] || null;
+}
+
+async function getBonusSyncRowsByTitleDate(db, title, workDate) {
+  const result = await runDbQuery(
+    db,
+    `
+    ${BONUS_SYNC_SELECT}
+    WHERE bi.content_title = $1 AND bi.work_date = $2
+    ORDER BY bi.id DESC
+    `,
+    [title, workDate]
+  );
+  return result.rows;
+}
+
+function trimSyncError(err) {
+  const message = String(err?.message || err || "").trim();
+  return message.slice(0, 800) || "my.se-one sync xatoligi";
+}
+
+async function updateBonusSyncState(id, { remoteId = null, status = "synced", error = null, syncedTitle = null } = {}) {
+  await query(
+    `
+    UPDATE bonus_items
+    SET
+      myseone_item_id = $1,
+      myseone_sync_status = $2,
+      myseone_sync_error = $3,
+      myseone_synced_at = CASE WHEN $2 = 'synced' THEN CURRENT_TIMESTAMP ELSE myseone_synced_at END,
+      myseone_synced_title = COALESCE($4, myseone_synced_title),
+      updated_at = CURRENT_TIMESTAMP
+    WHERE id = $5
+    `,
+    [remoteId, status, error ? trimSyncError(error) : null, syncedTitle, id]
+  );
+}
+
+function scheduleBonusUpsertSync(itemId) {
+  if (!itemId || !isMySeOneSyncEnabled()) {
+    return;
+  }
+
+  setImmediate(async () => {
+    try {
+      const row = await getBonusSyncRowById(query, itemId);
+      if (!row) return;
+
+      await updateBonusSyncState(itemId, {
+        remoteId: row.myseone_item_id || null,
+        status: "syncing",
+        error: null
+      });
+
+      const result = await syncBonusUpsertToMySeOne(row);
+      await updateBonusSyncState(itemId, {
+        remoteId: result.remoteId,
+        status: "synced",
+        error: null,
+        syncedTitle: result.syncedTitle
+      });
+    } catch (err) {
+      console.error("my.se-one bonus upsert sync error:", err.message);
+      try {
+        await updateBonusSyncState(itemId, { status: "error", error: err });
+      } catch (stateErr) {
+        console.error("my.se-one bonus sync state update error:", stateErr.message);
+      }
+    }
+  });
+}
+
+function scheduleBonusDeleteSync(rows) {
+  if (!Array.isArray(rows) || !rows.length || !isMySeOneSyncEnabled()) {
+    return;
+  }
+
+  for (const row of rows) {
+    setImmediate(async () => {
+      try {
+        await syncBonusDeleteToMySeOne(row);
+      } catch (err) {
+        console.error("my.se-one bonus delete sync error:", err.message);
+      }
+    });
+  }
+}
+
 async function ensureRuntimeSchema() {
   const statements = [
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS company_name TEXT NOT NULL DEFAULT 'aloo'`,
@@ -547,6 +665,11 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'draft'`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS myseone_item_id INTEGER`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS myseone_synced_title TEXT`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS myseone_sync_status TEXT NOT NULL DEFAULT 'pending'`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS myseone_sync_error TEXT`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS myseone_synced_at TIMESTAMP`,
     `ALTER TABLE bonus_items ALTER COLUMN bonus_id DROP NOT NULL`,
     `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS subscriber_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS condition_text TEXT`,
@@ -756,15 +879,16 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
   const monthLabel = row.plan_month || monthLabelFromDate(workDate);
 
   if (!workDate) {
-    return;
+    return { action: "skip" };
   }
 
   if (!row.bonus_enabled) {
+    const deletedRows = await getBonusSyncRowsByTitleDate(db, row.title, workDate);
     await db.query(
       `DELETE FROM bonus_items WHERE content_title = $1 AND work_date = $2`,
       [row.title, workDate]
     );
-    return;
+    return { action: "delete", deletedRows };
   }
 
   const proposalCount = Number(row.proposal_count || 0);
@@ -797,7 +921,7 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
   ];
 
   if (existing.rows.length) {
-    await db.query(
+    const updated = await db.query(
       `
       UPDATE bonus_items
       SET
@@ -817,13 +941,17 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
         approval_status = 'draft',
         approved_by = NULL,
         approved_at = NULL,
+        myseone_sync_status = 'pending',
+        myseone_sync_error = NULL,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $14
+      RETURNING id
       `,
       [...values, existing.rows[0].id]
     );
+    return { action: "upsert", bonusItemId: updated.rows[0]?.id || existing.rows[0].id };
   } else {
-    await db.query(
+    const inserted = await db.query(
       `
       INSERT INTO bonus_items
       (
@@ -844,9 +972,11 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
         created_by
       )
       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'draft',$14)
+      RETURNING id
       `,
       [...values, actorUserId]
     );
+    return { action: "upsert", bonusItemId: inserted.rows[0]?.id || null };
   }
 }
 
@@ -1933,8 +2063,15 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
 
     const row = inserted.rows[0];
 
-    await upsertBonusFromContentRow(client, row, req.user.id);
+    const bonusSyncMeta = await upsertBonusFromContentRow(client, row, req.user.id);
     await client.query("COMMIT");
+
+    if (bonusSyncMeta?.action === "upsert" && bonusSyncMeta.bonusItemId) {
+      scheduleBonusUpsertSync(bonusSyncMeta.bonusItemId);
+    }
+    if (bonusSyncMeta?.action === "delete" && bonusSyncMeta.deletedRows?.length) {
+      scheduleBonusDeleteSync(bonusSyncMeta.deletedRows);
+    }
 
     if (row.bonus_enabled) {
       await createNotification(
@@ -2086,8 +2223,15 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
 
     const row = updated.rows[0];
 
-    await upsertBonusFromContentRow(client, row, req.user.id);
+    const bonusSyncMeta = await upsertBonusFromContentRow(client, row, req.user.id);
     await client.query("COMMIT");
+
+    if (bonusSyncMeta?.action === "upsert" && bonusSyncMeta.bonusItemId) {
+      scheduleBonusUpsertSync(bonusSyncMeta.bonusItemId);
+    }
+    if (bonusSyncMeta?.action === "delete" && bonusSyncMeta.deletedRows?.length) {
+      scheduleBonusDeleteSync(bonusSyncMeta.deletedRows);
+    }
 
     if (previous.rows[0]?.status !== row.status) {
       const approvalMeta = getApprovalNotificationMeta(row.status, row.title);
@@ -2139,10 +2283,12 @@ app.delete("/api/content/:id", authRequired, actionPermissionAllowed("content", 
     }
 
     if (dateOnly) {
+      const deletedBonusRows = await getBonusSyncRowsByTitleDate(query, row.title, dateOnly);
       await query(
         `DELETE FROM bonus_items WHERE content_title = $1 AND work_date = $2`,
         [row.title, dateOnly]
       );
+      scheduleBonusDeleteSync(deletedBonusRows);
     }
 
     await logAction(req.user.id, "delete", "content_items", Number(req.params.id), {});
@@ -2259,6 +2405,7 @@ app.post("/api/bonus-items", authRequired, actionPermissionAllowed("bonus", "cre
       content_title
     });
 
+    scheduleBonusUpsertSync(inserted.rows[0].id);
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
@@ -2310,6 +2457,8 @@ app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "
         approval_status = 'draft',
         approved_by = NULL,
         approved_at = NULL,
+        myseone_sync_status = 'pending',
+        myseone_sync_error = NULL,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = $15
       RETURNING *
@@ -2343,6 +2492,7 @@ app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "
       content_title
     });
 
+    scheduleBonusUpsertSync(updated.rows[0].id);
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
@@ -2478,9 +2628,13 @@ app.post("/api/bonus-items/revoke-month", authRequired, pagePermissionAllowed("b
 
 app.delete("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "delete"), async (req, res) => {
   try {
+    const syncRow = await getBonusSyncRowById(query, req.params.id);
     const deleted = await query(`DELETE FROM bonus_items WHERE id = $1 RETURNING id`, [req.params.id]);
     if (!deleted.rows.length) {
       return res.status(404).json({ message: "Bonus yozuvi topilmadi" });
+    }
+    if (syncRow) {
+      scheduleBonusDeleteSync([syncRow]);
     }
     await logAction(req.user.id, "delete", "bonus_items", Number(req.params.id), {});
     res.json({ message: "Bonus yozuvi oвЂchirildi" });

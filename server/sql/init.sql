@@ -167,6 +167,11 @@ CREATE TABLE bonus_items (
   approval_status TEXT NOT NULL DEFAULT 'draft',
   approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   approved_at TIMESTAMP,
+  myseone_item_id INTEGER,
+  myseone_synced_title TEXT,
+  myseone_sync_status TEXT NOT NULL DEFAULT 'pending',
+  myseone_sync_error TEXT,
+  myseone_synced_at TIMESTAMP,
   created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
