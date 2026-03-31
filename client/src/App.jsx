@@ -22,6 +22,7 @@ import {
   Repeat2,
   Wallet,
   Pencil,
+  Filter,
   Search,
   Send,
   Settings,
@@ -2143,6 +2144,7 @@ function downloadBonusApprovalImage({
 function BonusPage({ bonusItems = [], users = [], branches = [], settings, user, onToast, reload }) {
   const [monthFilter, setMonthFilter] = useState(getMonthLabel());
   const [tableSearch, setTableSearch] = useState("");
+  const [tableFilter, setTableFilter] = useState("all");
   const [saving, setSaving] = useState(false);
   const [viewRow, setViewRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
@@ -2188,21 +2190,49 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       "work_date"
     );
   }, [bonusItems, monthFilter]);
+  const bonusFilterOptions = useMemo(() => {
+    const dynamicTypes = [...new Set(filteredItems.map((item) => item.content_type).filter(Boolean))]
+      .sort((a, b) => formatContentType(a).localeCompare(formatContentType(b)))
+      .map((type) => ({ value: `type:${type}`, label: `Tur: ${formatContentType(type)}` }));
+    return [
+      { value: "all", label: "Filtr: Hammasi" },
+      { value: "approval:draft", label: "Holat: Draft" },
+      { value: "approval:approved", label: "Holat: Tasdiqlangan" },
+      { value: "difficulty:normal", label: "Kontent holati: Oddiy" },
+      { value: "difficulty:hard", label: "Kontent holati: Qiyin" },
+      ...dynamicTypes
+    ];
+  }, [filteredItems]);
   const visibleItems = useMemo(() => {
-    return filteredItems.filter((row) => rowMatchesSearch(
-      [
-        row.content_title,
-        row.content_type,
-        row.full_name,
-        row.video_editor_name,
-        row.video_face_name,
-        row.branch_name,
-        row.difficulty_level,
-        formatDate(row.work_date)
-      ],
-      tableSearch
-    ));
-  }, [filteredItems, tableSearch]);
+    return filteredItems.filter((row) => {
+      const matchesFilter =
+        tableFilter === "all"
+          ? true
+          : tableFilter.startsWith("approval:")
+            ? (row.approval_status || "draft") === tableFilter.split(":")[1]
+            : tableFilter.startsWith("difficulty:")
+              ? (row.difficulty_level || "normal") === tableFilter.split(":")[1]
+              : tableFilter.startsWith("type:")
+                ? (row.content_type || "") === tableFilter.slice(5)
+                : true;
+
+      const matchesSearch = rowMatchesSearch(
+        [
+          row.content_title,
+          row.content_type,
+          row.full_name,
+          row.video_editor_name,
+          row.video_face_name,
+          row.branch_name,
+          row.difficulty_level,
+          formatDate(row.work_date)
+        ],
+        tableSearch
+      );
+
+      return matchesFilter && matchesSearch;
+    });
+  }, [filteredItems, tableFilter, tableSearch]);
 
   const totalProposalCount = filteredItems.reduce((sum, item) => sum + Number(item.proposal_count || 0), 0);
   const totalApprovedAmount = filteredItems.reduce((sum, item) => sum + Number(item.approved_amount || 0), 0);
@@ -2612,14 +2642,24 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
         <SectionTitle
           title={`${getMonthTitle(monthFilter)} bonus yozuvlari`}
           right={
-            <label className="table-search" aria-label="Bonus qidiruvi">
-              <Search size={16} />
-              <input
-                value={tableSearch}
-                onChange={(e) => setTableSearch(e.target.value)}
-                placeholder="Bonus, hodim yoki turdan qidiring..."
-              />
-            </label>
+            <div className="toolbar-actions">
+              <label className="table-filter" aria-label="Bonus filtri">
+                <Filter size={16} />
+                <select value={tableFilter} onChange={(e) => setTableFilter(e.target.value)}>
+                  {bonusFilterOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="table-search" aria-label="Bonus qidiruvi">
+                <Search size={16} />
+                <input
+                  value={tableSearch}
+                  onChange={(e) => setTableSearch(e.target.value)}
+                  placeholder="Bonus, hodim yoki turdan qidiring..."
+                />
+              </label>
+            </div>
           }
         />
         <div className="table-wrap desktop-table">
@@ -2668,7 +2708,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                   );
                 })
               ) : (
-                <tr><td colSpan="10" className="empty-cell">{tableSearch.trim() ? "Qidiruv bo'yicha bonus yozuvi topilmadi" : "Bu oy uchun bonus yozuvi yo'q"}</td></tr>
+                <tr><td colSpan="10" className="empty-cell">{tableSearch.trim() || tableFilter !== "all" ? "Qidiruv yoki filtr bo'yicha bonus yozuvi topilmadi" : "Bu oy uchun bonus yozuvi yo'q"}</td></tr>
               )}
             </tbody>
           </table>
@@ -2722,7 +2762,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
             })
           ) : (
             <div className="mobile-record-card empty">
-              {tableSearch.trim() ? "Qidiruv bo'yicha bonus yozuvi topilmadi" : "Bu oy uchun bonus yozuvi yo'q"}
+              {tableSearch.trim() || tableFilter !== "all" ? "Qidiruv yoki filtr bo'yicha bonus yozuvi topilmadi" : "Bu oy uchun bonus yozuvi yo'q"}
             </div>
           )}
         </div>
@@ -7208,6 +7248,23 @@ body.standalone-app .login-page{
 .table-search input::placeholder{
   color:var(--muted);
 }
+.table-filter{
+  min-width:min(100%, 220px);
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:12px 14px;
+  border-radius:16px;
+  border:1px solid var(--line);
+  background:var(--soft);
+  color:var(--muted);
+}
+.table-filter select{
+  width:100%;
+  border:none;
+  background:transparent;
+  color:var(--text);
+}
 .mb12{margin-bottom:12px}
 .info-banner{
   margin-bottom:14px;
@@ -8838,6 +8895,13 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
     flex:1 1 calc(50% - 6px);
   }
   .table-search{
+    min-width:0;
+    width:100%;
+    padding:10px 12px;
+    border-radius:14px;
+    font-size:13px;
+  }
+  .table-filter{
     min-width:0;
     width:100%;
     padding:10px 12px;
