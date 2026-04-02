@@ -61,6 +61,14 @@ function toDisplayDate(value) {
   return `${day}/${month}/${year}`;
 }
 
+function normalizeOptionalUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^www\./i.test(raw)) return `https://${raw}`;
+  return raw;
+}
+
 function mergeCookies(current, setCookies) {
   const jar = new Map();
 
@@ -161,6 +169,7 @@ function buildPayload(row) {
     dateDisplay: toDisplayDate(workDate),
     title: insertTitle,
     lookupTitle,
+    workUrl: normalizeOptionalUrl(row.work_url || row.final_url || ""),
     categoryValue: categoryValueForContentType(row.content_type),
     employee1Id: participants[0]?.id || "",
     employee1Label: participants[0]?.label || "",
@@ -335,7 +344,7 @@ async function insertRemoteRow(session, payload) {
     key: "insert",
     tur_id: payload.categoryValue,
     nomi: payload.title,
-    link: "",
+    link: payload.workUrl || "",
     xodim_id1: payload.employee1Id,
     bonus_1: payload.complexity1Value,
     xodim_id2: payload.employee2Id,

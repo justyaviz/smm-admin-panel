@@ -235,6 +235,20 @@ function formatDateTime(value) {
   return `${d.toISOString().slice(0, 10)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+function normalizeExternalUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^www\./i.test(raw)) return `https://${raw}`;
+  return raw;
+}
+
+function openExternalUrl(value) {
+  const url = normalizeExternalUrl(value);
+  if (!url || typeof window === "undefined") return;
+  window.open(url, "_blank", "noopener,noreferrer");
+}
+
 function getDateSortValue(value, fallback = Number.POSITIVE_INFINITY) {
   if (!value) return fallback;
   const normalized = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
@@ -1353,6 +1367,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     face_voice_user_id: "",
     proposal_count: "",
     approved_count: "",
+    work_url: "",
     approval_comment: "",
     content_template: "custom",
     idea_score: 0,
@@ -1445,6 +1460,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
       face_voice_user_id: row.video_face_user_id || "",
       proposal_count: row.proposal_count ?? "",
       approved_count: row.approved_count ?? "",
+      work_url: row.final_url || "",
       approval_comment: row.approval_comment || "",
       content_template: row.content_template || "custom",
       idea_score: row.idea_score || 0,
@@ -1503,6 +1519,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         bonus_enabled: bonusMode,
         proposal_count: bonusMode ? Number(form.proposal_count || 0) : 0,
         approved_count: bonusMode ? Number(form.approved_count || 0) : 0,
+        final_url: normalizeExternalUrl(form.work_url),
         notes: "",
         approval_comment: form.approval_comment || "",
         content_template: form.content_template || "custom",
@@ -1686,6 +1703,16 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               <label><span>Tasdiq soni</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} disabled={formLocked} /></label>
             </>
           ) : null}
+
+          <label className="full-col">
+            <span>Qilingan ish linki</span>
+            <input
+              value={form.work_url}
+              onChange={(e) => setField("work_url", e.target.value)}
+              placeholder="https://instagram.com/... yoki post havolasi"
+              disabled={formLocked}
+            />
+          </label>
 
           <label className="full-col"><span>Approval izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} placeholder="Tasdiqlash yoki qayta ishlash bo'yicha izoh" disabled={formLocked} /></label>
 
@@ -1909,6 +1936,14 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               <div><strong>Bonus:</strong> {viewRow.bonus_enabled ? "Ha" : "Yo'q"}</div>
               <div><strong>Taklif soni:</strong> {viewRow.proposal_count || 0}</div>
               <div><strong>Tasdiq soni:</strong> {viewRow.approved_count || 0}</div>
+              <div className="full-col">
+                <strong>Qilingan ish linki:</strong>{" "}
+                {viewRow.final_url ? (
+                  <a href={normalizeExternalUrl(viewRow.final_url)} target="_blank" rel="noreferrer">
+                    Havolani ochish
+                  </a>
+                ) : "-"}
+              </div>
               <div className="full-col"><strong>Approval izohi:</strong> {viewRow.approval_comment || "-"}</div>
             </div>
             <DiscussionPanel entityType="content" entityId={viewRow.id} onToast={onToast} />
@@ -2175,6 +2210,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
     work_date: "",
     content_type: "post",
     difficulty_level: "normal",
+    work_url: "",
     user_id: "",
     editor_user_id: "",
     face_voice_user_id: "",
@@ -2295,6 +2331,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       work_date: formatDate(row.work_date) === "-" ? "" : formatDate(row.work_date),
       content_type: row.content_type || "post",
       difficulty_level: row.difficulty_level || "normal",
+      work_url: row.work_url || "",
       user_id: row.user_id || "",
       editor_user_id: row.video_editor_user_id || "",
       face_voice_user_id: row.video_face_user_id || "",
@@ -2432,6 +2469,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
         work_date: form.work_date,
         content_type: form.content_type,
         content_title: form.title,
+        work_url: normalizeExternalUrl(form.work_url),
         proposal_count: Number(form.proposal_count || 0),
         approved_count: Number(form.approved_count || 0),
         difficulty_level: form.difficulty_level || "normal",
@@ -2587,6 +2625,15 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
 
           <label><span>Taklif soni</span><input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required disabled={bonusFormLocked} /></label>
           <label><span>Tasdiq soni</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} disabled={bonusFormLocked} /></label>
+          <label className="full-col">
+            <span>Qilingan ish linki</span>
+            <input
+              value={form.work_url}
+              onChange={(e) => setField("work_url", e.target.value)}
+              placeholder="https://instagram.com/... yoki tayyor ish havolasi"
+              disabled={bonusFormLocked}
+            />
+          </label>
 
           <button className="btn primary" type="submit" disabled={saving || bonusFormLocked}>
             {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Hisobotni saqlash"}
@@ -2806,6 +2853,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               <thead>
                 <tr>
                   <th>Kontent nomi</th>
+                  <th>Havola</th>
                   <th>Sana</th>
                   <th>Turi</th>
                   <th>Hodim / Video</th>
@@ -2822,6 +2870,18 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                     return (
                       <tr key={`approval-${row.id}`} className={difficultyMeta.rowClass}>
                         <td>{row.content_title || "-"}</td>
+                        <td>
+                          {row.work_url ? (
+                            <button
+                              type="button"
+                              className="icon-btn"
+                              title="Havolani ochish"
+                              onClick={() => openExternalUrl(row.work_url)}
+                            >
+                              <Eye size={16} />
+                            </button>
+                          ) : "-"}
+                        </td>
                         <td>{formatDate(row.work_date)}</td>
                         <td>{formatContentType(row.content_type)}</td>
                         <td>{getBonusAssigneeLabel(row)}</td>
@@ -2841,7 +2901,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                     );
                   })
                 ) : (
-                  <tr><td colSpan="8" className="empty-cell">Tasdiqlash uchun yozuv topilmadi</td></tr>
+                  <tr><td colSpan="9" className="empty-cell">Tasdiqlash uchun yozuv topilmadi</td></tr>
                 )}
               </tbody>
             </table>
@@ -2920,6 +2980,14 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               <div><strong>Tasdiq:</strong> {viewRow.approved_count || 0}</div>
               <div><strong>Holat:</strong> {viewRow.approval_status === "approved" ? "Tasdiqlangan" : "Draft"}</div>
               <div><strong>Jami:</strong> {formatMoney(viewRow.total_amount || viewRow.amount || 0)}</div>
+              <div className="full-col">
+                <strong>Qilingan ish linki:</strong>{" "}
+                {viewRow.work_url ? (
+                  <a href={normalizeExternalUrl(viewRow.work_url)} target="_blank" rel="noreferrer">
+                    Havolani ochish
+                  </a>
+                ) : "-"}
+              </div>
               <div className="full-col"><strong>Tasdiqlagan:</strong> {viewRow.approved_by_name || "-"}</div>
             </div>
             <DiscussionPanel entityType="bonus_item" entityId={viewRow.id} onToast={onToast} />

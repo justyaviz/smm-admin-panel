@@ -670,6 +670,7 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS myseone_sync_status TEXT NOT NULL DEFAULT 'pending'`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS myseone_sync_error TEXT`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS myseone_synced_at TIMESTAMP`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS work_url TEXT`,
     `ALTER TABLE bonus_items ALTER COLUMN bonus_id DROP NOT NULL`,
     `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS subscriber_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS condition_text TEXT`,
@@ -922,6 +923,7 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
     workDate,
     row.content_type || "post",
     row.title || "",
+    row.final_url || "",
     proposalCount,
     approvedCount,
     proposalAmount,
@@ -944,22 +946,23 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
         work_date = $2,
         content_type = $3,
         content_title = $4,
-        proposal_count = $5,
-        approved_count = $6,
-        proposal_amount = $7,
-        approved_amount = $8,
-        total_amount = $9,
-        difficulty_level = $10,
-        user_id = $11,
-        video_editor_user_id = $12,
-        video_face_user_id = $13,
+        work_url = $5,
+        proposal_count = $6,
+        approved_count = $7,
+        proposal_amount = $8,
+        approved_amount = $9,
+        total_amount = $10,
+        difficulty_level = $11,
+        user_id = $12,
+        video_editor_user_id = $13,
+        video_face_user_id = $14,
         approval_status = 'draft',
         approved_by = NULL,
         approved_at = NULL,
         myseone_sync_status = 'pending',
         myseone_sync_error = NULL,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $14
+      WHERE id = $15
       RETURNING id
       `,
       [...values, existing.rows[0].id]
@@ -974,6 +977,7 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
         work_date,
         content_type,
         content_title,
+        work_url,
         proposal_count,
         approved_count,
         proposal_amount,
@@ -986,7 +990,7 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
         approval_status,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'draft',$14)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'draft',$15)
       RETURNING id
       `,
       [...values, actorUserId]
@@ -2356,6 +2360,7 @@ app.post("/api/bonus-items", authRequired, actionPermissionAllowed("bonus", "cre
       proposal_count,
       approved_count,
       difficulty_level,
+      work_url,
       user_id,
       video_editor_user_id,
       video_face_user_id,
@@ -2377,6 +2382,7 @@ app.post("/api/bonus-items", authRequired, actionPermissionAllowed("bonus", "cre
         work_date,
         content_type,
         content_title,
+        work_url,
         proposal_count,
         approved_count,
         proposal_amount,
@@ -2392,7 +2398,7 @@ app.post("/api/bonus-items", authRequired, actionPermissionAllowed("bonus", "cre
         approved_at,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,'draft',NULL,NULL,$15)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,'draft',NULL,NULL,$16)
       RETURNING *
       `,
       [
@@ -2400,6 +2406,7 @@ app.post("/api/bonus-items", authRequired, actionPermissionAllowed("bonus", "cre
         dateOnly,
         content_type || "post",
         content_title || "",
+        work_url || "",
         Number(proposal_count || 0),
         Number(approved_count || 0),
         proposalAmount,
@@ -2438,6 +2445,7 @@ app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "
       proposal_count,
       approved_count,
       difficulty_level,
+      work_url,
       user_id,
       video_editor_user_id,
       video_face_user_id,
@@ -2459,23 +2467,24 @@ app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "
         work_date = $2,
         content_type = $3,
         content_title = $4,
-        proposal_count = $5,
-        approved_count = $6,
-        proposal_amount = $7,
-        approved_amount = $8,
-        total_amount = $9,
-        difficulty_level = $10,
-        user_id = $11,
-        video_editor_user_id = $12,
-        video_face_user_id = $13,
-        branch_id = $14,
+        work_url = $5,
+        proposal_count = $6,
+        approved_count = $7,
+        proposal_amount = $8,
+        approved_amount = $9,
+        total_amount = $10,
+        difficulty_level = $11,
+        user_id = $12,
+        video_editor_user_id = $13,
+        video_face_user_id = $14,
+        branch_id = $15,
         approval_status = 'draft',
         approved_by = NULL,
         approved_at = NULL,
         myseone_sync_status = 'pending',
         myseone_sync_error = NULL,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $15
+      WHERE id = $16
       RETURNING *
       `,
       [
@@ -2483,6 +2492,7 @@ app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "
         dateOnly,
         content_type || "post",
         content_title || "",
+        work_url || "",
         Number(proposal_count || 0),
         Number(approved_count || 0),
         proposalAmount,
