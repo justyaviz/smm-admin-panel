@@ -55,6 +55,7 @@ const io = new SocketIOServer(httpServer, {
 
 const userSockets = new Map();
 const BONUS_PULL_SYNC_COOLDOWN_MS = Math.max(5000, Number(process.env.MYSEONE_PULL_SYNC_COOLDOWN_MS || 20000));
+const MYSEONE_FROZEN_MONTHS = new Set(["2026-03"]);
 let bonusPullSyncPromise = null;
 let lastBonusPullSyncAt = 0;
 
@@ -548,6 +549,22 @@ function trimSyncError(err) {
   return message.slice(0, 800) || "my.se-one sync xatoligi";
 }
 
+function getFrozenBonusSyncMonth(row = {}) {
+  const monthLabel = String(row?.month_label || "").trim();
+  if (/^\d{4}-\d{2}$/.test(monthLabel)) {
+    return monthLabel;
+  }
+  const workDate = String(row?.work_date || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(workDate)) {
+    return workDate.slice(0, 7);
+  }
+  return "";
+}
+
+function isFrozenBonusSyncMonth(row = {}) {
+  return MYSEONE_FROZEN_MONTHS.has(getFrozenBonusSyncMonth(row));
+}
+
 async function updateBonusSyncState(id, { remoteId = null, status = "synced", error = null, syncedTitle = null } = {}) {
   await query(
     `
@@ -574,6 +591,16 @@ function scheduleBonusUpsertSync(itemId) {
     try {
       const row = await getBonusSyncRowById(query, itemId);
       if (!row) return;
+
+      if (isFrozenBonusSyncMonth(row)) {
+        await updateBonusSyncState(itemId, {
+          remoteId: row.myseone_item_id || null,
+          status: "synced",
+          error: null,
+          syncedTitle: row.myseone_synced_title || row.content_title || null
+        });
+        return;
+      }
 
       await updateBonusSyncState(itemId, {
         remoteId: row.myseone_item_id || null,
@@ -607,6 +634,9 @@ function scheduleBonusDeleteSync(rows) {
   for (const row of rows) {
     setImmediate(async () => {
       try {
+        if (isFrozenBonusSyncMonth(row)) {
+          return;
+        }
         await syncBonusDeleteToMySeOne(row);
       } catch (err) {
         console.error("my.se-one bonus delete sync error:", err.message);
@@ -681,6 +711,10 @@ async function pullBonusUpdatesFromMySeOne(force = false) {
       const currentUrl = normalizeSyncUrl(local.work_url || "");
       const currentSyncedTitle = normalizeSyncText(local.myseone_synced_title || "");
       const currentRemoteId = Number(local.myseone_item_id || 0) || null;
+
+      if (isFrozenBonusSyncMonth({ month_label: nextMonth || currentMonth, work_date: nextDate || currentDate })) {
+        continue;
+      }
 
       const hasChanged =
         currentRemoteId !== nextRemoteId ||
