@@ -44,6 +44,14 @@ export function sanitizeMySeOneTitle(value) {
 function toDateOnly(value) {
   if (!value) return null;
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    const match = trimmed.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (match) {
+      const [, day, month, year] = match;
+      return `${year}-${month}-${day}`;
+    }
+  }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
   return date.toISOString().slice(0, 10);
@@ -63,7 +71,7 @@ function toDisplayDate(value) {
 
 function normalizeOptionalUrl(value) {
   const raw = String(value || "").trim();
-  if (!raw) return "";
+  if (!raw || raw === "-" || raw === "—") return "";
   if (/^https?:\/\//i.test(raw)) return raw;
   if (/^www\./i.test(raw)) return `https://${raw}`;
   return raw;
@@ -116,6 +124,50 @@ function categoryValueForContentType(contentType) {
   if (type === "motion") return "3";
   if (type === "boshqa-ishlar" || type === "boshqalar" || type === "aloo.uz sayti") return "6";
   return "2";
+}
+
+function categoryNameFromValue(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "1" || normalized === "reels") return "reels";
+  if (normalized === "2" || normalized === "post") return "post";
+  if (normalized === "3" || normalized === "motion") return "motion";
+  if (normalized === "4" || normalized === "dizayn") return "dizayn";
+  if (normalized === "5" || normalized === "video") return "video";
+  if (normalized === "6" || normalized === "boshqa") return "boshqa";
+  return normalized;
+}
+
+function mapMySeOneCategoryToContentType(categoryValue, currentType = "") {
+  const category = categoryNameFromValue(categoryValue);
+  const normalizedCurrent = String(currentType || "").trim().toLowerCase();
+
+  if (category === "reels" || category === "video") {
+    if (["reels", "video", "mobi-video"].includes(normalizedCurrent)) {
+      return normalizedCurrent;
+    }
+    return "reels";
+  }
+
+  if (category === "dizayn") {
+    if (["banner", "flayer", "do'kon dizayni"].includes(normalizedCurrent)) {
+      return normalizedCurrent;
+    }
+    return "banner";
+  }
+
+  if (category === "boshqa") {
+    if (["boshqa-ishlar", "boshqalar", "aloo.uz sayti"].includes(normalizedCurrent)) {
+      return normalizedCurrent;
+    }
+    return "boshqa-ishlar";
+  }
+
+  if (category === "motion") return "motion";
+  if (category === "post") {
+    return normalizedCurrent === "story" ? "story" : "post";
+  }
+
+  return normalizedCurrent || "post";
 }
 
 function mapEmployee(name) {
@@ -238,7 +290,7 @@ async function createSession() {
 function parseRowsFromTable(html) {
   const rows = [];
   for (const tr of String(html || "").match(/<tr>[\s\S]*?<\/tr>/g) || []) {
-    const idMatch = tr.match(/deleteItem\(`(\d+)`\)/);
+    const idMatch = tr.match(/editItem\(`(\d+)`\)/) || tr.match(/deleteItem\(`(\d+)`\)/);
     if (!idMatch) continue;
 
     const cells = [];
@@ -250,13 +302,15 @@ function parseRowsFromTable(html) {
 
     rows.push({
       id: Number(idMatch[1]),
-      category: cells[1] || "",
-      title: cells[2] || "",
+      category: categoryNameFromValue(cells[1] || ""),
+      title: sanitizeMySeOneTitle(cells[2] || ""),
+      link: normalizeOptionalUrl(cells[3] || ""),
       employee1: cells[4] || "",
       complexity1: cells[5] || "",
       employee2: cells[7] || "",
       complexity2: cells[8] || "",
-      date: cells[10] || ""
+      date: cells[10] || "",
+      dateValue: toDateOnly(cells[10] || "")
     });
   }
   return rows;
@@ -282,6 +336,46 @@ async function loadMonthRows(session, monthLabel) {
   }
 
   return parseRowsFromTable(text);
+}
+
+async function loadRemoteRowById(session, remoteId) {
+  const body = new URLSearchParams({
+    id: String(remoteId || ""),
+    key: "edit"
+  });
+
+  const { response, text } = await fetchText(session.loadUrl, {
+    method: "POST",
+    headers: {
+      cookie: session.cookie,
+      "content-type": "application/x-www-form-urlencoded"
+    },
+    body
+  }, session.timeoutMs);
+
+  if (!response.ok) {
+    throw new Error(`my.se-one yozuvini olib bo'lmadi (${response.status})`);
+  }
+
+  let parsed = null;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("my.se-one edit javobi JSON emas");
+  }
+
+  if (!parsed?.success || !parsed?.data) {
+    throw new Error(parsed?.message || "my.se-one edit ma'lumoti topilmadi");
+  }
+
+  return {
+    id: Number(parsed.data.id || remoteId || 0),
+    category: categoryNameFromValue(parsed.data.tur_id || ""),
+    title: sanitizeMySeOneTitle(parsed.data.nomi || ""),
+    link: normalizeOptionalUrl(parsed.data.link || ""),
+    dateValue: toDateOnly(parsed.data.bajarilgan_sana || ""),
+    date: toDisplayDate(parsed.data.bajarilgan_sana || "")
+  };
 }
 
 function findExactRow(rows, payload, useLookupTitle = false) {
@@ -430,4 +524,61 @@ export async function syncBonusDeleteToMySeOne(row) {
 
   await deleteRemoteRow(session, remoteId);
   return { deleted: true, remoteId };
+}
+
+export async function pullBonusMirrorFromMySeOne(rows = []) {
+  const session = await createSession();
+  const monthCache = new Map();
+  const remoteRows = Array.isArray(rows)
+    ? rows.filter((row) => Number(row?.myseone_item_id || 0) > 0)
+    : [];
+
+  for (const row of remoteRows) {
+    const monthLabel = String(row?.month_label || "").trim() || toMonthLabel(row?.work_date);
+    if (!monthLabel || monthCache.has(monthLabel)) continue;
+    monthCache.set(monthLabel, await loadMonthRows(session, monthLabel));
+  }
+
+  const updates = [];
+  for (const row of remoteRows) {
+    const remoteId = Number(row?.myseone_item_id || 0);
+    if (!remoteId) continue;
+
+    const monthLabel = String(row?.month_label || "").trim() || toMonthLabel(row?.work_date);
+    const monthRows = monthCache.get(monthLabel) || [];
+    let remote = monthRows.find((item) => Number(item.id) === remoteId) || null;
+
+    if (!remote) {
+      try {
+        remote = await loadRemoteRowById(session, remoteId);
+      } catch {
+        remote = null;
+      }
+    }
+
+    if (!remote?.id) {
+      updates.push({
+        id: Number(row.id || 0),
+        remoteId,
+        found: false
+      });
+      continue;
+    }
+
+    const workDate = remote.dateValue || toDateOnly(row.work_date);
+    updates.push({
+      id: Number(row.id || 0),
+      remoteId,
+      found: true,
+      title: remote.title || sanitizeMySeOneTitle(row.content_title || ""),
+      workUrl: normalizeOptionalUrl(remote.link || ""),
+      workDate,
+      monthLabel: toMonthLabel(workDate) || String(row?.month_label || "").trim(),
+      contentType: mapMySeOneCategoryToContentType(remote.category, row.content_type || ""),
+      category: remote.category || "",
+      syncedTitle: remote.title || sanitizeMySeOneTitle(row.myseone_synced_title || row.content_title || "")
+    });
+  }
+
+  return updates;
 }

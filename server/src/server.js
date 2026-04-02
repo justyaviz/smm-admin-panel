@@ -14,7 +14,7 @@ import { getClient, query } from "./db.js";
 import { actionPermissionAllowed, authRequired, pagePermissionAllowed, rolesAllowed, signToken } from "./auth.js";
 import { buildBranchOrderSql, DEFAULT_BRANCHES } from "./defaultBranches.js";
 import { sendContestExpensePdf, sendExcel, sendSimplePdf } from "./exports.js";
-import { isMySeOneSyncEnabled, syncBonusDeleteToMySeOne, syncBonusUpsertToMySeOne } from "./mySeOneSync.js";
+import { isMySeOneSyncEnabled, pullBonusMirrorFromMySeOne, syncBonusDeleteToMySeOne, syncBonusUpsertToMySeOne } from "./mySeOneSync.js";
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -54,6 +54,9 @@ const io = new SocketIOServer(httpServer, {
 });
 
 const userSockets = new Map();
+const BONUS_PULL_SYNC_COOLDOWN_MS = Math.max(5000, Number(process.env.MYSEONE_PULL_SYNC_COOLDOWN_MS || 20000));
+let bonusPullSyncPromise = null;
+let lastBonusPullSyncAt = 0;
 
 const storage = multer.diskStorage({
   destination: (_, __, cb) => cb(null, uploadsDir),
@@ -609,6 +612,117 @@ function scheduleBonusDeleteSync(rows) {
         console.error("my.se-one bonus delete sync error:", err.message);
       }
     });
+  }
+}
+
+function normalizeSyncText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeSyncUrl(value) {
+  const raw = normalizeSyncText(value);
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^www\./i.test(raw)) return `https://${raw}`;
+  return raw;
+}
+
+async function pullBonusUpdatesFromMySeOne(force = false) {
+  if (!isMySeOneSyncEnabled()) {
+    return { checked: 0, updated: 0, skipped: true };
+  }
+
+  const now = Date.now();
+  if (!force && bonusPullSyncPromise) {
+    return bonusPullSyncPromise;
+  }
+
+  if (!force && lastBonusPullSyncAt && now - lastBonusPullSyncAt < BONUS_PULL_SYNC_COOLDOWN_MS) {
+    return { checked: 0, updated: 0, skipped: true };
+  }
+
+  bonusPullSyncPromise = (async () => {
+    const result = await query(
+      `
+      ${BONUS_SYNC_SELECT}
+      WHERE bi.myseone_item_id IS NOT NULL
+      ORDER BY bi.work_date DESC NULLS LAST, bi.id DESC
+      `
+    );
+
+    const rows = result.rows || [];
+    if (!rows.length) {
+      lastBonusPullSyncAt = Date.now();
+      return { checked: 0, updated: 0 };
+    }
+
+    const mirrorRows = await pullBonusMirrorFromMySeOne(rows);
+    let updated = 0;
+
+    for (const remote of mirrorRows) {
+      if (!remote?.found || !remote.id) continue;
+
+      const local = rows.find((row) => Number(row.id) === Number(remote.id));
+      if (!local) continue;
+
+      const nextMonth = normalizeSyncText(remote.monthLabel || local.month_label || "");
+      const nextDate = normalizeSyncText(remote.workDate || local.work_date || "");
+      const nextType = normalizeSyncText(remote.contentType || local.content_type || "").toLowerCase();
+      const nextTitle = normalizeSyncText(remote.title || local.content_title || "");
+      const nextUrl = normalizeSyncUrl(remote.workUrl || "");
+      const nextSyncedTitle = normalizeSyncText(remote.syncedTitle || remote.title || local.myseone_synced_title || local.content_title || "");
+
+      const currentMonth = normalizeSyncText(local.month_label || "");
+      const currentDate = normalizeSyncText(local.work_date || "");
+      const currentType = normalizeSyncText(local.content_type || "").toLowerCase();
+      const currentTitle = normalizeSyncText(local.content_title || "");
+      const currentUrl = normalizeSyncUrl(local.work_url || "");
+      const currentSyncedTitle = normalizeSyncText(local.myseone_synced_title || "");
+
+      const hasChanged =
+        currentMonth !== nextMonth ||
+        currentDate !== nextDate ||
+        currentType !== nextType ||
+        currentTitle !== nextTitle ||
+        currentUrl !== nextUrl ||
+        currentSyncedTitle !== nextSyncedTitle ||
+        local.myseone_sync_status !== "synced";
+
+      if (!hasChanged) continue;
+
+      await query(
+        `
+        UPDATE bonus_items
+        SET
+          month_label = $1,
+          work_date = $2,
+          content_type = $3,
+          content_title = $4,
+          work_url = $5,
+          myseone_sync_status = 'synced',
+          myseone_sync_error = NULL,
+          myseone_synced_at = CURRENT_TIMESTAMP,
+          myseone_synced_title = $6,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE id = $7
+        `,
+        [nextMonth, nextDate, nextType || "post", nextTitle, nextUrl, nextSyncedTitle, remote.id]
+      );
+
+      updated += 1;
+    }
+
+    lastBonusPullSyncAt = Date.now();
+    return {
+      checked: rows.length,
+      updated
+    };
+  })();
+
+  try {
+    return await bonusPullSyncPromise;
+  } finally {
+    bonusPullSyncPromise = null;
   }
 }
 
@@ -2322,6 +2436,12 @@ app.delete("/api/content/:id", authRequired, actionPermissionAllowed("content", 
 
 app.get("/api/bonus-items", authRequired, pagePermissionAllowed("bonus"), async (_, res) => {
   try {
+    try {
+      await pullBonusUpdatesFromMySeOne();
+    } catch (syncErr) {
+      console.error("my.se-one bonus pull sync error:", syncErr.message);
+    }
+
     await recomputeBonusFromItems();
 
     const result = await query(
@@ -2347,6 +2467,17 @@ app.get("/api/bonus-items", authRequired, pagePermissionAllowed("bonus"), async 
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Bonus maвЂ™lumotlarini olib boвЂlmadi" });
+  }
+});
+
+app.post("/api/bonus-items/sync-from-myseone", authRequired, pagePermissionAllowed("bonus"), async (_req, res) => {
+  try {
+    const result = await pullBonusUpdatesFromMySeOne(true);
+    await recomputeBonusFromItems();
+    res.json({ success: true, ...result });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `my.se-one bonus sync bajarilmadi: ${err.message}` });
   }
 });
 
