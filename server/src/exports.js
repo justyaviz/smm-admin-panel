@@ -143,97 +143,104 @@ async function drawOptionalImage(doc, url, x, y, width, height, title) {
     drawImagePlaceholder(doc, x, y, width, height, title);
     return;
   }
-
-  doc
-    .lineWidth(1)
-    .strokeColor("#d6dbe7")
-    .rect(x, y, width, height)
-    .stroke();
-  doc.image(imageBuffer, x + 6, y + 6, {
-    fit: [width - 12, height - 12],
-    align: "center",
-    valign: "center"
-  });
+  try {
+    doc
+      .lineWidth(1)
+      .strokeColor("#d6dbe7")
+      .rect(x, y, width, height)
+      .stroke();
+    doc.image(imageBuffer, x + 6, y + 6, {
+      fit: [width - 12, height - 12],
+      align: "center",
+      valign: "center"
+    });
+  } catch {
+    drawImagePlaceholder(doc, x, y, width, height, title, "Rasm formatini ochib bo'lmadi");
+  }
 }
 
 export async function sendContestExpensePdf(res, rows, fileName = "contest-expenses.pdf") {
   const doc = new PDFDocument({ margin: 42, size: "A4", autoFirstPage: false });
   const safeRows = Array.isArray(rows) ? rows : [];
-
-  res.setHeader("Content-Type", "application/pdf");
-  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
-  doc.pipe(res);
+  const chunks = [];
+  doc.on("data", (chunk) => chunks.push(chunk));
 
   if (!safeRows.length) {
     doc.addPage();
     doc.fontSize(18).text("Konkurs harajatlari", { align: "center" });
     doc.moveDown();
     doc.fontSize(11).text("Chop etish uchun yozuv topilmadi.", { align: "center" });
-    doc.end();
-    return;
+  } else {
+    for (const [index, row] of safeRows.entries()) {
+      doc.addPage();
+
+      doc
+        .fillColor("#111827")
+        .fontSize(18)
+        .text(`HISOBOT No. ${index + 1}`, { align: "center" });
+      doc
+        .moveDown(0.25)
+        .fontSize(11)
+        .fillColor("#4b5563")
+        .text("Konkurs harajatlari bo'yicha tasdiqlovchi hisobot", {
+          align: "center"
+        });
+
+      const lineY = 96;
+      doc
+        .moveTo(doc.page.margins.left, lineY)
+        .lineTo(doc.page.width - doc.page.margins.right, lineY)
+        .lineWidth(1)
+        .strokeColor("#cbd5e1")
+        .stroke();
+
+      const tableEndY = drawKeyValueTable(doc, [
+        ["Sana", formatDateOnly(row.expense_date)],
+        ["Konkurs nomi", row.contest_name],
+        ["Sovga nomi", row.prize_name],
+        ["Qayerga", row.winner_location],
+        ["Viloyat", row.winner_region],
+        ["Yutib olgan shaxs", row.winner_name],
+        ["Telefon raqam", row.winner_phone]
+      ], 118);
+
+      doc
+        .fillColor("#111827")
+        .fontSize(11)
+        .text("Sovga rasmi", doc.page.margins.left, tableEndY + 18);
+      await drawOptionalImage(
+        doc,
+        row.prize_image_url,
+        doc.page.margins.left,
+        tableEndY + 38,
+        170,
+        120,
+        "Sovga rasmi"
+      );
+
+      doc
+        .fillColor("#111827")
+        .fontSize(11)
+        .text("Tasdiq uchun rasm", doc.page.margins.left, tableEndY + 176);
+      await drawOptionalImage(
+        doc,
+        row.proof_image_url,
+        doc.page.margins.left,
+        tableEndY + 196,
+        doc.page.width - doc.page.margins.left - doc.page.margins.right,
+        260,
+        "Tasdiq rasmi"
+      );
+    }
   }
 
-  for (const [index, row] of safeRows.entries()) {
-    doc.addPage();
-
-    doc
-      .fillColor("#111827")
-      .fontSize(18)
-      .text(`HISOBOT No. ${index + 1}`, { align: "center" });
-    doc
-      .moveDown(0.25)
-      .fontSize(11)
-      .fillColor("#4b5563")
-      .text("Konkurs harajatlari bo'yicha tasdiqlovchi hisobot", {
-        align: "center"
-      });
-
-    const lineY = 96;
-    doc
-      .moveTo(doc.page.margins.left, lineY)
-      .lineTo(doc.page.width - doc.page.margins.right, lineY)
-      .lineWidth(1)
-      .strokeColor("#cbd5e1")
-      .stroke();
-
-    const tableEndY = drawKeyValueTable(doc, [
-      ["Sana", formatDateOnly(row.expense_date)],
-      ["Konkurs nomi", row.contest_name],
-      ["Sovga nomi", row.prize_name],
-      ["Qayerga", row.winner_location],
-      ["Viloyat", row.winner_region],
-      ["Yutib olgan shaxs", row.winner_name],
-      ["Telefon raqam", row.winner_phone]
-    ], 118);
-
-    doc
-      .fillColor("#111827")
-      .fontSize(11)
-      .text("Sovga rasmi", doc.page.margins.left, tableEndY + 18);
-    await drawOptionalImage(
-      doc,
-      row.prize_image_url,
-      doc.page.margins.left,
-      tableEndY + 38,
-      170,
-      120,
-      "Sovga rasmi"
-    );
-
-    doc
-      .fillColor("#111827")
-      .fontSize(11)
-      .text("Tasdiq uchun rasm", doc.page.margins.left, tableEndY + 176);
-    await drawOptionalImage(
-      doc,
-      row.proof_image_url,
-      doc.page.margins.left,
-      tableEndY + 196,
-      doc.page.width - doc.page.margins.left - doc.page.margins.right,
-      260,
-      "Tasdiq rasmi"
-    );
-  }
-
+  const bufferPromise = new Promise((resolve, reject) => {
+    doc.on("end", () => resolve(Buffer.concat(chunks)));
+    doc.on("error", reject);
+  });
   doc.end();
+  const buffer = await bufferPromise;
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  res.send(buffer);
 }
