@@ -582,7 +582,8 @@ async function updateBonusSyncState(id, { remoteId = null, status = "synced", er
   );
 }
 
-function scheduleBonusUpsertSync(itemId) {
+function scheduleBonusUpsertSync(itemId, options = {}) {
+  const { allowFrozenMonth = false } = options;
   if (!itemId || !isMySeOneSyncEnabled()) {
     return;
   }
@@ -592,7 +593,7 @@ function scheduleBonusUpsertSync(itemId) {
       const row = await getBonusSyncRowById(query, itemId);
       if (!row) return;
 
-      if (isFrozenBonusSyncMonth(row)) {
+      if (!allowFrozenMonth && isFrozenBonusSyncMonth(row)) {
         await updateBonusSyncState(itemId, {
           remoteId: row.myseone_item_id || null,
           status: "synced",
@@ -626,7 +627,8 @@ function scheduleBonusUpsertSync(itemId) {
   });
 }
 
-function scheduleBonusDeleteSync(rows) {
+function scheduleBonusDeleteSync(rows, options = {}) {
+  const { allowFrozenMonth = false } = options;
   if (!Array.isArray(rows) || !rows.length || !isMySeOneSyncEnabled()) {
     return;
   }
@@ -634,7 +636,7 @@ function scheduleBonusDeleteSync(rows) {
   for (const row of rows) {
     setImmediate(async () => {
       try {
-        if (isFrozenBonusSyncMonth(row)) {
+        if (!allowFrozenMonth && isFrozenBonusSyncMonth(row)) {
           return;
         }
         await syncBonusDeleteToMySeOne(row);
@@ -2597,7 +2599,7 @@ app.post("/api/bonus-items", authRequired, actionPermissionAllowed("bonus", "cre
       content_title
     });
 
-    scheduleBonusUpsertSync(inserted.rows[0].id);
+    scheduleBonusUpsertSync(inserted.rows[0].id, { allowFrozenMonth: true });
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
@@ -2687,7 +2689,7 @@ app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "
       content_title
     });
 
-    scheduleBonusUpsertSync(updated.rows[0].id);
+    scheduleBonusUpsertSync(updated.rows[0].id, { allowFrozenMonth: true });
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
