@@ -13,7 +13,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { getClient, query } from "./db.js";
 import { actionPermissionAllowed, authRequired, pagePermissionAllowed, rolesAllowed, signToken } from "./auth.js";
 import { buildBranchOrderSql, DEFAULT_BRANCHES } from "./defaultBranches.js";
-import { sendExcel, sendSimplePdf } from "./exports.js";
+import { sendContestExpensePdf, sendExcel, sendSimplePdf } from "./exports.js";
 import { isMySeOneSyncEnabled, syncBonusDeleteToMySeOne, syncBonusUpsertToMySeOne } from "./mySeOneSync.js";
 
 const app = express();
@@ -690,6 +690,21 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS tags_json JSONB NOT NULL DEFAULT '[]'::jsonb`,
     `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS version_label TEXT`,
     `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_key TEXT`,
+    `CREATE TABLE IF NOT EXISTS contest_expenses (
+      id SERIAL PRIMARY KEY,
+      expense_date DATE NOT NULL,
+      contest_name TEXT NOT NULL,
+      prize_name TEXT NOT NULL,
+      prize_image_url TEXT,
+      winner_location TEXT,
+      winner_region TEXT NOT NULL,
+      winner_name TEXT NOT NULL,
+      winner_phone TEXT NOT NULL,
+      proof_image_url TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS checklist_json JSONB NOT NULL DEFAULT '[]'::jsonb`,
     `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS approval_comment TEXT`,
     `ALTER TABLE travel_plans ADD COLUMN IF NOT EXISTS budget_amount NUMERIC(14,2) NOT NULL DEFAULT 0`,
@@ -3641,6 +3656,155 @@ app.delete("/api/expenses/:id", authRequired, async (req, res) => {
   }
 });
 
+app.get("/api/contest-expenses", authRequired, async (_, res) => {
+  try {
+    const result = await query(
+      `
+      SELECT *
+      FROM contest_expenses
+      ORDER BY expense_date DESC, id DESC
+      `
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Konkurs harajatlarini olib bo'lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/contest-expenses", authRequired, async (req, res) => {
+  try {
+    const {
+      expense_date,
+      contest_name,
+      prize_name,
+      prize_image_url,
+      winner_location,
+      winner_region,
+      winner_name,
+      winner_phone,
+      proof_image_url
+    } = req.body;
+
+    const inserted = await query(
+      `
+      INSERT INTO contest_expenses
+      (
+        expense_date,
+        contest_name,
+        prize_name,
+        prize_image_url,
+        winner_location,
+        winner_region,
+        winner_name,
+        winner_phone,
+        proof_image_url,
+        created_by
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      RETURNING *
+      `,
+      [
+        normalizeDateOnly(expense_date),
+        contest_name,
+        prize_name,
+        prize_image_url || null,
+        winner_location || "",
+        winner_region,
+        winner_name,
+        winner_phone,
+        proof_image_url || null,
+        req.user.id
+      ]
+    );
+
+    await logAction(req.user.id, "create", "contest_expenses", inserted.rows[0].id, {
+      contest_name,
+      prize_name,
+      winner_name
+    });
+    res.json(inserted.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Konkurs harajatini saqlab bo'lmadi: ${err.message}` });
+  }
+});
+
+app.put("/api/contest-expenses/:id", authRequired, async (req, res) => {
+  try {
+    const {
+      expense_date,
+      contest_name,
+      prize_name,
+      prize_image_url,
+      winner_location,
+      winner_region,
+      winner_name,
+      winner_phone,
+      proof_image_url
+    } = req.body;
+
+    const updated = await query(
+      `
+      UPDATE contest_expenses
+      SET
+        expense_date = $1,
+        contest_name = $2,
+        prize_name = $3,
+        prize_image_url = $4,
+        winner_location = $5,
+        winner_region = $6,
+        winner_name = $7,
+        winner_phone = $8,
+        proof_image_url = $9,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $10
+      RETURNING *
+      `,
+      [
+        normalizeDateOnly(expense_date),
+        contest_name,
+        prize_name,
+        prize_image_url || null,
+        winner_location || "",
+        winner_region,
+        winner_name,
+        winner_phone,
+        proof_image_url || null,
+        req.params.id
+      ]
+    );
+
+    if (!updated.rows.length) {
+      return res.status(404).json({ message: "Konkurs harajati topilmadi" });
+    }
+
+    await logAction(req.user.id, "update", "contest_expenses", Number(req.params.id), {
+      contest_name,
+      prize_name,
+      winner_name
+    });
+    res.json(updated.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Konkurs harajatini yangilab bo'lmadi: ${err.message}` });
+  }
+});
+
+app.delete("/api/contest-expenses/:id", authRequired, async (req, res) => {
+  try {
+    const deleted = await query(`DELETE FROM contest_expenses WHERE id = $1 RETURNING id`, [req.params.id]);
+    if (!deleted.rows.length) {
+      return res.status(404).json({ message: "Konkurs harajati topilmadi" });
+    }
+    await logAction(req.user.id, "delete", "contest_expenses", Number(req.params.id), {});
+    res.json({ message: "Konkurs harajati o'chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Konkurs harajatini o'chirib bo'lmadi: ${err.message}` });
+  }
+});
+
 /* TRAVEL PLANS */
 
 app.get("/api/travel-plans", authRequired, async (_, res) => {
@@ -4138,6 +4302,7 @@ app.get("/api/backup/export", authRequired, rolesAllowed("admin"), async (_, res
       "bonus_items",
       "daily_branch_reports",
       "expenses",
+      "contest_expenses",
       "travel_plans",
       "tasks",
       "budgets",
@@ -4172,6 +4337,7 @@ app.post("/api/backup/import", authRequired, rolesAllowed("admin"), async (req, 
       "bonus_items",
       "daily_branch_reports",
       "expenses",
+      "contest_expenses",
       "travel_plans",
       "tasks",
       "budgets",
@@ -4663,6 +4829,42 @@ app.get("/api/export/daily-reports.pdf", authRequired, async (_, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Export xatoligi" });
+  }
+});
+
+app.get("/api/export/contest-expenses.pdf", authRequired, async (req, res) => {
+  try {
+    const ids = String(req.query.ids || "")
+      .split(",")
+      .map((item) => Number(item))
+      .filter((item) => Number.isInteger(item) && item > 0);
+
+    if (!ids.length) {
+      return res.status(400).json({ message: "Chop etish uchun yozuv tanlang" });
+    }
+
+    const rows = (
+      await query(
+        `
+        SELECT *
+        FROM contest_expenses
+        WHERE id = ANY($1)
+        `,
+        [ids]
+      )
+    ).rows;
+
+    const rowsById = new Map(rows.map((row) => [Number(row.id), row]));
+    const orderedRows = ids.map((id) => rowsById.get(id)).filter(Boolean);
+
+    if (!orderedRows.length) {
+      return res.status(404).json({ message: "Chop etish uchun yozuv topilmadi" });
+    }
+
+    await sendContestExpensePdf(res, orderedRows, "contest-expenses.pdf");
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Contest PDF export xatoligi" });
   }
 });
 

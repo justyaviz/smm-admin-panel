@@ -39,6 +39,7 @@ import { io } from "socket.io-client";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api, API_BASE, clearAuth, getAuthToken, getCurrentUser, SOCKET_BASE } from "./api";
 import { applySeo } from "./seo";
+import ContestExpensesPanel from "./ContestExpensesPanel";
 
 const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: Home },
@@ -117,6 +118,23 @@ const PERMISSION_OPTIONS = [
 ];
 
 const DIRECTOR_PERMISSION_PRESET = PERMISSION_OPTIONS.map((item) => item.id);
+
+const UZBEKISTAN_REGIONS = [
+  "Toshkent shahri",
+  "Toshkent viloyati",
+  "Samarqand",
+  "Buxoro",
+  "Andijon",
+  "Farg'ona",
+  "Namangan",
+  "Qashqadaryo",
+  "Surxondaryo",
+  "Jizzax",
+  "Sirdaryo",
+  "Navoiy",
+  "Xorazm",
+  "Qoraqalpog'iston"
+];
 
 function isLeadershipRole(role) {
   return ["admin", "manager", "director"].includes(role);
@@ -4744,7 +4762,7 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme, onToast, relo
   );
 }
 
-function ExpensesPage({ expenses = [], onToast, reload }) {
+function ExpensesPage({ expenses = [], contestExpenses = [], onToast, reload }) {
   const emptyForm = {
     expense_date: "",
     title: "",
@@ -4761,6 +4779,7 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
   const [editRow, setEditRow] = useState(null);
   const [viewRow, setViewRow] = useState(null);
   const [monthFilter, setMonthFilter] = useState(getMonthLabel());
+  const [mode, setMode] = useState("general");
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   function resetForm() {
@@ -4837,6 +4856,35 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
 
   return (
     <div className="page-grid">
+      <div className="card">
+        <SectionTitle
+          title="Harajatlar bo'limi"
+          desc="Oddiy harajatlar va konkurs harajatlarini alohida boshqarish"
+          right={
+            <div className="toolbar-actions">
+              <button
+                type="button"
+                className={`btn ${mode === "general" ? "primary" : "secondary"}`}
+                onClick={() => setMode("general")}
+              >
+                Oddiy harajatlar
+              </button>
+              <button
+                type="button"
+                className={`btn ${mode === "contest" ? "primary" : "secondary"}`}
+                onClick={() => setMode("contest")}
+              >
+                Konkurs harajatlari
+              </button>
+            </div>
+          }
+        />
+      </div>
+
+      {mode === "contest" ? (
+        <ContestExpensesPanel contestExpenses={contestExpenses} onToast={onToast} reload={reload} />
+      ) : (
+        <>
       <div className="card">
         <SectionTitle title={editRow ? "Harajatni tahrirlash" : "Harajat qo'shish"} right={editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null} />
         <form className="form-grid" onSubmit={handleSubmit}>
@@ -4960,6 +5008,8 @@ function ExpensesPage({ expenses = [], onToast, reload }) {
           <div className="full-col"><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
         </div> : null}
       </Modal>
+        </>
+      )}
     </div>
   );
 }
@@ -5594,6 +5644,7 @@ function App() {
   const [branches, setBranches] = useState([]);
   const [bonusItems, setBonusItems] = useState([]);
   const [expenses, setExpenses] = useState([]);
+  const [contestExpenses, setContestExpenses] = useState([]);
   const [travelPlans, setTravelPlans] = useState([]);
   const [uploads, setUploads] = useState([]);
   const [contentRows, setContentRows] = useState([]);
@@ -5684,6 +5735,7 @@ function App() {
         branchesRes,
         bonusItemsRes,
         expensesRes,
+        contestExpensesRes,
         travelPlansRes,
         uploadsRes,
         contentRes,
@@ -5712,6 +5764,7 @@ function App() {
         api.list("branches").catch(() => []),
         api.list("bonus-items").catch(() => []),
         api.list("expenses").catch(() => []),
+        api.list("contest-expenses").catch(() => []),
         api.list("travel-plans").catch(() => []),
         api.list("uploads").catch(() => []),
         api.list("content").catch(() => []),
@@ -5743,6 +5796,7 @@ function App() {
       setBranches(branchesRes || []);
       setBonusItems(bonusItemsRes || []);
       setExpenses(expensesRes || []);
+      setContestExpenses(contestExpensesRes || []);
       setTravelPlans(travelPlansRes || []);
       setUploads(uploadsRes || []);
       setContentRows(contentRes || []);
@@ -5973,7 +6027,7 @@ function App() {
   } else if (active === "bonus") {
     page = <BonusPage bonusItems={bonusItems} users={users} branches={branches} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "expenses") {
-    page = <ExpensesPage expenses={expenses} onToast={showToast} reload={reloadData} />;
+    page = <ExpensesPage expenses={expenses} contestExpenses={contestExpenses} onToast={showToast} reload={reloadData} />;
   } else if (active === "finance") {
     page = <FinanceDashboardPage expenses={expenses} campaigns={campaigns} bonusItems={bonusItems} travelPlans={travelPlans} budgets={budgets} onToast={showToast} reload={reloadData} />;
   } else if (active === "travelPlans") {

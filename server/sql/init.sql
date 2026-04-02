@@ -2,6 +2,7 @@ DROP TABLE IF EXISTS messages CASCADE;
 DROP TABLE IF EXISTS audit_logs CASCADE;
 DROP TABLE IF EXISTS notifications CASCADE;
 DROP TABLE IF EXISTS uploads CASCADE;
+DROP TABLE IF EXISTS contest_expenses CASCADE;
 DROP TABLE IF EXISTS bonus_items CASCADE;
 DROP TABLE IF EXISTS bonuses CASCADE;
 DROP TABLE IF EXISTS daily_branch_reports CASCADE;
@@ -188,6 +189,22 @@ CREATE TABLE uploads (
   entity_id INTEGER,
   uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE contest_expenses (
+  id SERIAL PRIMARY KEY,
+  expense_date DATE NOT NULL,
+  contest_name TEXT NOT NULL,
+  prize_name TEXT NOT NULL,
+  prize_image_url TEXT,
+  winner_location TEXT,
+  winner_region TEXT NOT NULL,
+  winner_name TEXT NOT NULL,
+  winner_phone TEXT NOT NULL,
+  proof_image_url TEXT,
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE notifications (
