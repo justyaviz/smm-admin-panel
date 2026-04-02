@@ -646,6 +646,7 @@ async function pullBonusUpdatesFromMySeOne(force = false) {
       `
       ${BONUS_SYNC_SELECT}
       WHERE bi.myseone_item_id IS NOT NULL
+         OR COALESCE(bi.work_date, CURRENT_DATE) >= CURRENT_DATE - INTERVAL '180 days'
       ORDER BY bi.work_date DESC NULLS LAST, bi.id DESC
       `
     );
@@ -671,6 +672,7 @@ async function pullBonusUpdatesFromMySeOne(force = false) {
       const nextTitle = normalizeSyncText(remote.title || local.content_title || "");
       const nextUrl = normalizeSyncUrl(remote.workUrl || "");
       const nextSyncedTitle = normalizeSyncText(remote.syncedTitle || remote.title || local.myseone_synced_title || local.content_title || "");
+      const nextRemoteId = Number(remote.remoteId || local.myseone_item_id || 0) || null;
 
       const currentMonth = normalizeSyncText(local.month_label || "");
       const currentDate = normalizeSyncText(local.work_date || "");
@@ -678,8 +680,10 @@ async function pullBonusUpdatesFromMySeOne(force = false) {
       const currentTitle = normalizeSyncText(local.content_title || "");
       const currentUrl = normalizeSyncUrl(local.work_url || "");
       const currentSyncedTitle = normalizeSyncText(local.myseone_synced_title || "");
+      const currentRemoteId = Number(local.myseone_item_id || 0) || null;
 
       const hasChanged =
+        currentRemoteId !== nextRemoteId ||
         currentMonth !== nextMonth ||
         currentDate !== nextDate ||
         currentType !== nextType ||
@@ -694,19 +698,20 @@ async function pullBonusUpdatesFromMySeOne(force = false) {
         `
         UPDATE bonus_items
         SET
-          month_label = $1,
-          work_date = $2,
-          content_type = $3,
-          content_title = $4,
-          work_url = $5,
+          myseone_item_id = $1,
+          month_label = $2,
+          work_date = $3,
+          content_type = $4,
+          content_title = $5,
+          work_url = $6,
           myseone_sync_status = 'synced',
           myseone_sync_error = NULL,
           myseone_synced_at = CURRENT_TIMESTAMP,
-          myseone_synced_title = $6,
+          myseone_synced_title = $7,
           updated_at = CURRENT_TIMESTAMP
-        WHERE id = $7
+        WHERE id = $8
         `,
-        [nextMonth, nextDate, nextType || "post", nextTitle, nextUrl, nextSyncedTitle, remote.id]
+        [nextRemoteId, nextMonth, nextDate, nextType || "post", nextTitle, nextUrl, nextSyncedTitle, remote.id]
       );
 
       updated += 1;

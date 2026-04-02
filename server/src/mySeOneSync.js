@@ -530,7 +530,7 @@ export async function pullBonusMirrorFromMySeOne(rows = []) {
   const session = await createSession();
   const monthCache = new Map();
   const remoteRows = Array.isArray(rows)
-    ? rows.filter((row) => Number(row?.myseone_item_id || 0) > 0)
+    ? rows.filter((row) => Number(row?.id || 0) > 0)
     : [];
 
   for (const row of remoteRows) {
@@ -541,14 +541,29 @@ export async function pullBonusMirrorFromMySeOne(rows = []) {
 
   const updates = [];
   for (const row of remoteRows) {
-    const remoteId = Number(row?.myseone_item_id || 0);
-    if (!remoteId) continue;
-
+    const existingRemoteId = Number(row?.myseone_item_id || 0);
+    let remoteId = existingRemoteId;
     const monthLabel = String(row?.month_label || "").trim() || toMonthLabel(row?.work_date);
     const monthRows = monthCache.get(monthLabel) || [];
-    let remote = monthRows.find((item) => Number(item.id) === remoteId) || null;
+    let remote = remoteId ? monthRows.find((item) => Number(item.id) === remoteId) || null : null;
 
     if (!remote) {
+      let payload = null;
+      try {
+        payload = buildPayload(row);
+      } catch {
+        payload = null;
+      }
+
+      if (payload) {
+        remote = findExactRow(monthRows, payload, true) || findLooseRow(monthRows, payload);
+        if (remote?.id) {
+          remoteId = Number(remote.id || 0);
+        }
+      }
+    }
+
+    if (!remote && remoteId) {
       try {
         remote = await loadRemoteRowById(session, remoteId);
       } catch {
@@ -559,7 +574,7 @@ export async function pullBonusMirrorFromMySeOne(rows = []) {
     if (!remote?.id) {
       updates.push({
         id: Number(row.id || 0),
-        remoteId,
+        remoteId: existingRemoteId || null,
         found: false
       });
       continue;
@@ -568,7 +583,7 @@ export async function pullBonusMirrorFromMySeOne(rows = []) {
     const workDate = remote.dateValue || toDateOnly(row.work_date);
     updates.push({
       id: Number(row.id || 0),
-      remoteId,
+      remoteId: Number(remote.id || remoteId || 0) || null,
       found: true,
       title: remote.title || sanitizeMySeOneTitle(row.content_title || ""),
       workUrl: normalizeOptionalUrl(remote.link || ""),

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
   BarChart3,
@@ -2229,6 +2229,56 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   const canEditBonus = canDoAction(user, "bonus", "edit");
   const canDeleteBonus = canDoAction(user, "bonus", "delete");
   const bonusFormLocked = editRow ? !canEditBonus : !canCreateBonus;
+
+  useEffect(() => {
+    let cancelled = false;
+    let running = false;
+    let focusTimer = null;
+
+    async function syncFromMySeOne() {
+      if (running) return;
+      running = true;
+      try {
+        await api.create("bonus-items/sync-from-myseone", {});
+        if (!cancelled) {
+          await reload();
+        }
+      } catch {
+        // ignore sync hiccups and keep local page usable
+      } finally {
+        running = false;
+      }
+    }
+
+    syncFromMySeOne();
+
+    function handleFocus() {
+      if (focusTimer) {
+        clearTimeout(focusTimer);
+      }
+      focusTimer = setTimeout(() => {
+        syncFromMySeOne();
+      }, 250);
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        handleFocus();
+      }
+    }
+
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      cancelled = true;
+      if (focusTimer) {
+        clearTimeout(focusTimer);
+      }
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [reload]);
 
   const monthOptions = useMemo(() => {
     return [...new Set(
@@ -5792,7 +5842,7 @@ function App() {
     };
   }, []);
 
-  async function reloadData() {
+  const reloadData = useCallback(async () => {
     try {
       const [
         meRes,
@@ -5887,7 +5937,7 @@ function App() {
     } catch (err) {
       console.error(err);
     }
-  }
+  }, []);
 
   useEffect(() => {
     async function init() {
@@ -5911,7 +5961,7 @@ function App() {
     }
 
     init();
-  }, [user?.id]);
+  }, [reloadData, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -5920,7 +5970,7 @@ function App() {
       reloadData();
     }, intervalMs);
     return () => clearInterval(timer);
-  }, [user?.id, active]);
+  }, [active, reloadData, user?.id]);
 
   useEffect(() => {
     if (!user?.id || !globalSearch.trim()) {
