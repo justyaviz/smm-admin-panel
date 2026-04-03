@@ -105,8 +105,10 @@ CREATE TABLE campaigns (
   id SERIAL PRIMARY KEY,
   title TEXT NOT NULL,
   platform TEXT NOT NULL,
+  branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
   start_date DATE,
   end_date DATE,
+  daily_budget NUMERIC(14,2) NOT NULL DEFAULT 0,
   budget NUMERIC(14,2) NOT NULL DEFAULT 0,
   spend NUMERIC(14,2) NOT NULL DEFAULT 0,
   leads INTEGER NOT NULL DEFAULT 0,
@@ -117,6 +119,8 @@ CREATE TABLE campaigns (
   roi NUMERIC(14,2) NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'active',
   notes TEXT,
+  telegram_started_at TIMESTAMP,
+  telegram_ended_at TIMESTAMP,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

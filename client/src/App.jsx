@@ -846,6 +846,16 @@ const CONTENT_TYPE_OPTIONS = [
   { value: "boshqalar", label: "Boshqalar" }
 ];
 
+const CAMPAIGN_PLATFORM_OPTIONS = [
+  { value: "Meta Ads", label: "Meta Ads" },
+  { value: "Instagram", label: "Instagram" },
+  { value: "Telegram", label: "Telegram" },
+  { value: "TikTok", label: "TikTok" },
+  { value: "Facebook", label: "Facebook" },
+  { value: "YouTube", label: "YouTube" },
+  { value: "Google Ads", label: "Google Ads" }
+];
+
 const RUBRIC_OPTIONS = [
   { value: "rubrika-yoq", label: "Rubrika yo'q" },
   { value: "sotuv", label: "Sotuv" },
@@ -871,6 +881,26 @@ function formatContentType(value) {
 function formatRubric(value) {
   const match = RUBRIC_OPTIONS.find((item) => item.value === value);
   return match?.label || value || "-";
+}
+
+function campaignStatusClass(status) {
+  if (status === "done") return "status-badge done";
+  if (status === "paused") return "status-badge warning";
+  return "status-badge doing";
+}
+
+function formatCampaignStatus(status) {
+  if (status === "done") return "Tugagan";
+  if (status === "paused") return "Pauza";
+  return "Faol";
+}
+
+function getCampaignDailyBudget(row) {
+  return Number(row?.daily_budget ?? row?.budget ?? 0);
+}
+
+function getCampaignTotalBudget(row) {
+  return Number(row?.budget || 0);
 }
 
 const LOGIN_LOGO =
@@ -3243,28 +3273,27 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
   );
 }
 
-function CampaignsPage({ campaigns = [], onToast, reload }) {
+function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
   const [saving, setSaving] = useState(false);
   const [viewRow, setViewRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
 
   const emptyForm = {
     title: "",
-    platform: "",
+    platform: "Meta Ads",
+    branch_id: "",
     start_date: "",
     end_date: "",
-    budget: 0,
-    spend: 0,
-    leads: 0,
-    sales: 0,
-    ctr: 0,
-    revenue_amount: 0,
-    status: "active",
-    notes: ""
+    daily_budget: "",
+    status: "active"
   };
 
   const [form, setForm] = useState(emptyForm);
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const sortedCampaigns = [...campaigns].sort((a, b) => {
+    const diff = getDateSortValue(a.start_date, Number.POSITIVE_INFINITY) - getDateSortValue(b.start_date, Number.POSITIVE_INFINITY);
+    return diff !== 0 ? diff : Number(a.id || 0) - Number(b.id || 0);
+  });
 
   function resetForm() {
     setForm(emptyForm);
@@ -3276,16 +3305,11 @@ function CampaignsPage({ campaigns = [], onToast, reload }) {
     setForm({
       title: row.title || "",
       platform: row.platform || "",
+      branch_id: row.branch_id ? String(row.branch_id) : "",
       start_date: formatDate(row.start_date) === "-" ? "" : formatDate(row.start_date),
       end_date: formatDate(row.end_date) === "-" ? "" : formatDate(row.end_date),
-      budget: row.budget || 0,
-      spend: row.spend || 0,
-      leads: row.leads || 0,
-      sales: row.sales || 0,
-      ctr: row.ctr || 0,
-      revenue_amount: row.revenue_amount || 0,
-      status: row.status || "active",
-      notes: row.notes || ""
+      daily_budget: String(getCampaignDailyBudget(row) || ""),
+      status: row.status || "active"
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -3294,11 +3318,20 @@ function CampaignsPage({ campaigns = [], onToast, reload }) {
     e.preventDefault();
     try {
       setSaving(true);
+      const payload = {
+        title: form.title.trim(),
+        platform: form.platform,
+        branch_id: form.branch_id ? Number(form.branch_id) : null,
+        start_date: form.start_date,
+        end_date: form.end_date,
+        daily_budget: Number(form.daily_budget || 0),
+        status: form.status || "active"
+      };
       if (editRow?.id) {
-        await api.update("campaigns", editRow.id, form);
+        await api.update("campaigns", editRow.id, payload);
         onToast("Kampaniya yangilandi", "success");
       } else {
-        await api.create("campaigns", form);
+        await api.create("campaigns", payload);
         onToast("Kampaniya saqlandi", "success");
       }
       await reload();
@@ -3342,24 +3375,34 @@ function CampaignsPage({ campaigns = [], onToast, reload }) {
         />
         <form className="form-grid" onSubmit={handleSubmit}>
           <label><span>Kampaniya nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
-          <label><span>Platforma</span><input value={form.platform} onChange={(e) => setField("platform", e.target.value)} required /></label>
-          <label><span>Start sana</span><input type="date" value={form.start_date} onChange={(e) => setField("start_date", e.target.value)} /></label>
-          <label><span>End sana</span><input type="date" value={form.end_date} onChange={(e) => setField("end_date", e.target.value)} /></label>
-          <label><span>Byudjet</span><input type="number" value={form.budget} onChange={(e) => setField("budget", Number(e.target.value))} /></label>
-          <label><span>Sarf</span><input type="number" value={form.spend} onChange={(e) => setField("spend", Number(e.target.value))} /></label>
-          <label><span>Lead</span><input type="number" value={form.leads} onChange={(e) => setField("leads", Number(e.target.value))} /></label>
-          <label><span>Sotuv</span><input type="number" value={form.sales} onChange={(e) => setField("sales", Number(e.target.value))} /></label>
-          <label><span>CTR</span><input type="number" value={form.ctr} onChange={(e) => setField("ctr", Number(e.target.value))} /></label>
-          <label><span>Daromad</span><input type="number" value={form.revenue_amount} onChange={(e) => setField("revenue_amount", Number(e.target.value))} /></label>
           <label>
-            <span>Status</span>
-            <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
-              <option value="active">active</option>
-              <option value="paused">paused</option>
-              <option value="done">done</option>
+            <span>Platforma</span>
+            <select value={form.platform} onChange={(e) => setField("platform", e.target.value)} required>
+              {CAMPAIGN_PLATFORM_OPTIONS.map((item) => (
+                <option key={item.value} value={item.value}>{item.label}</option>
+              ))}
             </select>
           </label>
-          <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
+          <label>
+            <span>Filial</span>
+            <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)} required>
+              <option value="">Tanlang</option>
+              {branches.map((branch) => (
+                <option key={branch.id} value={branch.id}>{branch.name}</option>
+              ))}
+            </select>
+          </label>
+          <label><span>Boshlanish sanasi</span><input type="date" value={form.start_date} onChange={(e) => setField("start_date", e.target.value)} required /></label>
+          <label><span>Tugash sanasi</span><input type="date" value={form.end_date} onChange={(e) => setField("end_date", e.target.value)} required /></label>
+          <label><span>Kunlik budget</span><input type="number" min="0" value={form.daily_budget} onChange={(e) => setField("daily_budget", e.target.value)} required /></label>
+          <label>
+            <span>Target holati</span>
+            <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
+              <option value="active">Faol</option>
+              <option value="paused">Pauza</option>
+              <option value="done">Tugagan</option>
+            </select>
+          </label>
           <button className="btn primary" type="submit" disabled={saving}>
             {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Kampaniya qo'shish"}
           </button>
@@ -3368,33 +3411,31 @@ function CampaignsPage({ campaigns = [], onToast, reload }) {
 
       <div className="card">
         <SectionTitle title="Kampaniyalar ro'yxati" />
-        <div className="table-wrap">
+        <div className="table-wrap desktop-table">
           <table>
             <thead>
               <tr>
                 <th>Kampaniya</th>
                 <th>Platforma</th>
-                <th>Byudjet</th>
-                <th>Sarf</th>
-                <th>ROI</th>
-                <th>CTR</th>
-                <th>CPA</th>
-                <th>Status</th>
+                <th>Filial</th>
+                <th>Boshlanish</th>
+                <th>Tugash</th>
+                <th>Kunlik budget</th>
+                <th>Holat</th>
                 <th>Amallar</th>
               </tr>
             </thead>
             <tbody>
-              {campaigns.length ? (
-                campaigns.map((row) => (
+              {sortedCampaigns.length ? (
+                sortedCampaigns.map((row) => (
                   <tr key={row.id}>
                     <td>{row.title}</td>
                     <td>{row.platform}</td>
-                    <td>{row.budget}</td>
-                    <td>{row.spend}</td>
-                    <td>{row.roi}</td>
-                    <td>{row.ctr}</td>
-                    <td>{row.cpa}</td>
-                    <td>{row.status}</td>
+                    <td>{row.branch_name || "-"}</td>
+                    <td>{formatDate(row.start_date)}</td>
+                    <td>{formatDate(row.end_date)}</td>
+                    <td>{formatMoney(getCampaignDailyBudget(row))}</td>
+                    <td><span className={campaignStatusClass(row.status)}>{formatCampaignStatus(row.status)}</span></td>
                     <td>
                       <IconActions
                         onView={() => setViewRow(row)}
@@ -3405,30 +3446,67 @@ function CampaignsPage({ campaigns = [], onToast, reload }) {
                   </tr>
                 ))
               ) : (
-                <tr>Hozircha ma'lumot yo'q</tr>
+                <tr><td colSpan="8" className="empty-cell">Hozircha ma'lumot yo'q</td></tr>
               )}
             </tbody>
           </table>
+        </div>
+        <div className="mobile-card-list">
+          {sortedCampaigns.length ? (
+            sortedCampaigns.map((row) => (
+              <div key={`campaign-card-${row.id}`} className="mobile-record-card">
+                <div className="mobile-record-head">
+                  <div className="mobile-record-title">
+                    <strong>{row.title}</strong>
+                    <span>{row.platform} • {row.branch_name || "Filialsiz"}</span>
+                  </div>
+                  <span className={campaignStatusClass(row.status)}>{formatCampaignStatus(row.status)}</span>
+                </div>
+                <div className="mobile-record-grid">
+                  <div className="mobile-record-field">
+                    <label>Boshlanish</label>
+                    <div>{formatDate(row.start_date)}</div>
+                  </div>
+                  <div className="mobile-record-field">
+                    <label>Tugash</label>
+                    <div>{formatDate(row.end_date)}</div>
+                  </div>
+                  <div className="mobile-record-field">
+                    <label>Kunlik budget</label>
+                    <div>{formatMoney(getCampaignDailyBudget(row))}</div>
+                  </div>
+                  <div className="mobile-record-field">
+                    <label>Umumiy budget</label>
+                    <div>{formatMoney(getCampaignTotalBudget(row))}</div>
+                  </div>
+                </div>
+                <div className="mobile-record-actions">
+                  <IconActions
+                    onView={() => setViewRow(row)}
+                    onEdit={() => startEdit(row)}
+                    onDelete={() => removeRow(row.id)}
+                  />
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="mobile-record-card empty">Hozircha ma'lumot yo'q</div>
+          )}
         </div>
       </div>
 
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kampaniya tafsiloti">
         {viewRow ? (
-          <>
           <div className="detail-grid">
             <div><strong>Nomi:</strong> {viewRow.title}</div>
             <div><strong>Platforma:</strong> {viewRow.platform}</div>
-            <div><strong>Start:</strong> {formatDate(viewRow.start_date)}</div>
-            <div><strong>End:</strong> {formatDate(viewRow.end_date)}</div>
-            <div><strong>Byudjet:</strong> {viewRow.budget}</div>
-            <div><strong>Sarf:</strong> {viewRow.spend}</div>
-            <div><strong>Lead:</strong> {viewRow.leads}</div>
-            <div><strong>Sotuv:</strong> {viewRow.sales}</div>
-            <div><strong>CTR:</strong> {viewRow.ctr}</div>
-            <div><strong>Status:</strong> {viewRow.status}</div>
+            <div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div>
+            <div><strong>Boshlanish:</strong> {formatDate(viewRow.start_date)}</div>
+            <div><strong>Tugash:</strong> {formatDate(viewRow.end_date)}</div>
+            <div><strong>Kunlik budget:</strong> {formatMoney(getCampaignDailyBudget(viewRow))}</div>
+            <div><strong>Umumiy budget:</strong> {formatMoney(getCampaignTotalBudget(viewRow))}</div>
+            <div><strong>Holat:</strong> <span className={campaignStatusClass(viewRow.status)}>{formatCampaignStatus(viewRow.status)}</span></div>
           </div>
-          <DiscussionPanel entityType="task" entityId={viewRow.id} onToast={onToast} />
-          </>
         ) : null}
       </Modal>
     </div>
@@ -6231,7 +6309,7 @@ function App() {
   } else if (active === "dailyReports") {
     page = <DailyReportsPage reports={dailyReports} branches={branches} onToast={showToast} reload={reloadData} />;
   } else if (active === "campaigns") {
-    page = <CampaignsPage campaigns={campaigns} onToast={showToast} reload={reloadData} />;
+    page = <CampaignsPage campaigns={campaigns} branches={branches} onToast={showToast} reload={reloadData} />;
   } else if (active === "uploads") {
     page = <MediaPage uploads={uploads} onToast={showToast} reload={reloadData} />;
   } else if (active === "users") {

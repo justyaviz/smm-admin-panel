@@ -56,6 +56,7 @@ const io = new SocketIOServer(httpServer, {
 const userSockets = new Map();
 const BONUS_PULL_SYNC_COOLDOWN_MS = Math.max(5000, Number(process.env.MYSEONE_PULL_SYNC_COOLDOWN_MS || 20000));
 const MYSEONE_FROZEN_MONTHS = new Set(["2026-03"]);
+const TARGET_CAMPAIGN_CHAT_ID = String(process.env.TARGET_CAMPAIGN_CHAT_ID || "-1003416537521");
 let bonusPullSyncPromise = null;
 let lastBonusPullSyncAt = 0;
 
@@ -279,16 +280,17 @@ async function ensureDefaultBranches() {
   }
 }
 
-async function sendTelegramMessage(text) {
+async function sendTelegramMessage(text, chatIdOverride = null) {
   try {
     const settings = await getSettingsRow();
-    if (!settings?.telegram_bot_token || !settings?.telegram_chat_id) return;
+    const chatId = chatIdOverride || settings?.telegram_chat_id;
+    if (!settings?.telegram_bot_token || !chatId) return;
 
     await fetch(`https://api.telegram.org/bot${settings.telegram_bot_token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        chat_id: settings.telegram_chat_id,
+        chat_id: chatId,
         text
       })
     });
@@ -320,9 +322,157 @@ async function addApprovalComment(entityType, entityId, authorUserId, body) {
   }
 }
 
-async function createTelegramEvent(title, lines = []) {
+async function createTelegramEvent(title, lines = [], chatIdOverride = null) {
   const cleanLines = lines.filter(Boolean).map((line) => String(line).trim()).filter(Boolean);
-  await sendTelegramMessage([title, ...cleanLines].join("\n"));
+  await sendTelegramMessage([title, ...cleanLines].join("\n"), chatIdOverride);
+}
+
+function normalizeCampaignStatus(value) {
+  const clean = String(value || "active").trim().toLowerCase();
+  if (["paused", "done"].includes(clean)) return clean;
+  return "active";
+}
+
+function formatCampaignStatusLabel(status) {
+  const safeStatus = normalizeCampaignStatus(status);
+  if (safeStatus === "paused") return "Pauza";
+  if (safeStatus === "done") return "Tugagan";
+  return "Faol";
+}
+
+function calculateCampaignBudget(dailyBudget, startDate, endDate) {
+  const safeDailyBudget = Number(dailyBudget || 0);
+  if (!safeDailyBudget) return 0;
+
+  const start = formatDateOnly(startDate);
+  const end = formatDateOnly(endDate);
+  if (!start || !end) return safeDailyBudget;
+
+  const startTime = new Date(`${start}T00:00:00`).getTime();
+  const endTime = new Date(`${end}T00:00:00`).getTime();
+  if (Number.isNaN(startTime) || Number.isNaN(endTime) || endTime < startTime) {
+    return safeDailyBudget;
+  }
+
+  const days = Math.floor((endTime - startTime) / 86400000) + 1;
+  return Number((safeDailyBudget * Math.max(days, 1)).toFixed(2));
+}
+
+function isCampaignEnded(row) {
+  if (!row) return false;
+  const safeStatus = normalizeCampaignStatus(row.status);
+  if (safeStatus === "done") return true;
+
+  const endDate = formatDateOnly(row.end_date);
+  if (!endDate) return false;
+  return endDate <= formatDateOnly(new Date());
+}
+
+function getCampaignEndReason(row) {
+  if (normalizeCampaignStatus(row?.status) === "done") {
+    return "Holati yakunlandi";
+  }
+  if (formatDateOnly(row?.end_date)) {
+    return "Tugash sanasi yetdi";
+  }
+  return "Kampaniya yakunlandi";
+}
+
+async function buildCampaignTelegramLines(row) {
+  const branchName = row.branch_name || await getBranchName(row.branch_id);
+  return [
+    `🎯 Target nomi: ${row.title || "-"}`,
+    `📣 Platforma: ${row.platform || "-"}`,
+    `🏢 Filial: ${branchName || "-"}`,
+    `📅 Boshlanish sanasi: ${formatDateOnly(row.start_date) || "-"}`,
+    `⏳ Tugash sanasi: ${formatDateOnly(row.end_date) || "-"}`,
+    `💸 Kunlik budget: ${Number(row.daily_budget || 0).toLocaleString()} so'm`,
+    `💰 Umumiy budget: ${Number(row.budget || 0).toLocaleString()} so'm`,
+    `📌 Holat: ${formatCampaignStatusLabel(row.status)}`
+  ].filter(Boolean);
+}
+
+async function reserveCampaignTelegramNotice(id, type) {
+  const column = type === "end" ? "telegram_ended_at" : "telegram_started_at";
+  const result = await query(
+    `
+    UPDATE campaigns
+    SET ${column} = CURRENT_TIMESTAMP
+    WHERE id = $1 AND ${column} IS NULL
+    RETURNING *
+    `,
+    [id]
+  );
+  return result.rows[0] || null;
+}
+
+async function revertCampaignTelegramNotice(id, type) {
+  const column = type === "end" ? "telegram_ended_at" : "telegram_started_at";
+  await query(`UPDATE campaigns SET ${column} = NULL WHERE id = $1`, [id]);
+}
+
+async function notifyCampaignStarted(row) {
+  if (!row?.id || normalizeCampaignStatus(row.status) !== "active") return row;
+  const reserved = await reserveCampaignTelegramNotice(row.id, "start");
+  if (!reserved) return row;
+
+  try {
+    await createTelegramEvent(
+      "🚀 Target yoqildi",
+      await buildCampaignTelegramLines(row),
+      TARGET_CAMPAIGN_CHAT_ID
+    );
+    return { ...row, telegram_started_at: reserved.telegram_started_at };
+  } catch (err) {
+    await revertCampaignTelegramNotice(row.id, "start");
+    console.error("campaign start telegram error:", err.message);
+    return row;
+  }
+}
+
+async function notifyCampaignEnded(row) {
+  if (!row?.id || !isCampaignEnded(row)) return row;
+  const reserved = await reserveCampaignTelegramNotice(row.id, "end");
+  if (!reserved) return row;
+
+  try {
+    await createTelegramEvent(
+      "🛑 Target tugadi",
+      [
+        ...(await buildCampaignTelegramLines(row)),
+        `✅ Yakun: ${getCampaignEndReason(row)}`
+      ],
+      TARGET_CAMPAIGN_CHAT_ID
+    );
+    return { ...row, telegram_ended_at: reserved.telegram_ended_at };
+  } catch (err) {
+    await revertCampaignTelegramNotice(row.id, "end");
+    console.error("campaign end telegram error:", err.message);
+    return row;
+  }
+}
+
+async function syncCampaignEndNotifications() {
+  const result = await query(
+    `
+    SELECT
+      c.*,
+      b.name AS branch_name
+    FROM campaigns c
+    LEFT JOIN branches b ON b.id = c.branch_id
+    WHERE
+      c.telegram_ended_at IS NULL
+      AND (
+        c.status = 'done'
+        OR (c.end_date IS NOT NULL AND c.end_date <= CURRENT_DATE)
+      )
+    ORDER BY c.end_date ASC NULLS LAST, c.id ASC
+    `
+  );
+
+  for (const row of result.rows) {
+    await notifyCampaignEnded(row);
+  }
 }
 
 function normalizeNoticeUrl(value) {
@@ -878,6 +1028,10 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS tags_json JSONB NOT NULL DEFAULT '[]'::jsonb`,
     `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS version_label TEXT`,
     `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_key TEXT`,
+    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL`,
+    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS daily_budget NUMERIC(14,2) NOT NULL DEFAULT 0`,
+    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_started_at TIMESTAMP`,
+    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_ended_at TIMESTAMP`,
     `CREATE TABLE IF NOT EXISTS contest_expenses (
       id SERIAL PRIMARY KEY,
       expense_date DATE NOT NULL,
@@ -3025,7 +3179,17 @@ app.delete("/api/daily-reports/:id", authRequired, async (req, res) => {
 
 app.get("/api/campaigns", authRequired, async (_, res) => {
   try {
-    const result = await query(`SELECT * FROM campaigns ORDER BY id DESC`);
+    await syncCampaignEndNotifications();
+    const result = await query(
+      `
+      SELECT
+        c.*,
+        b.name AS branch_name
+      FROM campaigns c
+      LEFT JOIN branches b ON b.id = c.branch_id
+      ORDER BY c.start_date DESC NULLS LAST, c.id DESC
+      `
+    );
     res.json(result.rows);
   } catch (err) {
     console.error(err);
@@ -3038,8 +3202,10 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
     const {
       title,
       platform,
+      branch_id,
       start_date,
       end_date,
+      daily_budget,
       budget,
       spend,
       leads,
@@ -3050,8 +3216,17 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
       notes
     } = req.body;
 
-    const cpa = calcCpa(spend, leads);
-    const roi = calcRoi(spend, revenue_amount);
+    const safeDailyBudget = Number(daily_budget ?? budget ?? 0);
+    const totalBudget = calculateCampaignBudget(safeDailyBudget, start_date, end_date);
+    const safeSpend = Number(spend || 0);
+    const safeLeads = Number(leads || 0);
+    const safeSales = Number(sales || 0);
+    const safeCtr = Number(ctr || 0);
+    const safeRevenueAmount = Number(revenue_amount || 0);
+    const safeStatus = normalizeCampaignStatus(status);
+
+    const cpa = calcCpa(safeSpend, safeLeads);
+    const roi = calcRoi(safeSpend, safeRevenueAmount);
 
     const inserted = await query(
       `
@@ -3059,8 +3234,10 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
       (
         title,
         platform,
+        branch_id,
         start_date,
         end_date,
+        daily_budget,
         budget,
         spend,
         leads,
@@ -3072,28 +3249,36 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
         status,
         notes
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
       RETURNING *
       `,
       [
         title,
         platform,
+        Number(branch_id || 0) || null,
         formatDateOnly(start_date),
         formatDateOnly(end_date),
-        Number(budget || 0),
-        Number(spend || 0),
-        Number(leads || 0),
-        Number(sales || 0),
-        Number(ctr || 0),
-        Number(revenue_amount || 0),
+        safeDailyBudget,
+        totalBudget,
+        safeSpend,
+        safeLeads,
+        safeSales,
+        safeCtr,
+        safeRevenueAmount,
         cpa,
         roi,
-        status || "active",
+        safeStatus,
         notes || ""
       ]
     );
 
     await logAction(req.user.id, "create", "campaigns", inserted.rows[0].id, {});
+    const rowWithBranchName = {
+      ...inserted.rows[0],
+      branch_name: await getBranchName(inserted.rows[0].branch_id)
+    };
+    await notifyCampaignStarted(rowWithBranchName);
+    await notifyCampaignEnded(rowWithBranchName);
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
@@ -3106,8 +3291,10 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
     const {
       title,
       platform,
+      branch_id,
       start_date,
       end_date,
+      daily_budget,
       budget,
       spend,
       leads,
@@ -3118,8 +3305,27 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
       notes
     } = req.body;
 
-    const cpa = calcCpa(spend, leads);
-    const roi = calcRoi(spend, revenue_amount);
+    const previous = await query(`SELECT * FROM campaigns WHERE id = $1 LIMIT 1`, [req.params.id]);
+    if (!previous.rows.length) {
+      return res.status(404).json({ message: "Kampaniya topilmadi" });
+    }
+
+    const previousRow = previous.rows[0];
+    const safeDailyBudget = Number(daily_budget ?? previousRow.daily_budget ?? budget ?? previousRow.budget ?? 0);
+    const safeStartDate = formatDateOnly(start_date) || formatDateOnly(previousRow.start_date);
+    const safeEndDate = formatDateOnly(end_date) || formatDateOnly(previousRow.end_date);
+    const totalBudget = calculateCampaignBudget(safeDailyBudget, safeStartDate, safeEndDate);
+    const safeSpend = Number(spend ?? previousRow.spend ?? 0);
+    const safeLeads = Number(leads ?? previousRow.leads ?? 0);
+    const safeSales = Number(sales ?? previousRow.sales ?? 0);
+    const safeCtr = Number(ctr ?? previousRow.ctr ?? 0);
+    const safeRevenueAmount = Number(revenue_amount ?? previousRow.revenue_amount ?? 0);
+    const safeStatus = normalizeCampaignStatus(status ?? previousRow.status);
+    const safeNotes = notes ?? previousRow.notes ?? "";
+    const safeBranchId = Number(branch_id ?? previousRow.branch_id ?? 0) || null;
+
+    const cpa = calcCpa(safeSpend, safeLeads);
+    const roi = calcRoi(safeSpend, safeRevenueAmount);
 
     const updated = await query(
       `
@@ -3127,46 +3333,52 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
       SET
         title = $1,
         platform = $2,
-        start_date = $3,
-        end_date = $4,
-        budget = $5,
-        spend = $6,
-        leads = $7,
-        sales = $8,
-        ctr = $9,
-        revenue_amount = $10,
-        cpa = $11,
-        roi = $12,
-        status = $13,
-        notes = $14,
+        branch_id = $3,
+        start_date = $4,
+        end_date = $5,
+        daily_budget = $6,
+        budget = $7,
+        spend = $8,
+        leads = $9,
+        sales = $10,
+        ctr = $11,
+        revenue_amount = $12,
+        cpa = $13,
+        roi = $14,
+        status = $15,
+        notes = $16,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $15
+      WHERE id = $17
       RETURNING *
       `,
       [
-        title,
-        platform,
-        formatDateOnly(start_date),
-        formatDateOnly(end_date),
-        Number(budget || 0),
-        Number(spend || 0),
-        Number(leads || 0),
-        Number(sales || 0),
-        Number(ctr || 0),
-        Number(revenue_amount || 0),
+        title ?? previousRow.title,
+        platform ?? previousRow.platform,
+        safeBranchId,
+        safeStartDate,
+        safeEndDate,
+        safeDailyBudget,
+        totalBudget,
+        safeSpend,
+        safeLeads,
+        safeSales,
+        safeCtr,
+        safeRevenueAmount,
         cpa,
         roi,
-        status || "active",
-        notes || "",
+        safeStatus,
+        safeNotes,
         req.params.id
       ]
     );
 
-    if (!updated.rows.length) {
-      return res.status(404).json({ message: "Kampaniya topilmadi" });
-    }
-
     await logAction(req.user.id, "update", "campaigns", Number(req.params.id), {});
+    const rowWithBranchName = {
+      ...updated.rows[0],
+      branch_name: await getBranchName(updated.rows[0].branch_id)
+    };
+    await notifyCampaignStarted(rowWithBranchName);
+    await notifyCampaignEnded(rowWithBranchName);
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
@@ -5000,20 +5212,19 @@ app.get("/api/export/campaigns.xlsx", authRequired, async (_, res) => {
     const rows = (
       await query(`
         SELECT
-          title,
-          platform,
-          start_date,
-          end_date,
-          budget,
-          spend,
-          leads,
-          sales,
-          ctr,
-          cpa,
-          roi,
-          status
-        FROM campaigns
-        ORDER BY id DESC
+          c.title,
+          c.platform,
+          b.name AS branch_name,
+          c.start_date,
+          c.end_date,
+          c.daily_budget,
+          c.budget,
+          c.spend,
+          c.status,
+          c.notes
+        FROM campaigns c
+        LEFT JOIN branches b ON b.id = c.branch_id
+        ORDER BY c.start_date DESC NULLS LAST, c.id DESC
       `)
     ).rows;
 
