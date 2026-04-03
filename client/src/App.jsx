@@ -228,6 +228,10 @@ function formatMoney(value) {
   return `${Number(value || 0).toLocaleString()} so'm`;
 }
 
+function formatUsd(value) {
+  return `$${Number(value || 0).toLocaleString()}`;
+}
+
 function formatDateTime(value) {
   if (!value) return "-";
   const d = new Date(value);
@@ -1227,7 +1231,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
         <StatCard title="Kunlik vazifa progress" value={`${summary?.daily_task_progress || 0}%`} hint={`${summary?.daily_task_done || 0} / ${summary?.daily_task_total || 0}`} tone={(summary?.daily_task_progress || 0) >= 70 ? "success" : (summary?.daily_task_progress || 0) >= 40 ? "warning" : "danger"} />
         <StatCard title="Kechikkan vazifalar" value={summary?.overdue_task_count || 0} hint="darhol ko'rib chiqing" tone={(summary?.overdue_task_count || 0) > 0 ? "danger" : "success"} />
         <StatCard title="3 kun ichidagi vazifalar" value={summary?.due_soon_task_count || 0} hint="eslatma kerak" tone={(summary?.due_soon_task_count || 0) > 0 ? "warning" : "success"} />
-        <StatCard title="Oy reklama sarfi" value={formatMoney(summary?.monthly_campaign_spend || 0)} hint={getMonthTitle(currentMonth)} tone="info" />
+        <StatCard title="Oy reklama sarfi" value={formatUsd(summary?.monthly_campaign_spend || 0)} hint={getMonthTitle(currentMonth)} tone="info" />
         <StatCard title="Approval SLA" value={approvalSlaBreaches} hint="48 soatdan oshgan jarayonlar" tone={approvalSlaBreaches > 0 ? "danger" : "success"} />
       </div>
 
@@ -3434,7 +3438,7 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
                     <td>{row.branch_name || "-"}</td>
                     <td>{formatDate(row.start_date)}</td>
                     <td>{formatDate(row.end_date)}</td>
-                    <td>{formatMoney(getCampaignDailyBudget(row))}</td>
+                    <td>{formatUsd(getCampaignDailyBudget(row))}</td>
                     <td><span className={campaignStatusClass(row.status)}>{formatCampaignStatus(row.status)}</span></td>
                     <td>
                       <IconActions
@@ -3473,11 +3477,7 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
                   </div>
                   <div className="mobile-record-field">
                     <label>Kunlik budget</label>
-                    <div>{formatMoney(getCampaignDailyBudget(row))}</div>
-                  </div>
-                  <div className="mobile-record-field">
-                    <label>Umumiy budget</label>
-                    <div>{formatMoney(getCampaignTotalBudget(row))}</div>
+                    <div>{formatUsd(getCampaignDailyBudget(row))}</div>
                   </div>
                 </div>
                 <div className="mobile-record-actions">
@@ -3503,8 +3503,7 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
             <div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div>
             <div><strong>Boshlanish:</strong> {formatDate(viewRow.start_date)}</div>
             <div><strong>Tugash:</strong> {formatDate(viewRow.end_date)}</div>
-            <div><strong>Kunlik budget:</strong> {formatMoney(getCampaignDailyBudget(viewRow))}</div>
-            <div><strong>Umumiy budget:</strong> {formatMoney(getCampaignTotalBudget(viewRow))}</div>
+            <div><strong>Kunlik budget:</strong> {formatUsd(getCampaignDailyBudget(viewRow))}</div>
             <div><strong>Holat:</strong> <span className={campaignStatusClass(viewRow.status)}>{formatCampaignStatus(viewRow.status)}</span></div>
           </div>
         ) : null}
@@ -5792,7 +5791,7 @@ function FinanceDashboardPage({ expenses = [], campaigns = [], bonusItems = [], 
     <div className="page-grid">
       <div className="stats-grid">
         <StatCard title="Harajatlar" value={formatMoney(monthlyExpenses)} hint={getMonthTitle(currentMonth)} tone="danger" />
-        <StatCard title="Reklama sarfi" value={formatMoney(monthlyAds)} hint={getMonthTitle(currentMonth)} tone="info" />
+        <StatCard title="Reklama sarfi" value={formatUsd(monthlyAds)} hint={getMonthTitle(currentMonth)} tone="info" />
         <StatCard title="Bonus" value={formatMoney(monthlyBonus)} hint={getMonthTitle(currentMonth)} tone="warning" />
         <StatCard title="Safar budjeti" value={formatMoney(monthlyTravel)} hint={getMonthTitle(currentMonth)} tone="success" />
       </div>

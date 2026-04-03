@@ -386,8 +386,7 @@ async function buildCampaignTelegramLines(row) {
     `🏢 Filial: ${branchName || "-"}`,
     `📅 Boshlanish sanasi: ${formatDateOnly(row.start_date) || "-"}`,
     `⏳ Tugash sanasi: ${formatDateOnly(row.end_date) || "-"}`,
-    `💸 Kunlik budget: ${Number(row.daily_budget || 0).toLocaleString()} so'm`,
-    `💰 Umumiy budget: ${Number(row.budget || 0).toLocaleString()} so'm`,
+    `💸 Kunlik budget: $${Number(row.daily_budget || 0).toLocaleString()}`,
     `📌 Holat: ${formatCampaignStatusLabel(row.status)}`
   ].filter(Boolean);
 }
