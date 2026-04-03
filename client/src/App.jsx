@@ -236,7 +236,18 @@ function formatDateTime(value) {
   if (!value) return "-";
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return formatDate(value);
-  return `${d.toISOString().slice(0, 10)} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function formatDateTimeInput(value) {
+  if (!value) return "";
+  const raw = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)) return raw;
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(raw)) return raw.replace(" ", "T").slice(0, 16);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return `${raw}T00:00`;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
 function normalizeExternalUrl(value) {
@@ -1140,8 +1151,8 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
     const monthKey = getMonthLabel(date);
     const amount = (campaigns || [])
       .filter((item) => {
-        const startKey = formatDate(item.start_date).slice(0, 7);
-        const endKey = formatDate(item.end_date).slice(0, 7);
+        const startKey = formatDate(item.start_at || item.start_date).slice(0, 7);
+        const endKey = formatDate(item.end_at || item.end_date).slice(0, 7);
         return startKey === monthKey || endKey === monthKey;
       })
       .reduce((sum, item) => sum + Number(item.spend || 0), 0);
@@ -3286,8 +3297,8 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
     title: "",
     platform: "Meta Ads",
     branch_id: "",
-    start_date: "",
-    end_date: "",
+    start_at: "",
+    end_at: "",
     daily_budget: "",
     status: "active"
   };
@@ -3295,7 +3306,7 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
   const [form, setForm] = useState(emptyForm);
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
   const sortedCampaigns = [...campaigns].sort((a, b) => {
-    const diff = getDateSortValue(a.start_date, Number.POSITIVE_INFINITY) - getDateSortValue(b.start_date, Number.POSITIVE_INFINITY);
+    const diff = getDateSortValue(a.start_at || a.start_date, Number.POSITIVE_INFINITY) - getDateSortValue(b.start_at || b.start_date, Number.POSITIVE_INFINITY);
     return diff !== 0 ? diff : Number(a.id || 0) - Number(b.id || 0);
   });
 
@@ -3310,8 +3321,8 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
       title: row.title || "",
       platform: row.platform || "",
       branch_id: row.branch_id ? String(row.branch_id) : "",
-      start_date: formatDate(row.start_date) === "-" ? "" : formatDate(row.start_date),
-      end_date: formatDate(row.end_date) === "-" ? "" : formatDate(row.end_date),
+      start_at: formatDateTimeInput(row.start_at || row.start_date),
+      end_at: formatDateTimeInput(row.end_at || row.end_date),
       daily_budget: String(getCampaignDailyBudget(row) || ""),
       status: row.status || "active"
     });
@@ -3326,8 +3337,8 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
         title: form.title.trim(),
         platform: form.platform,
         branch_id: form.branch_id ? Number(form.branch_id) : null,
-        start_date: form.start_date,
-        end_date: form.end_date,
+        start_at: form.start_at,
+        end_at: form.end_at,
         daily_budget: Number(form.daily_budget || 0),
         status: form.status || "active"
       };
@@ -3396,8 +3407,8 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
               ))}
             </select>
           </label>
-          <label><span>Boshlanish sanasi</span><input type="date" value={form.start_date} onChange={(e) => setField("start_date", e.target.value)} required /></label>
-          <label><span>Tugash sanasi</span><input type="date" value={form.end_date} onChange={(e) => setField("end_date", e.target.value)} required /></label>
+          <label><span>Boshlanish sana va soat</span><input type="datetime-local" value={form.start_at} onChange={(e) => setField("start_at", e.target.value)} required /></label>
+          <label><span>Tugash sana va soat</span><input type="datetime-local" value={form.end_at} onChange={(e) => setField("end_at", e.target.value)} required /></label>
           <label><span>Kunlik budget</span><input type="number" min="0" value={form.daily_budget} onChange={(e) => setField("daily_budget", e.target.value)} required /></label>
           <label>
             <span>Target holati</span>
@@ -3436,8 +3447,8 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
                     <td>{row.title}</td>
                     <td>{row.platform}</td>
                     <td>{row.branch_name || "-"}</td>
-                    <td>{formatDate(row.start_date)}</td>
-                    <td>{formatDate(row.end_date)}</td>
+                    <td>{formatDateTime(row.start_at || row.start_date)}</td>
+                    <td>{formatDateTime(row.end_at || row.end_date)}</td>
                     <td>{formatUsd(getCampaignDailyBudget(row))}</td>
                     <td><span className={campaignStatusClass(row.status)}>{formatCampaignStatus(row.status)}</span></td>
                     <td>
@@ -3469,11 +3480,11 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
                 <div className="mobile-record-grid">
                   <div className="mobile-record-field">
                     <label>Boshlanish</label>
-                    <div>{formatDate(row.start_date)}</div>
+                    <div>{formatDateTime(row.start_at || row.start_date)}</div>
                   </div>
                   <div className="mobile-record-field">
                     <label>Tugash</label>
-                    <div>{formatDate(row.end_date)}</div>
+                    <div>{formatDateTime(row.end_at || row.end_date)}</div>
                   </div>
                   <div className="mobile-record-field">
                     <label>Kunlik budget</label>
@@ -3501,8 +3512,8 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
             <div><strong>Nomi:</strong> {viewRow.title}</div>
             <div><strong>Platforma:</strong> {viewRow.platform}</div>
             <div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div>
-            <div><strong>Boshlanish:</strong> {formatDate(viewRow.start_date)}</div>
-            <div><strong>Tugash:</strong> {formatDate(viewRow.end_date)}</div>
+            <div><strong>Boshlanish:</strong> {formatDateTime(viewRow.start_at || viewRow.start_date)}</div>
+            <div><strong>Tugash:</strong> {formatDateTime(viewRow.end_at || viewRow.end_date)}</div>
             <div><strong>Kunlik budget:</strong> {formatUsd(getCampaignDailyBudget(viewRow))}</div>
             <div><strong>Holat:</strong> <span className={campaignStatusClass(viewRow.status)}>{formatCampaignStatus(viewRow.status)}</span></div>
           </div>
@@ -5783,7 +5794,7 @@ function FinanceDashboardPage({ expenses = [], campaigns = [], bonusItems = [], 
   const currentMonth = getMonthLabel();
   const [form, setForm] = useState({ month_label: currentMonth, category: "servis", limit_amount: "" });
   const monthlyExpenses = expenses.filter((i) => formatDate(i.expense_date).startsWith(currentMonth)).reduce((s, i) => s + Number(i.amount || 0), 0);
-  const monthlyAds = campaigns.filter((i) => formatDate(i.start_date).startsWith(currentMonth) || formatDate(i.end_date).startsWith(currentMonth)).reduce((s, i) => s + Number(i.spend || 0), 0);
+  const monthlyAds = campaigns.filter((i) => formatDate(i.start_at || i.start_date).startsWith(currentMonth) || formatDate(i.end_at || i.end_date).startsWith(currentMonth)).reduce((s, i) => s + Number(i.spend || 0), 0);
   const monthlyBonus = bonusItems.filter((i) => (i.month_label || "").startsWith(currentMonth)).reduce((s, i) => s + Number(i.total_amount || 0), 0);
   const monthlyTravel = travelPlans.filter((i) => formatDate(i.plan_date).startsWith(currentMonth)).reduce((s, i) => s + Number(i.budget_amount || 0), 0);
   const activeBudgets = budgets.filter((i) => i.month_label === currentMonth);

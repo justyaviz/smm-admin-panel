@@ -142,6 +142,65 @@ function normalizeDateOnly(value) {
   return formatDateOnly(value);
 }
 
+function formatDateTimeValue(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(raw)) {
+    return `${raw}:00`;
+  }
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(raw)) {
+    return `${raw}:00`;
+  }
+  if (/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}$/.test(raw)) {
+    return raw.replace("T", " ");
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return `${raw} 00:00:00`;
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  const day = String(parsed.getDate()).padStart(2, "0");
+  const hours = String(parsed.getHours()).padStart(2, "0");
+  const minutes = String(parsed.getMinutes()).padStart(2, "0");
+  const seconds = String(parsed.getSeconds()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+}
+
+function formatDateTimeText(value) {
+  const normalized = formatDateTimeValue(value);
+  if (!normalized) return "-";
+  return normalized.replace("T", " ").slice(0, 16);
+}
+
+function getCurrentTashkentDateTimeValue() {
+  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tashkent",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).formatToParts(now);
+  const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${byType.year}-${byType.month}-${byType.day} ${byType.hour}:${byType.minute}:${byType.second}`;
+}
+
+function getDateTimeMillis(value) {
+  const normalized = formatDateTimeValue(value);
+  if (!normalized) return null;
+  const parsed = new Date(normalized.replace(" ", "T"));
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.getTime();
+}
+
 function getMonthLabel(date = new Date()) {
   const d = new Date(date);
   if (Number.isNaN(d.getTime())) {
@@ -344,12 +403,12 @@ function calculateCampaignBudget(dailyBudget, startDate, endDate) {
   const safeDailyBudget = Number(dailyBudget || 0);
   if (!safeDailyBudget) return 0;
 
-  const start = formatDateOnly(startDate);
-  const end = formatDateOnly(endDate);
+  const start = formatDateTimeValue(startDate);
+  const end = formatDateTimeValue(endDate);
   if (!start || !end) return safeDailyBudget;
 
-  const startTime = new Date(`${start}T00:00:00`).getTime();
-  const endTime = new Date(`${end}T00:00:00`).getTime();
+  const startTime = getDateTimeMillis(start);
+  const endTime = getDateTimeMillis(end);
   if (Number.isNaN(startTime) || Number.isNaN(endTime) || endTime < startTime) {
     return safeDailyBudget;
   }
@@ -363,19 +422,26 @@ function isCampaignEnded(row) {
   const safeStatus = normalizeCampaignStatus(row.status);
   if (safeStatus === "done") return true;
 
-  const endDate = formatDateOnly(row.end_date);
-  if (!endDate) return false;
-  return endDate <= formatDateOnly(new Date());
+  const endAt = formatDateTimeValue(row.end_at || row.end_date);
+  if (!endAt) return false;
+  return endAt <= getCurrentTashkentDateTimeValue();
 }
 
 function getCampaignEndReason(row) {
   if (normalizeCampaignStatus(row?.status) === "done") {
     return "Holati yakunlandi";
   }
-  if (formatDateOnly(row?.end_date)) {
-    return "Tugash sanasi yetdi";
+  if (formatDateTimeValue(row?.end_at || row?.end_date)) {
+    return "Tugash vaqti yetdi";
   }
   return "Kampaniya yakunlandi";
+}
+
+function shouldCampaignStartNow(row) {
+  if (!row || normalizeCampaignStatus(row.status) !== "active") return false;
+  const startAt = formatDateTimeValue(row.start_at || row.start_date);
+  if (!startAt) return true;
+  return startAt <= getCurrentTashkentDateTimeValue();
 }
 
 async function buildCampaignTelegramLines(row) {
@@ -384,8 +450,8 @@ async function buildCampaignTelegramLines(row) {
     `🎯 Target nomi: ${row.title || "-"}`,
     `📣 Platforma: ${row.platform || "-"}`,
     `🏢 Filial: ${branchName || "-"}`,
-    `📅 Boshlanish sanasi: ${formatDateOnly(row.start_date) || "-"}`,
-    `⏳ Tugash sanasi: ${formatDateOnly(row.end_date) || "-"}`,
+    `🕒 Boshlanish vaqti: ${formatDateTimeText(row.start_at || row.start_date)}`,
+    `⏳ Tugash vaqti: ${formatDateTimeText(row.end_at || row.end_date)}`,
     `💸 Kunlik budget: $${Number(row.daily_budget || 0).toLocaleString()}`,
     `📌 Holat: ${formatCampaignStatusLabel(row.status)}`
   ].filter(Boolean);
@@ -411,7 +477,7 @@ async function revertCampaignTelegramNotice(id, type) {
 }
 
 async function notifyCampaignStarted(row) {
-  if (!row?.id || normalizeCampaignStatus(row.status) !== "active") return row;
+  if (!row?.id || !shouldCampaignStartNow(row)) return row;
   const reserved = await reserveCampaignTelegramNotice(row.id, "start");
   if (!reserved) return row;
 
@@ -452,6 +518,19 @@ async function notifyCampaignEnded(row) {
 }
 
 async function syncCampaignEndNotifications() {
+  await query(
+    `
+    UPDATE campaigns
+    SET
+      status = 'done',
+      updated_at = CURRENT_TIMESTAMP
+    WHERE
+      status <> 'done'
+      AND end_at IS NOT NULL
+      AND end_at <= timezone('Asia/Tashkent', CURRENT_TIMESTAMP)
+    `
+  );
+
   const result = await query(
     `
     SELECT
@@ -463,14 +542,47 @@ async function syncCampaignEndNotifications() {
       c.telegram_ended_at IS NULL
       AND (
         c.status = 'done'
-        OR (c.end_date IS NOT NULL AND c.end_date <= CURRENT_DATE)
+        OR (c.end_at IS NOT NULL AND c.end_at <= timezone('Asia/Tashkent', CURRENT_TIMESTAMP))
       )
-    ORDER BY c.end_date ASC NULLS LAST, c.id ASC
+    ORDER BY c.end_at ASC NULLS LAST, c.id ASC
     `
   );
 
   for (const row of result.rows) {
     await notifyCampaignEnded(row);
+  }
+}
+
+async function syncCampaignStartNotifications() {
+  const result = await query(
+    `
+    SELECT
+      c.*,
+      b.name AS branch_name
+    FROM campaigns c
+    LEFT JOIN branches b ON b.id = c.branch_id
+    WHERE
+      c.status = 'active'
+      AND c.telegram_started_at IS NULL
+      AND (
+        c.start_at IS NULL
+        OR c.start_at <= timezone('Asia/Tashkent', CURRENT_TIMESTAMP)
+      )
+    ORDER BY c.start_at ASC NULLS LAST, c.id ASC
+    `
+  );
+
+  for (const row of result.rows) {
+    await notifyCampaignStarted(row);
+  }
+}
+
+async function syncCampaignLifecycleNotifications() {
+  try {
+    await syncCampaignStartNotifications();
+    await syncCampaignEndNotifications();
+  } catch (err) {
+    console.error("campaign lifecycle sync error:", err.message);
   }
 }
 
@@ -1029,6 +1141,8 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_key TEXT`,
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL`,
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS daily_budget NUMERIC(14,2) NOT NULL DEFAULT 0`,
+    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS start_at TIMESTAMP`,
+    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS end_at TIMESTAMP`,
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_started_at TIMESTAMP`,
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_ended_at TIMESTAMP`,
     `CREATE TABLE IF NOT EXISTS contest_expenses (
@@ -3178,7 +3292,7 @@ app.delete("/api/daily-reports/:id", authRequired, async (req, res) => {
 
 app.get("/api/campaigns", authRequired, async (_, res) => {
   try {
-    await syncCampaignEndNotifications();
+    await syncCampaignLifecycleNotifications();
     const result = await query(
       `
       SELECT
@@ -3186,7 +3300,7 @@ app.get("/api/campaigns", authRequired, async (_, res) => {
         b.name AS branch_name
       FROM campaigns c
       LEFT JOIN branches b ON b.id = c.branch_id
-      ORDER BY c.start_date DESC NULLS LAST, c.id DESC
+      ORDER BY c.start_at DESC NULLS LAST, c.start_date DESC NULLS LAST, c.id DESC
       `
     );
     res.json(result.rows);
@@ -3202,6 +3316,8 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
       title,
       platform,
       branch_id,
+      start_at,
+      end_at,
       start_date,
       end_date,
       daily_budget,
@@ -3215,8 +3331,13 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
       notes
     } = req.body;
 
+    const safeStartAt = formatDateTimeValue(start_at || start_date);
+    const safeEndAt = formatDateTimeValue(end_at || end_date);
+    if (safeStartAt && safeEndAt && getDateTimeMillis(safeEndAt) < getDateTimeMillis(safeStartAt)) {
+      return res.status(400).json({ message: "Tugash sana-vaqti boshlanishdan oldin bo'lishi mumkin emas" });
+    }
     const safeDailyBudget = Number(daily_budget ?? budget ?? 0);
-    const totalBudget = calculateCampaignBudget(safeDailyBudget, start_date, end_date);
+    const totalBudget = calculateCampaignBudget(safeDailyBudget, safeStartAt, safeEndAt);
     const safeSpend = Number(spend || 0);
     const safeLeads = Number(leads || 0);
     const safeSales = Number(sales || 0);
@@ -3234,6 +3355,8 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
         title,
         platform,
         branch_id,
+        start_at,
+        end_at,
         start_date,
         end_date,
         daily_budget,
@@ -3248,15 +3371,17 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
         status,
         notes
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
       RETURNING *
       `,
       [
         title,
         platform,
         Number(branch_id || 0) || null,
-        formatDateOnly(start_date),
-        formatDateOnly(end_date),
+        safeStartAt,
+        safeEndAt,
+        formatDateOnly(safeStartAt || start_date),
+        formatDateOnly(safeEndAt || end_date),
         safeDailyBudget,
         totalBudget,
         safeSpend,
@@ -3291,6 +3416,8 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
       title,
       platform,
       branch_id,
+      start_at,
+      end_at,
       start_date,
       end_date,
       daily_budget,
@@ -3311,9 +3438,14 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
 
     const previousRow = previous.rows[0];
     const safeDailyBudget = Number(daily_budget ?? previousRow.daily_budget ?? budget ?? previousRow.budget ?? 0);
-    const safeStartDate = formatDateOnly(start_date) || formatDateOnly(previousRow.start_date);
-    const safeEndDate = formatDateOnly(end_date) || formatDateOnly(previousRow.end_date);
-    const totalBudget = calculateCampaignBudget(safeDailyBudget, safeStartDate, safeEndDate);
+    const safeStartAt = formatDateTimeValue(start_at || start_date || previousRow.start_at || previousRow.start_date);
+    const safeEndAt = formatDateTimeValue(end_at || end_date || previousRow.end_at || previousRow.end_date);
+    if (safeStartAt && safeEndAt && getDateTimeMillis(safeEndAt) < getDateTimeMillis(safeStartAt)) {
+      return res.status(400).json({ message: "Tugash sana-vaqti boshlanishdan oldin bo'lishi mumkin emas" });
+    }
+    const safeStartDate = formatDateOnly(safeStartAt || start_date || previousRow.start_date);
+    const safeEndDate = formatDateOnly(safeEndAt || end_date || previousRow.end_date);
+    const totalBudget = calculateCampaignBudget(safeDailyBudget, safeStartAt, safeEndAt);
     const safeSpend = Number(spend ?? previousRow.spend ?? 0);
     const safeLeads = Number(leads ?? previousRow.leads ?? 0);
     const safeSales = Number(sales ?? previousRow.sales ?? 0);
@@ -3333,27 +3465,31 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
         title = $1,
         platform = $2,
         branch_id = $3,
-        start_date = $4,
-        end_date = $5,
-        daily_budget = $6,
-        budget = $7,
-        spend = $8,
-        leads = $9,
-        sales = $10,
-        ctr = $11,
-        revenue_amount = $12,
-        cpa = $13,
-        roi = $14,
-        status = $15,
-        notes = $16,
+        start_at = $4,
+        end_at = $5,
+        start_date = $6,
+        end_date = $7,
+        daily_budget = $8,
+        budget = $9,
+        spend = $10,
+        leads = $11,
+        sales = $12,
+        ctr = $13,
+        revenue_amount = $14,
+        cpa = $15,
+        roi = $16,
+        status = $17,
+        notes = $18,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $17
+      WHERE id = $19
       RETURNING *
       `,
       [
         title ?? previousRow.title,
         platform ?? previousRow.platform,
         safeBranchId,
+        safeStartAt,
+        safeEndAt,
         safeStartDate,
         safeEndDate,
         safeDailyBudget,
@@ -5214,6 +5350,8 @@ app.get("/api/export/campaigns.xlsx", authRequired, async (_, res) => {
           c.title,
           c.platform,
           b.name AS branch_name,
+          c.start_at,
+          c.end_at,
           c.start_date,
           c.end_date,
           c.daily_budget,
@@ -5223,7 +5361,7 @@ app.get("/api/export/campaigns.xlsx", authRequired, async (_, res) => {
           c.notes
         FROM campaigns c
         LEFT JOIN branches b ON b.id = c.branch_id
-        ORDER BY c.start_date DESC NULLS LAST, c.id DESC
+        ORDER BY c.start_at DESC NULLS LAST, c.start_date DESC NULLS LAST, c.id DESC
       `)
     ).rows;
 
@@ -5294,6 +5432,8 @@ app.get("/api/export/contest-expenses.pdf", authRequired, async (req, res) => {
   }
 });
 
+let campaignLifecycleTimer = null;
+
 ensureRuntimeSchema()
   .then(() => ensureDefaultBranches())
   .catch((err) => {
@@ -5302,5 +5442,15 @@ ensureRuntimeSchema()
   .finally(() => {
     httpServer.listen(PORT, () => {
       console.log(`Server running on ${PORT}`);
+      syncCampaignLifecycleNotifications().catch((err) => {
+        console.error("campaign lifecycle initial sync error:", err.message);
+      });
+      if (!campaignLifecycleTimer) {
+        campaignLifecycleTimer = setInterval(() => {
+          syncCampaignLifecycleNotifications().catch((err) => {
+            console.error("campaign lifecycle timer error:", err.message);
+          });
+        }, 10000);
+      }
     });
   });

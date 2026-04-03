@@ -108,6 +108,8 @@ CREATE TABLE campaigns (
   branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
   start_date DATE,
   end_date DATE,
+  start_at TIMESTAMP,
+  end_at TIMESTAMP,
   daily_budget NUMERIC(14,2) NOT NULL DEFAULT 0,
   budget NUMERIC(14,2) NOT NULL DEFAULT 0,
   spend NUMERIC(14,2) NOT NULL DEFAULT 0,
