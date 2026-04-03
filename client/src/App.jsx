@@ -5186,11 +5186,15 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
     e.preventDefault();
     try {
       setSaving(true);
+      const payload = {
+        ...form,
+        videodek_url: normalizeExternalUrl(form.videodek_url)
+      };
       if (editRow?.id) {
-        await api.update("travel-plans", editRow.id, form);
+        await api.update("travel-plans", editRow.id, payload);
         onToast("Safar rejasi yangilandi", "success");
       } else {
-        await api.create("travel-plans", form);
+        await api.create("travel-plans", payload);
         onToast("Safar rejasi saqlandi", "success");
       }
       await reload();
@@ -5238,7 +5242,17 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
           <label><span>Filial</span><select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)} required><option value="">Tanlang</option>{branches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
           <label><span>Qaysi video olinadi</span><input value={form.video_title} onChange={(e) => setField("video_title", e.target.value)} required /></label>
           <label><span>Kimlar ishtirok etadi</span><input value={form.participants_text} onChange={(e) => setField("participants_text", e.target.value)} placeholder="Ismlar vergul bilan" /></label>
-          <label><span>Videodek URL</span><input value={form.videodek_url} onChange={(e) => setField("videodek_url", e.target.value)} placeholder="https://..." /></label>
+          <label className="full-col">
+            <span>Videodek URL</span>
+            <div className="inline-link-field">
+              <input value={form.videodek_url} onChange={(e) => setField("videodek_url", e.target.value)} placeholder="https://..." />
+              {normalizeExternalUrl(form.videodek_url) ? (
+                <button type="button" className="icon-btn" title="Havolani ochish" onClick={() => openExternalUrl(form.videodek_url)}>
+                  <Eye size={16} />
+                </button>
+              ) : null}
+            </div>
+          </label>
           <label><span>Status</span><select value={form.status} onChange={(e) => setField("status", e.target.value)}><option value="reja">Reja</option><option value="tasdiqlandi">Tasdiqlandi</option><option value="jarayonda">Jarayonda</option><option value="qayta_ishlash">Qayta ishlash</option><option value="rad_etildi">Rad etildi</option><option value="yakunlandi">Yakunlandi</option></select></label>
           <label className="full-col"><span>Ssenariy</span><input value={form.scenario_text} onChange={(e) => setField("scenario_text", e.target.value)} placeholder="Qisqa ssenariy yoki outline" /></label>
           <label><span>Budget</span><input type="number" min="0" value={form.budget_amount} onChange={(e) => setField("budget_amount", Number(e.target.value))} /></label>
@@ -5262,9 +5276,9 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
             </div>
           ))}
         </div>
-        <div className="table-wrap">
+        <div className="table-wrap desktop-table">
           <table>
-            <thead><tr><th>Sana</th><th>Filial</th><th>Video</th><th>Ishtirokchilar</th><th>Status</th><th>Amallar</th></tr></thead>
+            <thead><tr><th>Sana</th><th>Filial</th><th>Video</th><th>Ishtirokchilar</th><th>Link</th><th>Status</th><th>Amallar</th></tr></thead>
             <tbody>
               {filteredTravelPlans.length ? filteredTravelPlans.map((row) => (
                 <tr key={row.id}>
@@ -5272,12 +5286,55 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
                   <td>{row.branch_name || "-"}</td>
                   <td>{row.video_title}</td>
                   <td>{row.participants_text || "-"}</td>
+                  <td>
+                    {row.videodek_url ? (
+                      <button type="button" className="icon-btn" title="Havolani ochish" onClick={() => openExternalUrl(row.videodek_url)}>
+                        <Eye size={16} />
+                      </button>
+                    ) : "-"}
+                  </td>
                   <td><span className={approvalStatusClass(row.status, "travel")}>{formatApprovalStatus(row.status, "travel")}</span></td>
                   <td><IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} /></td>
                 </tr>
-              )) : <tr><td colSpan="6" className="empty-cell">Hozircha safar rejasi yo'q</td></tr>}
+              )) : <tr><td colSpan="7" className="empty-cell">Hozircha safar rejasi yo'q</td></tr>}
             </tbody>
           </table>
+        </div>
+        <div className="mobile-card-list">
+          {filteredTravelPlans.length ? filteredTravelPlans.map((row) => (
+            <div key={`travel-card-${row.id}`} className="mobile-record-card">
+              <div className="mobile-record-head">
+                <div className="mobile-record-title">
+                  <strong>{row.video_title}</strong>
+                  <span>{formatDate(row.plan_date)} • {row.branch_name || "-"}</span>
+                </div>
+                <span className={approvalStatusClass(row.status, "travel")}>{formatApprovalStatus(row.status, "travel")}</span>
+              </div>
+              <div className="mobile-record-grid">
+                <div className="mobile-record-field full">
+                  <label>Ishtirokchilar</label>
+                  <div>{row.participants_text || "-"}</div>
+                </div>
+                <div className="mobile-record-field">
+                  <label>Deadline</label>
+                  <div>{formatDate(row.deadline_date)}</div>
+                </div>
+                <div className="mobile-record-field">
+                  <label>Link</label>
+                  <div>
+                    {row.videodek_url ? (
+                      <button type="button" className="icon-btn" title="Havolani ochish" onClick={() => openExternalUrl(row.videodek_url)}>
+                        <Eye size={16} />
+                      </button>
+                    ) : "-"}
+                  </div>
+                </div>
+              </div>
+              <div className="mobile-record-actions">
+                <IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} />
+              </div>
+            </div>
+          )) : <div className="mobile-record-card empty">Hozircha safar rejasi yo'q</div>}
         </div>
       </div>
 
@@ -5313,7 +5370,14 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
             <div><strong>Video:</strong> {viewRow.video_title}</div>
             <div><strong>Status:</strong> {viewRow.status || "-"}</div>
             <div className="full-col"><strong>Ishtirokchilar:</strong> {viewRow.participants_text || "-"}</div>
-            <div className="full-col"><strong>Videodek URL:</strong> {viewRow.videodek_url || "-"}</div>
+            <div className="full-col">
+              <strong>Videodek URL:</strong>{" "}
+              {viewRow.videodek_url ? (
+                <button type="button" className="btn secondary" onClick={() => openExternalUrl(viewRow.videodek_url)}>
+                  <Eye size={16} /> Havolani ochish
+                </button>
+              ) : "-"}
+            </div>
             <div className="full-col"><strong>Ssenariy:</strong> {viewRow.scenario_text || "-"}</div>
             <div><strong>Budget:</strong> {formatMoney(viewRow.budget_amount || 0)}</div>
             <div><strong>Transport:</strong> {viewRow.transport_text || "-"}</div>
@@ -8104,6 +8168,15 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
 .icon-btn.danger{
   color:var(--danger);
 }
+.inline-link-field{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:8px;
+  align-items:center;
+}
+.inline-link-field .icon-btn{
+  flex:0 0 auto;
+}
 
 .modal-wrap{
   position:fixed;
@@ -9145,6 +9218,24 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
     font-size:10px;
   }
   .mobile-record-field div{
+    font-size:12px;
+  }
+  .inline-link-field{
+    grid-template-columns:1fr auto;
+  }
+  .timeline-item{
+    grid-template-columns:20px 1fr;
+    padding:12px;
+    gap:10px;
+  }
+  .timeline-top,.timeline-meta{
+    align-items:flex-start;
+  }
+  .timeline-top strong{
+    font-size:14px;
+    line-height:1.35;
+  }
+  .timeline-content p{
     font-size:12px;
   }
   .modal-card{

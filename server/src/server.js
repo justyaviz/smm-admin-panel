@@ -325,6 +325,38 @@ async function createTelegramEvent(title, lines = []) {
   await sendTelegramMessage([title, ...cleanLines].join("\n"));
 }
 
+function normalizeNoticeUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^www\./i.test(raw)) return `https://${raw}`;
+  return raw;
+}
+
+async function getBranchName(branchId) {
+  const numericId = Number(branchId || 0);
+  if (!numericId) return "";
+  const result = await query(`SELECT name FROM branches WHERE id = $1 LIMIT 1`, [numericId]);
+  return result.rows[0]?.name || "";
+}
+
+async function buildTravelPlanTelegramLines(row) {
+  const branchName = row.branch_name || await getBranchName(row.branch_id);
+  const workLink = normalizeNoticeUrl(row.videodek_url);
+  return [
+    `🎬 Nomi: ${row.video_title || "-"}`,
+    `📅 Sana: ${formatDateOnly(row.plan_date)}`,
+    `⏳ Muddat: ${formatDateOnly(row.deadline_date) || "-"}`,
+    `🏢 Filial: ${branchName || "-"}`,
+    `👥 Ishtirokchilar: ${row.participants_text || "-"}`,
+    `📌 Status: ${row.status || "-"}`,
+    `🔗 Link: ${workLink || "-"}`,
+    row.scenario_text ? `📝 Ssenariy: ${String(row.scenario_text).trim()}` : "",
+    row.transport_text ? `🚗 Transport: ${row.transport_text}` : "",
+    row.hotel_text ? `🏨 Mehmonxona: ${row.hotel_text}` : ""
+  ].filter(Boolean);
+}
+
 async function insertBackupRows(client, tableName, rows = []) {
   if (!rows.length) return;
 
@@ -4055,7 +4087,7 @@ app.post("/api/travel-plans", authRequired, async (req, res) => {
         branch_id || null,
         video_title,
         participants_text || "",
-        videodek_url || "",
+        normalizeNoticeUrl(videodek_url),
         scenario_text || "",
         JSON.stringify(Array.isArray(checklist_json) ? checklist_json : []),
         Number(budget_amount || 0),
@@ -4073,6 +4105,7 @@ app.post("/api/travel-plans", authRequired, async (req, res) => {
     if (approvalMeta) {
       await createNotification(null, approvalMeta.title, approvalMeta.body, approvalMeta.type, "approval", "/travel-plans");
     }
+    await createTelegramEvent("🆕 Yangi safar rejasi kiritildi", await buildTravelPlanTelegramLines(inserted.rows[0]));
     if (approval_comment?.trim()) {
       await addApprovalComment("travel_plan", inserted.rows[0].id, req.user.id, approval_comment);
       await createTelegramEvent("Safar approval izohi", [
@@ -4138,7 +4171,7 @@ app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
         branch_id || null,
         video_title,
         participants_text || "",
-        videodek_url || "",
+        normalizeNoticeUrl(videodek_url),
         scenario_text || "",
         JSON.stringify(Array.isArray(checklist_json) ? checklist_json : []),
         Number(budget_amount || 0),
@@ -4162,6 +4195,7 @@ app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
         await createNotification(null, approvalMeta.title, approvalMeta.body, approvalMeta.type, "approval", "/travel-plans");
       }
     }
+    await createTelegramEvent("✏️ Safar rejasi yangilandi", await buildTravelPlanTelegramLines(updated.rows[0]));
     if (approval_comment?.trim()) {
       await addApprovalComment("travel_plan", updated.rows[0].id, req.user.id, approval_comment);
       await createTelegramEvent("Safar approval yangilandi", [
