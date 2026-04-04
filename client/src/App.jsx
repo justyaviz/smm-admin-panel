@@ -1088,6 +1088,29 @@ function formatRubric(value) {
   return match?.label || value || "-";
 }
 
+function splitCellValues(value, separator = ",") {
+  return String(value || "")
+    .split(separator)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function contentTypeChipTone(value) {
+  const normalized = String(value || "").toLowerCase();
+  if (["video", "mobi-video", "reels"].includes(normalized)) return "info";
+  if (["banner", "flayer", "do'kon-dizayni"].includes(normalized)) return "warning";
+  if (["aloo-uz-sayti", "boshqa-ishlar", "boshqalar"].includes(normalized)) return "danger";
+  return "default";
+}
+
+function rubricChipTone(value) {
+  const normalized = String(value || "").toLowerCase();
+  if (["sotuv", "sale-promo", "aksiyalar", "chegirma"].includes(normalized)) return "success";
+  if (["trend-video", "lifehack", "unboxing", "intervyu"].includes(normalized)) return "info";
+  if (["abzor", "locatsiya", "xodimlar-bilan"].includes(normalized)) return "warning";
+  return "default";
+}
+
 function campaignStatusClass(status) {
   if (status === "done") return "status-badge done";
   if (status === "paused") return "status-badge warning";
@@ -2226,24 +2249,69 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                 ) : visibleRows.length ? (
                   visibleRows.map((row) => (
                     <tr key={row.id}>
-                      <td>{row.title}</td>
-                      <td>{formatDate(row.publish_date)}</td>
-                      <td><span className={approvalStatusClass(row.status)}>{formatApprovalStatus(row.status)}</span></td>
-                      <td>{row.platform || "-"}</td>
-                      <td>{formatContentType(row.content_type)}</td>
-                      <td>{formatRubric(row.rubric)}</td>
                       <td>
-                        {row.content_type === "video"
-                          ? `${row.video_editor_name || "-"} / ${row.video_face_name || "-"}`
-                          : row.assignee_name || "-"}
+                        <div className="table-title-cell">
+                          <strong className="table-title-main">{row.title}</strong>
+                          <div className="table-title-sub">
+                            {row.final_url ? (
+                              <button type="button" className="table-inline-link" onClick={() => openExternalUrl(row.final_url)}>
+                                Havolani ochish
+                              </button>
+                            ) : row.approval_comment ? row.approval_comment : "Kontent kartasi"}
+                          </div>
+                        </div>
                       </td>
-                      <td>{row.bonus_enabled ? "Ha" : "Yo'q"}</td>
                       <td>
-                        <IconActions
-                          onView={() => setViewRow(row)}
-                          onEdit={canEditContent ? () => startEdit(row) : null}
-                          onDelete={canDeleteContent ? () => removeRow(row.id) : null}
-                        />
+                        <div className="table-date-stack">
+                          <strong>{formatDate(row.publish_date)}</strong>
+                          <span>{row.bonus_enabled ? "Bonus oqimida" : "Kontent oqimida"}</span>
+                        </div>
+                      </td>
+                      <td><span className={approvalStatusClass(row.status)}>{formatApprovalStatus(row.status)}</span></td>
+                      <td>
+                        <div className="table-chip-row">
+                          {(splitCellValues(row.platform) || []).length ? splitCellValues(row.platform).map((platform, idx) => (
+                            <span key={`${row.id}-platform-${idx}`} className="table-chip platform">{platform}</span>
+                          )) : <span className="table-cell-muted">-</span>}
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`table-chip type ${contentTypeChipTone(row.content_type)}`}>
+                          {formatContentType(row.content_type)}
+                        </span>
+                      </td>
+                      <td>
+                        <span className={`table-chip rubric ${rubricChipTone(row.rubric)}`}>
+                          {formatRubric(row.rubric)}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="table-person-stack">
+                          {(row.content_type === "video"
+                            ? [row.video_editor_name, row.video_face_name]
+                            : [row.assignee_name]
+                          ).filter(Boolean).map((name, idx) => (
+                            <span key={`${row.id}-person-${idx}`} className="table-person">{name}</span>
+                          ))}
+                          {(row.content_type === "video"
+                            ? [row.video_editor_name, row.video_face_name]
+                            : [row.assignee_name]
+                          ).filter(Boolean).length ? null : <span className="table-cell-muted">-</span>}
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`table-chip bonus ${row.bonus_enabled ? "success" : "default"}`}>
+                          {row.bonus_enabled ? "Bonus yoqilgan" : "Bonus yo'q"}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="table-actions-shell">
+                          <IconActions
+                            onView={() => setViewRow(row)}
+                            onEdit={canEditContent ? () => startEdit(row) : null}
+                            onDelete={canDeleteContent ? () => removeRow(row.id) : null}
+                          />
+                        </div>
                       </td>
                     </tr>
                   ))
@@ -3254,25 +3322,53 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                   const difficultyMeta = getBonusDifficultyMeta(row);
                   return (
                     <tr key={row.id} className={difficultyMeta.rowClass}>
-                      <td>{row.content_title || "-"}</td>
-                      <td>{formatDate(row.work_date)}</td>
-                      <td>{formatContentType(row.content_type)}</td>
-                      <td>{getBonusAssigneeLabel(row)}</td>
+                      <td>
+                        <div className="table-title-cell">
+                          <strong className="table-title-main">{row.content_title || "-"}</strong>
+                          <div className="table-title-sub">
+                            {row.work_url ? (
+                              <button type="button" className="table-inline-link" onClick={() => openExternalUrl(row.work_url)}>
+                                Havolani ochish
+                              </button>
+                            ) : "Bonus kartasi"}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="table-date-stack">
+                          <strong>{formatDate(row.work_date)}</strong>
+                          <span>{row.work_url ? "Link ulangan" : "Link yo'q"}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span className={`table-chip type ${contentTypeChipTone(row.content_type)}`}>
+                          {formatContentType(row.content_type)}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="table-person-stack">
+                          {getBonusParticipantNames(row).length ? getBonusParticipantNames(row).map((name, idx) => (
+                            <span key={`${row.id}-bonus-person-${idx}`} className="table-person">{name}</span>
+                          )) : <span className="table-cell-muted">-</span>}
+                        </div>
+                      </td>
                       <td><span className={difficultyMeta.badgeClass}>{difficultyMeta.label}</span></td>
-                      <td>{row.proposal_count || 0}</td>
-                      <td>{row.approved_count || 0}</td>
-                      <td>{formatMoney(row.total_amount || row.amount || 0)}</td>
+                      <td><span className="table-compact-metric">{row.proposal_count || 0}</span></td>
+                      <td><span className="table-compact-metric approved">{row.approved_count || 0}</span></td>
+                      <td><span className="table-compact-amount">{formatMoney(row.total_amount || row.amount || 0)}</span></td>
                       <td>
                         <span className={`mini-badge ${row.approval_status === "approved" ? "success" : "warning"}`}>
                           {row.approval_status === "approved" ? "Tasdiqlandi" : "Draft"}
                         </span>
                       </td>
                       <td>
-                        <IconActions
-                          onView={() => setViewRow(row)}
-                          onEdit={canEditBonus ? () => startEdit(row) : null}
-                          onDelete={canDeleteBonus ? () => removeRow(row.id) : null}
-                        />
+                        <div className="table-actions-shell">
+                          <IconActions
+                            onView={() => setViewRow(row)}
+                            onEdit={canEditBonus ? () => startEdit(row) : null}
+                            onDelete={canDeleteBonus ? () => removeRow(row.id) : null}
+                          />
+                        </div>
                       </td>
                     </tr>
                   );
@@ -9178,6 +9274,7 @@ body.standalone-app .login-page{
   border-top:1px solid rgba(140,166,198,.16);
 }
 table{width:100%;border-collapse:collapse}
+.table-wrap table{min-width:100%}
 th,td{
   padding:14px 16px;
   border-bottom:1px solid rgba(140,166,198,.14);
@@ -9199,9 +9296,159 @@ tbody tr{
   transition:background .2s ease, transform .2s ease;
 }
 tbody tr:hover{
-  background:rgba(31,99,237,.045);
+  background:linear-gradient(90deg, rgba(13,110,253,.06), rgba(56,189,248,.04), transparent 85%);
 }
 .empty-cell{text-align:center;color:var(--muted);padding:24px}
+.table-title-cell{
+  display:grid;
+  gap:6px;
+  min-width:230px;
+}
+.table-title-main{
+  font-size:15px;
+  line-height:1.4;
+  letter-spacing:-.01em;
+}
+.table-title-sub{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  font-size:12px;
+  color:var(--muted);
+}
+.table-inline-link{
+  border:0;
+  background:rgba(59,130,246,.10);
+  color:#1d4ed8;
+  border-radius:999px;
+  padding:6px 10px;
+  font-size:12px;
+  font-weight:800;
+  cursor:pointer;
+}
+.table-inline-link:hover{background:rgba(59,130,246,.16)}
+.table-date-stack{
+  display:grid;
+  gap:4px;
+  white-space:nowrap;
+}
+.table-date-stack strong{font-size:14px}
+.table-date-stack span{
+  font-size:12px;
+  color:var(--muted);
+}
+.table-chip-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.table-chip{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:7px 11px;
+  border-radius:999px;
+  border:1px solid transparent;
+  font-size:12px;
+  font-weight:800;
+  line-height:1;
+  white-space:nowrap;
+}
+.table-chip.platform{
+  background:linear-gradient(135deg, rgba(15,23,42,.05), rgba(148,163,184,.10));
+  color:#475569;
+  border-color:rgba(148,163,184,.18);
+}
+.table-chip.default{
+  background:linear-gradient(135deg, rgba(148,163,184,.14), rgba(255,255,255,.96));
+  color:#64748b;
+  border-color:rgba(148,163,184,.18);
+}
+.table-chip.success{
+  background:linear-gradient(135deg, rgba(16,185,129,.14), rgba(255,255,255,.98));
+  color:#047857;
+  border-color:rgba(16,185,129,.20);
+}
+.table-chip.warning{
+  background:linear-gradient(135deg, rgba(245,158,11,.14), rgba(255,255,255,.98));
+  color:#b45309;
+  border-color:rgba(245,158,11,.20);
+}
+.table-chip.danger{
+  background:linear-gradient(135deg, rgba(239,68,68,.14), rgba(255,255,255,.98));
+  color:#b91c1c;
+  border-color:rgba(239,68,68,.18);
+}
+.table-chip.info{
+  background:linear-gradient(135deg, rgba(59,130,246,.14), rgba(255,255,255,.98));
+  color:#1d4ed8;
+  border-color:rgba(59,130,246,.18);
+}
+.table-person-stack{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  max-width:260px;
+}
+.table-person{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:7px 11px;
+  border-radius:14px;
+  background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(239,245,252,.90));
+  border:1px solid rgba(148,163,184,.16);
+  font-size:12px;
+  font-weight:800;
+  color:var(--text);
+}
+.table-person::before{
+  content:"";
+  width:7px;
+  height:7px;
+  border-radius:999px;
+  background:linear-gradient(135deg,#0ea5e9,#22c55e);
+  box-shadow:0 0 10px rgba(14,165,233,.35);
+}
+.table-compact-metric{
+  display:inline-flex;
+  min-width:38px;
+  justify-content:center;
+  padding:7px 10px;
+  border-radius:12px;
+  background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(237,244,252,.92));
+  border:1px solid rgba(148,163,184,.16);
+  font-weight:900;
+}
+.table-compact-metric.approved{
+  color:#1d4ed8;
+  border-color:rgba(59,130,246,.18);
+  background:linear-gradient(135deg, rgba(59,130,246,.10), rgba(255,255,255,.96));
+}
+.table-compact-amount{
+  display:inline-flex;
+  align-items:center;
+  padding:8px 12px;
+  border-radius:14px;
+  background:linear-gradient(135deg, rgba(16,185,129,.12), rgba(255,255,255,.98));
+  border:1px solid rgba(16,185,129,.18);
+  color:#047857;
+  font-weight:900;
+  white-space:nowrap;
+}
+.table-actions-shell{
+  display:flex;
+  justify-content:flex-end;
+  padding:4px;
+  border-radius:18px;
+  background:linear-gradient(180deg, rgba(255,255,255,.88), rgba(241,247,255,.8));
+  border:1px solid rgba(148,163,184,.14);
+}
+.table-cell-muted{
+  color:var(--muted);
+  font-size:12px;
+}
 .summary-row{
   background:linear-gradient(90deg, rgba(22,144,245,.08), rgba(110,231,183,.08));
 }
