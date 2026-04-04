@@ -1,40 +1,47 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  BadgeDollarSign,
   Bot,
   BarChart3,
   Bell,
   ChevronDown,
   ChevronRight,
+  CircleUserRound,
+  Clapperboard,
   Clock3,
-  CreditCard,
+  ContactRound,
   Eye,
   FileBarChart2,
-  FolderKanban,
   Gift,
-  Home,
+  HeartPulse,
   Image,
+  Landmark,
+  LayoutDashboard,
   LayoutGrid,
+  ListTodo,
   LogOut,
   MessageCircle,
   Megaphone,
   Mic,
   Moon,
-  MapPinned,
   Menu,
+  PlaneTakeoff,
   Repeat2,
-  Wallet,
   Pencil,
+  ReceiptText,
   Filter,
   Search,
   Send,
-  Settings,
+  SlidersHorizontal,
+  Sparkles,
   SunMedium,
   SmilePlus,
   Trash2,
   Upload,
-  User,
   Users as UsersIcon,
   ShieldCheck,
+  Target,
+  ClipboardList,
   X
 } from "lucide-react";
 import { io } from "socket.io-client";
@@ -44,26 +51,25 @@ import { applySeo } from "./seo";
 import ContestExpensesPanel from "./ContestExpensesPanel";
 
 const MENU = [
-  { id: "dashboard", title: "Bosh sahifa", icon: Home },
-  { id: "content", title: "Kontent reja", icon: LayoutGrid },
-  { id: "bonus", title: "Bonus tizimi", icon: Gift },
-  { id: "expenses", title: "Harajatlar", icon: CreditCard },
-  { id: "finance", title: "Finance dashboard", icon: Wallet },
-  { id: "travelPlans", title: "Safar rejasi", icon: MapPinned },
-  { id: "analytics", title: "Analytics", icon: BarChart3 },
-  { id: "moodPulse", title: "Mood pulse", icon: SmilePlus },
-  { id: "employeeKpi", title: "Employee KPI", icon: UsersIcon },
-  { id: "recurring", title: "Recurring", icon: Repeat2 },
-  { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: FileBarChart2 },
-  { id: "campaigns", title: "Reklama kampaniyalari", icon: Megaphone },
-  { id: "uploads", title: "Media kutubxona", icon: Image },
-  { id: "users", title: "Hodimlar", icon: UsersIcon },
-  { id: "tasks", title: "Vazifalar", icon: FolderKanban },
-  { id: "audit", title: "Audit log", icon: ShieldCheck },
-  { id: "profile", title: "Profil", icon: User },
-  { id: "settings", title: "Sozlamalar", icon: Settings }
-  ,
-  { id: "aiAssistant", title: "AI yordamchi", icon: Bot }
+  { id: "dashboard", title: "Bosh sahifa", icon: LayoutDashboard, tone: "indigo" },
+  { id: "content", title: "Kontent reja", icon: Clapperboard, tone: "cyan" },
+  { id: "bonus", title: "Bonus tizimi", icon: BadgeDollarSign, tone: "emerald" },
+  { id: "expenses", title: "Harajatlar", icon: ReceiptText, tone: "amber" },
+  { id: "finance", title: "Finance dashboard", icon: Landmark, tone: "blue" },
+  { id: "travelPlans", title: "Safar rejasi", icon: PlaneTakeoff, tone: "violet" },
+  { id: "analytics", title: "Analytics", icon: BarChart3, tone: "sky" },
+  { id: "moodPulse", title: "Mood pulse", icon: HeartPulse, tone: "pink" },
+  { id: "employeeKpi", title: "Employee KPI", icon: UsersIcon, tone: "teal" },
+  { id: "recurring", title: "Recurring", icon: Repeat2, tone: "orange" },
+  { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: ClipboardList, tone: "slate" },
+  { id: "campaigns", title: "Reklama kampaniyalari", icon: Target, tone: "fuchsia" },
+  { id: "uploads", title: "Media kutubxona", icon: Image, tone: "purple" },
+  { id: "users", title: "Hodimlar", icon: ContactRound, tone: "blue" },
+  { id: "tasks", title: "Vazifalar", icon: ListTodo, tone: "green" },
+  { id: "audit", title: "Audit log", icon: ShieldCheck, tone: "red" },
+  { id: "profile", title: "Profil", icon: CircleUserRound, tone: "cyan" },
+  { id: "settings", title: "Sozlamalar", icon: SlidersHorizontal, tone: "slate" },
+  { id: "aiAssistant", title: "AI yordamchi", icon: Sparkles, tone: "violet" }
 ];
 
 const MENU_GROUPS = [
@@ -6721,6 +6727,8 @@ function App() {
     const extras = allowedMenu.filter((item) => !pinned.some((entry) => entry.id === item.id));
     return [...pinned, ...extras].slice(0, 4);
   }, [allowedMenu]);
+  const activeMenuItem = MENU.find((item) => item.id === active) || MENU[0];
+  const ActivePageIcon = activeMenuItem?.icon || LayoutDashboard;
 
   function showToast(message = "Saqlandi", type = "success", options = {}) {
     const normalizedMessage = String(message || "").trim() || (type === "error" ? "Xatolik yuz berdi" : "Saqlandi");
@@ -6929,7 +6937,7 @@ function App() {
                             type="button"
                             onClick={() => goToPage(item.id)}
                           >
-                            <span className="menu-icon-wrap">
+                            <span className={`menu-icon-wrap icon-tone-${item.tone || "indigo"}`}>
                               <Icon size={16} />
                             </span>
                             <span>{item.title}</span>
@@ -6952,9 +6960,12 @@ function App() {
         <main className="main-area">
           <div className="topbar">
             <div className="topbar-main">
-              <div>
+              <div className="topbar-title-block">
+                <span className={`page-title-badge icon-tone-${activeMenuItem?.tone || "indigo"}`}>
+                  <ActivePageIcon size={18} />
+                </span>
                 <div className="small-label">{(settings?.company_name || "aloo")} platforma</div>
-                <h1>{MENU.find((m) => m.id === active)?.title || "Bosh sahifa"}</h1>
+                <h1>{activeMenuItem?.title || "Bosh sahifa"}</h1>
               </div>
               <button
                 type="button"
@@ -7064,7 +7075,9 @@ function App() {
               className={`mobile-nav-item ${active === item.id ? "active" : ""}`}
               onClick={() => goToPage(item.id)}
             >
-              <Icon size={18} />
+              <span className={`mobile-nav-icon icon-tone-${item.tone || "indigo"}`}>
+                <Icon size={17} />
+              </span>
               <span>{item.title}</span>
             </button>
           );
@@ -7074,7 +7087,9 @@ function App() {
           className={`mobile-nav-item ${mobileMenuOpen ? "active" : ""}`}
           onClick={() => setMobileMenuOpen(true)}
         >
-          <Menu size={18} />
+          <span className="mobile-nav-icon icon-tone-slate">
+            <Menu size={17} />
+          </span>
           <span>Menu</span>
         </button>
       </div>
@@ -7113,7 +7128,7 @@ function App() {
                         setMobileMenuOpen(false);
                       }}
                     >
-                      <span className="menu-icon-wrap">
+                      <span className={`menu-icon-wrap icon-tone-${item.tone || "indigo"}`}>
                         <Icon size={16} />
                       </span>
                       <span>{item.title}</span>
@@ -8062,17 +8077,32 @@ body.standalone-app .login-page{
   border-radius:14px;
   display:grid;
   place-items:center;
-  background:linear-gradient(180deg, rgba(255,255,255,.12), rgba(255,255,255,.05));
   border:1px solid rgba(255,255,255,.08);
-  color:#b9d8ff;
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.08);
+  color:#fff;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14), 0 10px 20px rgba(2,8,23,.18);
+  transition:transform .18s ease, filter .18s ease, box-shadow .18s ease;
 }
 .menu-btn.active .menu-icon-wrap{
-  background:linear-gradient(135deg,#0d6efd,#17c3b2);
-  color:#fff;
-  border-color:transparent;
-  box-shadow:0 12px 24px rgba(13,110,253,.26);
+  border-color:rgba(255,255,255,.14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2), 0 16px 30px rgba(13,110,253,.24);
+  transform:translateY(-1px) scale(1.04);
+  filter:saturate(1.08) brightness(1.04);
 }
+.icon-tone-indigo{background:linear-gradient(135deg,#4f46e5,#3b82f6)}
+.icon-tone-cyan{background:linear-gradient(135deg,#0891b2,#22d3ee)}
+.icon-tone-emerald{background:linear-gradient(135deg,#059669,#34d399)}
+.icon-tone-amber{background:linear-gradient(135deg,#d97706,#fbbf24)}
+.icon-tone-blue{background:linear-gradient(135deg,#1d4ed8,#60a5fa)}
+.icon-tone-violet{background:linear-gradient(135deg,#7c3aed,#a78bfa)}
+.icon-tone-sky{background:linear-gradient(135deg,#0284c7,#38bdf8)}
+.icon-tone-pink{background:linear-gradient(135deg,#db2777,#fb7185)}
+.icon-tone-teal{background:linear-gradient(135deg,#0f766e,#2dd4bf)}
+.icon-tone-orange{background:linear-gradient(135deg,#ea580c,#fb923c)}
+.icon-tone-slate{background:linear-gradient(135deg,#334155,#64748b)}
+.icon-tone-fuchsia{background:linear-gradient(135deg,#c026d3,#f472b6)}
+.icon-tone-purple{background:linear-gradient(135deg,#7e22ce,#a855f7)}
+.icon-tone-green{background:linear-gradient(135deg,#15803d,#4ade80)}
+.icon-tone-red{background:linear-gradient(135deg,#dc2626,#f87171)}
 
 .logout-btn{
   margin-top:auto;
@@ -8127,6 +8157,19 @@ body.standalone-app .login-page{
   align-items:flex-start;
   justify-content:space-between;
   gap:12px;
+}
+.topbar-title-block{
+  display:grid;
+  gap:8px;
+}
+.page-title-badge{
+  width:48px;
+  height:48px;
+  border-radius:18px;
+  display:grid;
+  place-items:center;
+  color:#fff;
+  box-shadow:0 16px 30px rgba(15,23,42,.12);
 }
 .topbar h1{
   margin:8px 0 0;
@@ -10463,6 +10506,15 @@ tbody tr:hover{
   padding:8px 6px;
   border-radius:16px;
 }
+.mobile-nav-icon{
+  width:34px;
+  height:34px;
+  border-radius:14px;
+  display:grid;
+  place-items:center;
+  color:#fff;
+  box-shadow:0 10px 18px rgba(15,23,42,.14);
+}
 .mobile-nav-item.active{
   color:var(--blue);
   background:linear-gradient(135deg, rgba(13,110,253,.14), rgba(23,195,178,.12));
@@ -10503,6 +10555,7 @@ tbody tr:hover{
   gap:10px;
   font-weight:800;
   text-align:left;
+  box-shadow:0 12px 24px rgba(15,23,42,.08);
 }
 .mobile-menu-card.active{
   border-color:rgba(13,110,253,.24);
