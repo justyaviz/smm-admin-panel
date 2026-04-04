@@ -1,19 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <defs>
-    <linearGradient id="bg" x1="60" y1="52" x2="438" y2="470" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#0B63F6"/>
-      <stop offset="0.52" stop-color="#22C7FF"/>
-      <stop offset="1" stop-color="#39D98A"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(176 132) rotate(43.6) scale(170)">
-      <stop stop-color="#fff" stop-opacity=".35"/>
-      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-    </radialGradient>
+    <clipPath id="icon-512-hex">
+      <path d="M18 6H46L58 27V37L46 58H18L6 37V27L18 6Z"/>
+    </clipPath>
   </defs>
-  <rect x="24" y="24" width="464" height="464" rx="132" fill="url(#bg)"/>
-  <rect x="28" y="28" width="456" height="456" rx="128" stroke="#FFFFFF" stroke-opacity=".24" stroke-width="8"/>
-  <circle cx="160" cy="132" r="58" fill="url(#glow)"/>
-  <path d="M354 172C330.2 146.8 296.6 130.5 258.6 130.5C184.6 130.5 124.5 189.7 124.5 262.7C124.5 335.7 184.6 394.9 258.6 394.9C305.3 394.9 347.2 371.4 371.1 334.2" stroke="#FFFFFF" stroke-opacity=".9" stroke-width="38" stroke-linecap="round"/>
-  <path d="M272.1 122L197.5 273.3H253.8L224.7 393.7L344.9 242.4H287.9L325.6 122H272.1Z" fill="white"/>
-  <circle cx="372" cy="194" r="22" fill="#D7FFF1"/>
+  <g clip-path="url(#icon-512-hex)">
+    <rect width="64" height="64" fill="#4F86E8"/>
+    <polygon points="18,6 38,6 29,21 12,21" fill="#2A6AC8"/>
+    <polygon points="38,6 46,6 58,27 50,35 38,21" fill="#4E84E7"/>
+    <polygon points="50,35 58,27 58,37 46,58 34,40" fill="#2B69C6"/>
+    <polygon points="18,58 34,58 26,42 14,21 6,27 6,37" fill="#2A6AC8"/>
+    <polygon points="26,42 34,40 46,58 18,58" fill="#4A82E4"/>
+    <polygon points="12,21 29,21 26,42 14,21" fill="#4F86E8"/>
+  </g>
+  <path d="M18 6H46L58 27V37L46 58H18L6 37V27L18 6Z" stroke="#2F6FD0" stroke-width="1.6" stroke-linejoin="round"/>
+  <path d="M26 22L18 32L26 42H38L46 32L38 22H26Z" fill="#FFFFFF"/>
 </svg>

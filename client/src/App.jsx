@@ -1017,7 +1017,7 @@ function getCampaignTotalBudget(row) {
   return Number(row?.budget || 0);
 }
 
-const LOGIN_LOGO = "/brand-logo.svg?v=20260404";
+const LOGIN_LOGO = "/brand-logo.svg?v=20260404-logo";
 
 function normalizeAlooText(value = "") {
   return String(value || "").replace(/aloo/gi, "aloo");

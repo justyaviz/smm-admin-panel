@@ -1,13 +1,12 @@
-const CACHE_NAME = "aloo-smm-v3";
+const CACHE_NAME = "aloo-smm-v4";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
   "/icon-192.svg",
   "/icon-512.svg",
-  "/apple-touch-icon.png",
-  "/pwa-192.png",
-  "/pwa-512.png",
-  "/pwa-maskable-512.png"
+  "/brand-logo.svg",
+  "/favicon.svg",
+  "/apple-touch-icon.svg"
 ];
 
 self.addEventListener("install", (event) => {
