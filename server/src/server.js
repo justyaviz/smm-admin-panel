@@ -277,7 +277,9 @@ function createNotification(userId, title, body, type = "info", category = "syst
       `,
       [userId || null, title, body, type, category, actionUrl]
     );
-    await sendTelegramMessageNow(`[${category}] ${title}\n${body}`);
+    if (actionUrl !== "/travel-plans") {
+      await sendTelegramMessageNow(`[${category}] ${title}\n${body}`);
+    }
   });
 }
 
@@ -353,19 +355,49 @@ async function sendTelegramMessageNow(text, chatIdOverride = null) {
     const chatId = chatIdOverride || settings?.telegram_chat_id;
     if (!settings?.telegram_bot_token || !chatId) return;
 
-    const controller = new AbortController();
-    timeout = setTimeout(() => controller.abort(), 4000);
-    const response = await fetch(`https://api.telegram.org/bot${settings.telegram_bot_token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        chat_id: chatId,
-        text
-      })
-    });
-    if (!response.ok) {
-      throw new Error(`Telegram API ${response.status}: ${await response.text()}`);
+    const sendOnce = async (targetChatId) => {
+      const controller = new AbortController();
+      timeout = setTimeout(() => controller.abort(), 4000);
+      const response = await fetch(`https://api.telegram.org/bot${settings.telegram_bot_token}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          chat_id: targetChatId,
+          text
+        })
+      });
+      const rawBody = await response.text();
+      let payload = null;
+      try {
+        payload = rawBody ? JSON.parse(rawBody) : null;
+      } catch {
+        payload = null;
+      }
+      return { response, rawBody, payload };
+    };
+
+    let result = await sendOnce(chatId);
+    if (!result.response.ok) {
+      const migratedChatId = result.payload?.parameters?.migrate_to_chat_id;
+      if (migratedChatId) {
+        const migratedValue = String(migratedChatId);
+        if (!chatIdOverride && settings?.id) {
+          try {
+            await query(
+              `UPDATE app_settings SET telegram_chat_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2`,
+              [migratedValue, settings.id]
+            );
+          } catch (updateErr) {
+            console.error("telegram chat migrate update error:", updateErr.message);
+          }
+        }
+        result = await sendOnce(migratedValue);
+      }
+    }
+
+    if (!result.response.ok) {
+      throw new Error(`Telegram API ${result.response.status}: ${result.rawBody}`);
     }
   } catch (err) {
     console.error("telegram send error:", err.message);
@@ -405,6 +437,7 @@ function addApprovalComment(entityType, entityId, authorUserId, body) {
 async function createTelegramEventNow(title, lines = [], chatIdOverride = null) {
   const cleanLines = lines.filter(Boolean).map((line) => String(line).trim()).filter(Boolean);
   const safeTitle = String(title || "").toLowerCase();
+  if (safeTitle.includes("safar")) return;
   const resolvedChatId = chatIdOverride || (safeTitle.includes("safar") ? TRAVEL_PLAN_CHAT_ID : null);
   await sendTelegramMessageNow([title, ...cleanLines].join("\n"), resolvedChatId);
 }
