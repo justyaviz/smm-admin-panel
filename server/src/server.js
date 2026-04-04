@@ -57,6 +57,7 @@ const userSockets = new Map();
 const BONUS_PULL_SYNC_COOLDOWN_MS = Math.max(5000, Number(process.env.MYSEONE_PULL_SYNC_COOLDOWN_MS || 20000));
 const MYSEONE_FROZEN_MONTHS = new Set(["2026-03"]);
 const TARGET_CAMPAIGN_CHAT_ID = String(process.env.TARGET_CAMPAIGN_CHAT_ID || "-1003416537521");
+const TRAVEL_PLAN_CHAT_ID = String(process.env.TRAVEL_PLAN_CHAT_ID || "-5105633674");
 let bonusPullSyncPromise = null;
 let lastBonusPullSyncAt = 0;
 
@@ -345,7 +346,7 @@ async function sendTelegramMessage(text, chatIdOverride = null) {
     const chatId = chatIdOverride || settings?.telegram_chat_id;
     if (!settings?.telegram_bot_token || !chatId) return;
 
-    await fetch(`https://api.telegram.org/bot${settings.telegram_bot_token}/sendMessage`, {
+    const response = await fetch(`https://api.telegram.org/bot${settings.telegram_bot_token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -353,8 +354,12 @@ async function sendTelegramMessage(text, chatIdOverride = null) {
         text
       })
     });
+    if (!response.ok) {
+      throw new Error(`Telegram API ${response.status}: ${await response.text()}`);
+    }
   } catch (err) {
     console.error("telegram send error:", err.message);
+    throw err;
   }
 }
 
@@ -383,7 +388,9 @@ async function addApprovalComment(entityType, entityId, authorUserId, body) {
 
 async function createTelegramEvent(title, lines = [], chatIdOverride = null) {
   const cleanLines = lines.filter(Boolean).map((line) => String(line).trim()).filter(Boolean);
-  await sendTelegramMessage([title, ...cleanLines].join("\n"), chatIdOverride);
+  const safeTitle = String(title || "").toLowerCase();
+  const resolvedChatId = chatIdOverride || (safeTitle.includes("safar") ? TRAVEL_PLAN_CHAT_ID : null);
+  await sendTelegramMessage([title, ...cleanLines].join("\n"), resolvedChatId);
 }
 
 function normalizeCampaignStatus(value) {
