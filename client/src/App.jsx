@@ -3,6 +3,8 @@ import {
   Bot,
   BarChart3,
   Bell,
+  ChevronDown,
+  ChevronRight,
   Clock3,
   CreditCard,
   Eye,
@@ -48,24 +50,27 @@ const MENU = [
   { id: "expenses", title: "Harajatlar", icon: CreditCard },
   { id: "finance", title: "Finance dashboard", icon: Wallet },
   { id: "travelPlans", title: "Safar rejasi", icon: MapPinned },
-  { id: "reports", title: "Advanced report", icon: FileBarChart2 },
   { id: "analytics", title: "Analytics", icon: BarChart3 },
-  { id: "postingInsights", title: "Posting insights", icon: Clock3 },
   { id: "moodPulse", title: "Mood pulse", icon: SmilePlus },
   { id: "employeeKpi", title: "Employee KPI", icon: UsersIcon },
-  { id: "health", title: "Health", icon: ShieldCheck },
   { id: "recurring", title: "Recurring", icon: Repeat2 },
   { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: FileBarChart2 },
   { id: "campaigns", title: "Reklama kampaniyalari", icon: Megaphone },
   { id: "uploads", title: "Media kutubxona", icon: Image },
   { id: "users", title: "Hodimlar", icon: UsersIcon },
   { id: "tasks", title: "Vazifalar", icon: FolderKanban },
-  { id: "chat", title: "Chat", icon: MessageCircle },
   { id: "audit", title: "Audit log", icon: ShieldCheck },
   { id: "profile", title: "Profil", icon: User },
   { id: "settings", title: "Sozlamalar", icon: Settings }
   ,
   { id: "aiAssistant", title: "AI yordamchi", icon: Bot }
+];
+
+const MENU_GROUPS = [
+  { id: "core", title: "Asosiy", items: ["dashboard", "content", "bonus", "tasks"] },
+  { id: "operations", title: "Jarayonlar", items: ["travelPlans", "campaigns", "expenses", "finance", "dailyReports", "recurring"] },
+  { id: "insights", title: "Tahlil va KPI", items: ["analytics", "moodPulse", "employeeKpi", "uploads"] },
+  { id: "system", title: "Boshqaruv", items: ["users", "audit", "profile", "settings", "aiAssistant"] }
 ];
 
 const ROUTES_BY_PAGE = {
@@ -76,19 +81,15 @@ const ROUTES_BY_PAGE = {
   expenses: "/harajatlar",
   finance: "/finance",
   travelPlans: "/safar",
-  reports: "/hisobotlar",
   analytics: "/analytics",
-  postingInsights: "/posting-insights",
   moodPulse: "/mood-pulse",
   employeeKpi: "/xodim-kpi",
-  health: "/health",
   recurring: "/recurring",
   dailyReports: "/kunlik-hisobotlar",
   campaigns: "/reklama",
   uploads: "/media",
   users: "/hodimlar",
   tasks: "/vazifalar",
-  chat: "/chat",
   audit: "/audit",
   profile: "/profil",
   settings: "/sozlamalar",
@@ -105,19 +106,15 @@ const PAGE_BY_ROUTE = {
   "/harajatlar": "expenses",
   "/finance": "finance",
   "/safar": "travelPlans",
-  "/hisobotlar": "reports",
   "/analytics": "analytics",
-  "/posting-insights": "postingInsights",
   "/mood-pulse": "moodPulse",
   "/xodim-kpi": "employeeKpi",
-  "/health": "health",
   "/recurring": "recurring",
   "/kunlik-hisobotlar": "dailyReports",
   "/reklama": "campaigns",
   "/media": "uploads",
   "/hodimlar": "users",
   "/vazifalar": "tasks",
-  "/chat": "chat",
   "/audit": "audit",
   "/profil": "profile",
   "/sozlamalar": "settings",
@@ -139,12 +136,9 @@ const PERMISSION_OPTIONS = [
   { id: "expenses_edit", label: "Harajat tahrirlash" },
   { id: "expenses_delete", label: "Harajat o'chirish" },
   { id: "travelPlans", label: "Safar rejasi" },
-  { id: "reports", label: "Advanced report" },
   { id: "analytics", label: "Analytics" },
-  { id: "postingInsights", label: "Posting insights" },
   { id: "moodPulse", label: "Mood pulse" },
   { id: "employeeKpi", label: "Employee KPI" },
-  { id: "health", label: "Health" },
   { id: "recurring", label: "Recurring" },
   { id: "travelPlans_create", label: "Safar reja qo'shish" },
   { id: "travelPlans_edit", label: "Safar reja tahrirlash" },
@@ -164,8 +158,6 @@ const PERMISSION_OPTIONS = [
   { id: "tasks", label: "Vazifalar" },
   { id: "tasks_edit", label: "Vazifa tahrirlash" },
   { id: "tasks_delete", label: "Vazifa o'chirish" },
-  { id: "chat", label: "Chat" },
-  { id: "chat_send", label: "Xabar yuborish" },
   { id: "audit", label: "Audit log" },
   { id: "profile", label: "Profil" },
   { id: "settings", label: "Sozlamalar" }
@@ -1083,7 +1075,7 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
             </div>
             <div className="login-feature-card">
               <strong>Jamoa</strong>
-              <span>Chat, vazifa va hisobotlar bir panelda boshqariladi.</span>
+              <span>Vazifa va hisobotlar bir panelda boshqariladi.</span>
             </div>
           </div>
           <div className="login-seo-block">
@@ -5968,6 +5960,9 @@ function App() {
   const [theme, setTheme] = useState(localStorage.getItem("aloo_theme") || "light");
   const [toast, setToast] = useState(null);
   const [search, setSearch] = useState("");
+  const [menuGroupState, setMenuGroupState] = useState(() =>
+    Object.fromEntries(MENU_GROUPS.map((group) => [group.id, true]))
+  );
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const [globalResults, setGlobalResults] = useState(null);
@@ -5995,21 +5990,16 @@ function App() {
   const [dailyReports, setDailyReports] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [tasks, setTasks] = useState([]);
-  const [threads, setThreads] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [recurringTasks, setRecurringTasks] = useState([]);
   const [recurringExpenses, setRecurringExpenses] = useState([]);
   const [budgets, setBudgets] = useState([]);
   const [analyticsData, setAnalyticsData] = useState(null);
-  const [advancedReports, setAdvancedReports] = useState(null);
   const [topPerformers, setTopPerformers] = useState(null);
   const [executiveSummary, setExecutiveSummary] = useState(null);
   const [employeeKpi, setEmployeeKpi] = useState([]);
-  const [healthData, setHealthData] = useState(null);
   const [moodEntries, setMoodEntries] = useState([]);
-  const [postingInsights, setPostingInsights] = useState(null);
   const [savingSettings, setSavingSettings] = useState(false);
-  const unreadChatCount = (threads || []).reduce((sum, thread) => sum + Number(thread.unread_count || 0), 0);
 
   useEffect(() => {
     localStorage.setItem("aloo_theme", theme);
@@ -6107,7 +6097,6 @@ function App() {
       "campaigns",
       "users",
       "tasks",
-      "chat",
       "recurring",
       "aiAssistant"
     ].includes(pageId);
@@ -6194,9 +6183,6 @@ function App() {
       case "travelPlans":
         setTravelPlans(await api.list("travel-plans").catch(() => []));
         break;
-      case "reports":
-        setAdvancedReports(await api.list("/api/reports/advanced", { range: "monthly" }).catch(() => null));
-        break;
       case "analytics": {
         const [analyticsRes, employeeKpiRes, executiveSummaryRes] = await Promise.all([
           api.list("/api/analytics/overview").catch(() => null),
@@ -6209,17 +6195,11 @@ function App() {
         setTopPerformers(analyticsRes?.top_performers || null);
         break;
       }
-      case "postingInsights":
-        setPostingInsights(await api.list("/api/analytics/posting-insights").catch(() => null));
-        break;
       case "moodPulse":
         setMoodEntries(await api.list("/api/team-mood").catch(() => []));
         break;
       case "employeeKpi":
         setEmployeeKpi(await api.list("/api/employee-kpi").catch(() => []));
-        break;
-      case "health":
-        setHealthData(await api.list("/api/health").catch(() => null));
         break;
       case "recurring": {
         const [recurringTasksRes, recurringExpensesRes] = await Promise.all([
@@ -6241,9 +6221,6 @@ function App() {
         break;
       case "tasks":
         setTasks(await api.list("tasks").catch(() => []));
-        break;
-      case "chat":
-        setThreads(await api.list("/api/messages/threads").catch(() => []));
         break;
       case "audit":
         setAuditLogs(await api.list("audit-logs").catch(() => []));
@@ -6319,7 +6296,7 @@ function App() {
 
   useEffect(() => {
     if (!user?.id || booting) return;
-    const intervalMs = active === "chat" ? 4000 : 15000;
+    const intervalMs = 15000;
     const timer = setInterval(() => {
       reloadData(active);
     }, intervalMs);
@@ -6385,6 +6362,15 @@ function App() {
       item.title.toLowerCase().includes(search.toLowerCase())
     );
   }, [search, allowedMenu]);
+
+  const groupedMenu = useMemo(() => {
+    return MENU_GROUPS.map((group) => {
+      const items = group.items
+        .map((id) => filteredMenu.find((item) => item.id === id))
+        .filter(Boolean);
+      return { ...group, items };
+    }).filter((group) => group.items.length);
+  }, [filteredMenu]);
 
   const mobilePrimaryMenu = useMemo(() => {
     const preferred = ["dashboard", "content", "bonus", "tasks", "profile"];
@@ -6527,18 +6513,12 @@ function App() {
     page = <FinanceDashboardPage expenses={expenses} campaigns={campaigns} bonusItems={bonusItems} travelPlans={travelPlans} budgets={budgets} onToast={showToast} reload={reloadData} />;
   } else if (active === "travelPlans") {
     page = <TravelPlansPage travelPlans={travelPlans} branches={branches} onToast={showToast} reload={reloadData} />;
-  } else if (active === "reports") {
-    page = <AdvancedReportsPage advancedReports={advancedReports} />;
   } else if (active === "analytics") {
     page = <AnalyticsPage analyticsData={{ ...(analyticsData || {}), employee_kpi: employeeKpi, executive_summary: executiveSummary?.text }} />;
-  } else if (active === "postingInsights") {
-    page = <PostingInsightsPage data={postingInsights} />;
   } else if (active === "moodPulse") {
     page = <MoodPulsePage rows={moodEntries} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "employeeKpi") {
     page = <EmployeeKpiPage rows={employeeKpi} />;
-  } else if (active === "health") {
-    page = <HealthPage data={healthData} />;
   } else if (active === "recurring") {
     page = <RecurringPage recurringTasks={recurringTasks} recurringExpenses={recurringExpenses} users={users} onToast={showToast} reload={reloadData} />;
   } else if (active === "dailyReports") {
@@ -6551,8 +6531,6 @@ function App() {
     page = <UsersPage users={users} onToast={showToast} reload={reloadData} />;
   } else if (active === "tasks") {
     page = <TasksPage tasks={tasks} users={users} user={user} onToast={showToast} reload={reloadData} />;
-  } else if (active === "chat") {
-    page = <ChatPage user={user} users={users} threads={threads} onToast={showToast} reload={reloadData} />;
   } else if (active === "audit") {
     page = <AuditPage logs={auditLogs} />;
   } else if (active === "profile") {
@@ -6582,21 +6560,43 @@ function App() {
             <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Qidiruv..." />
           </div>
 
-          <div className="menu-list">
-            {filteredMenu.map((item) => {
-              const Icon = item.icon;
+          <div className="menu-section-list">
+            {groupedMenu.map((group) => {
+              const isOpen = search.trim() ? true : menuGroupState[group.id] !== false;
               return (
-                <button
-                  key={item.id}
-                  className={`menu-btn ${active === item.id ? "active" : ""}`}
-                  type="button"
-                  onClick={() => goToPage(item.id)}
-                >
-                  <span className="menu-icon-wrap">
-                    <Icon size={16} />
-                  </span>
-                  <span>{item.title}</span>
-                </button>
+                <div key={group.id} className="menu-group">
+                  <button
+                    type="button"
+                    className={`menu-group-toggle ${isOpen ? "open" : ""}`}
+                    onClick={() =>
+                      setMenuGroupState((prev) => ({ ...prev, [group.id]: !isOpen }))
+                    }
+                  >
+                    <span>{group.title}</span>
+                    {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                  </button>
+
+                  {isOpen ? (
+                    <div className="menu-list">
+                      {group.items.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <button
+                            key={item.id}
+                            className={`menu-btn ${active === item.id ? "active" : ""}`}
+                            type="button"
+                            onClick={() => goToPage(item.id)}
+                          >
+                            <span className="menu-icon-wrap">
+                              <Icon size={16} />
+                            </span>
+                            <span>{item.title}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : null}
+                </div>
               );
             })}
           </div>
@@ -6640,8 +6640,7 @@ function App() {
                       { key: "content", label: "Kontent", items: globalResults?.content || [] },
                       { key: "tasks", label: "Vazifalar", items: globalResults?.tasks || [] },
                       { key: "bonuses", label: "Bonus", items: globalResults?.bonuses || [] },
-                      { key: "travel_plans", label: "Safar rejasi", items: globalResults?.travel_plans || [] },
-                      { key: "chats", label: "Chat", items: globalResults?.chats || [] }
+                      { key: "travel_plans", label: "Safar rejasi", items: globalResults?.travel_plans || [] }
                     ].map((group) => (
                       <div key={group.key} className="global-search-group">
                         <strong>{group.label}</strong>
@@ -6658,7 +6657,6 @@ function App() {
                               else if (group.key === "tasks") goToPage("tasks");
                               else if (group.key === "bonuses") goToPage("bonus");
                               else if (group.key === "travel_plans") goToPage("travelPlans");
-                              else if (group.key === "chats") goToPage("chat");
                             }}
                           >
                             <span>{item.full_name || item.title || item.content_title || item.video_title || item.body}</span>
@@ -6669,10 +6667,6 @@ function App() {
                   </div>
                 ) : null}
               </div>
-              <button className="notif-pill" type="button" onClick={() => goToPage("chat")}>
-                <MessageCircle size={16} />
-                {unreadChatCount}
-              </button>
               <button className="notif-pill" type="button" onClick={() => setDrawerOpen(true)}>
                 <Bell size={16} />
                 {(notifications || []).filter((n) => !n.is_read).length}
@@ -6761,27 +6755,32 @@ function App() {
             />
           </div>
 
-          <div className="mobile-menu-grid">
-            {filteredMenu.map((item) => {
-              const Icon = item.icon;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`mobile-menu-card ${active === item.id ? "active" : ""}`}
-                  onClick={() => {
-                    goToPage(item.id);
-                    setMobileMenuOpen(false);
-                  }}
-                >
-                  <span className="menu-icon-wrap">
-                    <Icon size={16} />
-                  </span>
-                  <span>{item.title}</span>
-                </button>
-              );
-            })}
-          </div>
+          {groupedMenu.map((group) => (
+            <div key={`mobile-${group.id}`} className="mobile-menu-group">
+              <div className="mobile-menu-title">{group.title}</div>
+              <div className="mobile-menu-grid">
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`mobile-menu-card ${active === item.id ? "active" : ""}`}
+                      onClick={() => {
+                        goToPage(item.id);
+                        setMobileMenuOpen(false);
+                      }}
+                    >
+                      <span className="menu-icon-wrap">
+                        <Icon size={16} />
+                      </span>
+                      <span>{item.title}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
 
           <button className="logout-btn mobile-logout-btn" type="button" onClick={logout}>
             <LogOut size={16} />
@@ -7661,7 +7660,36 @@ body.standalone-app .login-page{
   color:var(--nav-muted);
 }
 
-.menu-list{display:grid;gap:8px}
+.menu-section-list{
+  display:grid;
+  gap:14px;
+}
+.menu-group{
+  display:grid;
+  gap:10px;
+}
+.menu-group-toggle{
+  border:0;
+  background:transparent;
+  color:var(--nav-muted);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:2px 8px 2px 4px;
+  text-transform:uppercase;
+  letter-spacing:.16em;
+  font-size:11px;
+  font-weight:800;
+  cursor:pointer;
+}
+.menu-group-toggle.open{
+  color:#dce9ff;
+}
+.menu-list{
+  display:grid;
+  gap:8px;
+}
 .menu-btn{
   border:1px solid transparent;
   background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
@@ -9584,6 +9612,18 @@ tbody tr:hover{
   display:grid;
   grid-template-columns:repeat(2,minmax(0,1fr));
   gap:10px;
+}
+.mobile-menu-group{
+  display:grid;
+  gap:10px;
+}
+.mobile-menu-title{
+  padding:2px 2px 0;
+  color:var(--muted);
+  font-size:11px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  font-weight:800;
 }
 .mobile-menu-card{
   border:1px solid rgba(148,163,184,.14);
