@@ -13,6 +13,18 @@
   "lang": "uz",
   "icons": [
     {
+      "src": "/icon-192.svg?v=20260404",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg?v=20260404",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
       "src": "/pwa-192.png",
       "sizes": "192x192",
       "type": "image/png",

@@ -596,11 +596,28 @@ function IconActions({ onView, onEdit, onDelete }) {
 function Toast({ toast, onClose }) {
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(onClose, 2800);
+    const timer = setTimeout(onClose, toast.variant === "center-success" ? 2200 : 2800);
     return () => clearTimeout(timer);
   }, [toast, onClose]);
 
   if (!toast) return null;
+
+  if (toast.variant === "center-success") {
+    return (
+      <div className="success-overlay" aria-live="polite" aria-atomic="true">
+        <div className="success-wrapper">
+          <div className="icon-wrap">
+            <svg className="success-svg" viewBox="0 0 100 100" width="120" height="120" aria-hidden="true">
+              <circle className="success-circle" cx="50" cy="50" r="40" fill="none" stroke="#10b981" strokeWidth="6" strokeLinecap="round" />
+              <polyline className="success-check" points="35 50 45 60 65 40" fill="none" stroke="#10b981" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </div>
+          <h2>MUVAFFAQIYATLI</h2>
+          <p>{toast.message || "Ma'lumotlar muvaffaqiyatli saqlandi."}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`toast toast-${toast.type || "success"}`}>
@@ -988,23 +1005,7 @@ function getCampaignTotalBudget(row) {
   return Number(row?.budget || 0);
 }
 
-const LOGIN_LOGO =
-  'data:image/svg+xml;utf8,' +
-  encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
-      <defs>
-        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stop-color="#1d4ed8"/>
-          <stop offset="55%" stop-color="#38bdf8"/>
-          <stop offset="100%" stop-color="#6ee7b7"/>
-        </linearGradient>
-      </defs>
-      <rect x="10" y="10" width="140" height="140" rx="42" fill="url(#g)"/>
-      <circle cx="58" cy="56" r="16" fill="rgba(255,255,255,0.32)"/>
-      <path d="M79 43c18 0 33 15 33 33S97 109 79 109 46 94 46 76s15-33 33-33Z" fill="rgba(255,255,255,0.16)"/>
-      <path d="M84.8 110H68.7l4.9-14.5H60.7L83.5 50h16.4l-5.2 15.6h13.4z" fill="white"/>
-    </svg>
-  `);
+const LOGIN_LOGO = "/brand-logo.svg?v=20260404";
 
 function normalizeAlooText(value = "") {
   return String(value || "").replace(/aloo/gi, "aloo");
@@ -6394,8 +6395,17 @@ function App() {
     return [...pinned, ...extras].slice(0, 4);
   }, [allowedMenu]);
 
-  function showToast(message = "Saqlandi", type = "success") {
-    setToast({ message, type });
+  function showToast(message = "Saqlandi", type = "success", options = {}) {
+    const normalizedMessage = String(message || "").trim() || (type === "error" ? "Xatolik yuz berdi" : "Saqlandi");
+    const shouldCenter =
+      type === "success" &&
+      (options.center ?? /(saql|yangila|o['’]?chir|yarat|tasdiq|bekor qil|qo['’]?sh|bajar)/i.test(normalizedMessage));
+
+    setToast({
+      message: normalizedMessage,
+      type,
+      variant: shouldCenter ? "center-success" : "toast"
+    });
   }
 
   async function saveSettings(payload) {
@@ -8326,6 +8336,63 @@ tbody tr:hover{
   border-radius:14px;
 }
 
+.success-overlay{
+  position:fixed;
+  inset:0;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  z-index:10060;
+  pointer-events:none;
+}
+.success-wrapper{
+  width:min(100%, 420px);
+  background:linear-gradient(145deg, rgba(255,255,255,.96), rgba(244,249,255,.92));
+  padding:50px 34px;
+  border-radius:28px;
+  box-shadow:0 28px 60px -10px rgba(15,23,42,.18);
+  text-align:center;
+  border:1px solid rgba(140,166,198,.18);
+  backdrop-filter:blur(16px);
+}
+.icon-wrap{
+  margin-bottom:20px;
+  transform:scale(0);
+  animation:success-pop-in .6s cubic-bezier(0.34, 1.56, 0.64, 1.3) forwards;
+}
+.success-circle{
+  stroke-dasharray:252;
+  stroke-dashoffset:252;
+  animation:success-draw-circle .6s cubic-bezier(0.34, 1.56, 0.64, 1) .2s forwards;
+}
+.success-check{
+  stroke-dasharray:50;
+  stroke-dashoffset:50;
+  animation:success-draw-check .4s cubic-bezier(0.34, 1.56, 0.64, 1) .7s forwards;
+}
+.success-wrapper h2{
+  margin:0 0 10px;
+  color:var(--text);
+  font-family:"Sora","Manrope","Segoe UI",sans-serif;
+  font-size:1.75rem;
+  letter-spacing:-.05em;
+  opacity:0;
+  transform:translateY(10px);
+  animation:success-fade-up .5s ease 1s forwards;
+}
+.success-wrapper p{
+  color:var(--muted);
+  margin:0;
+  font-size:1.05rem;
+  line-height:1.65;
+  opacity:0;
+  transform:translateY(10px);
+  animation:success-fade-up .5s ease 1.2s forwards;
+}
+:root[data-theme='dark'] .success-wrapper{
+  background:linear-gradient(145deg, rgba(10,18,32,.98), rgba(17,25,40,.94));
+  box-shadow:0 28px 60px -10px rgba(2,8,23,.5);
+}
 .toast{
   position:fixed;
   right:20px;bottom:20px;
@@ -8373,6 +8440,20 @@ tbody tr:hover{
 @keyframes toast-in{
   from{transform:translateY(24px) scale(.94);opacity:0}
   to{transform:translateY(0) scale(1);opacity:1}
+}
+@keyframes success-pop-in{
+  0%{transform:scale(0)}
+  80%{transform:scale(1.1)}
+  100%{transform:scale(1)}
+}
+@keyframes success-draw-circle{
+  to{stroke-dashoffset:0}
+}
+@keyframes success-draw-check{
+  to{stroke-dashoffset:0}
+}
+@keyframes success-fade-up{
+  to{opacity:1;transform:translateY(0)}
 }
 
 .drawer{
