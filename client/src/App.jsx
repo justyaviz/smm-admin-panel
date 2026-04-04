@@ -5906,6 +5906,9 @@ function App() {
   const [showInstallGuide, setShowInstallGuide] = useState(false);
   const [isAppleMobile, setIsAppleMobile] = useState(false);
   const [isStandalone, setIsStandalone] = useState(false);
+  const activeRef = useRef("dashboard");
+  const lastLoadedPageRef = useRef(null);
+  const settingsRef = useRef(null);
 
   const [summary, setSummary] = useState({});
   const [settings, setSettings] = useState(null);
@@ -5944,6 +5947,10 @@ function App() {
 
   useEffect(() => {
     applySeo(settings);
+  }, [settings]);
+
+  useEffect(() => {
+    settingsRef.current = settings;
   }, [settings]);
 
   useEffect(() => {
@@ -5994,135 +6001,237 @@ function App() {
     };
   }, []);
 
-  const reloadData = useCallback(async () => {
-    try {
-      const [
-        meRes,
-        dashboardRes,
-        settingsRes,
-        notificationsRes,
-        usersRes,
-        branchesRes,
-        bonusItemsRes,
-        expensesRes,
-        contestExpensesRes,
-        travelPlansRes,
-        uploadsRes,
-        contentRes,
-        dailyReportsRes,
-        campaignsRes,
-        tasksRes,
-        threadsRes,
-        auditLogsRes,
-        recurringTasksRes,
-        recurringExpensesRes,
-        budgetsRes,
-        analyticsRes,
-        reportsRes,
-        topPerformersRes,
-        executiveSummaryRes,
-        employeeKpiRes,
-        healthRes,
-        moodRes,
-        postingInsightsRes
-      ] = await Promise.all([
-        api.me().catch(() => null),
-        api.dashboard().catch(() => ({})),
-        api.settings.get().catch(() => null),
-        api.list("notifications").catch(() => []),
-        api.list("users").catch(() => []),
-        api.list("branches").catch(() => []),
-        api.list("bonus-items").catch(() => []),
-        api.list("expenses").catch(() => []),
-        api.list("contest-expenses").catch(() => []),
-        api.list("travel-plans").catch(() => []),
-        api.list("uploads").catch(() => []),
-        api.list("content").catch(() => []),
-        api.list("daily-reports").catch(() => []),
-        api.list("campaigns").catch(() => []),
-        api.list("tasks").catch(() => []),
-        api.list("/api/messages/threads").catch(() => []),
-        api.list("audit-logs").catch(() => []),
-        api.list("recurring-tasks").catch(() => []),
-        api.list("recurring-expenses").catch(() => []),
-        api.list("budgets").catch(() => []),
-        api.list("/api/analytics/overview").catch(() => null),
-        api.list("/api/reports/advanced", { range: "monthly" }).catch(() => null),
-        api.list("/api/top-performers").catch(() => null),
-        api.list("/api/executive-summary").catch(() => null),
-        api.list("/api/employee-kpi").catch(() => []),
-        api.list("/api/health").catch(() => null),
-        api.list("/api/team-mood").catch(() => []),
-        api.list("/api/analytics/posting-insights").catch(() => null)
-      ]);
+  useEffect(() => {
+    activeRef.current = active;
+  }, [active]);
 
-      if (meRes?.user) {
-        setUser(meRes.user);
+  const pageNeedsReferences = useCallback((pageId) => {
+    return [
+      "content",
+      "bonus",
+      "travelPlans",
+      "dailyReports",
+      "campaigns",
+      "users",
+      "tasks",
+      "chat",
+      "recurring",
+      "aiAssistant"
+    ].includes(pageId);
+  }, []);
+
+  const refreshShellData = useCallback(async ({
+    includeMe = false,
+    includeSettings = false,
+    includeReferences = false,
+    includeNotifications = true,
+    includeSummary = true
+  } = {}) => {
+    const [
+      meRes,
+      dashboardRes,
+      settingsRes,
+      notificationsRes,
+      usersRes,
+      branchesRes
+    ] = await Promise.all([
+      includeMe ? api.me().catch(() => null) : Promise.resolve(undefined),
+      includeSummary ? api.dashboard().catch(() => ({})) : Promise.resolve(undefined),
+      includeSettings ? api.settings.get().catch(() => null) : Promise.resolve(undefined),
+      includeNotifications ? api.list("notifications").catch(() => []) : Promise.resolve(undefined),
+      includeReferences ? api.list("users").catch(() => []) : Promise.resolve(undefined),
+      includeReferences ? api.list("branches").catch(() => []) : Promise.resolve(undefined)
+    ]);
+
+    if (meRes?.user) setUser(meRes.user);
+    if (dashboardRes !== undefined) setSummary(dashboardRes || {});
+    if (settingsRes !== undefined) setSettings(settingsRes || null);
+    if (notificationsRes !== undefined) setNotifications(notificationsRes || []);
+    if (usersRes !== undefined) setUsers(usersRes || []);
+    if (branchesRes !== undefined) setBranches(branchesRes || []);
+  }, []);
+
+  const loadPageData = useCallback(async (pageId) => {
+    switch (pageId) {
+      case "dashboard": {
+        const [bonusItemsRes, contentRes, dailyReportsRes, campaignsRes, travelPlansRes] = await Promise.all([
+          api.list("bonus-items").catch(() => []),
+          api.list("content").catch(() => []),
+          api.list("daily-reports").catch(() => []),
+          api.list("campaigns").catch(() => []),
+          api.list("travel-plans").catch(() => [])
+        ]);
+        setBonusItems(bonusItemsRes || []);
+        setContentRows(contentRes || []);
+        setDailyReports(dailyReportsRes || []);
+        setCampaigns(campaignsRes || []);
+        setTravelPlans(travelPlansRes || []);
+        break;
       }
-      setSummary(dashboardRes || {});
-      setSettings(settingsRes);
-      setNotifications(notificationsRes || []);
-      setUsers(usersRes || []);
-      setBranches(branchesRes || []);
-      setBonusItems(bonusItemsRes || []);
-      setExpenses(expensesRes || []);
-      setContestExpenses(contestExpensesRes || []);
-      setTravelPlans(travelPlansRes || []);
-      setUploads(uploadsRes || []);
-      setContentRows(contentRes || []);
-      setDailyReports(dailyReportsRes || []);
-      setCampaigns(campaignsRes || []);
-      setTasks(tasksRes || []);
-      setThreads(threadsRes || []);
-      setAuditLogs(auditLogsRes || []);
-      setRecurringTasks(recurringTasksRes || []);
-      setRecurringExpenses(recurringExpensesRes || []);
-      setBudgets(budgetsRes || []);
-      setAnalyticsData(analyticsRes || null);
-      setAdvancedReports(reportsRes || null);
-      setTopPerformers(topPerformersRes || null);
-      setExecutiveSummary(executiveSummaryRes || null);
-      setEmployeeKpi(employeeKpiRes || []);
-      setHealthData(healthRes || null);
-      setMoodEntries(moodRes || []);
-      setPostingInsights(postingInsightsRes || null);
-    } catch (err) {
-      console.error(err);
+      case "content":
+        setContentRows(await api.list("content").catch(() => []));
+        break;
+      case "bonus":
+        setBonusItems(await api.list("bonus-items").catch(() => []));
+        break;
+      case "expenses": {
+        const [expensesRes, contestExpensesRes] = await Promise.all([
+          api.list("expenses").catch(() => []),
+          api.list("contest-expenses").catch(() => [])
+        ]);
+        setExpenses(expensesRes || []);
+        setContestExpenses(contestExpensesRes || []);
+        break;
+      }
+      case "finance": {
+        const [expensesRes, campaignsRes, bonusItemsRes, travelPlansRes, budgetsRes] = await Promise.all([
+          api.list("expenses").catch(() => []),
+          api.list("campaigns").catch(() => []),
+          api.list("bonus-items").catch(() => []),
+          api.list("travel-plans").catch(() => []),
+          api.list("budgets").catch(() => [])
+        ]);
+        setExpenses(expensesRes || []);
+        setCampaigns(campaignsRes || []);
+        setBonusItems(bonusItemsRes || []);
+        setTravelPlans(travelPlansRes || []);
+        setBudgets(budgetsRes || []);
+        break;
+      }
+      case "travelPlans":
+        setTravelPlans(await api.list("travel-plans").catch(() => []));
+        break;
+      case "reports":
+        setAdvancedReports(await api.list("/api/reports/advanced", { range: "monthly" }).catch(() => null));
+        break;
+      case "analytics": {
+        const [analyticsRes, employeeKpiRes, executiveSummaryRes] = await Promise.all([
+          api.list("/api/analytics/overview").catch(() => null),
+          api.list("/api/employee-kpi").catch(() => []),
+          api.list("/api/executive-summary").catch(() => null)
+        ]);
+        setAnalyticsData(analyticsRes || null);
+        setEmployeeKpi(employeeKpiRes || []);
+        setExecutiveSummary(executiveSummaryRes || null);
+        setTopPerformers(analyticsRes?.top_performers || null);
+        break;
+      }
+      case "postingInsights":
+        setPostingInsights(await api.list("/api/analytics/posting-insights").catch(() => null));
+        break;
+      case "moodPulse":
+        setMoodEntries(await api.list("/api/team-mood").catch(() => []));
+        break;
+      case "employeeKpi":
+        setEmployeeKpi(await api.list("/api/employee-kpi").catch(() => []));
+        break;
+      case "health":
+        setHealthData(await api.list("/api/health").catch(() => null));
+        break;
+      case "recurring": {
+        const [recurringTasksRes, recurringExpensesRes] = await Promise.all([
+          api.list("recurring-tasks").catch(() => []),
+          api.list("recurring-expenses").catch(() => [])
+        ]);
+        setRecurringTasks(recurringTasksRes || []);
+        setRecurringExpenses(recurringExpensesRes || []);
+        break;
+      }
+      case "dailyReports":
+        setDailyReports(await api.list("daily-reports").catch(() => []));
+        break;
+      case "campaigns":
+        setCampaigns(await api.list("campaigns").catch(() => []));
+        break;
+      case "uploads":
+        setUploads(await api.list("uploads").catch(() => []));
+        break;
+      case "tasks":
+        setTasks(await api.list("tasks").catch(() => []));
+        break;
+      case "chat":
+        setThreads(await api.list("/api/messages/threads").catch(() => []));
+        break;
+      case "audit":
+        setAuditLogs(await api.list("audit-logs").catch(() => []));
+        break;
+      default:
+        break;
     }
   }, []);
 
+  const reloadData = useCallback(async (pageId = activeRef.current || "dashboard", options = {}) => {
+    try {
+      const shouldLoadReferences = options.includeReferences || pageNeedsReferences(pageId);
+      const shouldLoadSettings = options.includeSettings || pageId === "settings" || !settingsRef.current;
+
+      await Promise.all([
+        refreshShellData({
+          includeMe: !!options.includeMe,
+          includeSettings: shouldLoadSettings,
+          includeReferences: shouldLoadReferences
+        }),
+        loadPageData(pageId)
+      ]);
+
+      lastLoadedPageRef.current = pageId;
+    } catch (err) {
+      console.error(err);
+    }
+  }, [loadPageData, pageNeedsReferences, refreshShellData]);
+
   useEffect(() => {
+    let cancelled = false;
+
     async function init() {
       if (!user) {
         const publicSettings = await api.settings.get().catch(() => null);
-        setSettings(publicSettings);
-        setBooting(false);
+        if (!cancelled) {
+          setSettings(publicSettings);
+          setBooting(false);
+        }
         return;
       }
 
       try {
-        const me = await api.me();
-        setUser(me.user);
-        await reloadData();
+        await reloadData("dashboard", {
+          includeMe: true,
+          includeSettings: true,
+          includeReferences: true
+        });
       } catch {
         clearAuth();
-        setUser(null);
+        if (!cancelled) {
+          setUser(null);
+          lastLoadedPageRef.current = null;
+        }
       } finally {
-        setBooting(false);
+        if (!cancelled) {
+          setBooting(false);
+        }
       }
     }
 
     init();
+    return () => {
+      cancelled = true;
+    };
   }, [reloadData, user?.id]);
 
   useEffect(() => {
-    if (!user?.id) return;
-    const intervalMs = active === "chat" ? 2500 : 7000;
+    if (!user?.id || booting) return;
+    if (lastLoadedPageRef.current === active) return;
+    reloadData(active);
+  }, [active, booting, reloadData, user?.id]);
+
+  useEffect(() => {
+    if (!user?.id || booting) return;
+    const intervalMs = active === "chat" ? 4000 : 15000;
     const timer = setInterval(() => {
-      reloadData();
+      reloadData(active);
     }, intervalMs);
     return () => clearInterval(timer);
-  }, [active, reloadData, user?.id]);
+  }, [active, booting, reloadData, user?.id]);
 
   useEffect(() => {
     if (!user?.id || !globalSearch.trim()) {
@@ -6215,6 +6324,7 @@ function App() {
 
   function logout() {
     clearAuth();
+    lastLoadedPageRef.current = null;
     setUser(null);
     setActive("dashboard");
   }
@@ -6233,16 +6343,10 @@ function App() {
               <span>{settings?.platform_name || "SMM jamoasi platformasi"}</span>
             </div>
           </div>
-          <div className="loading-spinner-wrap">
-            <div className="loading-spinner-ring" />
-            <div className="loading-spinner-dot" />
-          </div>
+          <span className="loader" aria-hidden="true" />
           <div className="loading-copy">
             <h2>Platforma yuklanmoqda</h2>
-            <p>Ma'lumotlar sinxronlanmoqda, biroz kuting...</p>
-          </div>
-          <div className="loading-progress">
-            <span className="loading-progress-bar" />
+            <p>Asosiy ma'lumotlar tayyorlanyapti, ilova darrov ochiladi.</p>
           </div>
         </div>
       </div>
@@ -6680,21 +6784,24 @@ body.standalone-app .login-page{
 .loading-card{
   position:relative;
   z-index:2;
-  width:min(92vw, 520px);
-  padding:28px;
+  width:min(92vw, 420px);
+  padding:30px 26px 28px;
   border-radius:32px;
   background:rgba(255,255,255,.76);
   border:1px solid rgba(255,255,255,.82);
   backdrop-filter:blur(18px);
   box-shadow:0 28px 70px rgba(20,86,140,.14);
   display:grid;
-  gap:20px;
+  gap:22px;
+  justify-items:center;
   animation:login-card-in .7s cubic-bezier(.2,.9,.2,1);
 }
 .loading-brand{
   display:flex;
   align-items:center;
   gap:14px;
+  justify-content:center;
+  text-align:left;
 }
 .loading-brand-image{
   width:68px;
@@ -6713,55 +6820,72 @@ body.standalone-app .login-page{
   color:var(--muted);
   font-size:13px;
 }
-.loading-spinner-wrap{
-  position:relative;
-  width:84px;
-  height:84px;
-  margin:4px auto;
+.loader {
+  width: 120px;
+  height: 150px;
+  background-color: #fff;
+  background-repeat: no-repeat;
+  background-image:
+    linear-gradient(#ddd 50%, #bbb 51%),
+    linear-gradient(#ddd, #ddd),
+    linear-gradient(#ddd, #ddd),
+    radial-gradient(ellipse at center, #aaa 25%, #eee 26%, #eee 50%, #0000 55%),
+    radial-gradient(ellipse at center, #aaa 25%, #eee 26%, #eee 50%, #0000 55%),
+    radial-gradient(ellipse at center, #aaa 25%, #eee 26%, #eee 50%, #0000 55%);
+  background-position: 0 20px, 45px 0, 8px 6px, 55px 3px, 75px 3px, 95px 3px;
+  background-size: 100% 4px, 1px 23px, 30px 8px, 15px 15px, 15px 15px, 15px 15px;
+  position: relative;
+  border-radius: 6%;
+  animation: shake 3s ease-in-out infinite;
+  transform-origin: 60px 180px;
+  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
 }
-.loading-spinner-ring{
-  position:absolute;
-  inset:0;
-  border-radius:999px;
-  border:5px solid rgba(29,78,216,.12);
-  border-top-color:#1d4ed8;
-  border-right-color:#38bdf8;
-  animation:login-spin 1.1s linear infinite;
+.loader:before {
+  content: "";
+  position: absolute;
+  left: 5px;
+  top: 100%;
+  width: 7px;
+  height: 5px;
+  background: #aaa;
+  border-radius: 0 0 4px 4px;
+  box-shadow: 102px 0 #aaa;
 }
-.loading-spinner-dot{
-  position:absolute;
-  inset:18px;
-  border-radius:999px;
-  background:radial-gradient(circle at 30% 30%, #6ee7b7, #38bdf8 65%, #1d4ed8);
-  box-shadow:0 0 24px rgba(56,189,248,.4);
-  animation:pulse-glow 1.8s ease-in-out infinite;
+.loader:after {
+  content: "";
+  position: absolute;
+  width: 95px;
+  height: 95px;
+  left: 0;
+  right: 0;
+  margin: auto;
+  bottom: 20px;
+  background-color: #bbdefb;
+  background-image:
+    linear-gradient(to right, #0004 0%, #0004 49%, #0000 50%, #0000 100%),
+    linear-gradient(135deg, #64b5f6 50%, #607d8b 51%);
+  background-size: 30px 100%, 90px 80px;
+  border-radius: 50%;
+  background-repeat: repeat, no-repeat;
+  background-position: 0 0;
+  box-sizing: border-box;
+  border: 10px solid #DDD;
+  box-shadow: 0 0 0 4px #999 inset, 0 0 6px 6px #0004 inset;
+  animation: spin 3s ease-in-out infinite;
 }
 .loading-copy{
   text-align:center;
+  max-width:320px;
 }
 .loading-copy h2{
   margin:0 0 8px;
-  font-size:30px;
+  font-size:28px;
   letter-spacing:-.03em;
 }
 .loading-copy p{
   margin:0;
   color:var(--muted);
   font-size:15px;
-}
-.loading-progress{
-  height:12px;
-  border-radius:999px;
-  background:rgba(22,144,245,.08);
-  overflow:hidden;
-}
-.loading-progress-bar{
-  display:block;
-  height:100%;
-  width:38%;
-  border-radius:999px;
-  background:linear-gradient(90deg, #1d4ed8, #38bdf8, #6ee7b7);
-  animation:loading-progress 1.8s ease-in-out infinite;
 }
 
 .login-page{
@@ -8737,6 +8861,17 @@ th{background:rgba(22,144,245,.05);color:var(--muted)}
 @keyframes loading-progress{
   0%{transform:translateX(-115%)}
   100%{transform:translateX(340%)}
+}
+@keyframes spin {
+  0% { transform: rotate(0deg) }
+  50% { transform: rotate(360deg) }
+  75% { transform: rotate(750deg) }
+  100% { transform: rotate(1800deg) }
+}
+@keyframes shake {
+  65%, 80%, 88%, 96% { transform: rotate(0.5deg) }
+  50%, 75%, 84%, 92% { transform: rotate(-0.5deg) }
+  0%, 50%, 100% { transform: rotate(0) }
 }
 @keyframes login-shine{
   0%{transform:translateX(0) translateY(0)}
