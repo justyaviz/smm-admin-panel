@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "seo:generate": "node scripts/generate-seo.mjs",
-    "build": "npm run seo:generate && vite build",
+    "spa:fallback": "node scripts/prepare-spa-fallback.mjs",
+    "build": "npm run seo:generate && vite build && npm run spa:fallback",
     "preview": "vite preview --host 0.0.0.0 --port 8080"
   },
   "dependencies": {
