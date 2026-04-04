@@ -68,6 +68,62 @@ const MENU = [
   { id: "aiAssistant", title: "AI yordamchi", icon: Bot }
 ];
 
+const ROUTES_BY_PAGE = {
+  login: "/login",
+  dashboard: "/menu",
+  content: "/kontent",
+  bonus: "/bonus",
+  expenses: "/harajatlar",
+  finance: "/finance",
+  travelPlans: "/safar",
+  reports: "/hisobotlar",
+  analytics: "/analytics",
+  postingInsights: "/posting-insights",
+  moodPulse: "/mood-pulse",
+  employeeKpi: "/xodim-kpi",
+  health: "/health",
+  recurring: "/recurring",
+  dailyReports: "/kunlik-hisobotlar",
+  campaigns: "/reklama",
+  uploads: "/media",
+  users: "/hodimlar",
+  tasks: "/vazifalar",
+  chat: "/chat",
+  audit: "/audit",
+  profile: "/profil",
+  settings: "/sozlamalar",
+  aiAssistant: "/ai-yordamchi"
+};
+
+const PAGE_BY_ROUTE = {
+  "/": "dashboard",
+  "/login": "login",
+  "/menu": "dashboard",
+  "/dashboard": "dashboard",
+  "/kontent": "content",
+  "/bonus": "bonus",
+  "/harajatlar": "expenses",
+  "/finance": "finance",
+  "/safar": "travelPlans",
+  "/hisobotlar": "reports",
+  "/analytics": "analytics",
+  "/posting-insights": "postingInsights",
+  "/mood-pulse": "moodPulse",
+  "/xodim-kpi": "employeeKpi",
+  "/health": "health",
+  "/recurring": "recurring",
+  "/kunlik-hisobotlar": "dailyReports",
+  "/reklama": "campaigns",
+  "/media": "uploads",
+  "/hodimlar": "users",
+  "/vazifalar": "tasks",
+  "/chat": "chat",
+  "/audit": "audit",
+  "/profil": "profile",
+  "/sozlamalar": "settings",
+  "/ai-yordamchi": "aiAssistant"
+};
+
 const PERMISSION_OPTIONS = [
   { id: "dashboard", label: "Bosh sahifa" },
   { id: "content", label: "Kontent reja" },
@@ -154,6 +210,20 @@ function getRolePreset(role) {
 function formatRoleLabel(role) {
   if (role === "director") return "rahbar";
   return role || "-";
+}
+
+function normalizePathname(pathname = "/") {
+  const normalized = String(pathname || "/").trim();
+  if (!normalized || normalized === "/") return "/";
+  return normalized.replace(/\/+$/, "") || "/";
+}
+
+function getPageFromPath(pathname = "/") {
+  return PAGE_BY_ROUTE[normalizePathname(pathname)] || "dashboard";
+}
+
+function getPathForPage(pageId = "dashboard") {
+  return ROUTES_BY_PAGE[pageId] || ROUTES_BY_PAGE.dashboard;
 }
 
 function isAppleMobileDevice() {
@@ -5893,7 +5963,7 @@ function AiAssistantPage({ branches = [], onToast }) {
 function App() {
   const [booting, setBooting] = useState(true);
   const [user, setUser] = useState(getCurrentUser());
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useState(() => getPageFromPath(typeof window !== "undefined" ? window.location.pathname : "/"));
   const [theme, setTheme] = useState(localStorage.getItem("aloo_theme") || "light");
   const [toast, setToast] = useState(null);
   const [search, setSearch] = useState("");
@@ -6004,6 +6074,28 @@ function App() {
   useEffect(() => {
     activeRef.current = active;
   }, [active]);
+
+  const goToPage = useCallback((pageId, { replace = false } = {}) => {
+    const nextPage = pageId || "dashboard";
+    const nextPath = getPathForPage(nextPage);
+    setActive(nextPage);
+    if (typeof window === "undefined") return;
+    const currentPath = normalizePathname(window.location.pathname);
+    if (currentPath === nextPath) return;
+    const method = replace ? "replaceState" : "pushState";
+    window.history[method]({}, "", nextPath);
+  }, []);
+
+  useEffect(() => {
+    function handlePopState() {
+      setActive(getPageFromPath(window.location.pathname));
+    }
+
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, []);
 
   const pageNeedsReferences = useCallback((pageId) => {
     return [
@@ -6261,10 +6353,26 @@ function App() {
   }, [user]);
 
   useEffect(() => {
-    if (!allowedMenu.some((item) => item.id === active)) {
-      setActive("dashboard");
+    if (user?.id && active === "login") {
+      goToPage("dashboard", { replace: true });
+      return;
     }
-  }, [allowedMenu, active]);
+
+    if (active !== "login" && !allowedMenu.some((item) => item.id === active)) {
+      const fallbackPage = allowedMenu[0]?.id || "dashboard";
+      goToPage(fallbackPage, { replace: true });
+    }
+  }, [active, allowedMenu, goToPage, user?.id]);
+
+  useEffect(() => {
+    if (booting || !user?.id || typeof window === "undefined") return;
+    const normalizedActive = active === "login" ? "dashboard" : active;
+    const currentPath = normalizePathname(window.location.pathname);
+    const expectedPath = getPathForPage(normalizedActive);
+    if (currentPath !== expectedPath) {
+      window.history.replaceState({}, "", expectedPath);
+    }
+  }, [active, booting, user?.id]);
 
   useEffect(() => {
     setMobileMenuOpen(false);
@@ -6326,7 +6434,7 @@ function App() {
     clearAuth();
     lastLoadedPageRef.current = null;
     setUser(null);
-    setActive("dashboard");
+    goToPage("login", { replace: true });
   }
 
   if (booting) {
@@ -6469,7 +6577,7 @@ function App() {
                   key={item.id}
                   className={`menu-btn ${active === item.id ? "active" : ""}`}
                   type="button"
-                  onClick={() => setActive(item.id)}
+                  onClick={() => goToPage(item.id)}
                 >
                   <span className="menu-icon-wrap">
                     <Icon size={16} />
@@ -6532,12 +6640,12 @@ function App() {
                             onClick={() => {
                               setSearchOpen(false);
                               setGlobalSearch("");
-                              if (group.key === "users") setActive("users");
-                              else if (group.key === "content") setActive("content");
-                              else if (group.key === "tasks") setActive("tasks");
-                              else if (group.key === "bonuses") setActive("bonus");
-                              else if (group.key === "travel_plans") setActive("travelPlans");
-                              else if (group.key === "chats") setActive("chat");
+                              if (group.key === "users") goToPage("users");
+                              else if (group.key === "content") goToPage("content");
+                              else if (group.key === "tasks") goToPage("tasks");
+                              else if (group.key === "bonuses") goToPage("bonus");
+                              else if (group.key === "travel_plans") goToPage("travelPlans");
+                              else if (group.key === "chats") goToPage("chat");
                             }}
                           >
                             <span>{item.full_name || item.title || item.content_title || item.video_title || item.body}</span>
@@ -6548,7 +6656,7 @@ function App() {
                   </div>
                 ) : null}
               </div>
-              <button className="notif-pill" type="button" onClick={() => setActive("chat")}>
+              <button className="notif-pill" type="button" onClick={() => goToPage("chat")}>
                 <MessageCircle size={16} />
                 {unreadChatCount}
               </button>
@@ -6580,7 +6688,7 @@ function App() {
                 </button>
               ) : null}
               <ThemeToggle theme={theme} setTheme={setTheme} />
-              <button type="button" className="user-chip" onClick={() => setActive("profile")}>
+              <button type="button" className="user-chip" onClick={() => goToPage("profile")}>
                 {user?.avatar_url ? (
                   <img src={user.avatar_url} alt={user.full_name} className="topbar-avatar" />
                 ) : (
@@ -6605,7 +6713,7 @@ function App() {
               key={item.id}
               type="button"
               className={`mobile-nav-item ${active === item.id ? "active" : ""}`}
-              onClick={() => setActive(item.id)}
+              onClick={() => goToPage(item.id)}
             >
               <Icon size={18} />
               <span>{item.title}</span>
@@ -6649,7 +6757,7 @@ function App() {
                   type="button"
                   className={`mobile-menu-card ${active === item.id ? "active" : ""}`}
                   onClick={() => {
-                    setActive(item.id);
+                    goToPage(item.id);
                     setMobileMenuOpen(false);
                   }}
                 >
