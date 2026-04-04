@@ -6439,25 +6439,28 @@ function App() {
 
   if (booting) {
     return (
-      <div className="loading-screen">
-        <div className="loading-orb loading-orb-one" />
-        <div className="loading-orb loading-orb-two" />
-        <div className="loading-grid" />
-        <div className="loading-card">
-          <div className="loading-brand">
-            <img src={settings?.logo_url || LOGIN_LOGO} alt="logo" className="loading-brand-image" />
-            <div>
-              <strong>{settings?.company_name || "aloo"}</strong>
-              <span>{settings?.platform_name || "SMM jamoasi platformasi"}</span>
+      <>
+        <div className="loading-screen">
+          <div className="loading-orb loading-orb-one" />
+          <div className="loading-orb loading-orb-two" />
+          <div className="loading-grid" />
+          <div className="loading-card">
+            <div className="loading-brand">
+              <img src={settings?.logo_url || LOGIN_LOGO} alt="logo" className="loading-brand-image" />
+              <div>
+                <strong>{settings?.company_name || "aloo"}</strong>
+                <span>{settings?.platform_name || "SMM jamoasi platformasi"}</span>
+              </div>
+            </div>
+            <span className="loader" aria-hidden="true" />
+            <div className="loading-copy">
+              <h2>Platforma yuklanmoqda</h2>
+              <p>Asosiy ma'lumotlar tayyorlanyapti, ilova darrov ochiladi.</p>
             </div>
           </div>
-          <span className="loader" aria-hidden="true" />
-          <div className="loading-copy">
-            <h2>Platforma yuklanmoqda</h2>
-            <p>Asosiy ma'lumotlar tayyorlanyapti, ilova darrov ochiladi.</p>
-          </div>
         </div>
-      </div>
+        <style>{styles}</style>
+      </>
     );
   }
 
@@ -6905,11 +6908,10 @@ body.standalone-app .login-page{
   animation:login-card-in .7s cubic-bezier(.2,.9,.2,1);
 }
 .loading-brand{
-  display:flex;
-  align-items:center;
-  gap:14px;
-  justify-content:center;
-  text-align:left;
+  display:grid;
+  justify-items:center;
+  gap:12px;
+  text-align:center;
 }
 .loading-brand-image{
   width:68px;
