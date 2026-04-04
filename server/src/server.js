@@ -246,8 +246,18 @@ function calcRoi(spend, revenue) {
   return Number((((r - s) / s) * 100).toFixed(2));
 }
 
-async function logAction(userId, actionType, entityType, entityId = null, meta = {}) {
-  try {
+function runDetached(label, task) {
+  setImmediate(() => {
+    Promise.resolve()
+      .then(task)
+      .catch((err) => {
+        console.error(`${label} error:`, err.message);
+      });
+  });
+}
+
+function logAction(userId, actionType, entityType, entityId = null, meta = {}) {
+  runDetached("audit log", async () => {
     await query(
       `
       INSERT INTO audit_logs (user_id, action_type, entity_type, entity_id, meta)
@@ -255,13 +265,11 @@ async function logAction(userId, actionType, entityType, entityId = null, meta =
       `,
       [userId || null, actionType, entityType, entityId, JSON.stringify(meta)]
     );
-  } catch (err) {
-    console.error("audit log error:", err.message);
-  }
+  });
 }
 
-async function createNotification(userId, title, body, type = "info", category = "system", actionUrl = null) {
-  try {
+function createNotification(userId, title, body, type = "info", category = "system", actionUrl = null) {
+  runDetached("notification", async () => {
     await query(
       `
       INSERT INTO notifications (user_id, title, body, type, category, action_url)
@@ -269,10 +277,8 @@ async function createNotification(userId, title, body, type = "info", category =
       `,
       [userId || null, title, body, type, category, actionUrl]
     );
-    await sendTelegramMessage(`[${category}] ${title}\n${body}`);
-  } catch (err) {
-    console.error("notification error:", err.message);
-  }
+    await sendTelegramMessageNow(`[${category}] ${title}\n${body}`);
+  });
 }
 
 async function getSettingsRow() {
@@ -340,15 +346,19 @@ async function ensureDefaultBranches() {
   }
 }
 
-async function sendTelegramMessage(text, chatIdOverride = null) {
+async function sendTelegramMessageNow(text, chatIdOverride = null) {
+  let timeout = null;
   try {
     const settings = await getSettingsRow();
     const chatId = chatIdOverride || settings?.telegram_chat_id;
     if (!settings?.telegram_bot_token || !chatId) return;
 
+    const controller = new AbortController();
+    timeout = setTimeout(() => controller.abort(), 4000);
     const response = await fetch(`https://api.telegram.org/bot${settings.telegram_bot_token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
       body: JSON.stringify({
         chat_id: chatId,
         text
@@ -360,7 +370,15 @@ async function sendTelegramMessage(text, chatIdOverride = null) {
   } catch (err) {
     console.error("telegram send error:", err.message);
     throw err;
+  } finally {
+    if (timeout) clearTimeout(timeout);
   }
+}
+
+function sendTelegramMessage(text, chatIdOverride = null) {
+  runDetached("telegram send", async () => {
+    await sendTelegramMessageNow(text, chatIdOverride);
+  });
 }
 
 function stringifyDbValue(value) {
@@ -371,9 +389,9 @@ function stringifyDbValue(value) {
   return value;
 }
 
-async function addApprovalComment(entityType, entityId, authorUserId, body) {
+function addApprovalComment(entityType, entityId, authorUserId, body) {
   if (!entityType || !entityId || !body?.trim()) return;
-  try {
+  runDetached("approval comment", async () => {
     await query(
       `
       INSERT INTO comments (entity_type, entity_id, body, author_user_id)
@@ -381,16 +399,20 @@ async function addApprovalComment(entityType, entityId, authorUserId, body) {
       `,
       [entityType, Number(entityId), `[Approval] ${body.trim()}`, authorUserId || null]
     );
-  } catch (err) {
-    console.error("approval comment error:", err.message);
-  }
+  });
 }
 
-async function createTelegramEvent(title, lines = [], chatIdOverride = null) {
+async function createTelegramEventNow(title, lines = [], chatIdOverride = null) {
   const cleanLines = lines.filter(Boolean).map((line) => String(line).trim()).filter(Boolean);
   const safeTitle = String(title || "").toLowerCase();
   const resolvedChatId = chatIdOverride || (safeTitle.includes("safar") ? TRAVEL_PLAN_CHAT_ID : null);
-  await sendTelegramMessage([title, ...cleanLines].join("\n"), resolvedChatId);
+  await sendTelegramMessageNow([title, ...cleanLines].join("\n"), resolvedChatId);
+}
+
+function createTelegramEvent(title, lines = [], chatIdOverride = null) {
+  runDetached("telegram event", async () => {
+    await createTelegramEventNow(title, lines, chatIdOverride);
+  });
 }
 
 function normalizeCampaignStatus(value) {
@@ -489,7 +511,7 @@ async function notifyCampaignStarted(row) {
   if (!reserved) return row;
 
   try {
-    await createTelegramEvent(
+    await createTelegramEventNow(
       "🚀 Target yoqildi",
       await buildCampaignTelegramLines(row),
       TARGET_CAMPAIGN_CHAT_ID
@@ -508,7 +530,7 @@ async function notifyCampaignEnded(row) {
   if (!reserved) return row;
 
   try {
-    await createTelegramEvent(
+    await createTelegramEventNow(
       "🛑 Target tugadi",
       [
         ...(await buildCampaignTelegramLines(row)),
@@ -2119,7 +2141,7 @@ app.put("/api/settings", authRequired, async (req, res) => {
 
 app.post("/api/settings/test-telegram", authRequired, async (req, res) => {
   try {
-    await createTelegramEvent("Aloo platforma test xabari", [
+    await createTelegramEventNow("Aloo platforma test xabari", [
       `Foydalanuvchi: ${req.user.full_name || req.user.login || req.user.id}`,
       `Sana: ${new Date().toISOString()}`
     ]);
@@ -3299,7 +3321,9 @@ app.delete("/api/daily-reports/:id", authRequired, async (req, res) => {
 
 app.get("/api/campaigns", authRequired, async (_, res) => {
   try {
-    await syncCampaignLifecycleNotifications();
+    runDetached("campaign lifecycle refresh", async () => {
+      await syncCampaignLifecycleNotifications();
+    });
     const result = await query(
       `
       SELECT
@@ -3408,8 +3432,10 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
       ...inserted.rows[0],
       branch_name: await getBranchName(inserted.rows[0].branch_id)
     };
-    await notifyCampaignStarted(rowWithBranchName);
-    await notifyCampaignEnded(rowWithBranchName);
+    runDetached("campaign lifecycle refresh", async () => {
+      await notifyCampaignStarted(rowWithBranchName);
+      await notifyCampaignEnded(rowWithBranchName);
+    });
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
@@ -3519,8 +3545,10 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
       ...updated.rows[0],
       branch_name: await getBranchName(updated.rows[0].branch_id)
     };
-    await notifyCampaignStarted(rowWithBranchName);
-    await notifyCampaignEnded(rowWithBranchName);
+    runDetached("campaign lifecycle refresh", async () => {
+      await notifyCampaignStarted(rowWithBranchName);
+      await notifyCampaignEnded(rowWithBranchName);
+    });
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
