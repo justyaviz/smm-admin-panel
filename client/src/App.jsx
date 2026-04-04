@@ -720,6 +720,91 @@ function StatCard({ title, value, hint, tone = "default" }) {
   );
 }
 
+function AnimatedNumber({ value = 0, format = (next) => String(Math.round(next)), duration = 900 }) {
+  const [displayValue, setDisplayValue] = useState(0);
+  const previousValueRef = useRef(0);
+
+  useEffect(() => {
+    const target = Number(value || 0);
+    if (Number.isNaN(target)) {
+      setDisplayValue(0);
+      previousValueRef.current = 0;
+      return undefined;
+    }
+
+    const startValue = previousValueRef.current;
+    let frameId = null;
+    const startAt = performance.now();
+
+    const tick = (now) => {
+      const progress = Math.min((now - startAt) / duration, 1);
+      const eased = 1 - ((1 - progress) ** 3);
+      const nextValue = startValue + ((target - startValue) * eased);
+      setDisplayValue(nextValue);
+      if (progress < 1) {
+        frameId = requestAnimationFrame(tick);
+      } else {
+        previousValueRef.current = target;
+      }
+    };
+
+    frameId = requestAnimationFrame(tick);
+    return () => {
+      if (frameId) cancelAnimationFrame(frameId);
+      previousValueRef.current = target;
+    };
+  }, [duration, value]);
+
+  return format(displayValue);
+}
+
+function DashboardMetricCard({ title, numericValue = 0, format, hint, tone = "default", spark = [], badge = null }) {
+  const sparkValues = spark.length ? spark : [12, 18, 14, 20, 16, 22];
+  const maxSpark = Math.max(...sparkValues, 1);
+
+  return (
+    <div className={`dashboard-metric-card dashboard-metric-${tone}`}>
+      <div className="dashboard-metric-head">
+        <span className="dashboard-metric-label">{title}</span>
+        {badge ? <span className="dashboard-chip small">{badge}</span> : <span className={`dashboard-metric-dot dashboard-metric-dot-${tone}`} />}
+      </div>
+      <div className="dashboard-metric-main">
+        <AnimatedNumber value={numericValue} format={format} />
+      </div>
+      <div className="dashboard-metric-spark" aria-hidden="true">
+        {sparkValues.map((point, index) => (
+          <span
+            key={`${title}-${index}`}
+            style={{ height: `${Math.max(18, Math.round((point / maxSpark) * 100))}%` }}
+          />
+        ))}
+      </div>
+      <div className="dashboard-metric-hint">{hint}</div>
+    </div>
+  );
+}
+
+function DashboardDisclosure({ title, desc, badge, defaultOpen = true, children, right = null }) {
+  return (
+    <details className="dashboard-fold" open={defaultOpen}>
+      <summary>
+        <div className="dashboard-fold-summary-copy">
+          <strong>{title}</strong>
+          {desc ? <span>{desc}</span> : null}
+        </div>
+        <div className="dashboard-fold-summary-meta">
+          {badge ? <span className="dashboard-chip small">{badge}</span> : null}
+          {right}
+          <ChevronDown size={18} className="dashboard-fold-arrow" />
+        </div>
+      </summary>
+      <div className="dashboard-fold-body">
+        {children}
+      </div>
+    </details>
+  );
+}
+
 function taskStatusClass(status) {
   if (status === "done") return "status-badge done";
   if (status === "doing") return "status-badge doing";
@@ -1200,6 +1285,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
       : user?.role === "editor"
         ? "Tasdiqlash, montaj va kontent jarayonlarini bir ekranda kuzating."
         : "Kontent reja, bonus, filial hisobotlari va media boshqaruvi bitta joyda.";
+  const todayKey = formatDate(new Date());
 
   const thisMonthContent = (contentRows || []).filter((row) => {
     if (!row.publish_date) return false;
@@ -1209,6 +1295,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   const totalPlan = thisMonthContent.length;
   const postedCount = thisMonthContent.filter((row) => row.status === "joylangan").length;
   const progress = totalPlan ? Math.round((postedCount / totalPlan) * 100) : 0;
+  const publishedToday = (contentRows || []).filter((row) => formatDate(row.publish_date) === todayKey).length;
 
   const thisMonthBonus = (bonusItems || [])
     .filter((row) => (row.month_label || formatDate(row.work_date).slice(0, 7)) === currentMonth)
@@ -1261,6 +1348,12 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   const maxSpendPoint = Math.max(...spendSeries.map((item) => item.amount), 1);
   const maxBranchScore = Math.max(...branchKpis.map((item) => item.score), 1);
   const smartAlerts = summary?.smart_alerts || [];
+  const activeCampaigns = (campaigns || []).filter((item) => {
+    const status = String(item.status || "").toLowerCase();
+    if (["done", "tugagan", "yakunlandi", "cancelled", "canceled"].includes(status)) return false;
+    const endTime = getDateSortValue(item.end_at || item.end_date, Number.POSITIVE_INFINITY);
+    return endTime >= Date.now();
+  }).length;
   const approvalSlaBreaches = [...(contentRows || []), ...(travelPlans || [])].filter((row) => {
     const status = String(row.status || "");
     if (["tasdiqlandi", "yakunlandi", "joylangan", "published", "approved", "archived"].includes(status)) return false;
@@ -1268,205 +1361,433 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
     if (Number.isNaN(createdAt.getTime())) return false;
     return (Date.now() - createdAt.getTime()) / 3600000 >= 48;
   }).length;
+  const operationSignals = [
+    ...smartAlerts.map((item, index) => ({
+      id: `alert-${index}`,
+      tone: item.type === "danger" ? "danger" : "warning",
+      title: item.type === "danger" ? "Diqqat" : "Signal",
+      text: item.text
+    })),
+    ...reminders.slice(0, 4).map((item) => ({
+      id: `reminder-${item.id}`,
+      tone: formatDate(item.due_date) < todayKey ? "danger" : "info",
+      title: item.title,
+      text: `${formatDate(item.due_date)} • ${taskStatusLabel(item.status)}`
+    }))
+  ].slice(0, 6);
+  const overallPulse = Math.max(
+    12,
+    Math.min(
+      100,
+      Math.round(
+        (
+          progress +
+          Number(summary?.daily_task_progress || 0) +
+          Math.max(0, 100 - (approvalSlaBreaches * 5))
+        ) / 3
+      )
+    )
+  );
+  const topBranch = branchKpis[0] || null;
+  const heroChips = [
+    `${summary?.monthly_content_count || totalPlan} ta kontent`,
+    `${activeCampaigns} ta faol target`,
+    `${summary?.task_count || 0} ta vazifa`,
+    topBranch ? `${topBranch.name} top filial` : "Filial KPI tayyorlanmoqda"
+  ];
+  const primaryMetrics = [
+    {
+      title: "Kontent bajarilishi",
+      numericValue: progress,
+      format: (next) => `${Math.round(next)}%`,
+      hint: `${postedCount} / ${totalPlan} joylangan`,
+      tone: progress >= 70 ? "success" : progress >= 40 ? "warning" : "danger",
+      spark: contentSeries.map((item) => item.value)
+    },
+    {
+      title: "Joriy oy bonusi",
+      numericValue: thisMonthBonus,
+      format: (next) => formatMoney(Math.round(next)),
+      hint: getMonthTitle(currentMonth),
+      tone: "info",
+      spark: bonusSeries.map((item) => item.amount)
+    },
+    {
+      title: "Operatsion pulse",
+      numericValue: overallPulse,
+      format: (next) => `${Math.round(next)}%`,
+      hint: "kontent, vazifa va approval tezligi",
+      tone: overallPulse >= 75 ? "success" : overallPulse >= 45 ? "warning" : "danger",
+      spark: [
+        progress,
+        Number(summary?.daily_task_progress || 0),
+        Math.max(10, 100 - (approvalSlaBreaches * 6)),
+        Math.min(100, ((summary?.today_report_count || 0) * 20) || 10),
+        Math.min(100, activeCampaigns * 18 || 10),
+        Math.min(100, travelWorkflow[1].value * 18 || 10)
+      ]
+    },
+    {
+      title: "Faol vazifalar",
+      numericValue: summary?.task_count || 0,
+      format: (next) => Math.round(next),
+      hint: "umumiy vazifalar",
+      tone: "default",
+      spark: [
+        summary?.task_count || 0,
+        summary?.daily_task_total || 0,
+        summary?.daily_task_done || 0,
+        summary?.overdue_task_count || 0,
+        summary?.due_soon_task_count || 0,
+        reminders.length
+      ]
+    }
+  ];
+  const secondaryMetrics = [
+    {
+      title: "Bugungi hisobotlar",
+      numericValue: summary?.today_report_count || 0,
+      format: (next) => Math.round(next),
+      hint: "filiallardan kelgan ma'lumot",
+      tone: (summary?.today_report_count || 0) > 0 ? "success" : "default",
+      spark: [
+        summary?.today_report_count || 0,
+        dailyReports.length,
+        branchKpis.length,
+        publishedToday,
+        smartAlerts.length,
+        reminders.length
+      ]
+    },
+    {
+      title: "Faol targetlar",
+      numericValue: activeCampaigns,
+      format: (next) => Math.round(next),
+      hint: "reklama kampaniyalari",
+      tone: activeCampaigns > 0 ? "info" : "default",
+      spark: spendSeries.map((item) => item.amount)
+    },
+    {
+      title: "3 kun ichidagi vazifalar",
+      numericValue: summary?.due_soon_task_count || 0,
+      format: (next) => Math.round(next),
+      hint: "eslatma kerak",
+      tone: (summary?.due_soon_task_count || 0) > 0 ? "warning" : "success",
+      spark: [
+        summary?.due_soon_task_count || 0,
+        reminders.length,
+        travelWorkflow[0].value,
+        travelWorkflow[1].value,
+        contentSeries[1].value,
+        contentSeries[2].value
+      ]
+    },
+    {
+      title: "Oy reklama sarfi",
+      numericValue: summary?.monthly_campaign_spend || 0,
+      format: (next) => formatUsd(Math.round(next)),
+      hint: getMonthTitle(currentMonth),
+      tone: "info",
+      spark: spendSeries.map((item) => item.amount)
+    },
+    {
+      title: "Approval SLA",
+      numericValue: approvalSlaBreaches,
+      format: (next) => Math.round(next),
+      hint: "48 soatdan oshgan jarayonlar",
+      tone: approvalSlaBreaches > 0 ? "danger" : "success",
+      spark: [
+        approvalSlaBreaches,
+        contentSeries[0].value,
+        contentSeries[2].value,
+        travelWorkflow[0].value,
+        travelWorkflow[2].value,
+        reminders.length
+      ]
+    }
+  ];
 
   return (
-    <div className="page-grid">
-      <div className="hero-banner">
-        <div>
+    <div className="page-grid dashboard-page">
+      <div className="dashboard-hero-card">
+        <div className="dashboard-hero-copy">
           <div className="small-label">Boshqaruv markazi</div>
           <h1>{heroTitle}</h1>
           <p>{heroText}</p>
-          <div className="hero-summary">{summary?.executive_summary || "Executive summary tayyorlanmoqda..."}</div>
+          <div className="dashboard-hero-summary">
+            {summary?.executive_summary || "Asosiy boshqaruv xulosasi tayyorlanmoqda, operatsion signallar yig‘ilmoqda."}
+          </div>
+          <div className="dashboard-chip-row">
+            {heroChips.map((chip) => (
+              <span key={chip} className="dashboard-chip">{chip}</span>
+            ))}
+          </div>
+        </div>
+
+        <div className="dashboard-hero-side">
+          <div className="dashboard-hero-glow" />
+          <div className="dashboard-side-focus">
+            <span>Bugungi oqim</span>
+            <strong><AnimatedNumber value={publishedToday} format={(next) => Math.round(next)} /></strong>
+            <small>bugun reja yoki ijroga tushgan kontentlar</small>
+          </div>
+          <div className="dashboard-side-grid">
+            <div className="dashboard-side-card">
+              <span>Top filial</span>
+              <strong>{topBranch?.name || "—"}</strong>
+              <small>{topBranch ? `${topBranch.score} KPI ball` : "hisobot kutilmoqda"}</small>
+            </div>
+            <div className="dashboard-side-card">
+              <span>Signal</span>
+              <strong><AnimatedNumber value={operationSignals.length} format={(next) => Math.round(next)} /></strong>
+              <small>smart alert va reminders</small>
+            </div>
+            <div className="dashboard-side-card">
+              <span>Safar</span>
+              <strong><AnimatedNumber value={travelWorkflow[1].value} format={(next) => Math.round(next)} /></strong>
+              <small>tasdiqlangan safar rejasi</small>
+            </div>
+            <div className="dashboard-side-card">
+              <span>Reklama</span>
+              <strong><AnimatedNumber value={activeCampaigns} format={(next) => Math.round(next)} /></strong>
+              <small>faol target kampaniyalari</small>
+            </div>
+          </div>
         </div>
       </div>
 
-      {smartAlerts.length ? (
-        <div className="card">
-          <SectionTitle title="Smart alerts" desc="Muhim signal va ogohlantirishlar" />
-          <div className="workflow-strip">
-            {smartAlerts.map((item, index) => (
-              <div key={`alert-${index}`} className={`reminder-card ${item.type === "danger" ? "danger" : "warning"}`}>
-                <strong>{item.type === "danger" ? "Diqqat" : "Eslatma"}</strong>
+      <div className="dashboard-metrics-grid">
+        {primaryMetrics.map((item) => (
+          <DashboardMetricCard key={item.title} {...item} />
+        ))}
+      </div>
+
+      <div className="dashboard-metrics-grid dashboard-metrics-grid-secondary">
+        {secondaryMetrics.map((item) => (
+          <DashboardMetricCard key={item.title} {...item} />
+        ))}
+      </div>
+
+      <div className="dashboard-spotlight-grid">
+        <div className="card dashboard-focus-card">
+          <SectionTitle
+            title="Performance pulse"
+            desc="Bugungi jarayonlar qanchalik barqaror yurayotganini ko‘rsatadi"
+            right={<span className="dashboard-chip small live">Live</span>}
+          />
+          <div className="dashboard-focus-layout">
+            <div className="dashboard-ring-card">
+              <div
+                className="dashboard-ring"
+                style={{
+                  background: `conic-gradient(${overallPulse >= 75 ? "#10b981" : overallPulse >= 45 ? "#f59e0b" : "#ef4444"} ${overallPulse}%, rgba(148,163,184,.14) 0)`
+                }}
+              >
+                <div className="dashboard-ring-inner">
+                  <span>Pulse</span>
+                  <strong><AnimatedNumber value={overallPulse} format={(next) => `${Math.round(next)}%`} /></strong>
+                </div>
+              </div>
+            </div>
+            <div className="dashboard-focus-list">
+              <div className="dashboard-focus-item">
+                <span>Kontent reja</span>
+                <strong>{postedCount}/{totalPlan}</strong>
+              </div>
+              <div className="dashboard-focus-item">
+                <span>Kunlik vazifa progress</span>
+                <strong>{summary?.daily_task_progress || 0}%</strong>
+              </div>
+              <div className="dashboard-focus-item">
+                <span>Approval SLA</span>
+                <strong>{approvalSlaBreaches}</strong>
+              </div>
+              <div className="dashboard-focus-item">
+                <span>Bugungi hisobot</span>
+                <strong>{summary?.today_report_count || 0}</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="card dashboard-focus-card">
+          <SectionTitle
+            title="Live signallar"
+            desc="Muhim alert va vazifa signalari bir joyda"
+            right={<span className="dashboard-chip small">{operationSignals.length} ta</span>}
+          />
+          <div className="dashboard-alert-wall">
+            {operationSignals.length ? operationSignals.map((item) => (
+              <div key={item.id} className={`dashboard-alert-card ${item.tone}`}>
+                <strong>{item.title}</strong>
                 <span>{item.text}</span>
               </div>
-            ))}
+            )) : (
+              <div className="empty-block">Hozircha yangi signal yo‘q</div>
+            )}
           </div>
         </div>
-      ) : null}
-
-      <div className="stats-grid">
-        <StatCard
-          title="Kontent reja bajarilishi"
-          value={`${progress}%`}
-          hint={`${postedCount} / ${totalPlan} joylangan`}
-          tone={progress >= 70 ? "success" : progress >= 40 ? "warning" : "danger"}
-        />
-        <StatCard
-          title="Joriy oy bonus puli"
-          value={formatMoney(thisMonthBonus)}
-          hint={getMonthTitle(currentMonth)}
-          tone="info"
-        />
-        <StatCard
-          title="Bugungi filial hisobotlari"
-          value={summary?.today_report_count || 0}
-          hint="bugungi ma'lumot"
-          tone={(summary?.today_report_count || 0) > 0 ? "success" : "default"}
-        />
-        <StatCard
-          title="Faol vazifalar"
-          value={summary?.task_count || 0}
-          hint="umumiy vazifalar"
-          tone="default"
-        />
       </div>
 
-      <div className="stats-grid analytics-grid">
-        <StatCard title="Kunlik vazifa progress" value={`${summary?.daily_task_progress || 0}%`} hint={`${summary?.daily_task_done || 0} / ${summary?.daily_task_total || 0}`} tone={(summary?.daily_task_progress || 0) >= 70 ? "success" : (summary?.daily_task_progress || 0) >= 40 ? "warning" : "danger"} />
-        <StatCard title="Kechikkan vazifalar" value={summary?.overdue_task_count || 0} hint="darhol ko'rib chiqing" tone={(summary?.overdue_task_count || 0) > 0 ? "danger" : "success"} />
-        <StatCard title="3 kun ichidagi vazifalar" value={summary?.due_soon_task_count || 0} hint="eslatma kerak" tone={(summary?.due_soon_task_count || 0) > 0 ? "warning" : "success"} />
-        <StatCard title="Oy reklama sarfi" value={formatUsd(summary?.monthly_campaign_spend || 0)} hint={getMonthTitle(currentMonth)} tone="info" />
-        <StatCard title="Approval SLA" value={approvalSlaBreaches} hint="48 soatdan oshgan jarayonlar" tone={approvalSlaBreaches > 0 ? "danger" : "success"} />
-      </div>
-
-      <div className="two-grid">
-        <div className="card">
-          <SectionTitle title="So'nggi filial hisobotlari" />
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Sana</th>
-                  <th>Filial</th>
-                  <th>Stories</th>
-                  <th>Post</th>
-                  <th>Reels</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(dailyReports || []).slice(0, 5).map((row) => (
-                  <tr key={row.id}>
-                    <td>{formatDate(row.report_date)}</td>
-                    <td>{row.branch_name}</td>
-                    <td>{row.stories_count}</td>
-                    <td>{row.posts_count}</td>
-                    <td>{row.reels_count}</td>
+      <DashboardDisclosure
+        title="Operatsion markaz"
+        desc="Filial hisobotlari va eslatmalarni tez ko‘rish uchun"
+        badge={`${dailyReports.length} hisobot`}
+      >
+        <div className="two-grid dashboard-fold-grid">
+          <div className="card dashboard-nested-card">
+            <SectionTitle title="So‘nggi filial hisobotlari" desc="Oxirgi yuborilgan kunlik natijalar" />
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Sana</th>
+                    <th>Filial</th>
+                    <th>Stories</th>
+                    <th>Post</th>
+                    <th>Reels</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {(dailyReports || []).slice(0, 5).map((row) => (
+                    <tr key={row.id}>
+                      <td>{formatDate(row.report_date)}</td>
+                      <td>{row.branch_name}</td>
+                      <td>{row.stories_count}</td>
+                      <td>{row.posts_count}</td>
+                      <td>{row.reels_count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="card dashboard-nested-card">
+            <SectionTitle title="Task reminders" desc="Yaqinlashayotgan va kechikkan vazifalar" />
+            <div className="reminder-list">
+              {reminders.length ? reminders.map((item) => (
+                <div key={item.id} className={`reminder-card ${formatDate(item.due_date) < todayKey ? "danger" : "warning"}`}>
+                  <strong>{item.title}</strong>
+                  <span>{formatDate(item.due_date)} - {taskStatusLabel(item.status)}</span>
+                </div>
+              )) : <div className="empty-block">Hozircha eslatma yo‘q</div>}
+            </div>
           </div>
         </div>
+      </DashboardDisclosure>
 
-        <div className="card">
-          <SectionTitle title="Kontent approval workflow" />
-          <div className="quick-list">
-            {contentSeries.map((item) => (
-              <div key={item.label} className="quick-item">
-                {item.label}: <strong>{item.value}</strong>
-              </div>
-            ))}
-            <div className="quick-item">Bekor qilingan: <strong>{thisMonthContent.filter((r) => r.status === "bekor_qilingan").length}</strong></div>
-          </div>
-        </div>
-      </div>
-
-      <div className="two-grid">
-        <div className="card">
-          <SectionTitle title="Task Reminders" desc="Yaqinlashayotgan va kechikkan vazifalar" />
-          <div className="reminder-list">
-            {reminders.length ? reminders.map((item) => (
-              <div key={item.id} className={`reminder-card ${formatDate(item.due_date) < formatDate(new Date()) ? "danger" : "warning"}`}>
-                <strong>{item.title}</strong>
-                <span>{formatDate(item.due_date)} - {taskStatusLabel(item.status)}</span>
-              </div>
-            )) : <div className="empty-block">Hozircha eslatma yo'q</div>}
-          </div>
-        </div>
-
-        <div className="card">
-          <SectionTitle title="Analytics" desc="Joriy oy bo'yicha tezkor ko'rsatkichlar" />
+      <DashboardDisclosure
+        title="Analytics studio"
+        desc="Bonus, kontent, sarf va filial KPI bo‘yicha ichki ko‘rsatkichlar"
+        badge={`${summary?.monthly_content_count || totalPlan} kontent`}
+      >
+        <div className="card dashboard-nested-card">
+          <SectionTitle title="Tezkor xulosa" desc="Joriy oy bo‘yicha qisqa snapshot" />
           <div className="quick-list">
             <div className="quick-item">Kontentlar soni: <strong>{summary?.monthly_content_count || 0}</strong></div>
             <div className="quick-item">Bonus stavkasi: <strong>{formatMoney(summary?.bonus_rate || 25000)}</strong></div>
             <div className="quick-item">Hisoblangan bonus: <strong>{formatMoney(summary?.monthly_bonus_amount || thisMonthBonus)}</strong></div>
-            <div className="quick-item">Filial hisobotlari: <strong>{summary?.today_report_count || 0}</strong></div>
-          </div>
-          <div className="chart-grid">
-            <div className="chart-card">
-              <div className="chart-title">Oyma-oy bonus</div>
-              <div className="line-chart">
-                {bonusSeries.map((item) => (
-                  <div key={item.label} className="line-point">
-                    <span className="line-dot" style={{ bottom: `${(item.amount / maxBonusPoint) * 100}%` }} />
-                    <label>{item.label}</label>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="chart-card">
-              <div className="chart-title">Kontent bajarilish foizi</div>
-              <div className="bar-chart">
-                {contentSeries.map((item) => (
-                  <div key={item.label} className="bar-item">
-                    <span>{item.label}</span>
-                    <div className="bar-track"><i style={{ width: `${Math.max((item.value / maxContentPoint) * 100, item.value ? 10 : 0)}%` }} /></div>
-                    <strong>{item.value}</strong>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="chart-card">
-              <div className="chart-title">Oyma-oy reklama sarfi</div>
-              <div className="line-chart">
-                {spendSeries.map((item) => (
-                  <div key={item.label} className="line-point">
-                    <span className="line-dot spend" style={{ bottom: `${(item.amount / maxSpendPoint) * 100}%` }} />
-                    <label>{item.label}</label>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="chart-card">
-              <div className="chart-title">Filial KPI</div>
-              <div className="bar-chart">
-                {branchKpis.length ? branchKpis.map((item) => (
-                  <div key={item.name} className="bar-item">
-                    <span>{item.name}</span>
-                    <div className="bar-track branch"><i style={{ width: `${Math.max((item.score / maxBranchScore) * 100, item.score ? 10 : 0)}%` }} /></div>
-                    <strong>{item.score}</strong>
-                  </div>
-                )) : <div className="empty-block">Filial KPI hali yo'q</div>}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="two-grid">
-        <div className="card">
-          <SectionTitle title="Safar approval workflow" desc="Safar rejalari jarayoni" />
-          <div className="quick-list">
-            {travelWorkflow.map((item) => (
-              <div key={item.label} className="quick-item">
-                {item.label}: <strong>{item.value}</strong>
-              </div>
-            ))}
+            <div className="quick-item">Bugungi hisobotlar: <strong>{summary?.today_report_count || 0}</strong></div>
           </div>
         </div>
 
-        <div className="card">
-          <SectionTitle title="Export center" desc="Barcha tezkor eksportlar bir joyda" />
-          <div className="export-center">
-            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/users.xlsx", "users.xlsx")}>Users Excel</button>
-            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/content.xlsx", "content.xlsx")}>Content Excel</button>
-            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/bonuses.xlsx", "bonuses.xlsx")}>Bonus Excel</button>
-            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/daily-reports.xlsx", "daily-reports.xlsx")}>Daily report Excel</button>
-            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/daily-reports.pdf", "daily-reports.pdf")}>Daily report PDF</button>
-            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/campaigns.xlsx", "campaigns.xlsx")}>Campaign Excel</button>
+        <div className="chart-grid dashboard-chart-grid">
+          <div className="chart-card">
+            <div className="chart-title">Oyma-oy bonus</div>
+            <div className="line-chart">
+              {bonusSeries.map((item) => (
+                <div key={item.label} className="line-point">
+                  <span className="line-dot" style={{ bottom: `${(item.amount / maxBonusPoint) * 100}%` }} />
+                  <label>{item.label}</label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="chart-card">
+            <div className="chart-title">Kontent bajarilish foizi</div>
+            <div className="bar-chart">
+              {contentSeries.map((item) => (
+                <div key={item.label} className="bar-item">
+                  <span>{item.label}</span>
+                  <div className="bar-track"><i style={{ width: `${Math.max((item.value / maxContentPoint) * 100, item.value ? 10 : 0)}%` }} /></div>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="chart-card">
+            <div className="chart-title">Oyma-oy reklama sarfi</div>
+            <div className="line-chart">
+              {spendSeries.map((item) => (
+                <div key={item.label} className="line-point">
+                  <span className="line-dot spend" style={{ bottom: `${(item.amount / maxSpendPoint) * 100}%` }} />
+                  <label>{item.label}</label>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="chart-card">
+            <div className="chart-title">Filial KPI</div>
+            <div className="bar-chart">
+              {branchKpis.length ? branchKpis.map((item) => (
+                <div key={item.name} className="bar-item">
+                  <span>{item.name}</span>
+                  <div className="bar-track branch"><i style={{ width: `${Math.max((item.score / maxBranchScore) * 100, item.score ? 10 : 0)}%` }} /></div>
+                  <strong>{item.score}</strong>
+                </div>
+              )) : <div className="empty-block">Filial KPI hali yo‘q</div>}
+            </div>
           </div>
         </div>
-      </div>
+      </DashboardDisclosure>
+
+      <DashboardDisclosure
+        title="Workflow va eksportlar"
+        desc="Tasdiqlash oqimlari va tezkor eksport markazi"
+        badge={`${summary?.task_count || 0} vazifa`}
+        defaultOpen={false}
+      >
+        <div className="dashboard-fold-columns">
+          <div className="card dashboard-nested-card">
+            <SectionTitle title="Kontent approval workflow" desc="Kontent statuslarining joriy holati" />
+            <div className="quick-list">
+              {contentSeries.map((item) => (
+                <div key={item.label} className="quick-item">
+                  {item.label}: <strong>{item.value}</strong>
+                </div>
+              ))}
+              <div className="quick-item">Bekor qilingan: <strong>{thisMonthContent.filter((r) => r.status === "bekor_qilingan").length}</strong></div>
+            </div>
+          </div>
+
+          <div className="card dashboard-nested-card">
+            <SectionTitle title="Safar approval workflow" desc="Safar rejalari oqimi" />
+            <div className="quick-list">
+              {travelWorkflow.map((item) => (
+                <div key={item.label} className="quick-item">
+                  {item.label}: <strong>{item.value}</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="card dashboard-nested-card">
+            <SectionTitle title="Export center" desc="Barcha tezkor eksportlar bir joyda" />
+            <div className="export-center">
+              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/users.xlsx", "users.xlsx")}>Users Excel</button>
+              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/content.xlsx", "content.xlsx")}>Content Excel</button>
+              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/bonuses.xlsx", "bonuses.xlsx")}>Bonus Excel</button>
+              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/daily-reports.xlsx", "daily-reports.xlsx")}>Daily report Excel</button>
+              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/daily-reports.pdf", "daily-reports.pdf")}>Daily report PDF</button>
+              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/campaigns.xlsx", "campaigns.xlsx")}>Campaign Excel</button>
+            </div>
+          </div>
+        </div>
+      </DashboardDisclosure>
     </div>
   );
 }
@@ -7913,6 +8234,422 @@ body.standalone-app .login-page{
 }
 
 .page-grid{display:grid;gap:18px;margin-top:18px}
+.dashboard-page{gap:22px}
+.dashboard-hero-card{
+  display:grid;
+  grid-template-columns:minmax(0, 1.2fr) minmax(320px, .8fr);
+  gap:22px;
+  background:
+    radial-gradient(circle at top left, rgba(59,130,246,.16), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(16,185,129,.12), transparent 26%),
+    linear-gradient(180deg, rgba(255,255,255,.88), rgba(255,255,255,.36)),
+    var(--panel);
+  border:1px solid rgba(148,163,184,.16);
+  border-radius:32px;
+  padding:28px;
+  box-shadow:0 22px 48px rgba(15,23,42,.10);
+  position:relative;
+  overflow:hidden;
+}
+.dashboard-hero-card::before{
+  content:"";
+  position:absolute;
+  inset:auto auto -80px -50px;
+  width:240px;
+  height:240px;
+  border-radius:50%;
+  background:radial-gradient(circle, rgba(59,130,246,.18), transparent 68%);
+  pointer-events:none;
+}
+.dashboard-hero-copy{
+  position:relative;
+  z-index:1;
+  display:grid;
+  align-content:start;
+  gap:16px;
+}
+.dashboard-hero-copy h1{
+  margin:0;
+  font-size:56px;
+  line-height:.96;
+  letter-spacing:-.08em;
+}
+.dashboard-hero-copy p{
+  margin:0;
+  color:var(--muted);
+  font-size:17px;
+  line-height:1.72;
+  max-width:760px;
+}
+.dashboard-hero-summary{
+  padding:18px 20px;
+  border-radius:22px;
+  border:1px solid rgba(148,163,184,.16);
+  background:linear-gradient(135deg, rgba(15,23,42,.04), rgba(59,130,246,.06));
+  color:var(--text);
+  line-height:1.72;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7);
+}
+.dashboard-chip-row{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.dashboard-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 14px;
+  border-radius:999px;
+  border:1px solid rgba(148,163,184,.16);
+  background:rgba(255,255,255,.74);
+  color:var(--text);
+  font-size:13px;
+  font-weight:700;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7);
+}
+.dashboard-chip.small{padding:7px 12px;font-size:12px}
+.dashboard-chip.live{
+  color:#0f766e;
+  border-color:rgba(13,148,136,.22);
+  background:linear-gradient(135deg, rgba(45,212,191,.16), rgba(255,255,255,.78));
+}
+.dashboard-hero-side{
+  position:relative;
+  z-index:1;
+  display:grid;
+  gap:14px;
+}
+.dashboard-hero-glow{
+  position:absolute;
+  inset:auto -30px -40px auto;
+  width:180px;
+  height:180px;
+  border-radius:50%;
+  background:radial-gradient(circle, rgba(59,130,246,.22), transparent 68%);
+  filter:blur(8px);
+  pointer-events:none;
+}
+.dashboard-side-focus{
+  position:relative;
+  padding:18px 20px;
+  min-height:132px;
+  border-radius:24px;
+  border:1px solid rgba(148,163,184,.16);
+  background:linear-gradient(145deg, rgba(10,22,38,.96), rgba(24,42,68,.92));
+  color:#e9f2ff;
+  box-shadow:0 22px 46px rgba(15,23,42,.22);
+  display:grid;
+  gap:8px;
+}
+.dashboard-side-focus span{
+  font-size:12px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:rgba(226,232,240,.72);
+  font-weight:800;
+}
+.dashboard-side-focus strong{
+  font-size:42px;
+  line-height:1;
+  letter-spacing:-.08em;
+}
+.dashboard-side-focus small{
+  color:rgba(226,232,240,.72);
+  line-height:1.6;
+}
+.dashboard-side-grid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:14px;
+}
+.dashboard-side-card{
+  padding:16px;
+  border-radius:22px;
+  border:1px solid rgba(148,163,184,.16);
+  background:linear-gradient(180deg, rgba(255,255,255,.88), rgba(245,248,253,.70));
+  box-shadow:0 14px 30px rgba(15,23,42,.08);
+  display:grid;
+  gap:8px;
+  min-height:112px;
+}
+.dashboard-side-card span{
+  color:var(--muted);
+  font-size:12px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  font-weight:800;
+}
+.dashboard-side-card strong{
+  font-size:22px;
+  line-height:1.12;
+  letter-spacing:-.05em;
+}
+.dashboard-side-card small{
+  color:var(--muted);
+  line-height:1.5;
+}
+.dashboard-metrics-grid{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:18px;
+}
+.dashboard-metrics-grid-secondary{grid-template-columns:repeat(5, minmax(0, 1fr))}
+.dashboard-metric-card{
+  position:relative;
+  overflow:hidden;
+  padding:20px;
+  border-radius:26px;
+  border:1px solid rgba(148,163,184,.16);
+  background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(244,248,255,.82));
+  box-shadow:0 18px 36px rgba(15,23,42,.08);
+  display:grid;
+  gap:14px;
+  min-height:188px;
+  animation:dashboard-fade-up .45s ease;
+}
+.dashboard-metric-card::before{
+  content:"";
+  position:absolute;
+  inset:auto -18% -44% auto;
+  width:140px;
+  height:140px;
+  border-radius:50%;
+  filter:blur(4px);
+  opacity:.75;
+  pointer-events:none;
+}
+.dashboard-metric-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.dashboard-metric-label{
+  font-size:12px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--muted);
+  font-weight:800;
+}
+.dashboard-metric-dot{
+  width:12px;
+  height:12px;
+  border-radius:999px;
+  box-shadow:0 0 0 6px rgba(255,255,255,.45);
+}
+.dashboard-metric-dot-default{background:#94a3b8;box-shadow:0 0 0 6px rgba(148,163,184,.12)}
+.dashboard-metric-dot-success{background:#10b981;box-shadow:0 0 0 6px rgba(16,185,129,.14)}
+.dashboard-metric-dot-warning{background:#f59e0b;box-shadow:0 0 0 6px rgba(245,158,11,.14)}
+.dashboard-metric-dot-danger{background:#ef4444;box-shadow:0 0 0 6px rgba(239,68,68,.14)}
+.dashboard-metric-dot-info{background:#3b82f6;box-shadow:0 0 0 6px rgba(59,130,246,.14)}
+.dashboard-metric-main{
+  font-size:40px;
+  font-weight:900;
+  letter-spacing:-.08em;
+  line-height:1;
+}
+.dashboard-metric-spark{
+  height:48px;
+  display:flex;
+  align-items:flex-end;
+  gap:8px;
+}
+.dashboard-metric-spark span{
+  flex:1;
+  min-width:0;
+  border-radius:999px;
+  background:linear-gradient(180deg, rgba(59,130,246,.92), rgba(59,130,246,.22));
+  transform-origin:bottom;
+  animation:dashboard-spark-rise .55s ease both;
+}
+.dashboard-metric-hint{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.55;
+}
+.dashboard-metric-default::before{background:radial-gradient(circle, rgba(59,130,246,.10), transparent 72%)}
+.dashboard-metric-success{
+  background:linear-gradient(135deg, rgba(16,185,129,.12), rgba(255,255,255,.96) 40%, rgba(16,185,129,.06));
+  border-color:rgba(16,185,129,.24);
+}
+.dashboard-metric-success::before{background:radial-gradient(circle, rgba(16,185,129,.16), transparent 72%)}
+.dashboard-metric-success .dashboard-metric-main{color:#047857}
+.dashboard-metric-success .dashboard-metric-spark span{background:linear-gradient(180deg, rgba(16,185,129,.95), rgba(16,185,129,.20))}
+.dashboard-metric-warning{
+  background:linear-gradient(135deg, rgba(245,158,11,.14), rgba(255,255,255,.96) 40%, rgba(245,158,11,.08));
+  border-color:rgba(245,158,11,.24);
+}
+.dashboard-metric-warning::before{background:radial-gradient(circle, rgba(245,158,11,.18), transparent 72%)}
+.dashboard-metric-warning .dashboard-metric-main{color:#b45309}
+.dashboard-metric-warning .dashboard-metric-spark span{background:linear-gradient(180deg, rgba(245,158,11,.95), rgba(245,158,11,.18))}
+.dashboard-metric-danger{
+  background:linear-gradient(135deg, rgba(239,68,68,.14), rgba(255,255,255,.96) 40%, rgba(239,68,68,.08));
+  border-color:rgba(239,68,68,.22);
+}
+.dashboard-metric-danger::before{background:radial-gradient(circle, rgba(239,68,68,.18), transparent 72%)}
+.dashboard-metric-danger .dashboard-metric-main{color:#b91c1c}
+.dashboard-metric-danger .dashboard-metric-spark span{background:linear-gradient(180deg, rgba(239,68,68,.95), rgba(239,68,68,.18))}
+.dashboard-metric-info{
+  background:linear-gradient(135deg, rgba(59,130,246,.14), rgba(255,255,255,.96) 40%, rgba(125,211,252,.08));
+  border-color:rgba(59,130,246,.22);
+}
+.dashboard-metric-info::before{background:radial-gradient(circle, rgba(59,130,246,.18), transparent 72%)}
+.dashboard-metric-info .dashboard-metric-main{color:#1d4ed8}
+.dashboard-metric-info .dashboard-metric-spark span{background:linear-gradient(180deg, rgba(59,130,246,.95), rgba(59,130,246,.18))}
+.dashboard-spotlight-grid{
+  display:grid;
+  grid-template-columns:1.15fr .85fr;
+  gap:18px;
+}
+.dashboard-focus-card{min-height:100%}
+.dashboard-focus-layout{
+  display:grid;
+  grid-template-columns:220px 1fr;
+  gap:22px;
+  align-items:center;
+}
+.dashboard-ring-card{display:grid;place-items:center}
+.dashboard-ring{
+  width:186px;
+  height:186px;
+  padding:14px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.4), 0 18px 30px rgba(15,23,42,.08);
+}
+.dashboard-ring-inner{
+  width:100%;
+  height:100%;
+  border-radius:50%;
+  background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(242,246,252,.92));
+  display:grid;
+  place-items:center;
+  text-align:center;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7);
+}
+.dashboard-ring-inner span{
+  font-size:12px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--muted);
+  font-weight:800;
+}
+.dashboard-ring-inner strong{
+  font-size:42px;
+  line-height:1;
+  letter-spacing:-.08em;
+}
+.dashboard-focus-list{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:12px;
+}
+.dashboard-focus-item{
+  padding:16px;
+  border-radius:18px;
+  border:1px solid rgba(148,163,184,.16);
+  background:linear-gradient(180deg, rgba(255,255,255,.92), rgba(243,247,252,.82));
+  display:grid;
+  gap:8px;
+}
+.dashboard-focus-item span{
+  color:var(--muted);
+  font-size:12px;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  font-weight:800;
+}
+.dashboard-focus-item strong{
+  font-size:24px;
+  letter-spacing:-.05em;
+}
+.dashboard-alert-wall{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:12px;
+}
+.dashboard-alert-card{
+  padding:16px;
+  border-radius:18px;
+  border:1px solid rgba(148,163,184,.14);
+  background:linear-gradient(180deg, rgba(255,255,255,.94), rgba(247,250,253,.88));
+  display:grid;
+  gap:8px;
+}
+.dashboard-alert-card strong{font-size:14px}
+.dashboard-alert-card span{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.55;
+}
+.dashboard-alert-card.warning{
+  background:linear-gradient(135deg, rgba(245,158,11,.14), rgba(255,255,255,.96));
+  border-color:rgba(245,158,11,.24);
+}
+.dashboard-alert-card.warning strong{color:#b45309}
+.dashboard-alert-card.danger{
+  background:linear-gradient(135deg, rgba(239,68,68,.14), rgba(255,255,255,.96));
+  border-color:rgba(239,68,68,.22);
+}
+.dashboard-alert-card.danger strong{color:#b91c1c}
+.dashboard-alert-card.info{
+  background:linear-gradient(135deg, rgba(59,130,246,.12), rgba(255,255,255,.96));
+  border-color:rgba(59,130,246,.22);
+}
+.dashboard-alert-card.info strong{color:#1d4ed8}
+.dashboard-fold{
+  border:1px solid rgba(148,163,184,.16);
+  border-radius:28px;
+  background:linear-gradient(180deg, rgba(255,255,255,.88), rgba(247,250,253,.82));
+  box-shadow:0 18px 38px rgba(15,23,42,.08);
+  overflow:hidden;
+}
+.dashboard-fold summary{
+  list-style:none;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:22px 24px;
+  cursor:pointer;
+}
+.dashboard-fold summary::-webkit-details-marker{display:none}
+.dashboard-fold-summary-copy{
+  display:grid;
+  gap:6px;
+}
+.dashboard-fold-summary-copy strong{
+  font-size:24px;
+  letter-spacing:-.05em;
+}
+.dashboard-fold-summary-copy span{
+  color:var(--muted);
+  line-height:1.6;
+}
+.dashboard-fold-summary-meta{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.dashboard-fold-arrow{transition:transform .2s ease}
+.dashboard-fold[open] .dashboard-fold-arrow{transform:rotate(180deg)}
+.dashboard-fold-body{
+  padding:0 24px 24px;
+  display:grid;
+  gap:18px;
+}
+.dashboard-fold-columns{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:18px;
+}
+.dashboard-nested-card{
+  min-height:100%;
+  border-radius:24px;
+}
+.dashboard-chart-grid{grid-template-columns:repeat(2, minmax(0, 1fr))}
 .hero-banner,.card,.stat-card{
   background:
     linear-gradient(180deg, rgba(255,255,255,.82), rgba(255,255,255,.26)),
@@ -9440,11 +10177,17 @@ tbody tr:hover{
   height:42px;
 }
 @media (max-width: 1100px){
-  .login-shell,.app-shell,.stats-grid,.two-grid,.form-grid{grid-template-columns:1fr}
+  .login-shell,.app-shell,.stats-grid,.two-grid,.form-grid,.dashboard-metrics-grid,.dashboard-metrics-grid-secondary,.dashboard-spotlight-grid,.dashboard-fold-columns{grid-template-columns:1fr}
   .main-area{padding:14px}
   .login-page{padding:18px}
   .topbar h1{font-size:28px}
   .hero-banner h1{font-size:34px}
+  .dashboard-hero-card{grid-template-columns:1fr}
+  .dashboard-hero-copy h1{font-size:38px}
+  .dashboard-focus-layout{grid-template-columns:1fr}
+  .dashboard-alert-wall{grid-template-columns:1fr}
+  .dashboard-side-grid{grid-template-columns:1fr 1fr}
+  .dashboard-chart-grid{grid-template-columns:1fr}
   .login-copy h1{font-size:46px}
   .login-copy h2{font-size:24px}
   .login-copy{padding-inline:0;max-width:none}
@@ -9481,6 +10224,42 @@ tbody tr:hover{
     height:30px;
     border-radius:10px;
   }
+  .dashboard-hero-card{
+    padding:18px;
+    border-radius:24px;
+  }
+  .dashboard-hero-copy h1{font-size:30px}
+  .dashboard-hero-summary{
+    padding:14px 16px;
+    border-radius:18px;
+  }
+  .dashboard-chip-row{gap:8px}
+  .dashboard-chip{
+    padding:8px 11px;
+    font-size:12px;
+  }
+  .dashboard-side-grid,
+  .dashboard-focus-list,
+  .dashboard-alert-wall,
+  .dashboard-fold-columns{grid-template-columns:1fr}
+  .dashboard-side-focus{min-height:auto}
+  .dashboard-metric-card{
+    min-height:auto;
+    padding:16px;
+    border-radius:20px;
+  }
+  .dashboard-metric-main{font-size:30px}
+  .dashboard-ring{
+    width:150px;
+    height:150px;
+  }
+  .dashboard-ring-inner strong{font-size:34px}
+  .dashboard-fold summary{
+    padding:18px;
+    align-items:flex-start;
+  }
+  .dashboard-fold-body{padding:0 18px 18px}
+  .dashboard-fold-summary-copy strong{font-size:19px}
 }
 @keyframes login-fade-up{
   from{opacity:0;transform:translateY(18px)}
@@ -9503,6 +10282,14 @@ tbody tr:hover{
 @keyframes pulse-glow{
   0%,100%{transform:scale(.92);opacity:.82}
   50%{transform:scale(1.06);opacity:1}
+}
+@keyframes dashboard-fade-up{
+  from{opacity:0;transform:translateY(16px) scale(.98)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+@keyframes dashboard-spark-rise{
+  from{opacity:0;transform:scaleY(.35)}
+  to{opacity:1;transform:scaleY(1)}
 }
 @keyframes loading-progress{
   0%{transform:translateX(-115%)}
