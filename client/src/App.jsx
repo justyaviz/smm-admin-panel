@@ -588,7 +588,7 @@ function IconActions({ onView, onEdit, onDelete }) {
 function Toast({ toast, onClose }) {
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(onClose, toast.variant === "center-success" ? 2200 : 2800);
+    const timer = setTimeout(onClose, toast.variant === "toast" ? 2800 : 2200);
     return () => clearTimeout(timer);
   }, [toast, onClose]);
 
@@ -606,6 +606,26 @@ function Toast({ toast, onClose }) {
           </div>
           <h2>MUVAFFAQIYATLI</h2>
           <p>{toast.message || "Ma'lumotlar muvaffaqiyatli saqlandi."}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (toast.variant === "center-delete") {
+    return (
+      <div className="success-overlay delete-overlay" aria-live="polite" aria-atomic="true">
+        <div className="delete-wrapper">
+          <div className="delete-icon-wrap" aria-hidden="true">
+            <svg viewBox="0 0 100 100" fill="none" width="100" height="100">
+              <rect x="30" y="30" width="40" height="45" rx="8" stroke="#ef4444" strokeWidth="4" />
+              <rect x="25" y="20" width="50" height="6" rx="3" fill="#ef4444" />
+              <line className="delete-line delete-line-one" x1="40" y1="40" x2="40" y2="65" stroke="#ef4444" strokeWidth="4" />
+              <line className="delete-line delete-line-two" x1="50" y1="40" x2="50" y2="65" stroke="#ef4444" strokeWidth="4" />
+              <line className="delete-line delete-line-three" x1="60" y1="40" x2="60" y2="65" stroke="#ef4444" strokeWidth="4" />
+            </svg>
+          </div>
+          <h2>O‘CHIRILDI</h2>
+          <p>{toast.message || "Ma'lumot o‘chirildi."}</p>
         </div>
       </div>
     );
@@ -1674,7 +1694,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
       setRows((prev) => prev.filter((row) => Number(row.id) !== numericId));
       await loadMonth(selectedMonth);
       await reload();
-      onToast("Kontent o'chirildi", "success");
+      onToast("Kontent o'chirildi", "success", { deleteCenter: true });
     } catch (err) {
       onToast(err.message || "O'chirishda xatolik", "error");
     }
@@ -2669,7 +2689,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       }
       await api.remove("bonus-items", numericId);
       await reload();
-      onToast("Bonus yozuvi o'chirildi", "success");
+      onToast("Bonus yozuvi o'chirildi", "success", { deleteCenter: true });
     } catch (err) {
       onToast(err.message || "O'chirishda xatolik", "error");
     }
@@ -3229,7 +3249,7 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
     try {
       await api.remove("daily-reports", id);
       await reload();
-      onToast("Hisobot o'chirildi", "success");
+      onToast("Hisobot o'chirildi", "success", { deleteCenter: true });
     } catch (err) {
       onToast(err.message || "O'chirishda xatolik", "error");
     }
@@ -3427,7 +3447,7 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
     try {
       await api.remove("campaigns", id);
       await reload();
-      onToast("Kampaniya o'chirildi", "success");
+      onToast("Kampaniya o'chirildi", "success", { deleteCenter: true });
     } catch (err) {
       onToast(err.message || "O'chirishda xatolik", "error");
     }
@@ -3635,7 +3655,7 @@ function MediaPage({ uploads = [], onToast, reload }) {
     try {
       await api.remove("uploads", id);
       await reload();
-      onToast("Fayl o'chirildi", "success");
+      onToast("Fayl o'chirildi", "success", { deleteCenter: true });
     } catch (err) {
       onToast(err.message || "O'chirishda xatolik", "error");
     }
@@ -3879,7 +3899,7 @@ function UsersPage({ users = [], onToast, reload }) {
     try {
       await api.remove("users", id);
       await reload();
-      onToast("Hodim o'chirildi", "success");
+      onToast("Hodim o'chirildi", "success", { deleteCenter: true });
     } catch (err) {
       onToast(err.message || "O'chirishda xatolik", "error");
     }
@@ -4179,7 +4199,7 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
     try {
       await api.remove("tasks", id);
       await reload();
-      onToast("Vazifa o'chirildi", "success");
+      onToast("Vazifa o'chirildi", "success", { deleteCenter: true });
     } catch (err) {
       onToast(err.message || "O'chirishda xatolik", "error");
     }
@@ -5098,7 +5118,7 @@ function ExpensesPage({ expenses = [], contestExpenses = [], onToast, reload }) 
     try {
       await api.remove("expenses", id);
       await reload();
-      onToast("Harajat o'chirildi", "success");
+      onToast("Harajat o'chirildi", "success", { deleteCenter: true });
     } catch (err) {
       onToast(err.message || "Harajatni o'chirib bo'lmadi", "error");
     }
@@ -5362,7 +5382,7 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
     try {
       await api.remove("travel-plans", id);
       await reload();
-      onToast("Safar rejasi o'chirildi", "success");
+      onToast("Safar rejasi o'chirildi", "success", { deleteCenter: true });
     } catch (err) {
       onToast(err.message || "Safar rejasini o'chirib bo'lmadi", "error");
     }
@@ -6387,10 +6407,11 @@ function App() {
       type === "success" &&
       (options.center ?? /(saql|yangila|o['’]?chir|yarat|tasdiq|bekor qil|qo['’]?sh|bajar)/i.test(normalizedMessage));
 
+    const isDelete = type === "success" && options.deleteCenter === true;
     setToast({
       message: normalizedMessage,
       type,
-      variant: shouldCenter ? "center-success" : "toast"
+      variant: isDelete ? "center-delete" : shouldCenter ? "center-success" : "toast"
     });
   }
 
@@ -8480,10 +8501,26 @@ tbody tr:hover{
   border:1px solid rgba(140,166,198,.18);
   backdrop-filter:blur(16px);
 }
+.delete-wrapper{
+  width:min(100%, 400px);
+  background:linear-gradient(145deg, rgba(255,255,255,.98), rgba(255,243,243,.96));
+  padding:42px 34px;
+  border-radius:28px;
+  box-shadow:0 28px 60px -10px rgba(127,29,29,.18);
+  text-align:center;
+  border:1px solid rgba(248,113,113,.2);
+  backdrop-filter:blur(16px);
+}
 .icon-wrap{
   margin-bottom:20px;
   transform:scale(0);
   animation:success-pop-in .6s cubic-bezier(0.34, 1.56, 0.64, 1.3) forwards;
+}
+.delete-icon-wrap{
+  margin-bottom:18px;
+  transform:scale(.92);
+  opacity:0;
+  animation:delete-pop-in .45s ease forwards;
 }
 .success-circle{
   stroke-dasharray:252;
@@ -8514,10 +8551,42 @@ tbody tr:hover{
   transform:translateY(10px);
   animation:success-fade-up .5s ease 1.2s forwards;
 }
+.delete-wrapper h2{
+  margin:10px 0 10px;
+  color:#b91c1c;
+  font-family:"Sora","Manrope","Segoe UI",sans-serif;
+  font-size:1.7rem;
+  letter-spacing:-.04em;
+  opacity:0;
+  animation:success-fade-up .45s ease .95s forwards;
+}
+.delete-wrapper p{
+  color:#7f1d1d;
+  margin:0;
+  font-size:1.03rem;
+  line-height:1.6;
+  opacity:0;
+  animation:success-fade-up .45s ease 1.12s forwards;
+}
 :root[data-theme='dark'] .success-wrapper{
   background:linear-gradient(145deg, rgba(10,18,32,.98), rgba(17,25,40,.94));
   box-shadow:0 28px 60px -10px rgba(2,8,23,.5);
 }
+:root[data-theme='dark'] .delete-wrapper{
+  background:linear-gradient(145deg, rgba(36,10,10,.98), rgba(47,14,14,.95));
+  box-shadow:0 28px 60px -10px rgba(2,8,23,.56);
+  border-color:rgba(248,113,113,.22);
+}
+:root[data-theme='dark'] .delete-wrapper h2{color:#fca5a5}
+:root[data-theme='dark'] .delete-wrapper p{color:#fecaca}
+.delete-line{
+  stroke-dasharray:20;
+  stroke-dashoffset:0;
+  animation:delete-lines .8s ease forwards;
+}
+.delete-line-one{animation-delay:.2s}
+.delete-line-two{animation-delay:.4s}
+.delete-line-three{animation-delay:.6s}
 .toast{
   position:fixed;
   right:20px;bottom:20px;
@@ -8565,6 +8634,16 @@ tbody tr:hover{
 @keyframes toast-in{
   from{transform:translateY(24px) scale(.94);opacity:0}
   to{transform:translateY(0) scale(1);opacity:1}
+}
+@keyframes delete-pop-in{
+  from{transform:scale(.82);opacity:0}
+  to{transform:scale(1);opacity:1}
+}
+@keyframes delete-lines{
+  to{
+    stroke-dashoffset:20;
+    opacity:0;
+  }
 }
 @keyframes success-pop-in{
   0%{transform:scale(0)}
