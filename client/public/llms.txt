@@ -1,5 +1,27 @@
 # aloo SMM Panel
 > SMM va marketing boshqaruv tizimi
 
-URL: https://smm-admin-panel-fron-production.up.railway.app/
+URL: https://www.aloosmm.uz/
 Summary: SMM va marketing boshqaruv tizimi
+Routes:
+- https://www.aloosmm.uz/
+- https://www.aloosmm.uz/login
+- https://www.aloosmm.uz/menu
+- https://www.aloosmm.uz/kontent
+- https://www.aloosmm.uz/bonus
+- https://www.aloosmm.uz/harajatlar
+- https://www.aloosmm.uz/finance
+- https://www.aloosmm.uz/safar
+- https://www.aloosmm.uz/analytics
+- https://www.aloosmm.uz/mood-pulse
+- https://www.aloosmm.uz/xodim-kpi
+- https://www.aloosmm.uz/recurring
+- https://www.aloosmm.uz/kunlik-hisobotlar
+- https://www.aloosmm.uz/reklama
+- https://www.aloosmm.uz/media
+- https://www.aloosmm.uz/hodimlar
+- https://www.aloosmm.uz/vazifalar
+- https://www.aloosmm.uz/audit
+- https://www.aloosmm.uz/profil
+- https://www.aloosmm.uz/sozlamalar
+- https://www.aloosmm.uz/ai-yordamchi
