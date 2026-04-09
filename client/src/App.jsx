@@ -294,7 +294,7 @@ function formatDate(value) {
 }
 
 function formatMoney(value) {
-  return `${Number(value || 0).toLocaleString()} so'm`;
+  return `${Number(value || 0).toLocaleString()} UZS`;
 }
 
 function formatUsd(value) {

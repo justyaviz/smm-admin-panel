@@ -247,14 +247,20 @@ export async function sendContestExpensePdf(res, rows, fileName = "contest-expen
 
 function formatMoneyWithCurrency(amount = 0, currency = "UZS") {
   const value = Number(amount || 0);
+  const normalizedCurrency = String(currency || "UZS").toUpperCase();
+
+  if (normalizedCurrency === "UZS") {
+    return `${value.toLocaleString("uz-UZ")} UZS`;
+  }
+
+  if (normalizedCurrency === "USD") {
+    return `$${value.toLocaleString("uz-UZ")}`;
+  }
+
   try {
-    return new Intl.NumberFormat("uz-UZ", {
-      style: "currency",
-      currency: currency || "UZS",
-      maximumFractionDigits: 0
-    }).format(value);
+    return `${value.toLocaleString("uz-UZ")} ${normalizedCurrency}`.trim();
   } catch {
-    return `${value.toLocaleString("uz-UZ")} ${currency || ""}`.trim();
+    return `${value} ${normalizedCurrency}`.trim();
   }
 }
 
