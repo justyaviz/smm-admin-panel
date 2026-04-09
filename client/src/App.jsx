@@ -49,6 +49,7 @@ import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContaine
 import { api, API_BASE, clearAuth, getAuthToken, getCurrentUser, SOCKET_BASE } from "./api";
 import { applySeo } from "./seo";
 import ContestExpensesPanel from "./ContestExpensesPanel";
+import DailyReportImageImportPanel from "./DailyReportImageImportPanel";
 import TravelExpensesPanel from "./TravelExpensesPanel";
 
 const MENU = [
@@ -1363,7 +1364,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
     if (!acc[key]) {
       acc[key] = { name: key, score: 0, subscribers: 0 };
     }
-    acc[key].score += Number(row.posts_count || 0) * 2 + Number(row.reels_count || 0) * 3 + Number(row.stories_count || 0);
+    acc[key].score += Number(row.posts_count || 0) * 2 + Number(row.stories_count || 0);
     acc[key].subscribers += Number(row.subscriber_count || 0);
     return acc;
   }, {})).sort((a, b) => b.score - a.score).slice(0, 5);
@@ -1675,7 +1676,6 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
                     <th>Filial</th>
                     <th>Stories</th>
                     <th>Post</th>
-                    <th>Reels</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1685,7 +1685,6 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
                       <td>{row.branch_name}</td>
                       <td>{row.stories_count}</td>
                       <td>{row.posts_count}</td>
-                      <td>{row.reels_count}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -3611,7 +3610,6 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
     branch_id: "",
     stories_count: 0,
     posts_count: 0,
-    reels_count: 0,
     subscriber_count: 0,
     condition_text: "",
     notes: ""
@@ -3639,7 +3637,6 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
       branch_id: row.branch_id || "",
       stories_count: row.stories_count || 0,
       posts_count: row.posts_count || 0,
-      reels_count: row.reels_count || 0,
       subscriber_count: row.subscriber_count || 0,
       condition_text: row.condition_text || "",
       notes: row.notes || ""
@@ -3681,6 +3678,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
 
   return (
     <div className="page-grid">
+      <DailyReportImageImportPanel onToast={onToast} reload={reload} />
+
       <div className="card">
         <SectionTitle
           title={editRow ? "Kunlik hisobotni tahrirlash" : "Kunlik filial hisobotlari"}
@@ -3714,9 +3713,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
 
           <label><span>Stories</span><input type="number" min="0" value={form.stories_count} onChange={(e) => setField("stories_count", Number(e.target.value))} /></label>
           <label><span>Post</span><input type="number" min="0" value={form.posts_count} onChange={(e) => setField("posts_count", Number(e.target.value))} /></label>
-          <label><span>Reels</span><input type="number" min="0" value={form.reels_count} onChange={(e) => setField("reels_count", Number(e.target.value))} /></label>
           <label><span>Obunachi soni</span><input type="number" min="0" value={form.subscriber_count} onChange={(e) => setField("subscriber_count", Number(e.target.value))} /></label>
-          <label><span>AXVAT</span><input value={form.condition_text} onChange={(e) => setField("condition_text", e.target.value)} /></label>
+          <label><span>AHVAT</span><input value={form.condition_text} onChange={(e) => setField("condition_text", e.target.value)} /></label>
           <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
 
           <button className="btn primary" type="submit" disabled={saving}>
@@ -3738,9 +3736,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
                 <th>Filial</th>
                 <th>Stories</th>
                 <th>Post</th>
-                <th>Reels</th>
                 <th>Obunachi soni</th>
-                <th>AXVAT</th>
+                <th>AHVAT</th>
                 <th>Izoh</th>
                 <th>Amallar</th>
               </tr>
@@ -3753,7 +3750,6 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
                     <td>{row.branch_name}</td>
                     <td>{row.stories_count}</td>
                     <td>{row.posts_count}</td>
-                    <td>{row.reels_count}</td>
                     <td>{row.subscriber_count || 0}</td>
                     <td>{row.condition_text || "-"}</td>
                     <td>{row.notes || "-"}</td>
@@ -3767,7 +3763,7 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
                   </tr>
                 ))
               ) : (
-                <tr>Hozircha ma'lumot yo'q</tr>
+                <tr><td colSpan="8" className="empty-cell">Hozircha ma'lumot yo'q</td></tr>
               )}
             </tbody>
           </table>
@@ -3782,9 +3778,8 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
             <div><strong>Filial:</strong> {viewRow.branch_name}</div>
             <div><strong>Stories:</strong> {viewRow.stories_count}</div>
             <div><strong>Post:</strong> {viewRow.posts_count}</div>
-            <div><strong>Reels:</strong> {viewRow.reels_count}</div>
             <div><strong>Obunachi soni:</strong> {viewRow.subscriber_count || 0}</div>
-            <div><strong>AXVAT:</strong> {viewRow.condition_text || "-"}</div>
+            <div><strong>AHVAT:</strong> {viewRow.condition_text || "-"}</div>
             <div><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
           </div>
           <DiscussionPanel entityType="daily_report" entityId={viewRow.id} onToast={onToast} />

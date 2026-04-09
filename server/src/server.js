@@ -15,6 +15,7 @@ import { actionPermissionAllowed, authRequired, pagePermissionAllowed, rolesAllo
 import { buildBranchOrderSql, DEFAULT_BRANCHES } from "./defaultBranches.js";
 import { sendContestExpensePdf, sendExcel, sendSimplePdf, sendTravelExpensePdf } from "./exports.js";
 import { isMySeOneSyncEnabled, pullBonusMirrorFromMySeOne, syncBonusDeleteToMySeOne, syncBonusUpsertToMySeOne } from "./mySeOneSync.js";
+import { importDailyReportsFromImages } from "./dailyReportImport.js";
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -3266,6 +3267,111 @@ app.get("/api/daily-reports", authRequired, async (req, res) => {
   }
 });
 
+app.post(
+  "/api/daily-reports/import-images",
+  authRequired,
+  upload.fields([
+    { name: "content_image", maxCount: 1 },
+    { name: "metrics_image", maxCount: 1 }
+  ]),
+  async (req, res) => {
+    const contentImagePath = req.files?.content_image?.[0]?.path;
+    const metricsImagePath = req.files?.metrics_image?.[0]?.path;
+
+    if (!contentImagePath || !metricsImagePath) {
+      return res.status(400).json({ message: "2 ta rasm yuklash majburiy" });
+    }
+
+    try {
+      const branches = (await query(`SELECT id, name FROM branches ORDER BY id ASC`)).rows;
+      const imported = await importDailyReportsFromImages({
+        contentImagePath,
+        metricsImagePath,
+        branches,
+        reportDate: req.body?.report_date
+      });
+
+      const savedRows = [];
+      for (const row of imported.rows) {
+        const result = await query(
+          `
+          INSERT INTO daily_branch_reports
+          (
+            report_date,
+            branch_id,
+            stories_count,
+            posts_count,
+            reels_count,
+            subscriber_count,
+            condition_text,
+            notes,
+            created_by
+          )
+          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+          ON CONFLICT (report_date, branch_id)
+          DO UPDATE SET
+            stories_count = EXCLUDED.stories_count,
+            posts_count = EXCLUDED.posts_count,
+            reels_count = 0,
+            subscriber_count = EXCLUDED.subscriber_count,
+            condition_text = EXCLUDED.condition_text,
+            notes = CASE
+              WHEN COALESCE(NULLIF(EXCLUDED.notes, ''), '') <> '' THEN EXCLUDED.notes
+              ELSE daily_branch_reports.notes
+            END,
+            updated_at = CURRENT_TIMESTAMP
+          RETURNING *
+          `,
+          [
+            row.report_date,
+            row.branch_id,
+            Number(row.stories_count || 0),
+            Number(row.posts_count || 0),
+            0,
+            Number(row.subscriber_count || 0),
+            row.condition_text || "",
+            row.notes || "",
+            req.user.id
+          ]
+        );
+        if (result.rows[0]) {
+          savedRows.push(result.rows[0]);
+        }
+      }
+
+      await createNotification(
+        null,
+        "Kunlik hisobot rasmdan to'ldirildi",
+        `${imported.reportDate} sanaga ${savedRows.length} ta filial yozuvi tayyorlandi`,
+        "success"
+      );
+      await logAction(req.user.id, "import", "daily_branch_reports", null, {
+        report_date: imported.reportDate,
+        imported_count: savedRows.length,
+        warnings: imported.warnings
+      });
+
+      res.json({
+        message: "Rasmlar tahlil qilinib, hisobotlar to'ldirildi",
+        report_date: imported.reportDate,
+        imported_count: savedRows.length,
+        parsed_content_branches: imported.parsedContentBranches,
+        parsed_audience_branches: imported.parsedAudienceBranches,
+        warnings: imported.warnings
+      });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: `Rasmlarni o'qib bo'lmadi: ${err.message}` });
+    } finally {
+      await Promise.all(
+        [contentImagePath, metricsImagePath]
+          .filter(Boolean)
+          .map((filePath) => fs.promises.unlink(filePath).catch(() => null))
+      );
+    }
+  }
+);
+
 app.post("/api/daily-reports", authRequired, async (req, res) => {
   try {
     const {
@@ -3273,7 +3379,6 @@ app.post("/api/daily-reports", authRequired, async (req, res) => {
       branch_id,
       stories_count,
       posts_count,
-      reels_count,
       subscriber_count,
       condition_text,
       notes
@@ -3301,7 +3406,7 @@ app.post("/api/daily-reports", authRequired, async (req, res) => {
         branch_id || null,
         Number(stories_count || 0),
         Number(posts_count || 0),
-        Number(reels_count || 0),
+        0,
         Number(subscriber_count || 0),
         condition_text || "",
         notes || "",
@@ -3326,7 +3431,6 @@ app.put("/api/daily-reports/:id", authRequired, async (req, res) => {
       branch_id,
       stories_count,
       posts_count,
-      reels_count,
       subscriber_count,
       condition_text,
       notes
@@ -3353,7 +3457,7 @@ app.put("/api/daily-reports/:id", authRequired, async (req, res) => {
         branch_id || null,
         Number(stories_count || 0),
         Number(posts_count || 0),
-        Number(reels_count || 0),
+        0,
         Number(subscriber_count || 0),
         condition_text || "",
         notes || "",
@@ -4990,7 +5094,7 @@ app.get("/api/analytics/overview", authRequired, async (_, res) => {
       query(`SELECT month_label, COALESCE(SUM(total_amount),0)::numeric AS total FROM bonus_items GROUP BY month_label ORDER BY month_label DESC LIMIT 6`),
       query(`SELECT to_char(COALESCE(start_date,end_date,CURRENT_DATE), 'YYYY-MM') AS month_label, COALESCE(SUM(spend),0)::numeric AS total FROM campaigns GROUP BY 1 ORDER BY 1 DESC LIMIT 6`),
       query(`SELECT status, COUNT(*)::int AS count FROM content_items GROUP BY status ORDER BY status`),
-      query(`SELECT b.name, COALESCE(SUM(d.stories_count + d.posts_count + d.reels_count),0)::int AS content_score, COALESCE(SUM(d.subscriber_count),0)::int AS subscriber_growth FROM branches b LEFT JOIN daily_branch_reports d ON d.branch_id = b.id GROUP BY b.id, b.name ORDER BY content_score DESC, subscriber_growth DESC LIMIT 8`),
+      query(`SELECT b.name, COALESCE(SUM(d.stories_count + d.posts_count),0)::int AS content_score, COALESCE(SUM(d.subscriber_count),0)::int AS subscriber_growth FROM branches b LEFT JOIN daily_branch_reports d ON d.branch_id = b.id GROUP BY b.id, b.name ORDER BY content_score DESC, subscriber_growth DESC LIMIT 8`),
       query(`SELECT u.full_name, COUNT(t.id)::int AS done_tasks, COALESCE(SUM(bi.total_amount),0)::numeric AS bonus_total FROM users u LEFT JOIN tasks t ON t.assignee_user_id = u.id AND t.status = 'done' LEFT JOIN bonus_items bi ON bi.user_id = u.id GROUP BY u.id, u.full_name ORDER BY done_tasks DESC, bonus_total DESC LIMIT 8`),
       query(`SELECT month_label, category, limit_amount FROM budgets ORDER BY month_label DESC, id DESC LIMIT 24`),
       query(`SELECT category, COALESCE(SUM(amount),0)::numeric AS total FROM expenses GROUP BY category ORDER BY total DESC`),
@@ -5094,7 +5198,7 @@ app.get("/api/reports/advanced", authRequired, async (req, res) => {
     const range = String(req.query.range || "monthly");
     const bucket = range === "daily" ? "YYYY-MM-DD" : range === "weekly" ? "IYYY-IW" : "YYYY-MM";
     const [reportsRes, tasksRes, expensesRes] = await Promise.all([
-      query(`SELECT to_char(report_date, '${bucket}') AS bucket, COUNT(*)::int AS reports_count, COALESCE(SUM(stories_count + posts_count + reels_count),0)::int AS content_total FROM daily_branch_reports GROUP BY 1 ORDER BY 1 DESC LIMIT 20`),
+      query(`SELECT to_char(report_date, '${bucket}') AS bucket, COUNT(*)::int AS reports_count, COALESCE(SUM(stories_count + posts_count),0)::int AS content_total FROM daily_branch_reports GROUP BY 1 ORDER BY 1 DESC LIMIT 20`),
       query(`SELECT to_char(due_date, '${bucket}') AS bucket, COUNT(*)::int AS task_total, COUNT(*) FILTER (WHERE status='done')::int AS done_count FROM tasks WHERE due_date IS NOT NULL GROUP BY 1 ORDER BY 1 DESC LIMIT 20`),
       query(`SELECT to_char(expense_date, '${bucket}') AS bucket, COALESCE(SUM(amount),0)::numeric AS expense_total FROM expenses WHERE expense_date IS NOT NULL GROUP BY 1 ORDER BY 1 DESC LIMIT 20`)
     ]);
@@ -5109,7 +5213,7 @@ app.get("/api/top-performers", authRequired, async (_, res) => {
   try {
     const [employees, branchesRes] = await Promise.all([
       query(`SELECT u.full_name, COUNT(t.id)::int AS done_tasks, COALESCE(SUM(bi.total_amount),0)::numeric AS bonus_total FROM users u LEFT JOIN tasks t ON t.assignee_user_id = u.id AND t.status='done' LEFT JOIN bonus_items bi ON bi.user_id = u.id GROUP BY u.id, u.full_name ORDER BY done_tasks DESC, bonus_total DESC LIMIT 5`),
-      query(`SELECT b.name, COALESCE(SUM(d.stories_count + d.posts_count + d.reels_count),0)::int AS content_total, COALESCE(SUM(d.subscriber_count),0)::int AS subscriber_total FROM branches b LEFT JOIN daily_branch_reports d ON d.branch_id = b.id GROUP BY b.id, b.name ORDER BY content_total DESC, subscriber_total DESC LIMIT 5`)
+      query(`SELECT b.name, COALESCE(SUM(d.stories_count + d.posts_count),0)::int AS content_total, COALESCE(SUM(d.subscriber_count),0)::int AS subscriber_total FROM branches b LEFT JOIN daily_branch_reports d ON d.branch_id = b.id GROUP BY b.id, b.name ORDER BY content_total DESC, subscriber_total DESC LIMIT 5`)
     ]);
     res.json({ employees: employees.rows, branches: branchesRes.rows });
   } catch (err) {
@@ -5588,16 +5692,16 @@ app.get("/api/export/daily-reports.xlsx", authRequired, async (_, res) => {
     const rows = (
       await query(`
         SELECT
-          report_date,
-          branch_id,
+          d.report_date,
+          b.name AS branch_name,
           stories_count,
           posts_count,
-          reels_count,
           subscriber_count,
           condition_text,
           notes
-        FROM daily_branch_reports
-        ORDER BY report_date DESC
+        FROM daily_branch_reports d
+        LEFT JOIN branches b ON b.id = d.branch_id
+        ORDER BY d.report_date DESC
       `)
     ).rows;
 
@@ -5643,15 +5747,15 @@ app.get("/api/export/daily-reports.pdf", authRequired, async (_, res) => {
     const rows = (
       await query(`
         SELECT
-          report_date,
-          branch_id,
+          d.report_date,
+          b.name AS branch_name,
           stories_count,
           posts_count,
-          reels_count,
           subscriber_count,
           condition_text
-        FROM daily_branch_reports
-        ORDER BY report_date DESC
+        FROM daily_branch_reports d
+        LEFT JOIN branches b ON b.id = d.branch_id
+        ORDER BY d.report_date DESC
       `)
     ).rows;
 

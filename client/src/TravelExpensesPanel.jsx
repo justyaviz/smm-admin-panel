@@ -254,37 +254,8 @@ export default function TravelExpensesPanel({ travelExpenses = [], onToast, relo
   async function moveRow(row, targetRow) {
     if (!row?.id || !targetRow?.id) return;
     try {
-      const currentSort = Number(row.sort_order || 0);
-      const targetSort = Number(targetRow.sort_order || 0);
-
-      await api.update("travel-expenses", row.id, {
-        expense_date: formatDate(row.expense_date) === "-" ? "" : formatDate(row.expense_date),
-        category: row.category || "kategoriya_yoq",
-        title: row.title || "",
-        amount: Number(row.amount || 0),
-        currency: row.currency || "UZS",
-        entry_type: row.entry_type || "chiqim",
-        sort_order: -1
-      });
-
-      await api.update("travel-expenses", targetRow.id, {
-        expense_date: formatDate(targetRow.expense_date) === "-" ? "" : formatDate(targetRow.expense_date),
-        category: targetRow.category || "kategoriya_yoq",
-        title: targetRow.title || "",
-        amount: Number(targetRow.amount || 0),
-        currency: targetRow.currency || "UZS",
-        entry_type: targetRow.entry_type || "chiqim",
-        sort_order: currentSort
-      });
-
-      await api.update("travel-expenses", row.id, {
-        expense_date: formatDate(row.expense_date) === "-" ? "" : formatDate(row.expense_date),
-        category: row.category || "kategoriya_yoq",
-        title: row.title || "",
-        amount: Number(row.amount || 0),
-        currency: row.currency || "UZS",
-        entry_type: row.entry_type || "chiqim",
-        sort_order: targetSort
+      await api.post(`/api/travel-expenses/${row.id}/move`, {
+        target_id: targetRow.id
       });
 
       await reload();

@@ -130,6 +130,12 @@ export const api = {
       body: JSON.stringify(payload)
     }),
 
+  postForm: (path, formData) =>
+    request(path.startsWith("/") ? path : `/api/${path}`, {
+      method: "POST",
+      body: formData
+    }),
+
   update: (entity, id, payload) =>
     request(`/api/${entity}/${id}`, {
       method: "PUT",
