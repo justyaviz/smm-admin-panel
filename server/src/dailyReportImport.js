@@ -4,12 +4,12 @@ import Tesseract from "tesseract.js";
 let workerPromise = null;
 
 const CUSTOM_BRANCH_ALIASES = {
-  boshofis: ["aloouz", "aloo.uz", "aloouzplatform", "aloosmm"],
+  boshofis: ["aloouz", "aloouzu", "aloo.uz", "aloo.uz_", "@aloo.uz_", "@aloouz", "aloouzplatform", "aloosmm"],
   ohangaron: ["ohangaron"],
   angren: ["angren"],
   chirchiq: ["chirchiq", "chirchiq"],
   guliston: ["guliston"],
-  jarqorgon: ["jarqorgon", "jarqorgon", "jarqorgon"],
+  jarqorgon: ["jarqorgon", "jarqorgon", "jarqorgon", "jarqorgon"],
   sherobod: ["sherobod"],
   qibray: ["qibray", "qibraiy"],
   gazalkent: ["gazalkent", "qazalkent"],
@@ -123,6 +123,27 @@ function getSortedLines(lines = []) {
     .sort((a, b) => (a.y === b.y ? a.x - b.x : a.y - b.y));
 }
 
+function buildCandidateLines(result = {}) {
+  const seen = new Set();
+  const merged = [];
+
+  const push = (text = "") => {
+    const cleaned = getLineText(text);
+    if (!cleaned) return;
+    const key = `${normalizeToken(cleaned)}::${cleaned.length}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    merged.push({ text: cleaned });
+  };
+
+  (result.lines || []).forEach((line) => push(line.text));
+  String(result.text || "")
+    .split(/\r?\n/)
+    .forEach((line) => push(line));
+
+  return merged;
+}
+
 async function getOcrWorker() {
   if (!workerPromise) {
     workerPromise = (async () => {
@@ -180,13 +201,13 @@ function parseAudienceMetrics(lines = [], matchers = []) {
     const matcher = findBranchMatcher(current, matchers);
     if (!matcher) continue;
 
-    let candidate = current;
-    let numbers = extractNumericGroups(candidate);
-
-    if (numbers.length < 2 && lines[index + 1]?.text) {
-      candidate = `${candidate} ${lines[index + 1].text}`;
-      numbers = extractNumericGroups(candidate);
-    }
+    const candidate = [
+      lines[index - 1]?.text || "",
+      current,
+      lines[index + 1]?.text || "",
+      lines[index + 2]?.text || ""
+    ].join(" ");
+    const numbers = extractNumericGroups(candidate);
 
     if (!numbers.length) continue;
 
@@ -243,6 +264,39 @@ function parseContentMetrics(lines = [], matchers = [], orderedDates = [], targe
   return { map, warnings };
 }
 
+function parseSingleDayContentMetrics(lines = [], matchers = []) {
+  const map = new Map();
+  const warnings = [];
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const current = lines[index]?.text || "";
+    const matcher = findBranchMatcher(current, matchers);
+    if (!matcher) continue;
+
+    const candidate = [
+      lines[index - 1]?.text || "",
+      current,
+      lines[index + 1]?.text || "",
+      lines[index + 2]?.text || ""
+    ].join(" ");
+    const numbers = extractNumericGroups(candidate);
+
+    if (numbers.length < 2) continue;
+
+    const pair = numbers.slice(-2);
+    map.set(matcher.branch.id, {
+      stories_count: Number(pair[0] || 0),
+      posts_count: Number(pair[1] || 0)
+    });
+  }
+
+  if (!map.size) {
+    warnings.push("Post/story rasmidan bir kunlik jadval ham o'qilmadi.");
+  }
+
+  return { map, warnings };
+}
+
 export async function importDailyReportsFromImages({
   contentImagePath,
   metricsImagePath,
@@ -270,8 +324,18 @@ export async function importDailyReportsFromImages({
     throw new Error("Rasmlardan hisobot sanasini aniqlab bo'lmadi.");
   }
 
-  const audienceMetrics = parseAudienceMetrics(metricsNormal.lines, branchMatchers);
-  const contentMetrics = parseContentMetrics(contentNormal.lines, branchMatchers, orderedDates, resolvedReportDate);
+  const contentLines = buildCandidateLines(contentNormal);
+  const metricsLines = buildCandidateLines(metricsNormal);
+
+  const audienceMetrics = parseAudienceMetrics(metricsLines, branchMatchers);
+
+  let contentMetrics = parseContentMetrics(contentLines, branchMatchers, orderedDates, resolvedReportDate);
+  if (!contentMetrics.map.size) {
+    const singleDayMetrics = parseSingleDayContentMetrics(contentLines, branchMatchers);
+    contentMetrics = singleDayMetrics.map.size ? singleDayMetrics : contentMetrics;
+    warnings.push(...singleDayMetrics.warnings);
+  }
+
   warnings.push(...contentMetrics.warnings);
 
   const branchIds = uniq([
