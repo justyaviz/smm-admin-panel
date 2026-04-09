@@ -4519,7 +4519,7 @@ app.post("/api/travel-expenses", authRequired, async (req, res) => {
 
 app.put("/api/travel-expenses/:id", authRequired, async (req, res) => {
   try {
-    const { expense_date, category, title, amount, currency, entry_type } = req.body;
+    const { expense_date, category, title, amount, currency, entry_type, sort_order } = req.body;
 
     const updated = await query(
       `
@@ -4531,8 +4531,9 @@ app.put("/api/travel-expenses/:id", authRequired, async (req, res) => {
         amount = $4,
         currency = $5,
         entry_type = $6,
+        sort_order = COALESCE($7, sort_order),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $7
+      WHERE id = $8
       RETURNING *
       `,
       [
@@ -4542,6 +4543,7 @@ app.put("/api/travel-expenses/:id", authRequired, async (req, res) => {
         Number(amount || 0),
         currency || "UZS",
         entry_type || "chiqim",
+        Number.isFinite(Number(sort_order)) ? Number(sort_order) : null,
         req.params.id
       ]
     );

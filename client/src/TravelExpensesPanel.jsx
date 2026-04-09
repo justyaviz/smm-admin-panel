@@ -251,10 +251,42 @@ export default function TravelExpensesPanel({ travelExpenses = [], onToast, relo
     }
   }
 
-  async function moveRow(rowId, targetId) {
-    if (!rowId || !targetId) return;
+  async function moveRow(row, targetRow) {
+    if (!row?.id || !targetRow?.id) return;
     try {
-      await api.post(`/api/travel-expenses/${rowId}/move`, { target_id: targetId });
+      const currentSort = Number(row.sort_order || 0);
+      const targetSort = Number(targetRow.sort_order || 0);
+
+      await api.update("travel-expenses", row.id, {
+        expense_date: formatDate(row.expense_date) === "-" ? "" : formatDate(row.expense_date),
+        category: row.category || "kategoriya_yoq",
+        title: row.title || "",
+        amount: Number(row.amount || 0),
+        currency: row.currency || "UZS",
+        entry_type: row.entry_type || "chiqim",
+        sort_order: -1
+      });
+
+      await api.update("travel-expenses", targetRow.id, {
+        expense_date: formatDate(targetRow.expense_date) === "-" ? "" : formatDate(targetRow.expense_date),
+        category: targetRow.category || "kategoriya_yoq",
+        title: targetRow.title || "",
+        amount: Number(targetRow.amount || 0),
+        currency: targetRow.currency || "UZS",
+        entry_type: targetRow.entry_type || "chiqim",
+        sort_order: currentSort
+      });
+
+      await api.update("travel-expenses", row.id, {
+        expense_date: formatDate(row.expense_date) === "-" ? "" : formatDate(row.expense_date),
+        category: row.category || "kategoriya_yoq",
+        title: row.title || "",
+        amount: Number(row.amount || 0),
+        currency: row.currency || "UZS",
+        entry_type: row.entry_type || "chiqim",
+        sort_order: targetSort
+      });
+
       await reload();
       onToast("Safar harajatlari tartibi yangilandi", "success");
     } catch (err) {
@@ -379,8 +411,8 @@ export default function TravelExpensesPanel({ travelExpenses = [], onToast, relo
                   </td>
                   <td>
                     <IconActions
-                      onMoveUp={index > 0 ? () => moveRow(row.id, filteredRows[index - 1]?.id) : null}
-                      onMoveDown={index < filteredRows.length - 1 ? () => moveRow(row.id, filteredRows[index + 1]?.id) : null}
+                      onMoveUp={index > 0 ? () => moveRow(row, filteredRows[index - 1]) : null}
+                      onMoveDown={index < filteredRows.length - 1 ? () => moveRow(row, filteredRows[index + 1]) : null}
                       onView={() => setViewRow(row)}
                       onEdit={() => startEdit(row)}
                       onDelete={() => removeRow(row.id)}
@@ -419,8 +451,8 @@ export default function TravelExpensesPanel({ travelExpenses = [], onToast, relo
               </div>
               <div className="mobile-record-actions">
                 <IconActions
-                  onMoveUp={index > 0 ? () => moveRow(row.id, filteredRows[index - 1]?.id) : null}
-                  onMoveDown={index < filteredRows.length - 1 ? () => moveRow(row.id, filteredRows[index + 1]?.id) : null}
+                  onMoveUp={index > 0 ? () => moveRow(row, filteredRows[index - 1]) : null}
+                  onMoveDown={index < filteredRows.length - 1 ? () => moveRow(row, filteredRows[index + 1]) : null}
                   onView={() => setViewRow(row)}
                   onEdit={() => startEdit(row)}
                   onDelete={() => removeRow(row.id)}
