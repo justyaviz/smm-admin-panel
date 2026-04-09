@@ -49,6 +49,7 @@ import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContaine
 import { api, API_BASE, clearAuth, getAuthToken, getCurrentUser, SOCKET_BASE } from "./api";
 import { applySeo } from "./seo";
 import ContestExpensesPanel from "./ContestExpensesPanel";
+import TravelExpensesPanel from "./TravelExpensesPanel";
 
 const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: LayoutDashboard, tone: "indigo" },
@@ -5726,7 +5727,7 @@ function ExpensesPage({ expenses = [], contestExpenses = [], onToast, reload }) 
   );
 }
 
-function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
+function TravelPlansPage({ travelPlans = [], travelExpenses = [], branches = [], onToast, reload }) {
   const emptyForm = {
     plan_date: "",
     branch_id: "",
@@ -5748,6 +5749,7 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
   const [editRow, setEditRow] = useState(null);
   const [viewRow, setViewRow] = useState(null);
   const [branchFilter, setBranchFilter] = useState("");
+  const [travelTab, setTravelTab] = useState("plans");
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   function resetForm() {
@@ -5829,6 +5831,35 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
 
   return (
     <div className="page-grid">
+      <div className="card">
+        <SectionTitle
+          title="Safar boshqaruvi"
+          desc="Safar rejalari va safar harajatlarini bir joydan boshqarish"
+          right={
+            <div className="toolbar-actions">
+              <button
+                type="button"
+                className={`btn ${travelTab === "plans" ? "primary" : "secondary"}`}
+                onClick={() => setTravelTab("plans")}
+              >
+                Safar rejalari
+              </button>
+              <button
+                type="button"
+                className={`btn ${travelTab === "expenses" ? "primary" : "secondary"}`}
+                onClick={() => setTravelTab("expenses")}
+              >
+                Safar harajatlari
+              </button>
+            </div>
+          }
+        />
+      </div>
+
+      {travelTab === "expenses" ? (
+        <TravelExpensesPanel travelExpenses={travelExpenses} onToast={onToast} reload={reload} />
+      ) : (
+        <>
       <div className="card">
         <SectionTitle title={editRow ? "Safar rejasini tahrirlash" : "Safar rejasi qo'shish"} right={editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null} />
         <form className="form-grid" onSubmit={handleSubmit}>
@@ -5984,6 +6015,8 @@ function TravelPlansPage({ travelPlans = [], branches = [], onToast, reload }) {
           <DiscussionPanel entityType="travel_plan" entityId={viewRow.id} onToast={onToast} />
         </> : null}
       </Modal>
+        </>
+      )}
     </div>
   );
 }
@@ -6428,6 +6461,7 @@ function App() {
   const [expenses, setExpenses] = useState([]);
   const [contestExpenses, setContestExpenses] = useState([]);
   const [travelPlans, setTravelPlans] = useState([]);
+  const [travelExpenses, setTravelExpenses] = useState([]);
   const [uploads, setUploads] = useState([]);
   const [contentRows, setContentRows] = useState([]);
   const [dailyReports, setDailyReports] = useState([]);
@@ -6623,9 +6657,15 @@ function App() {
         setBudgets(budgetsRes || []);
         break;
       }
-      case "travelPlans":
-        setTravelPlans(await api.list("travel-plans").catch(() => []));
+      case "travelPlans": {
+        const [travelPlansRes, travelExpensesRes] = await Promise.all([
+          api.list("travel-plans").catch(() => []),
+          api.list("travel-expenses").catch(() => [])
+        ]);
+        setTravelPlans(travelPlansRes || []);
+        setTravelExpenses(travelExpensesRes || []);
         break;
+      }
       case "analytics": {
         const [analyticsRes, employeeKpiRes, executiveSummaryRes] = await Promise.all([
           api.list("/api/analytics/overview").catch(() => null),
@@ -6958,7 +6998,7 @@ function App() {
   } else if (active === "finance") {
     page = <FinanceDashboardPage expenses={expenses} campaigns={campaigns} bonusItems={bonusItems} travelPlans={travelPlans} budgets={budgets} onToast={showToast} reload={reloadData} />;
   } else if (active === "travelPlans") {
-    page = <TravelPlansPage travelPlans={travelPlans} branches={branches} onToast={showToast} reload={reloadData} />;
+    page = <TravelPlansPage travelPlans={travelPlans} travelExpenses={travelExpenses} branches={branches} onToast={showToast} reload={reloadData} />;
   } else if (active === "analytics") {
     page = <AnalyticsPage analyticsData={{ ...(analyticsData || {}), employee_kpi: employeeKpi, executive_summary: executiveSummary?.text }} />;
   } else if (active === "moodPulse") {

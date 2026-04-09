@@ -13,7 +13,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { getClient, query } from "./db.js";
 import { actionPermissionAllowed, authRequired, pagePermissionAllowed, rolesAllowed, signToken } from "./auth.js";
 import { buildBranchOrderSql, DEFAULT_BRANCHES } from "./defaultBranches.js";
-import { sendContestExpensePdf, sendExcel, sendSimplePdf } from "./exports.js";
+import { sendContestExpensePdf, sendExcel, sendSimplePdf, sendTravelExpensePdf } from "./exports.js";
 import { isMySeOneSyncEnabled, pullBonusMirrorFromMySeOne, syncBonusDeleteToMySeOne, syncBonusUpsertToMySeOne } from "./mySeOneSync.js";
 
 const app = express();
@@ -1218,6 +1218,18 @@ async function ensureRuntimeSchema() {
       winner_name TEXT NOT NULL,
       winner_phone TEXT NOT NULL,
       proof_image_url TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS travel_expenses (
+      id SERIAL PRIMARY KEY,
+      expense_date DATE NOT NULL,
+      category TEXT NOT NULL DEFAULT 'kategoriya_yoq',
+      title TEXT NOT NULL,
+      amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'UZS',
+      entry_type TEXT NOT NULL DEFAULT 'chiqim',
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -4434,6 +4446,107 @@ app.delete("/api/contest-expenses/:id", authRequired, async (req, res) => {
   }
 });
 
+app.get("/api/travel-expenses", authRequired, async (_, res) => {
+  try {
+    const result = await query(
+      `
+      SELECT *
+      FROM travel_expenses
+      ORDER BY expense_date DESC NULLS LAST, id DESC
+      `
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Safar harajatlarini olib bo'lmadi" });
+  }
+});
+
+app.post("/api/travel-expenses", authRequired, async (req, res) => {
+  try {
+    const { expense_date, category, title, amount, currency, entry_type } = req.body;
+
+    const inserted = await query(
+      `
+      INSERT INTO travel_expenses
+      (expense_date, category, title, amount, currency, entry_type, created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      RETURNING *
+      `,
+      [
+        normalizeDateOnly(expense_date),
+        category || "kategoriya_yoq",
+        title,
+        Number(amount || 0),
+        currency || "UZS",
+        entry_type || "chiqim",
+        req.user.id
+      ]
+    );
+
+    await logAction(req.user.id, "create", "travel_expenses", inserted.rows[0].id, { title, amount });
+    res.json(inserted.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Safar harajatini saqlab bo'lmadi" });
+  }
+});
+
+app.put("/api/travel-expenses/:id", authRequired, async (req, res) => {
+  try {
+    const { expense_date, category, title, amount, currency, entry_type } = req.body;
+
+    const updated = await query(
+      `
+      UPDATE travel_expenses
+      SET
+        expense_date = $1,
+        category = $2,
+        title = $3,
+        amount = $4,
+        currency = $5,
+        entry_type = $6,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7
+      RETURNING *
+      `,
+      [
+        normalizeDateOnly(expense_date),
+        category || "kategoriya_yoq",
+        title,
+        Number(amount || 0),
+        currency || "UZS",
+        entry_type || "chiqim",
+        req.params.id
+      ]
+    );
+
+    if (!updated.rows.length) {
+      return res.status(404).json({ message: "Safar harajati topilmadi" });
+    }
+
+    await logAction(req.user.id, "update", "travel_expenses", Number(req.params.id), { title, amount });
+    res.json(updated.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Safar harajatini yangilab bo'lmadi" });
+  }
+});
+
+app.delete("/api/travel-expenses/:id", authRequired, async (req, res) => {
+  try {
+    const deleted = await query(`DELETE FROM travel_expenses WHERE id = $1 RETURNING id`, [req.params.id]);
+    if (!deleted.rows.length) {
+      return res.status(404).json({ message: "Safar harajati topilmadi" });
+    }
+    await logAction(req.user.id, "delete", "travel_expenses", Number(req.params.id), {});
+    res.json({ message: "Safar harajati o'chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Safar harajatini o'chirib bo'lmadi" });
+  }
+});
+
 /* TRAVEL PLANS */
 
 app.get("/api/travel-plans", authRequired, async (_, res) => {
@@ -4934,6 +5047,7 @@ app.get("/api/backup/export", authRequired, rolesAllowed("admin"), async (_, res
       "daily_branch_reports",
       "expenses",
       "contest_expenses",
+      "travel_expenses",
       "travel_plans",
       "tasks",
       "budgets",
@@ -4969,6 +5083,7 @@ app.post("/api/backup/import", authRequired, rolesAllowed("admin"), async (req, 
       "daily_branch_reports",
       "expenses",
       "contest_expenses",
+      "travel_expenses",
       "travel_plans",
       "tasks",
       "budgets",
@@ -5497,6 +5612,38 @@ app.get("/api/export/contest-expenses.pdf", authRequired, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Contest PDF export xatoligi" });
+  }
+});
+
+app.get("/api/export/travel-expenses.pdf", authRequired, async (req, res) => {
+  try {
+    const month = String(req.query.month || "").trim();
+    const params = [];
+    let whereClause = "";
+    let title = "Safar harajatlari hisobot";
+
+    if (month) {
+      params.push(month);
+      whereClause = `WHERE to_char(expense_date, 'YYYY-MM') = $1`;
+      title = `${month} safar harajatlari hisobot`;
+    }
+
+    const rows = (
+      await query(
+        `
+        SELECT *
+        FROM travel_expenses
+        ${whereClause}
+        ORDER BY expense_date ASC NULLS LAST, id ASC
+        `,
+        params
+      )
+    ).rows;
+
+    sendTravelExpensePdf(res, rows, `travel-expenses-${month || "all"}.pdf`, title);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Safar harajatlari PDF export xatoligi" });
   }
 });
 

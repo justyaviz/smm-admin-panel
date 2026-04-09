@@ -244,3 +244,166 @@ export async function sendContestExpensePdf(res, rows, fileName = "contest-expen
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
   res.send(buffer);
 }
+
+function formatMoneyWithCurrency(amount = 0, currency = "UZS") {
+  const value = Number(amount || 0);
+  try {
+    return new Intl.NumberFormat("uz-UZ", {
+      style: "currency",
+      currency: currency || "UZS",
+      maximumFractionDigits: 0
+    }).format(value);
+  } catch {
+    return `${value.toLocaleString("uz-UZ")} ${currency || ""}`.trim();
+  }
+}
+
+function travelExpenseCategoryLabel(value) {
+  const map = {
+    transport: "Transport",
+    hamyon_toldirish: "Hamyon to'ldirish",
+    taksi: "Taksi",
+    restoran_va_kafelar: "Restoran va kafelar",
+    karta_toldirish: "Karta to'ldirish",
+    xarid: "Xarid",
+    kategoriya_yoq: "Kategoriya yo'q"
+  };
+  return map[value] || "Kategoriya yo'q";
+}
+
+function travelExpenseTypeLabel(value) {
+  return value === "kirim" ? "Kirim" : "Chiqim";
+}
+
+function drawTravelExpenseTableHeader(doc, startY, colX) {
+  const rowHeight = 26;
+  const tableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  doc
+    .lineWidth(1)
+    .fillColor("#eef4ff")
+    .strokeColor("#d5deef")
+    .rect(doc.page.margins.left, startY, tableWidth, rowHeight)
+    .fillAndStroke();
+
+  doc.fillColor("#334155").font("Helvetica-Bold").fontSize(9);
+  [
+    ["ID", 0],
+    ["Sana", 1],
+    ["Kategoriya", 2],
+    ["Nomi", 3],
+    ["Turi", 4],
+    ["Valyuta", 5],
+    ["Summa", 6]
+  ].forEach(([label, idx]) => {
+    doc.text(label, colX[idx] + 6, startY + 8, {
+      width: colX[idx + 1] - colX[idx] - 12,
+      align: idx === 6 ? "right" : "left"
+    });
+  });
+  return startY + rowHeight;
+}
+
+export function sendTravelExpensePdf(res, rows, fileName = "travel-expenses.pdf", title = "Safar harajatlari hisobot") {
+  const doc = new PDFDocument({ margin: 38, size: "A4" });
+  const safeRows = Array.isArray(rows) ? rows : [];
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  doc.pipe(res);
+
+  const totalExpense = safeRows.filter((row) => row.entry_type !== "kirim").length;
+  const totalIncome = safeRows.filter((row) => row.entry_type === "kirim").length;
+
+  doc.font("Helvetica-Bold").fontSize(18).fillColor("#0f172a").text(title, { align: "center" });
+  doc.moveDown(0.3);
+  doc.font("Helvetica").fontSize(10).fillColor("#64748b").text("Safar bo'yicha chiqim va kirimlar ro'yxati", { align: "center" });
+  doc.moveDown(1);
+
+  const summaryTop = doc.y;
+  const summaryWidth = (doc.page.width - doc.page.margins.left - doc.page.margins.right - 16) / 3;
+  [
+    { label: "Yozuvlar soni", value: String(safeRows.length), tone: "#1d4ed8" },
+    { label: "Chiqim yozuvlari", value: String(totalExpense), tone: "#dc2626" },
+    { label: "Kirim yozuvlari", value: String(totalIncome), tone: "#16a34a" }
+  ].forEach((item, idx) => {
+    const x = doc.page.margins.left + idx * (summaryWidth + 8);
+    doc
+      .lineWidth(1)
+      .fillColor("#f8fafc")
+      .strokeColor("#dbe4f0")
+      .roundedRect(x, summaryTop, summaryWidth, 56, 10)
+      .fillAndStroke();
+    doc.fillColor("#64748b").fontSize(9).font("Helvetica-Bold").text(item.label, x + 10, summaryTop + 10, { width: summaryWidth - 20 });
+    doc.fillColor(item.tone).fontSize(13).font("Helvetica-Bold").text(item.value, x + 10, summaryTop + 28, { width: summaryWidth - 20 });
+  });
+
+  let cursorY = summaryTop + 78;
+  const colX = [
+    doc.page.margins.left,
+    doc.page.margins.left + 42,
+    doc.page.margins.left + 112,
+    doc.page.margins.left + 220,
+    doc.page.margins.left + 380,
+    doc.page.margins.left + 440,
+    doc.page.margins.left + 500,
+    doc.page.width - doc.page.margins.right
+  ];
+  const rowHeight = 26;
+
+  cursorY = drawTravelExpenseTableHeader(doc, cursorY, colX);
+
+  if (!safeRows.length) {
+    doc.font("Helvetica").fontSize(11).fillColor("#64748b").text("Hozircha safar harajatlari mavjud emas.", doc.page.margins.left, cursorY + 24, {
+      width: doc.page.width - doc.page.margins.left - doc.page.margins.right,
+      align: "center"
+    });
+  } else {
+    safeRows.forEach((row, index) => {
+      if (cursorY > doc.page.height - doc.page.margins.bottom - 40) {
+        doc.addPage();
+        cursorY = drawTravelExpenseTableHeader(doc, doc.page.margins.top, colX);
+      }
+
+      const fill = index % 2 === 0 ? "#ffffff" : "#f8fbff";
+      doc
+        .lineWidth(1)
+        .fillColor(fill)
+        .strokeColor("#e2e8f0")
+        .rect(doc.page.margins.left, cursorY, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight)
+        .fillAndStroke();
+
+      const cells = [
+        `#${row.id}`,
+        formatDateOnly(row.expense_date),
+        travelExpenseCategoryLabel(row.category),
+        row.title || "-",
+        travelExpenseTypeLabel(row.entry_type),
+        row.currency || "UZS",
+        formatMoneyWithCurrency(row.amount, row.currency || "UZS")
+      ];
+
+      doc.font("Helvetica").fontSize(9).fillColor("#0f172a");
+      cells.forEach((value, idx) => {
+        doc.text(String(value), colX[idx] + 6, cursorY + 8, {
+          width: colX[idx + 1] - colX[idx] - 12,
+          align: idx === 6 ? "right" : "left",
+          ellipsis: true
+        });
+      });
+
+      cursorY += rowHeight;
+    });
+  }
+
+  doc.moveDown(2);
+  const noteY = Math.min(cursorY + 18, doc.page.height - doc.page.margins.bottom - 40);
+  doc.font("Helvetica-Bold").fontSize(10).fillColor("#111827").text("Izoh:", doc.page.margins.left, noteY);
+  doc.font("Helvetica").fontSize(10).fillColor("#4b5563").text(
+    "Quyida safar bo'yicha kiritilgan barcha chiqim va kirimlar jadval ko'rinishida aks ettirildi.",
+    doc.page.margins.left + 36,
+    noteY,
+    { width: doc.page.width - doc.page.margins.left - doc.page.margins.right - 36 }
+  );
+
+  doc.end();
+}
