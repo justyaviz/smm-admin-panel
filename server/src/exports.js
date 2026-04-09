@@ -275,6 +275,41 @@ function travelExpenseTypeLabel(value) {
   return value === "kirim" ? "Kirim" : "Chiqim";
 }
 
+function summarizeTravelAmounts(rows = [], mode = "expense") {
+  const totals = new Map();
+
+  rows.forEach((row) => {
+    const currency = String(row.currency || "UZS").toUpperCase();
+    const current = Number(totals.get(currency) || 0);
+    const amount = Number(row.amount || 0);
+
+    if (mode === "income" && row.entry_type === "kirim") {
+      totals.set(currency, current + amount);
+    } else if (mode === "expense" && row.entry_type !== "kirim") {
+      totals.set(currency, current + amount);
+    }
+  });
+
+  return totals;
+}
+
+function subtractCurrencyMaps(incomeMap, expenseMap) {
+  const result = new Map();
+  const currencies = new Set([...incomeMap.keys(), ...expenseMap.keys()]);
+  currencies.forEach((currency) => {
+    result.set(currency, Number(incomeMap.get(currency) || 0) - Number(expenseMap.get(currency) || 0));
+  });
+  return result;
+}
+
+function formatCurrencyMap(map) {
+  const entries = [...map.entries()];
+  if (!entries.length) return "0";
+  return entries
+    .map(([currency, amount]) => formatMoneyWithCurrency(amount, currency))
+    .join(" | ");
+}
+
 function drawTravelExpenseTableHeader(doc, startY, colX) {
   const rowHeight = 26;
   const tableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
@@ -311,8 +346,9 @@ export function sendTravelExpensePdf(res, rows, fileName = "travel-expenses.pdf"
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
   doc.pipe(res);
 
-  const totalExpense = safeRows.filter((row) => row.entry_type !== "kirim").length;
-  const totalIncome = safeRows.filter((row) => row.entry_type === "kirim").length;
+  const expenseTotals = summarizeTravelAmounts(safeRows, "expense");
+  const incomeTotals = summarizeTravelAmounts(safeRows, "income");
+  const balanceTotals = subtractCurrencyMaps(incomeTotals, expenseTotals);
 
   doc.font("Helvetica-Bold").fontSize(20).fillColor("#0f172a").text(title, { align: "center" });
   doc.moveDown(0.3);
@@ -322,9 +358,9 @@ export function sendTravelExpensePdf(res, rows, fileName = "travel-expenses.pdf"
   const summaryTop = doc.y;
   const summaryWidth = (doc.page.width - doc.page.margins.left - doc.page.margins.right - 20) / 3;
   [
-    { label: "Yozuvlar soni", value: String(safeRows.length), tone: "#1d4ed8" },
-    { label: "Chiqim yozuvlari", value: String(totalExpense), tone: "#dc2626" },
-    { label: "Kirim yozuvlari", value: String(totalIncome), tone: "#16a34a" }
+    { label: "Umumiy chiqim", value: formatCurrencyMap(expenseTotals), tone: "#dc2626" },
+    { label: "Umumiy kirim", value: formatCurrencyMap(incomeTotals), tone: "#16a34a" },
+    { label: "Qoldiq", value: formatCurrencyMap(balanceTotals), tone: "#1d4ed8" }
   ].forEach((item, idx) => {
     const x = doc.page.margins.left + idx * (summaryWidth + 10);
     doc
@@ -334,12 +370,15 @@ export function sendTravelExpensePdf(res, rows, fileName = "travel-expenses.pdf"
       .roundedRect(x, summaryTop, summaryWidth, 56, 10)
       .fillAndStroke();
     doc.fillColor("#64748b").fontSize(9).font("Helvetica-Bold").text(item.label, x + 10, summaryTop + 10, { width: summaryWidth - 20 });
-    doc.fillColor(item.tone).fontSize(13).font("Helvetica-Bold").text(item.value, x + 10, summaryTop + 28, { width: summaryWidth - 20 });
+    doc.fillColor(item.tone).fontSize(12).font("Helvetica-Bold").text(item.value, x + 10, summaryTop + 28, {
+      width: summaryWidth - 20,
+      ellipsis: true
+    });
   });
 
   let cursorY = summaryTop + 78;
   const tableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const columnWidths = [48, 80, 130, 255, 78, 70, 124];
+  const columnWidths = [48, 80, 124, 222, 70, 66, tableWidth - (48 + 80 + 124 + 222 + 70 + 66)];
   const colX = [
     doc.page.margins.left,
     doc.page.margins.left + columnWidths[0],
