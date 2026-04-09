@@ -1201,6 +1201,7 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS tags_json JSONB NOT NULL DEFAULT '[]'::jsonb`,
     `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS version_label TEXT`,
     `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_key TEXT`,
+    `ALTER TABLE travel_expenses ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL`,
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS daily_budget NUMERIC(14,2) NOT NULL DEFAULT 0`,
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS start_at TIMESTAMP`,
@@ -1230,6 +1231,7 @@ async function ensureRuntimeSchema() {
       amount NUMERIC(14,2) NOT NULL DEFAULT 0,
       currency TEXT NOT NULL DEFAULT 'UZS',
       entry_type TEXT NOT NULL DEFAULT 'chiqim',
+      sort_order INTEGER NOT NULL DEFAULT 0,
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -1367,6 +1369,26 @@ async function ensureRuntimeSchema() {
     for (const statement of statements) {
       await query(statement);
     }
+
+    await query(`
+      WITH ordered AS (
+        SELECT
+          id,
+          ROW_NUMBER() OVER (
+            ORDER BY
+              CASE WHEN COALESCE(sort_order, 0) > 0 THEN 0 ELSE 1 END,
+              sort_order ASC NULLS LAST,
+              expense_date ASC NULLS LAST,
+              id ASC
+          ) AS next_order
+        FROM travel_expenses
+      )
+      UPDATE travel_expenses te
+      SET sort_order = ordered.next_order
+      FROM ordered
+      WHERE te.id = ordered.id
+        AND (COALESCE(te.sort_order, 0) <= 0 OR te.sort_order <> ordered.next_order)
+    `);
 
     await query(`
       DO $$
@@ -4452,7 +4474,7 @@ app.get("/api/travel-expenses", authRequired, async (_, res) => {
       `
       SELECT *
       FROM travel_expenses
-      ORDER BY expense_date DESC NULLS LAST, id DESC
+      ORDER BY sort_order ASC NULLS LAST, expense_date ASC NULLS LAST, id ASC
       `
     );
     res.json(result.rows);
@@ -4465,12 +4487,14 @@ app.get("/api/travel-expenses", authRequired, async (_, res) => {
 app.post("/api/travel-expenses", authRequired, async (req, res) => {
   try {
     const { expense_date, category, title, amount, currency, entry_type } = req.body;
+    const nextSortOrderResult = await query(`SELECT COALESCE(MAX(sort_order), 0) + 1 AS next_order FROM travel_expenses`);
+    const nextSortOrder = Number(nextSortOrderResult.rows[0]?.next_order || 1);
 
     const inserted = await query(
       `
       INSERT INTO travel_expenses
-      (expense_date, category, title, amount, currency, entry_type, created_by)
-      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      (expense_date, category, title, amount, currency, entry_type, sort_order, created_by)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
       RETURNING *
       `,
       [
@@ -4480,6 +4504,7 @@ app.post("/api/travel-expenses", authRequired, async (req, res) => {
         Number(amount || 0),
         currency || "UZS",
         entry_type || "chiqim",
+        nextSortOrder,
         req.user.id
       ]
     );
@@ -4530,6 +4555,62 @@ app.put("/api/travel-expenses/:id", authRequired, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Safar harajatini yangilab bo'lmadi" });
+  }
+});
+
+app.post("/api/travel-expenses/:id/move", authRequired, async (req, res) => {
+  const currentId = Number(req.params.id);
+  const targetId = Number(req.body?.target_id || 0);
+
+  if (!currentId || !targetId || currentId === targetId) {
+    return res.status(400).json({ message: "Tartibni o'zgartirish uchun qo'shni yozuv topilmadi" });
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    const currentResult = await client.query(
+      `SELECT id, sort_order FROM travel_expenses WHERE id = $1 FOR UPDATE`,
+      [currentId]
+    );
+    const targetResult = await client.query(
+      `SELECT id, sort_order FROM travel_expenses WHERE id = $1 FOR UPDATE`,
+      [targetId]
+    );
+
+    const currentRow = currentResult.rows[0];
+    const targetRow = targetResult.rows[0];
+
+    if (!currentRow || !targetRow) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Safar harajati topilmadi" });
+    }
+
+    await client.query(
+      `
+      UPDATE travel_expenses
+      SET
+        sort_order = CASE
+          WHEN id = $1 THEN $3
+          WHEN id = $2 THEN $4
+          ELSE sort_order
+        END,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id IN ($1, $2)
+      `,
+      [currentRow.id, targetRow.id, targetRow.sort_order, currentRow.sort_order]
+    );
+
+    await client.query("COMMIT");
+    await logAction(req.user.id, "reorder", "travel_expenses", currentId, { target_id: targetId });
+    res.json({ success: true });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ message: "Safar harajatlari tartibini o'zgartirib bo'lmadi" });
+  } finally {
+    client.release();
   }
 });
 
@@ -5628,17 +5709,17 @@ app.get("/api/export/travel-expenses.pdf", authRequired, async (req, res) => {
       title = `${month} safar harajatlari hisobot`;
     }
 
-    const rows = (
-      await query(
-        `
-        SELECT *
-        FROM travel_expenses
-        ${whereClause}
-        ORDER BY expense_date ASC NULLS LAST, id ASC
-        `,
-        params
-      )
-    ).rows;
+      const rows = (
+        await query(
+          `
+          SELECT *
+          FROM travel_expenses
+          ${whereClause}
+          ORDER BY sort_order ASC NULLS LAST, expense_date ASC NULLS LAST, id ASC
+          `,
+          params
+        )
+      ).rows;
 
     sendTravelExpensePdf(res, rows, `travel-expenses-${month || "all"}.pdf`, title);
   } catch (err) {

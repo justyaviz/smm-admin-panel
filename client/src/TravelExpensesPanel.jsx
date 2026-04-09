@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { Eye, Pencil, Trash2, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Eye, Pencil, Trash2, X } from "lucide-react";
 import { api } from "./api";
 
 const TRAVEL_EXPENSE_CATEGORIES = [
@@ -66,27 +66,35 @@ function getDateSortValue(value, fallback = Number.POSITIVE_INFINITY) {
   return Number.isNaN(time) ? fallback : time;
 }
 
-function sortRowsByDate(rows = [], dateKey = "expense_date", direction = "asc") {
-  const fallback = direction === "desc" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
+function sortRowsForDisplay(rows = [], dateKey = "expense_date") {
   return [...(rows || [])].sort((a, b) => {
+    const aSort = Number(a?.sort_order || 0);
+    const bSort = Number(b?.sort_order || 0);
+    if (aSort > 0 || bSort > 0) {
+      if (aSort !== bSort) return aSort - bSort;
+    }
+
+    const fallback = Number.POSITIVE_INFINITY;
     const aTime = getDateSortValue(a?.[dateKey], fallback);
     const bTime = getDateSortValue(b?.[dateKey], fallback);
-    if (aTime === bTime) return Number(a?.id || 0) - Number(b?.id || 0);
-    return direction === "desc" ? bTime - aTime : aTime - bTime;
+    if (aTime !== bTime) return aTime - bTime;
+    return Number(a?.id || 0) - Number(b?.id || 0);
   });
 }
 
 function formatAmount(amount = 0, currency = "UZS") {
   const value = Number(amount || 0);
-  try {
-    return new Intl.NumberFormat("uz-UZ", {
-      style: "currency",
-      currency: currency || "UZS",
-      maximumFractionDigits: 0
-    }).format(value);
-  } catch {
-    return `${value.toLocaleString("uz-UZ")} ${currency || ""}`.trim();
+  const normalizedCurrency = String(currency || "UZS").toUpperCase();
+
+  if (normalizedCurrency === "UZS") {
+    return `${value.toLocaleString("uz-UZ")} UZS`;
   }
+
+  if (normalizedCurrency === "USD") {
+    return `$${value.toLocaleString("uz-UZ")}`;
+  }
+
+  return `${value.toLocaleString("uz-UZ")} ${normalizedCurrency}`;
 }
 
 function categoryLabel(value) {
@@ -138,9 +146,19 @@ function Modal({ open, onClose, title, children, wide = false }) {
   );
 }
 
-function IconActions({ onView, onEdit, onDelete }) {
+function IconActions({ onMoveUp, onMoveDown, onView, onEdit, onDelete }) {
   return (
     <div className="icon-actions">
+      {onMoveUp ? (
+        <button type="button" className="icon-btn" onClick={onMoveUp} title="Tepaga chiqarish">
+          <ArrowUp size={16} />
+        </button>
+      ) : null}
+      {onMoveDown ? (
+        <button type="button" className="icon-btn" onClick={onMoveDown} title="Pastga tushirish">
+          <ArrowDown size={16} />
+        </button>
+      ) : null}
       {onView ? (
         <button type="button" className="icon-btn" onClick={onView} title="Ko'rish">
           <Eye size={16} />
@@ -233,6 +251,17 @@ export default function TravelExpensesPanel({ travelExpenses = [], onToast, relo
     }
   }
 
+  async function moveRow(rowId, targetId) {
+    if (!rowId || !targetId) return;
+    try {
+      await api.post(`/api/travel-expenses/${rowId}/move`, { target_id: targetId });
+      await reload();
+      onToast("Safar harajatlari tartibi yangilandi", "success");
+    } catch (err) {
+      onToast(err.message || "Safar harajatlari tartibini o'zgartirib bo'lmadi", "error");
+    }
+  }
+
   async function exportPdf() {
     try {
       const query = monthFilter ? `?month=${encodeURIComponent(monthFilter)}` : "";
@@ -253,10 +282,9 @@ export default function TravelExpensesPanel({ travelExpenses = [], onToast, relo
     ...travelExpenses.map((item) => formatDate(item.expense_date).slice(0, 7)).filter((item) => item && item !== "-")
   ])];
 
-  const filteredRows = useMemo(() => sortRowsByDate(
+  const filteredRows = useMemo(() => sortRowsForDisplay(
     travelExpenses.filter((item) => !monthFilter || formatDate(item.expense_date).startsWith(monthFilter)),
-    "expense_date",
-    "asc"
+    "expense_date"
   ), [travelExpenses, monthFilter]);
 
   const expenseCount = filteredRows.filter((item) => item.entry_type === "chiqim").length;
@@ -336,7 +364,7 @@ export default function TravelExpensesPanel({ travelExpenses = [], onToast, relo
               </tr>
             </thead>
             <tbody>
-              {filteredRows.length ? filteredRows.map((row) => (
+              {filteredRows.length ? filteredRows.map((row, index) => (
                 <tr key={row.id}>
                   <td>#{row.id}</td>
                   <td>{formatDate(row.expense_date)}</td>
@@ -350,7 +378,13 @@ export default function TravelExpensesPanel({ travelExpenses = [], onToast, relo
                     </span>
                   </td>
                   <td>
-                    <IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} />
+                    <IconActions
+                      onMoveUp={index > 0 ? () => moveRow(row.id, filteredRows[index - 1]?.id) : null}
+                      onMoveDown={index < filteredRows.length - 1 ? () => moveRow(row.id, filteredRows[index + 1]?.id) : null}
+                      onView={() => setViewRow(row)}
+                      onEdit={() => startEdit(row)}
+                      onDelete={() => removeRow(row.id)}
+                    />
                   </td>
                 </tr>
               )) : <tr><td colSpan="8" className="empty-cell">Hozircha safar harajati yo'q</td></tr>}
@@ -358,7 +392,7 @@ export default function TravelExpensesPanel({ travelExpenses = [], onToast, relo
           </table>
         </div>
         <div className="mobile-card-list">
-          {filteredRows.length ? filteredRows.map((row) => (
+          {filteredRows.length ? filteredRows.map((row, index) => (
             <div key={row.id} className="mobile-record-card">
               <div className="mobile-record-head">
                 <div className="mobile-record-title">
@@ -384,7 +418,13 @@ export default function TravelExpensesPanel({ travelExpenses = [], onToast, relo
                 </div>
               </div>
               <div className="mobile-record-actions">
-                <IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} />
+                <IconActions
+                  onMoveUp={index > 0 ? () => moveRow(row.id, filteredRows[index - 1]?.id) : null}
+                  onMoveDown={index < filteredRows.length - 1 ? () => moveRow(row.id, filteredRows[index + 1]?.id) : null}
+                  onView={() => setViewRow(row)}
+                  onEdit={() => startEdit(row)}
+                  onDelete={() => removeRow(row.id)}
+                />
               </div>
             </div>
           )) : <div className="mobile-record-card empty">Hozircha safar harajati yo'q</div>}
