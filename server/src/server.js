@@ -3293,7 +3293,59 @@ app.post(
 
       const savedRows = [];
       for (const row of imported.rows) {
-        const result = await query(
+        const existingRows = await query(
+          `
+          SELECT id
+          FROM daily_branch_reports
+          WHERE report_date = $1 AND branch_id = $2
+          ORDER BY id ASC
+          `,
+          [row.report_date, row.branch_id]
+        );
+
+        if (existingRows.rows.length) {
+          const primaryId = existingRows.rows[0].id;
+          const updated = await query(
+            `
+            UPDATE daily_branch_reports
+            SET
+              stories_count = $1,
+              posts_count = $2,
+              reels_count = 0,
+              subscriber_count = $3,
+              condition_text = $4,
+              notes = CASE
+                WHEN COALESCE(NULLIF($5, ''), '') <> '' THEN $5
+                ELSE notes
+              END,
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = $6
+            RETURNING *
+            `,
+            [
+              Number(row.stories_count || 0),
+              Number(row.posts_count || 0),
+              Number(row.subscriber_count || 0),
+              row.condition_text || "",
+              row.notes || "",
+              primaryId
+            ]
+          );
+
+          if (existingRows.rows.length > 1) {
+            await query(
+              `DELETE FROM daily_branch_reports WHERE id = ANY($1::int[])`,
+              [existingRows.rows.slice(1).map((item) => Number(item.id))]
+            );
+          }
+
+          if (updated.rows[0]) {
+            savedRows.push(updated.rows[0]);
+          }
+          continue;
+        }
+
+        const inserted = await query(
           `
           INSERT INTO daily_branch_reports
           (
@@ -3308,18 +3360,6 @@ app.post(
             created_by
           )
           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-          ON CONFLICT (report_date, branch_id)
-          DO UPDATE SET
-            stories_count = EXCLUDED.stories_count,
-            posts_count = EXCLUDED.posts_count,
-            reels_count = 0,
-            subscriber_count = EXCLUDED.subscriber_count,
-            condition_text = EXCLUDED.condition_text,
-            notes = CASE
-              WHEN COALESCE(NULLIF(EXCLUDED.notes, ''), '') <> '' THEN EXCLUDED.notes
-              ELSE daily_branch_reports.notes
-            END,
-            updated_at = CURRENT_TIMESTAMP
           RETURNING *
           `,
           [
@@ -3334,8 +3374,8 @@ app.post(
             req.user.id
           ]
         );
-        if (result.rows[0]) {
-          savedRows.push(result.rows[0]);
+        if (inserted.rows[0]) {
+          savedRows.push(inserted.rows[0]);
         }
       }
 
