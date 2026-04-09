@@ -304,7 +304,7 @@ function drawTravelExpenseTableHeader(doc, startY, colX) {
 }
 
 export function sendTravelExpensePdf(res, rows, fileName = "travel-expenses.pdf", title = "Safar harajatlari hisobot") {
-  const doc = new PDFDocument({ margin: 38, size: "A4" });
+  const doc = new PDFDocument({ margin: 28, size: "A4", layout: "landscape" });
   const safeRows = Array.isArray(rows) ? rows : [];
 
   res.setHeader("Content-Type", "application/pdf");
@@ -314,19 +314,19 @@ export function sendTravelExpensePdf(res, rows, fileName = "travel-expenses.pdf"
   const totalExpense = safeRows.filter((row) => row.entry_type !== "kirim").length;
   const totalIncome = safeRows.filter((row) => row.entry_type === "kirim").length;
 
-  doc.font("Helvetica-Bold").fontSize(18).fillColor("#0f172a").text(title, { align: "center" });
+  doc.font("Helvetica-Bold").fontSize(20).fillColor("#0f172a").text(title, { align: "center" });
   doc.moveDown(0.3);
   doc.font("Helvetica").fontSize(10).fillColor("#64748b").text("Safar bo'yicha chiqim va kirimlar ro'yxati", { align: "center" });
   doc.moveDown(1);
 
   const summaryTop = doc.y;
-  const summaryWidth = (doc.page.width - doc.page.margins.left - doc.page.margins.right - 16) / 3;
+  const summaryWidth = (doc.page.width - doc.page.margins.left - doc.page.margins.right - 20) / 3;
   [
     { label: "Yozuvlar soni", value: String(safeRows.length), tone: "#1d4ed8" },
     { label: "Chiqim yozuvlari", value: String(totalExpense), tone: "#dc2626" },
     { label: "Kirim yozuvlari", value: String(totalIncome), tone: "#16a34a" }
   ].forEach((item, idx) => {
-    const x = doc.page.margins.left + idx * (summaryWidth + 8);
+    const x = doc.page.margins.left + idx * (summaryWidth + 10);
     doc
       .lineWidth(1)
       .fillColor("#f8fafc")
@@ -338,17 +338,19 @@ export function sendTravelExpensePdf(res, rows, fileName = "travel-expenses.pdf"
   });
 
   let cursorY = summaryTop + 78;
+  const tableWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const columnWidths = [48, 80, 130, 255, 78, 70, 124];
   const colX = [
     doc.page.margins.left,
-    doc.page.margins.left + 42,
-    doc.page.margins.left + 112,
-    doc.page.margins.left + 220,
-    doc.page.margins.left + 380,
-    doc.page.margins.left + 440,
-    doc.page.margins.left + 500,
-    doc.page.width - doc.page.margins.right
+    doc.page.margins.left + columnWidths[0],
+    doc.page.margins.left + columnWidths[0] + columnWidths[1],
+    doc.page.margins.left + columnWidths[0] + columnWidths[1] + columnWidths[2],
+    doc.page.margins.left + columnWidths[0] + columnWidths[1] + columnWidths[2] + columnWidths[3],
+    doc.page.margins.left + columnWidths[0] + columnWidths[1] + columnWidths[2] + columnWidths[3] + columnWidths[4],
+    doc.page.margins.left + columnWidths[0] + columnWidths[1] + columnWidths[2] + columnWidths[3] + columnWidths[4] + columnWidths[5],
+    doc.page.margins.left + tableWidth
   ];
-  const rowHeight = 26;
+  const rowHeight = 28;
 
   cursorY = drawTravelExpenseTableHeader(doc, cursorY, colX);
 
@@ -369,7 +371,7 @@ export function sendTravelExpensePdf(res, rows, fileName = "travel-expenses.pdf"
         .lineWidth(1)
         .fillColor(fill)
         .strokeColor("#e2e8f0")
-        .rect(doc.page.margins.left, cursorY, doc.page.width - doc.page.margins.left - doc.page.margins.right, rowHeight)
+        .rect(doc.page.margins.left, cursorY, tableWidth, rowHeight)
         .fillAndStroke();
 
       const cells = [
@@ -387,7 +389,7 @@ export function sendTravelExpensePdf(res, rows, fileName = "travel-expenses.pdf"
         doc.text(String(value), colX[idx] + 6, cursorY + 8, {
           width: colX[idx + 1] - colX[idx] - 12,
           align: idx === 6 ? "right" : "left",
-          ellipsis: true
+          ellipsis: idx === 3
         });
       });
 
