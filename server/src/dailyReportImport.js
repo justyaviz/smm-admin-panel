@@ -3,6 +3,24 @@ import Tesseract from "tesseract.js";
 
 let workerPromise = null;
 
+const FIXED_CONTENT_BRANCH_ORDER = [
+  "Bosh ofis",
+  "Angren",
+  "Ohangaron",
+  "Olmaliq",
+  "Piskent",
+  "Chirchiq",
+  "Qibray",
+  "G'azalkent",
+  "Parkent",
+  "Chinoz",
+  "Oqqo'rg'on",
+  "Jarqo'rg'on",
+  "Sherobod",
+  "Sho'rchi",
+  "Guliston"
+];
+
 const CUSTOM_BRANCH_ALIASES = {
   boshofis: ["aloouz", "aloouzu", "aloo.uz", "aloo.uz_", "@aloo.uz_", "@aloouz", "aloouzplatform", "aloosmm"],
   ohangaron: ["ohangaron"],
@@ -84,6 +102,12 @@ function buildBranchMatchers(branches = []) {
   });
 }
 
+function buildBranchMap(branches = []) {
+  return new Map(
+    branches.map((branch) => [normalizeToken(branch.name), branch])
+  );
+}
+
 function findBranchMatcher(text = "", matchers = []) {
   const normalized = normalizeToken(text);
   if (!normalized) return null;
@@ -123,6 +147,44 @@ function getSortedLines(lines = []) {
     .sort((a, b) => (a.y === b.y ? a.x - b.x : a.y - b.y));
 }
 
+function getSortedWords(words = []) {
+  return [...(words || [])]
+    .map((word) => ({
+      text: getLineText(word),
+      x: Number(word?.bbox?.x0 || 0),
+      y: Number(word?.bbox?.y0 || 0),
+      x1: Number(word?.bbox?.x1 || 0),
+      y1: Number(word?.bbox?.y1 || 0)
+    }))
+    .filter((word) => word.text)
+    .sort((a, b) => (a.y === b.y ? a.x - b.x : a.y - b.y));
+}
+
+function groupWordsIntoRows(words = [], tolerance = 18) {
+  const rows = [];
+
+  for (const word of words) {
+    const existing = rows.find((row) => Math.abs(row.y - word.y) <= tolerance);
+    if (existing) {
+      existing.words.push(word);
+      existing.y = Math.min(existing.y, word.y);
+      continue;
+    }
+    rows.push({
+      y: word.y,
+      words: [word]
+    });
+  }
+
+  return rows
+    .map((row) => ({
+      y: row.y,
+      words: row.words.sort((a, b) => a.x - b.x),
+      text: row.words.sort((a, b) => a.x - b.x).map((item) => item.text).join(" ").trim()
+    }))
+    .sort((a, b) => a.y - b.y);
+}
+
 function buildCandidateLines(result = {}) {
   const seen = new Set();
   const merged = [];
@@ -157,6 +219,49 @@ async function getOcrWorker() {
   return workerPromise;
 }
 
+async function recognizePreparedImage(image, parameters = {}) {
+  const worker = await getOcrWorker();
+  await worker.setParameters({
+    preserve_interword_spaces: "1",
+    ...parameters
+  });
+  const buffer = await image.getBuffer("image/png");
+  const { data } = await worker.recognize(buffer);
+  return String(data?.text || "").trim();
+}
+
+function prepareCropForOcr(image, { threshold = 190, scale = 4 } = {}) {
+  const clone = image.clone();
+  if (scale !== 1) {
+    clone.scale(scale);
+  }
+  clone
+    .greyscale()
+    .normalize()
+    .contrast(0.45)
+    .threshold({ max: threshold });
+  return clone;
+}
+
+function safeCrop(image, x, y, w, h) {
+  return image.clone().crop({
+    x: Math.max(0, Math.round(x)),
+    y: Math.max(0, Math.round(y)),
+    w: Math.max(1, Math.round(w)),
+    h: Math.max(1, Math.round(h))
+  });
+}
+
+function pickLastNumber(text = "") {
+  const numbers = String(text || "").match(/\d+/g) || [];
+  return numbers.length ? Number(numbers[numbers.length - 1]) : 0;
+}
+
+function pickNumberWithSpaces(text = "") {
+  const compact = String(text || "").replace(/[^\d]/g, "");
+  return compact ? Number(compact) : 0;
+}
+
 async function recognizeImage(filePath, rotate = 0) {
   const image = await Jimp.read(filePath);
 
@@ -176,7 +281,8 @@ async function recognizeImage(filePath, rotate = 0) {
 
   return {
     text: String(data?.text || ""),
-    lines: getSortedLines(data?.lines || [])
+    lines: getSortedLines(data?.lines || []),
+    words: getSortedWords(data?.words || [])
   };
 }
 
@@ -297,6 +403,83 @@ function parseSingleDayContentMetrics(lines = [], matchers = []) {
   return { map, warnings };
 }
 
+function parseFixedContentTableFromWords(contentResult = {}, branches = [], matchers = []) {
+  const branchMap = buildBranchMap(branches);
+  const map = new Map();
+  const warnings = [];
+  const words = contentResult.words || [];
+  const rows = groupWordsIntoRows(words, 14).filter((row) => {
+    const rowText = normalizeToken(row.text);
+    return rowText && !rowText.includes("filiallar") && !rowText.includes("storya") && !rowText.includes("post") && !rowText.includes("jami");
+  });
+
+  for (const row of rows) {
+    const branchWords = row.words.filter((word) => word.x >= 18 && word.x < 185);
+    const storyWords = row.words.filter((word) => word.x >= 185 && word.x < 275);
+    const postWords = row.words.filter((word) => word.x >= 275);
+    const branchText = branchWords.map((item) => item.text).join(" ").trim();
+    const matcher = findBranchMatcher(branchText, matchers);
+    if (!matcher) continue;
+
+    map.set(matcher.branch.id, {
+      stories_count: pickLastNumber(storyWords.map((item) => item.text).join(" ")),
+      posts_count: pickLastNumber(postWords.map((item) => item.text).join(" "))
+    });
+  }
+
+  if (map.size < 10) {
+    for (let index = 0; index < FIXED_CONTENT_BRANCH_ORDER.length; index += 1) {
+      const branch = branchMap.get(normalizeToken(FIXED_CONTENT_BRANCH_ORDER[index]));
+      if (!branch || map.has(branch.id)) continue;
+      map.set(branch.id, {
+        stories_count: 0,
+        posts_count: 0
+      });
+    }
+  }
+
+  if (!map.size) {
+    warnings.push("Post/story jadvali fixed template bo'yicha o'qilmadi.");
+  }
+
+  return { map, warnings };
+}
+
+function parseFixedAudienceTableFromWords(metricsResult = {}, matchers = []) {
+  const map = new Map();
+  const warnings = [];
+  const rows = groupWordsIntoRows(metricsResult.words || [], 14).filter((row) => {
+    const rowText = normalizeToken(row.text);
+    return rowText && !rowText.includes("filiallar") && !rowText.includes("obunachilar") && !rowText.includes("ahvat");
+  });
+
+  for (const row of rows) {
+    const rowText = normalizeToken(row.text);
+    if (rowText.includes("jami")) break;
+
+    const branchWords = row.words.filter((word) => word.x >= 28 && word.x < 185);
+    const subscriberWords = row.words.filter((word) => word.x >= 185 && word.x < 330);
+    const ahvatWords = row.words.filter((word) => word.x >= 330);
+
+    const branchText = branchWords.map((item) => item.text).join(" ").trim();
+    const matcher = findBranchMatcher(branchText, matchers);
+    if (!matcher) continue;
+
+    map.set(matcher.branch.id, {
+      subscriber_count: pickNumberWithSpaces(subscriberWords.map((item) => item.text).join(" ")),
+      condition_text: pickNumberWithSpaces(ahvatWords.map((item) => item.text).join(" "))
+        ? String(pickNumberWithSpaces(ahvatWords.map((item) => item.text).join(" ")))
+        : ""
+    });
+  }
+
+  if (!map.size) {
+    warnings.push("Obunachi/ahvat jadvali fixed template bo'yicha o'qilmadi.");
+  }
+
+  return { map, warnings };
+}
+
 export async function importDailyReportsFromImages({
   contentImagePath,
   metricsImagePath,
@@ -305,6 +488,55 @@ export async function importDailyReportsFromImages({
 }) {
   const warnings = [];
   const branchMatchers = buildBranchMatchers(branches);
+
+  const contentImage = await Jimp.read(contentImagePath);
+  const metricsImage = await Jimp.read(metricsImagePath);
+  const useFixedTemplate = contentImage.bitmap.width <= 500 && metricsImage.bitmap.width <= 800;
+
+  if (useFixedTemplate) {
+    const [contentResult, metricsResult] = await Promise.all([
+      recognizeImage(contentImagePath, 0),
+      recognizeImage(metricsImagePath, 0)
+    ]);
+
+    const fixedContent = parseFixedContentTableFromWords(contentResult, branches, branchMatchers);
+    const fixedAudience = parseFixedAudienceTableFromWords(metricsResult, branchMatchers);
+
+    const resolvedReportDate = normalizeDateValue(reportDate) || "";
+    if (!resolvedReportDate) {
+      throw new Error("Sana maydonini kiriting yoki rasmda aniq ko'rsating.");
+    }
+
+    const branchIds = uniq([
+      ...fixedContent.map.keys(),
+      ...fixedAudience.map.keys()
+    ]);
+
+    if (!branchIds.length) {
+      throw new Error("Filial ma'lumotlarini rasmlardan ajratib bo'lmadi.");
+    }
+
+    warnings.push(...fixedContent.warnings, ...fixedAudience.warnings);
+
+    const rows = branchIds.map((branchId) => ({
+      report_date: resolvedReportDate,
+      branch_id: branchId,
+      stories_count: Number(fixedContent.map.get(branchId)?.stories_count || 0),
+      posts_count: Number(fixedContent.map.get(branchId)?.posts_count || 0),
+      subscriber_count: Number(fixedAudience.map.get(branchId)?.subscriber_count || 0),
+      condition_text: fixedAudience.map.get(branchId)?.condition_text || "",
+      notes: "Rasm orqali to'ldirildi"
+    }));
+
+    return {
+      reportDate: resolvedReportDate,
+      rows,
+      warnings,
+      parsedContentBranches: fixedContent.map.size,
+      parsedAudienceBranches: fixedAudience.map.size,
+      orderedDates: [resolvedReportDate]
+    };
+  }
 
   const [contentNormal, contentRotatedLeft, contentRotatedRight, metricsNormal] = await Promise.all([
     recognizeImage(contentImagePath, 0),
