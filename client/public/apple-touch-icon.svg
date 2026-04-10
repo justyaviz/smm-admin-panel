@@ -1,18 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
-  <defs>
-    <clipPath id="apple-hex">
-      <path d="M18 6H46L58 27V37L46 58H18L6 37V27L18 6Z"/>
-    </clipPath>
-  </defs>
-  <g clip-path="url(#apple-hex)">
-    <rect width="64" height="64" fill="#4F86E8"/>
-    <polygon points="18,6 38,6 29,21 12,21" fill="#2A6AC8"/>
-    <polygon points="38,6 46,6 58,27 50,35 38,21" fill="#4E84E7"/>
-    <polygon points="50,35 58,27 58,37 46,58 34,40" fill="#2B69C6"/>
-    <polygon points="18,58 34,58 26,42 14,21 6,27 6,37" fill="#2A6AC8"/>
-    <polygon points="26,42 34,40 46,58 18,58" fill="#4A82E4"/>
-    <polygon points="12,21 29,21 26,42 14,21" fill="#4F86E8"/>
-  </g>
-  <path d="M18 6H46L58 27V37L46 58H18L6 37V27L18 6Z" stroke="#2F6FD0" stroke-width="1.6" stroke-linejoin="round"/>
-  <path d="M26 22L18 32L26 42H38L46 32L38 22H26Z" fill="#FFFFFF"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <rect width="512" height="512" rx="96" fill="#2392EE"/>
+  <text
+    x="256"
+    y="310"
+    fill="#FFFFFF"
+    text-anchor="middle"
+    font-family="Arial Rounded MT Bold, Trebuchet MS, Segoe UI, Arial, sans-serif"
+    font-size="182"
+    font-weight="700"
+    letter-spacing="-14"
+  >aloo</text>
 </svg>

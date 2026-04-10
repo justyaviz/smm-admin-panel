@@ -1152,7 +1152,7 @@ function getCampaignTotalBudget(row) {
   return Number(row?.budget || 0);
 }
 
-const LOGIN_LOGO = "/brand-logo.svg?v=20260404-logo";
+const LOGIN_LOGO = "/brand-logo.svg?v=20260410-aloo-wordmark";
 
 function normalizeAlooText(value = "") {
   return String(value || "").replace(/aloo/gi, "aloo");
@@ -1163,7 +1163,7 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const logoSrc = settings?.logo_url || LOGIN_LOGO;
+  const logoSrc = LOGIN_LOGO;
   const companyLabel = normalizeAlooText(settings?.company_name || "aloo SMM");
   const platformLabel = normalizeAlooText(settings?.platform_name || "Yagona boshqaruv platformasi");
   const loginSignals = ["kontent flow", "filiallar sync", "bonus live"];
@@ -4106,7 +4106,7 @@ function CampaignLeadPublicPage({ settings }) {
   const [error, setError] = useState("");
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
-  const logoSrc = settings?.logo_url || LOGIN_LOGO;
+  const logoSrc = LOGIN_LOGO;
   const isFormReady = Boolean(campaign?.id);
 
   useEffect(() => {
@@ -5560,7 +5560,7 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme, onToast, relo
             <input value={form.logo_url || ""} onChange={(e) => setField("logo_url", e.target.value)} placeholder="https://... yoki upload link" />
           </label>
           <div className="settings-logo-card">
-            <img src={form.logo_url || LOGIN_LOGO} alt="Logo preview" className="settings-logo-image" />
+            <img src={LOGIN_LOGO} alt="Logo preview" className="settings-logo-image" />
             <div>
               <strong>{form.company_name || "aloo"}</strong>
               <span>{form.platform_name || "SMM jamoasi platformasi"} - {formatMoney(form.bonus_rate || 25000)}</span>
@@ -7164,7 +7164,7 @@ function App() {
           <div className="loading-grid" />
           <div className="loading-card">
             <div className="loading-brand">
-              <img src={settings?.logo_url || LOGIN_LOGO} alt="logo" className="loading-brand-image" />
+              <img src={LOGIN_LOGO} alt="logo" className="loading-brand-image" />
               <div>
                 <strong>{settings?.company_name || "aloo"}</strong>
                 <span>{settings?.platform_name || "SMM jamoasi platformasi"}</span>
@@ -7276,7 +7276,7 @@ function App() {
         <aside className="sidebar">
           <div className="brand-block">
             <div className="brand-mark">
-              <img src={settings?.logo_url || LOGIN_LOGO} alt="logo" className="brand-mark-image" />
+              <img src={LOGIN_LOGO} alt="logo" className="brand-mark-image" />
             </div>
             <div>
               <div className="brand-name">{settings?.company_name || "aloo"}</div>
