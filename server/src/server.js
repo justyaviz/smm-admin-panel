@@ -1209,6 +1209,13 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS end_at TIMESTAMP`,
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_started_at TIMESTAMP`,
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_ended_at TIMESTAMP`,
+    `CREATE TABLE IF NOT EXISTS campaign_leads (
+      id SERIAL PRIMARY KEY,
+      campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
+      full_name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `CREATE TABLE IF NOT EXISTS contest_expenses (
       id SERIAL PRIMARY KEY,
       expense_date DATE NOT NULL,
@@ -3539,9 +3546,15 @@ app.get("/api/campaigns", authRequired, async (_, res) => {
       `
       SELECT
         c.*,
-        b.name AS branch_name
+        b.name AS branch_name,
+        COALESCE(cl.lead_count, 0) AS lead_count
       FROM campaigns c
       LEFT JOIN branches b ON b.id = c.branch_id
+      LEFT JOIN (
+        SELECT campaign_id, COUNT(*)::int AS lead_count
+        FROM campaign_leads
+        GROUP BY campaign_id
+      ) cl ON cl.campaign_id = c.id
       ORDER BY c.start_at DESC NULLS LAST, c.start_date DESC NULLS LAST, c.id DESC
       `
     );
@@ -3549,6 +3562,79 @@ app.get("/api/campaigns", authRequired, async (_, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Kampaniyalarni olib boвЂlmadi" });
+  }
+});
+
+app.get("/api/public/campaign-forms/:id", async (req, res) => {
+  try {
+    const result = await query(
+      `
+      SELECT
+        c.id,
+        c.title,
+        c.platform,
+        c.status,
+        c.start_at,
+        c.end_at,
+        b.name AS branch_name
+      FROM campaigns c
+      LEFT JOIN branches b ON b.id = c.branch_id
+      WHERE c.id = $1
+      LIMIT 1
+      `,
+      [req.params.id]
+    );
+
+    if (!result.rows.length) {
+      return res.status(404).json({ message: "Kampaniya topilmadi" });
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Forma ma'lumotini olib bo'lmadi" });
+  }
+});
+
+app.post("/api/public/campaign-forms/:id/submit", async (req, res) => {
+  try {
+    const campaignRes = await query(`SELECT id, title, branch_id FROM campaigns WHERE id = $1 LIMIT 1`, [req.params.id]);
+    if (!campaignRes.rows.length) {
+      return res.status(404).json({ message: "Kampaniya topilmadi" });
+    }
+
+    const fullName = String(req.body?.full_name || "").trim();
+    const phone = String(req.body?.phone || "").trim();
+    const phoneDigits = phone.replace(/[^\d]/g, "");
+
+    if (!fullName) {
+      return res.status(400).json({ message: "Ismni kiriting" });
+    }
+
+    if (phoneDigits.length < 7) {
+      return res.status(400).json({ message: "Telefon raqamini to'g'ri kiriting" });
+    }
+
+    const inserted = await query(
+      `
+      INSERT INTO campaign_leads (campaign_id, full_name, phone)
+      VALUES ($1, $2, $3)
+      RETURNING id
+      `,
+      [campaignRes.rows[0].id, fullName, phone]
+    );
+
+    logAction(null, "create", "campaign_leads", inserted.rows[0].id, {
+      campaign_id: campaignRes.rows[0].id,
+      full_name: fullName
+    });
+
+    res.json({
+      message: "Rahmat, qabul qilindi. Tez orada operatorlarimiz yoki do'kon hodimlari siz bilan bog'lanadi."
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Ma'lumotni yuborib bo'lmadi" });
   }
 });
 

@@ -9,6 +9,7 @@ import {
   CircleUserRound,
   Clapperboard,
   Clock3,
+  Copy,
   ContactRound,
   Eye,
   FileBarChart2,
@@ -18,6 +19,7 @@ import {
   Landmark,
   LayoutDashboard,
   LayoutGrid,
+  Link2,
   ListTodo,
   LogOut,
   MessageCircle,
@@ -28,6 +30,7 @@ import {
   PlaneTakeoff,
   Repeat2,
   Pencil,
+  PhoneCall,
   ReceiptText,
   Filter,
   Search,
@@ -83,6 +86,7 @@ const MENU_GROUPS = [
 
 const ROUTES_BY_PAGE = {
   login: "/login",
+  campaignLeadForm: "/reklama-forma",
   dashboard: "/menu",
   content: "/kontent",
   bonus: "/bonus",
@@ -107,6 +111,7 @@ const ROUTES_BY_PAGE = {
 const PAGE_BY_ROUTE = {
   "/": "dashboard",
   "/login": "login",
+  "/reklama-forma": "campaignLeadForm",
   "/menu": "dashboard",
   "/dashboard": "dashboard",
   "/kontent": "content",
@@ -224,6 +229,20 @@ function getPageFromPath(pathname = "/") {
 
 function getPathForPage(pageId = "dashboard") {
   return ROUTES_BY_PAGE[pageId] || ROUTES_BY_PAGE.dashboard;
+}
+
+function getPublicOrigin() {
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return window.location.origin;
+  }
+  return import.meta.env.VITE_SITE_URL || "";
+}
+
+function getCampaignLeadFormUrl(campaignId) {
+  const params = new URLSearchParams({ campaign: String(campaignId || "") });
+  const origin = getPublicOrigin();
+  const path = `${ROUTES_BY_PAGE.campaignLeadForm}?${params.toString()}`;
+  return origin ? `${origin}${path}` : path;
 }
 
 function isAppleMobileDevice() {
@@ -3872,6 +3891,19 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
     }
   }
 
+  async function copyLeadFormLink(row) {
+    try {
+      await navigator.clipboard.writeText(getCampaignLeadFormUrl(row.id));
+      onToast("Forma linki nusxalandi", "success");
+    } catch {
+      onToast("Forma linkini nusxalab bo'lmadi", "error");
+    }
+  }
+
+  function openLeadForm(row) {
+    window.open(getCampaignLeadFormUrl(row.id), "_blank", "noopener,noreferrer");
+  }
+
   return (
     <div className="page-grid">
       <div className="card">
@@ -3954,11 +3986,21 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
                     <td>{formatUsd(getCampaignDailyBudget(row))}</td>
                     <td><span className={campaignStatusClass(row.status)}>{formatCampaignStatus(row.status)}</span></td>
                     <td>
-                      <IconActions
-                        onView={() => setViewRow(row)}
-                        onEdit={() => startEdit(row)}
-                        onDelete={() => removeRow(row.id)}
-                      />
+                      <div className="table-actions">
+                        <button type="button" className="btn tiny secondary" onClick={() => openLeadForm(row)}>
+                          <Link2 size={14} />
+                          Forma
+                        </button>
+                        <button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(row)}>
+                          <Copy size={14} />
+                          Nusxalash
+                        </button>
+                        <IconActions
+                          onView={() => setViewRow(row)}
+                          onEdit={() => startEdit(row)}
+                          onDelete={() => removeRow(row.id)}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -3992,8 +4034,20 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
                     <label>Kunlik budget</label>
                     <div>{formatUsd(getCampaignDailyBudget(row))}</div>
                   </div>
+                  <div className="mobile-record-field">
+                    <label>Leadlar</label>
+                    <div>{row.lead_count || 0} ta</div>
+                  </div>
                 </div>
                 <div className="mobile-record-actions">
+                  <button type="button" className="btn tiny secondary" onClick={() => openLeadForm(row)}>
+                    <Link2 size={14} />
+                    Forma
+                  </button>
+                  <button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(row)}>
+                    <Copy size={14} />
+                    Nusxalash
+                  </button>
                   <IconActions
                     onView={() => setViewRow(row)}
                     onEdit={() => startEdit(row)}
@@ -4018,10 +4072,181 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
             <div><strong>Tugash:</strong> {formatDateTime(viewRow.end_at || viewRow.end_date)}</div>
             <div><strong>Kunlik budget:</strong> {formatUsd(getCampaignDailyBudget(viewRow))}</div>
             <div><strong>Holat:</strong> <span className={campaignStatusClass(viewRow.status)}>{formatCampaignStatus(viewRow.status)}</span></div>
+            <div><strong>Leadlar soni:</strong> {viewRow.lead_count || 0} ta</div>
+            <div className="full-col campaign-lead-link-row">
+              <strong>Website form URL:</strong>
+              <div className="campaign-lead-link-actions">
+                <a href={getCampaignLeadFormUrl(viewRow.id)} target="_blank" rel="noreferrer" className="btn tiny secondary">
+                  <Eye size={14} />
+                  Ochish
+                </a>
+                <button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(viewRow)}>
+                  <Copy size={14} />
+                  Nusxalash
+                </button>
+              </div>
+              <div className="campaign-lead-link-preview">{getCampaignLeadFormUrl(viewRow.id)}</div>
+            </div>
           </div>
         ) : null}
       </Modal>
     </div>
+  );
+}
+
+function CampaignLeadPublicPage({ settings }) {
+  const campaignId =
+    typeof window !== "undefined"
+      ? new URLSearchParams(window.location.search).get("campaign") || ""
+      : "";
+  const [campaign, setCampaign] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState("");
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const logoSrc = settings?.logo_url || LOGIN_LOGO;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCampaign() {
+      if (!campaignId) {
+        setError("Kampaniya topilmadi");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError("");
+        const result = await api.list(`/api/public/campaign-forms/${campaignId}`);
+        if (!cancelled) {
+          setCampaign(result);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(err.message || "Formani yuklab bo'lmadi");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }
+
+    loadCampaign();
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId]);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    try {
+      setSubmitting(true);
+      setError("");
+      await api.post(`/api/public/campaign-forms/${campaignId}/submit`, {
+        full_name: fullName.trim(),
+        phone: phone.trim()
+      });
+      setSubmitted(true);
+      setFullName("");
+      setPhone("");
+    } catch (err) {
+      setError(err.message || "Ma'lumotni yuborib bo'lmadi");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <>
+      <div className="campaign-lead-page">
+        <div className="campaign-lead-shell">
+          <div className="campaign-lead-card">
+            <div className="campaign-lead-brand">
+              <img src={logoSrc} alt="aloo logo" className="campaign-lead-brand-image" />
+              <div>
+                <strong>{settings?.company_name || "aloo"}</strong>
+                <span>{settings?.platform_name || "SMM jamoasi platformasi"}</span>
+              </div>
+            </div>
+
+            {loading ? (
+              <div className="campaign-lead-state">
+                <span className="loader" aria-hidden="true" />
+                <h2>Forma yuklanmoqda</h2>
+                <p>Kampaniya ma'lumotlari tayyorlanyapti.</p>
+              </div>
+            ) : error ? (
+              <div className="campaign-lead-state error">
+                <h2>Forma topilmadi</h2>
+                <p>{error}</p>
+              </div>
+            ) : submitted ? (
+              <div className="success-wrapper campaign-lead-success">
+                <div className="icon-wrap">
+                  <svg className="success-svg" viewBox="0 0 100 100" width="120" height="120" aria-hidden="true">
+                    <circle className="success-circle" cx="50" cy="50" r="40" fill="none" stroke="#10b981" strokeWidth="6" strokeLinecap="round" />
+                    <polyline className="success-check" points="35 50 45 60 65 40" fill="none" stroke="#10b981" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </div>
+                <h2>Rahmat, qabul qilindi</h2>
+                <p>Tez orada operatorlarimiz yoki do'kon hodimlari siz bilan bog'lanadi.</p>
+              </div>
+            ) : (
+              <>
+                <div className="campaign-lead-copy">
+                  <div className="small-label">Reklama formasi</div>
+                  <h1>{campaign?.title || "Lead forma"}</h1>
+                  <p>Kampaniya bo'yicha ma'lumotingizni qoldiring. Operatorlarimiz siz bilan tez orada bog'lanadi.</p>
+                </div>
+
+                <div className="campaign-lead-meta">
+                  <div className="campaign-lead-meta-card">
+                    <span>Platforma</span>
+                    <strong>{campaign?.platform || "-"}</strong>
+                  </div>
+                  <div className="campaign-lead-meta-card">
+                    <span>Filial</span>
+                    <strong>{campaign?.branch_name || "-"}</strong>
+                  </div>
+                </div>
+
+                <form className="campaign-lead-form" onSubmit={handleSubmit}>
+                  <label>
+                    <span>Ism</span>
+                    <input
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="Ismingizni kiriting"
+                      required
+                    />
+                  </label>
+                  <label>
+                    <span>Telefon raqami</span>
+                    <input
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="+998 90 123 45 67"
+                      required
+                    />
+                  </label>
+                  {error ? <div className="campaign-lead-error">{error}</div> : null}
+                  <button className="btn primary" type="submit" disabled={submitting}>
+                    <PhoneCall size={16} />
+                    {submitting ? "Yuborilmoqda..." : "Yuborish"}
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+      <style>{styles}</style>
+    </>
   );
 }
 
@@ -6809,6 +7034,7 @@ function App() {
   }, [user]);
 
   useEffect(() => {
+    if (active === "campaignLeadForm") return;
     if (user?.id && active === "login") {
       goToPage("dashboard", { replace: true });
       return;
@@ -6821,7 +7047,7 @@ function App() {
   }, [active, allowedMenu, goToPage, user?.id]);
 
   useEffect(() => {
-    if (booting || !user?.id || typeof window === "undefined") return;
+    if (booting || !user?.id || typeof window === "undefined" || active === "campaignLeadForm") return;
     const normalizedActive = active === "login" ? "dashboard" : active;
     const currentPath = normalizePathname(window.location.pathname);
     const expectedPath = getPathForPage(normalizedActive);
@@ -6942,6 +7168,9 @@ function App() {
   }
 
   if (!user) {
+    if (active === "campaignLeadForm") {
+      return <CampaignLeadPublicPage settings={settings} />;
+    }
     return (
       <>
         <LoginPage
@@ -6968,6 +7197,10 @@ function App() {
         <style>{styles}</style>
       </>
     );
+  }
+
+  if (active === "campaignLeadForm") {
+    return <CampaignLeadPublicPage settings={settings} />;
   }
 
   let page = null;
@@ -11270,6 +11503,163 @@ tbody tr:hover{
   .icon-btn{
     width:34px;
     height:34px;
+  }
+}
+.campaign-lead-link-row{
+  display:grid;
+  gap:10px;
+}
+.campaign-lead-link-actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.campaign-lead-link-preview{
+  padding:12px 14px;
+  border-radius:16px;
+  border:1px dashed var(--line);
+  background:rgba(255,255,255,.72);
+  color:var(--muted);
+  word-break:break-all;
+}
+.campaign-lead-page{
+  min-height:100vh;
+  padding:28px 16px;
+  display:grid;
+  place-items:center;
+  background:
+    radial-gradient(circle at top left, rgba(59,130,246,.16), transparent 30%),
+    radial-gradient(circle at bottom right, rgba(14,165,233,.18), transparent 28%),
+    linear-gradient(180deg, #f7fbff 0%, #eef4fb 100%);
+}
+.campaign-lead-shell{
+  width:min(100%, 760px);
+}
+.campaign-lead-card{
+  border:1px solid rgba(148,163,184,.22);
+  background:linear-gradient(160deg, rgba(255,255,255,.96), rgba(246,250,255,.9));
+  border-radius:32px;
+  padding:30px;
+  box-shadow:0 28px 70px rgba(15,23,42,.12);
+  display:grid;
+  gap:22px;
+}
+.campaign-lead-brand{
+  display:flex;
+  align-items:center;
+  gap:14px;
+}
+.campaign-lead-brand-image{
+  width:58px;
+  height:58px;
+  border-radius:18px;
+  object-fit:cover;
+}
+.campaign-lead-brand strong{
+  display:block;
+  font-size:22px;
+  font-weight:800;
+}
+.campaign-lead-brand span{
+  color:var(--muted);
+}
+.campaign-lead-copy h1{
+  margin:8px 0 10px;
+  font-size:40px;
+  line-height:1.08;
+}
+.campaign-lead-copy p{
+  margin:0;
+  color:var(--muted);
+  font-size:16px;
+  line-height:1.7;
+}
+.campaign-lead-meta{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:14px;
+}
+.campaign-lead-meta-card{
+  padding:16px 18px;
+  border-radius:20px;
+  border:1px solid rgba(148,163,184,.2);
+  background:rgba(255,255,255,.82);
+  display:grid;
+  gap:6px;
+}
+.campaign-lead-meta-card span{
+  color:var(--muted);
+  font-size:13px;
+}
+.campaign-lead-meta-card strong{
+  font-size:17px;
+}
+.campaign-lead-form{
+  display:grid;
+  gap:14px;
+}
+.campaign-lead-form label{
+  display:grid;
+  gap:8px;
+}
+.campaign-lead-form label span{
+  color:var(--muted);
+  font-size:13px;
+}
+.campaign-lead-form input{
+  width:100%;
+  min-height:56px;
+  border-radius:18px;
+  border:1px solid rgba(148,163,184,.2);
+  background:rgba(255,255,255,.92);
+  padding:0 16px;
+  font-size:16px;
+  color:var(--text);
+  outline:none;
+}
+.campaign-lead-form input:focus{
+  border-color:rgba(59,130,246,.48);
+  box-shadow:0 0 0 5px rgba(59,130,246,.12);
+}
+.campaign-lead-form .btn.primary{
+  justify-content:center;
+}
+.campaign-lead-error{
+  color:#dc2626;
+  font-size:14px;
+}
+.campaign-lead-state{
+  display:grid;
+  place-items:center;
+  gap:14px;
+  text-align:center;
+  padding:24px 12px;
+}
+.campaign-lead-state.error{
+  color:#dc2626;
+}
+.campaign-lead-state h2{
+  margin:0;
+  font-size:30px;
+}
+.campaign-lead-state p{
+  margin:0;
+  color:var(--muted);
+  max-width:460px;
+}
+.campaign-lead-success{
+  justify-self:center;
+}
+@media (max-width: 720px){
+  .campaign-lead-card{
+    padding:22px 18px;
+    border-radius:24px;
+  }
+  .campaign-lead-meta{
+    grid-template-columns:1fr;
+  }
+  .campaign-lead-copy h1{
+    font-size:31px;
   }
 }
 `;
