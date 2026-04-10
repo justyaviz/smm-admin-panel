@@ -59,6 +59,9 @@ const BONUS_PULL_SYNC_COOLDOWN_MS = Math.max(5000, Number(process.env.MYSEONE_PU
 const MYSEONE_FROZEN_MONTHS = new Set(["2026-03"]);
 const TARGET_CAMPAIGN_CHAT_ID = String(process.env.TARGET_CAMPAIGN_CHAT_ID || "-1003416537521");
 const TRAVEL_PLAN_CHAT_ID = String(process.env.TRAVEL_PLAN_CHAT_ID || "-5105633674");
+const DEFAULT_CAMPAIGN_LEAD_CHAT_MAP = {
+  parkent: "-1003878116355"
+};
 let bonusPullSyncPromise = null;
 let lastBonusPullSyncAt = 0;
 
@@ -657,11 +660,61 @@ function normalizeNoticeUrl(value) {
   return raw;
 }
 
+function normalizeBranchKey(value = "") {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[ʻ’']/g, "")
+    .replace(/\s+/g, " ");
+}
+
+function getCampaignLeadChatMap() {
+  const raw = String(process.env.CAMPAIGN_LEAD_CHAT_MAP || "").trim();
+  if (!raw) return DEFAULT_CAMPAIGN_LEAD_CHAT_MAP;
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return DEFAULT_CAMPAIGN_LEAD_CHAT_MAP;
+    }
+
+    const normalized = { ...DEFAULT_CAMPAIGN_LEAD_CHAT_MAP };
+    Object.entries(parsed).forEach(([key, value]) => {
+      const normalizedKey = normalizeBranchKey(key);
+      const safeValue = String(value || "").trim();
+      if (normalizedKey && safeValue) {
+        normalized[normalizedKey] = safeValue;
+      }
+    });
+    return normalized;
+  } catch (err) {
+    console.error("campaign lead chat map parse error:", err.message);
+    return DEFAULT_CAMPAIGN_LEAD_CHAT_MAP;
+  }
+}
+
+function resolveCampaignLeadChatId(branchName) {
+  const map = getCampaignLeadChatMap();
+  return map[normalizeBranchKey(branchName)] || null;
+}
+
 async function getBranchName(branchId) {
   const numericId = Number(branchId || 0);
   if (!numericId) return "";
   const result = await query(`SELECT name FROM branches WHERE id = $1 LIMIT 1`, [numericId]);
   return result.rows[0]?.name || "";
+}
+
+function buildCampaignLeadTelegramLines({ campaignTitle, branchName, platform, fullName, phone }) {
+  return [
+    "🆕 Yangi lid qoldirildi",
+    `🎯 Target nomi: ${campaignTitle || "-"}`,
+    `🏢 Filial: ${branchName || "-"}`,
+    `📣 Platforma: ${platform || "-"}`,
+    `👤 Mijoz: ${fullName || "-"}`,
+    `📞 Telefon: ${phone || "-"}`,
+    "⚡️ Tezroq bog'laning."
+  ];
 }
 
 async function buildTravelPlanTelegramLines(row) {
@@ -3598,11 +3651,26 @@ app.get("/api/public/campaign-forms/:id", async (req, res) => {
 
 app.post("/api/public/campaign-forms/:id/submit", async (req, res) => {
   try {
-    const campaignRes = await query(`SELECT id, title, branch_id FROM campaigns WHERE id = $1 LIMIT 1`, [req.params.id]);
+    const campaignRes = await query(
+      `
+      SELECT
+        c.id,
+        c.title,
+        c.platform,
+        c.branch_id,
+        b.name AS branch_name
+      FROM campaigns c
+      LEFT JOIN branches b ON b.id = c.branch_id
+      WHERE c.id = $1
+      LIMIT 1
+      `,
+      [req.params.id]
+    );
     if (!campaignRes.rows.length) {
       return res.status(404).json({ message: "Kampaniya topilmadi" });
     }
 
+    const campaign = campaignRes.rows[0];
     const fullName = String(req.body?.full_name || "").trim();
     const phone = String(req.body?.phone || "").trim();
     const phoneDigits = phone.replace(/[^\d]/g, "");
@@ -3621,13 +3689,28 @@ app.post("/api/public/campaign-forms/:id/submit", async (req, res) => {
       VALUES ($1, $2, $3)
       RETURNING id
       `,
-      [campaignRes.rows[0].id, fullName, phone]
+      [campaign.id, fullName, phone]
     );
 
     logAction(null, "create", "campaign_leads", inserted.rows[0].id, {
-      campaign_id: campaignRes.rows[0].id,
+      campaign_id: campaign.id,
       full_name: fullName
     });
+
+    const leadChatId = resolveCampaignLeadChatId(campaign.branch_name);
+    if (leadChatId) {
+      createTelegramEvent(
+        "📥 Target uchun yangi lid",
+        buildCampaignLeadTelegramLines({
+          campaignTitle: campaign.title,
+          branchName: campaign.branch_name,
+          platform: campaign.platform,
+          fullName,
+          phone
+        }),
+        leadChatId
+      );
+    }
 
     res.json({
       message: "Rahmat, qabul qilindi. Tez orada operatorlarimiz yoki do'kon hodimlari siz bilan bog'lanadi."
