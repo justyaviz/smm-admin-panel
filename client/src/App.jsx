@@ -3818,6 +3818,7 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
     title: "",
     platform: "Meta Ads",
     branch_id: "",
+    lead_chat_id: "",
     start_at: "",
     end_at: "",
     daily_budget: "",
@@ -3842,6 +3843,7 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
       title: row.title || "",
       platform: row.platform || "",
       branch_id: row.branch_id ? String(row.branch_id) : "",
+      lead_chat_id: row.lead_chat_id ? String(row.lead_chat_id) : "",
       start_at: formatDateTimeInput(row.start_at || row.start_date),
       end_at: formatDateTimeInput(row.end_at || row.end_date),
       daily_budget: String(getCampaignDailyBudget(row) || ""),
@@ -3858,6 +3860,7 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
         title: form.title.trim(),
         platform: form.platform,
         branch_id: form.branch_id ? Number(form.branch_id) : null,
+        lead_chat_id: String(form.lead_chat_id || "").trim(),
         start_at: form.start_at,
         end_at: form.end_at,
         daily_budget: Number(form.daily_budget || 0),
@@ -3940,6 +3943,14 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
                 <option key={branch.id} value={branch.id}>{branch.name}</option>
               ))}
             </select>
+          </label>
+          <label>
+            <span>Lidlar boradigan Telegram guruh ID</span>
+            <input
+              value={form.lead_chat_id}
+              onChange={(e) => setField("lead_chat_id", e.target.value)}
+              placeholder="-1003878116355"
+            />
           </label>
           <label><span>Boshlanish sana va soat</span><input type="datetime-local" value={form.start_at} onChange={(e) => setField("start_at", e.target.value)} required /></label>
           <label><span>Tugash sana va soat</span><input type="datetime-local" value={form.end_at} onChange={(e) => setField("end_at", e.target.value)} required /></label>
@@ -4038,6 +4049,10 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
                     <label>Leadlar</label>
                     <div>{row.lead_count || 0} ta</div>
                   </div>
+                  <div className="mobile-record-field">
+                    <label>Lead chat ID</label>
+                    <div>{row.lead_chat_id || "-"}</div>
+                  </div>
                 </div>
                 <div className="mobile-record-actions">
                   <button type="button" className="btn tiny secondary" onClick={() => openLeadForm(row)}>
@@ -4073,6 +4088,7 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
             <div><strong>Kunlik budget:</strong> {formatUsd(getCampaignDailyBudget(viewRow))}</div>
             <div><strong>Holat:</strong> <span className={campaignStatusClass(viewRow.status)}>{formatCampaignStatus(viewRow.status)}</span></div>
             <div><strong>Leadlar soni:</strong> {viewRow.lead_count || 0} ta</div>
+            <div><strong>Lead chat ID:</strong> {viewRow.lead_chat_id || "-"}</div>
             <div className="full-col campaign-lead-link-row">
               <strong>Website form URL:</strong>
               <div className="campaign-lead-link-actions">

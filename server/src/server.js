@@ -60,7 +60,8 @@ const MYSEONE_FROZEN_MONTHS = new Set(["2026-03"]);
 const TARGET_CAMPAIGN_CHAT_ID = String(process.env.TARGET_CAMPAIGN_CHAT_ID || "-1003416537521");
 const TRAVEL_PLAN_CHAT_ID = String(process.env.TRAVEL_PLAN_CHAT_ID || "-5105633674");
 const DEFAULT_CAMPAIGN_LEAD_CHAT_MAP = {
-  parkent: "-1003878116355"
+  parkent: "-1003878116355",
+  oqqorgon: "-1003711448402"
 };
 let bonusPullSyncPromise = null;
 let lastBonusPullSyncAt = 0;
@@ -1256,9 +1257,10 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS version_label TEXT`,
     `ALTER TABLE expenses ADD COLUMN IF NOT EXISTS recurrence_key TEXT`,
     `ALTER TABLE travel_expenses ADD COLUMN IF NOT EXISTS sort_order INTEGER NOT NULL DEFAULT 0`,
-    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL`,
-    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS daily_budget NUMERIC(14,2) NOT NULL DEFAULT 0`,
-    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS start_at TIMESTAMP`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS lead_chat_id TEXT`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS daily_budget NUMERIC(14,2) NOT NULL DEFAULT 0`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS start_at TIMESTAMP`,
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS end_at TIMESTAMP`,
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_started_at TIMESTAMP`,
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_ended_at TIMESTAMP`,
@@ -3629,6 +3631,7 @@ app.get("/api/public/campaign-forms/:id", async (req, res) => {
         c.status,
         c.start_at,
         c.end_at,
+        c.lead_chat_id,
         b.name AS branch_name
       FROM campaigns c
       LEFT JOIN branches b ON b.id = c.branch_id
@@ -3658,6 +3661,7 @@ app.post("/api/public/campaign-forms/:id/submit", async (req, res) => {
         c.title,
         c.platform,
         c.branch_id,
+        c.lead_chat_id,
         b.name AS branch_name
       FROM campaigns c
       LEFT JOIN branches b ON b.id = c.branch_id
@@ -3697,7 +3701,7 @@ app.post("/api/public/campaign-forms/:id/submit", async (req, res) => {
       full_name: fullName
     });
 
-    const leadChatId = resolveCampaignLeadChatId(campaign.branch_name);
+    const leadChatId = String(campaign.lead_chat_id || "").trim() || resolveCampaignLeadChatId(campaign.branch_name);
     if (leadChatId) {
       createTelegramEvent(
         "📥 Target uchun yangi lid",
@@ -3727,6 +3731,7 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
       title,
       platform,
       branch_id,
+      lead_chat_id,
       start_at,
       end_at,
       start_date,
@@ -3766,6 +3771,7 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
         title,
         platform,
         branch_id,
+        lead_chat_id,
         start_at,
         end_at,
         start_date,
@@ -3782,13 +3788,14 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
         status,
         notes
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
       RETURNING *
       `,
       [
         title,
         platform,
         Number(branch_id || 0) || null,
+        String(lead_chat_id || "").trim() || null,
         safeStartAt,
         safeEndAt,
         formatDateOnly(safeStartAt || start_date),
@@ -3829,6 +3836,7 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
       title,
       platform,
       branch_id,
+      lead_chat_id,
       start_at,
       end_at,
       start_date,
@@ -3867,6 +3875,7 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
     const safeStatus = normalizeCampaignStatus(status ?? previousRow.status);
     const safeNotes = notes ?? previousRow.notes ?? "";
     const safeBranchId = Number(branch_id ?? previousRow.branch_id ?? 0) || null;
+    const safeLeadChatId = String(lead_chat_id ?? previousRow.lead_chat_id ?? "").trim() || null;
 
     const cpa = calcCpa(safeSpend, safeLeads);
     const roi = calcRoi(safeSpend, safeRevenueAmount);
@@ -3878,29 +3887,31 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
         title = $1,
         platform = $2,
         branch_id = $3,
-        start_at = $4,
-        end_at = $5,
-        start_date = $6,
-        end_date = $7,
-        daily_budget = $8,
-        budget = $9,
-        spend = $10,
-        leads = $11,
-        sales = $12,
-        ctr = $13,
-        revenue_amount = $14,
-        cpa = $15,
-        roi = $16,
-        status = $17,
-        notes = $18,
+        lead_chat_id = $4,
+        start_at = $5,
+        end_at = $6,
+        start_date = $7,
+        end_date = $8,
+        daily_budget = $9,
+        budget = $10,
+        spend = $11,
+        leads = $12,
+        sales = $13,
+        ctr = $14,
+        revenue_amount = $15,
+        cpa = $16,
+        roi = $17,
+        status = $18,
+        notes = $19,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $19
+      WHERE id = $20
       RETURNING *
       `,
       [
         title ?? previousRow.title,
         platform ?? previousRow.platform,
         safeBranchId,
+        safeLeadChatId,
         safeStartAt,
         safeEndAt,
         safeStartDate,

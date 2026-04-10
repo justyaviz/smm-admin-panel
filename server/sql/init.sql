@@ -107,6 +107,7 @@ CREATE TABLE campaigns (
   title TEXT NOT NULL,
   platform TEXT NOT NULL,
   branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+  lead_chat_id TEXT,
   start_date DATE,
   end_date DATE,
   start_at TIMESTAMP,
