@@ -6672,6 +6672,7 @@ function AiAssistantPage({ branches = [], onToast }) {
 
 function App() {
   const [booting, setBooting] = useState(true);
+  const [bootScreenVisible, setBootScreenVisible] = useState(true);
   const [user, setUser] = useState(getCurrentUser());
   const [active, setActive] = useState(() => getPageFromPath(typeof window !== "undefined" ? window.location.pathname : "/"));
   const [theme, setTheme] = useState(localStorage.getItem("aloo_theme") || "light");
@@ -6975,6 +6976,19 @@ function App() {
   }, [loadPageData, pageNeedsReferences, refreshShellData]);
 
   useEffect(() => {
+    if (!booting) {
+      setBootScreenVisible(false);
+      return undefined;
+    }
+
+    const timer = setTimeout(() => {
+      setBootScreenVisible(false);
+    }, 5000);
+
+    return () => clearTimeout(timer);
+  }, [booting]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function init() {
@@ -6998,7 +7012,12 @@ function App() {
       }
 
       try {
-        await reloadData("dashboard", {
+        const initialPage =
+          active && active !== "login" && active !== "campaignLeadForm"
+            ? active
+            : "dashboard";
+
+        await reloadData(initialPage, {
           includeMe: true,
           includeSettings: true,
           includeReferences: true
@@ -7171,7 +7190,7 @@ function App() {
     goToPage("login", { replace: true });
   }
 
-  if (booting && active !== "campaignLeadForm") {
+  if (booting && bootScreenVisible && active !== "campaignLeadForm") {
     return (
       <>
         <div className="loading-screen">
