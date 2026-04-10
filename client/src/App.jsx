@@ -4107,6 +4107,7 @@ function CampaignLeadPublicPage({ settings }) {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const logoSrc = settings?.logo_url || LOGIN_LOGO;
+  const isFormReady = Boolean(campaign?.id);
 
   useEffect(() => {
     let cancelled = false;
@@ -4174,13 +4175,7 @@ function CampaignLeadPublicPage({ settings }) {
               </div>
             </div>
 
-            {loading ? (
-              <div className="campaign-lead-state">
-                <span className="loader" aria-hidden="true" />
-                <h2>Forma yuklanmoqda</h2>
-                <p>Kampaniya ma'lumotlari tayyorlanyapti.</p>
-              </div>
-            ) : error ? (
+            {error ? (
               <div className="campaign-lead-state error">
                 <h2>Forma topilmadi</h2>
                 <p>{error}</p>
@@ -4200,20 +4195,30 @@ function CampaignLeadPublicPage({ settings }) {
               <>
                 <div className="campaign-lead-copy">
                   <div className="small-label">Reklama formasi</div>
-                  <h1>{campaign?.title || "Lead forma"}</h1>
-                  <p>Kampaniya bo'yicha ma'lumotingizni qoldiring. Operatorlarimiz siz bilan tez orada bog'lanadi.</p>
+                  <h1>{campaign?.title || "Murojaat qoldiring"}</h1>
+                  <p>
+                    {loading
+                      ? "Forma ochildi. Kampaniya ma'lumotlari fonda tayyorlanyapti, siz sahifani kutmasdan ko'rishingiz mumkin."
+                      : "Kampaniya bo'yicha ma'lumotingizni qoldiring. Operatorlarimiz siz bilan tez orada bog'lanadi."}
+                  </p>
                 </div>
 
                 <div className="campaign-lead-meta">
                   <div className="campaign-lead-meta-card">
                     <span>Platforma</span>
-                    <strong>{campaign?.platform || "-"}</strong>
+                    <strong>{campaign?.platform || (loading ? "Yuklanmoqda..." : "-")}</strong>
                   </div>
                   <div className="campaign-lead-meta-card">
                     <span>Filial</span>
-                    <strong>{campaign?.branch_name || "-"}</strong>
+                    <strong>{campaign?.branch_name || (loading ? "Yuklanmoqda..." : "-")}</strong>
                   </div>
                 </div>
+
+                {loading ? (
+                  <div className="campaign-lead-inline-note">
+                    Kampaniya ma'lumotlari tayyorlanyapti. Iltimos, bir necha soniya kuting.
+                  </div>
+                ) : null}
 
                 <form className="campaign-lead-form" onSubmit={handleSubmit}>
                   <label>
@@ -4235,9 +4240,9 @@ function CampaignLeadPublicPage({ settings }) {
                     />
                   </label>
                   {error ? <div className="campaign-lead-error">{error}</div> : null}
-                  <button className="btn primary" type="submit" disabled={submitting}>
+                  <button className="btn primary" type="submit" disabled={submitting || !isFormReady}>
                     <PhoneCall size={16} />
-                    {submitting ? "Yuborilmoqda..." : "Yuborish"}
+                    {submitting ? "Yuborilmoqda..." : loading ? "Ma'lumot tayyorlanyapti..." : "Yuborish"}
                   </button>
                 </form>
               </>
@@ -6958,6 +6963,16 @@ function App() {
 
     async function init() {
       if (!user) {
+        if (active === "campaignLeadForm") {
+          if (!cancelled) {
+            setBooting(false);
+          }
+          const publicSettings = await api.settings.get().catch(() => null);
+          if (!cancelled && publicSettings) {
+            setSettings(publicSettings);
+          }
+          return;
+        }
         const publicSettings = await api.settings.get().catch(() => null);
         if (!cancelled) {
           setSettings(publicSettings);
@@ -6989,7 +7004,7 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [reloadData, user?.id]);
+  }, [active, reloadData, user?.id]);
 
   useEffect(() => {
     if (!user?.id || booting) return;
@@ -7140,7 +7155,7 @@ function App() {
     goToPage("login", { replace: true });
   }
 
-  if (booting) {
+  if (booting && active !== "campaignLeadForm") {
     return (
       <>
         <div className="loading-screen">
@@ -11524,7 +11539,7 @@ tbody tr:hover{
 }
 .campaign-lead-page{
   min-height:100vh;
-  padding:28px 16px;
+  padding:max(16px, calc(env(safe-area-inset-top) + 12px)) 16px max(18px, calc(env(safe-area-inset-bottom) + 16px));
   display:grid;
   place-items:center;
   background:
@@ -11594,6 +11609,15 @@ tbody tr:hover{
 .campaign-lead-meta-card strong{
   font-size:17px;
 }
+.campaign-lead-inline-note{
+  padding:12px 14px;
+  border-radius:16px;
+  border:1px solid rgba(59,130,246,.16);
+  background:rgba(59,130,246,.08);
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.6;
+}
 .campaign-lead-form{
   display:grid;
   gap:14px;
@@ -11623,6 +11647,8 @@ tbody tr:hover{
 }
 .campaign-lead-form .btn.primary{
   justify-content:center;
+  width:100%;
+  min-height:56px;
 }
 .campaign-lead-error{
   color:#dc2626;
@@ -11651,15 +11677,110 @@ tbody tr:hover{
   justify-self:center;
 }
 @media (max-width: 720px){
+  .campaign-lead-page{
+    place-items:start center;
+    padding:max(12px, calc(env(safe-area-inset-top) + 8px)) 12px max(18px, calc(env(safe-area-inset-bottom) + 14px));
+  }
+  .campaign-lead-shell{
+    width:100%;
+  }
   .campaign-lead-card{
-    padding:22px 18px;
+    padding:18px 16px;
     border-radius:24px;
+    gap:16px;
+  }
+  .campaign-lead-brand{
+    gap:12px;
+    align-items:center;
+  }
+  .campaign-lead-brand-image{
+    width:50px;
+    height:50px;
+    border-radius:16px;
+  }
+  .campaign-lead-brand strong{
+    font-size:19px;
+  }
+  .campaign-lead-brand span{
+    font-size:13px;
+    line-height:1.45;
   }
   .campaign-lead-meta{
     grid-template-columns:1fr;
+    gap:10px;
   }
   .campaign-lead-copy h1{
-    font-size:31px;
+    font-size:28px;
+    line-height:1.08;
+  }
+  .campaign-lead-copy p{
+    font-size:14px;
+    line-height:1.6;
+  }
+  .campaign-lead-meta-card{
+    padding:14px 14px;
+    border-radius:18px;
+  }
+  .campaign-lead-meta-card span{
+    font-size:12px;
+  }
+  .campaign-lead-meta-card strong{
+    font-size:15px;
+    line-height:1.35;
+  }
+  .campaign-lead-form{
+    gap:12px;
+  }
+  .campaign-lead-form label{
+    gap:7px;
+  }
+  .campaign-lead-form label span{
+    font-size:12px;
+  }
+  .campaign-lead-form input{
+    min-height:52px;
+    border-radius:16px;
+    padding:0 14px;
+    font-size:15px;
+  }
+  .campaign-lead-inline-note{
+    border-radius:14px;
+    padding:11px 12px;
+    font-size:13px;
+  }
+  .campaign-lead-state{
+    padding:10px 2px;
+  }
+  .campaign-lead-state h2{
+    font-size:24px;
+  }
+  .campaign-lead-state p{
+    font-size:14px;
+    line-height:1.6;
+  }
+}
+@media (max-width: 520px){
+  .campaign-lead-page{
+    padding:max(10px, calc(env(safe-area-inset-top) + 6px)) 10px max(16px, calc(env(safe-area-inset-bottom) + 12px));
+  }
+  .campaign-lead-card{
+    padding:16px 14px;
+    border-radius:22px;
+  }
+  .campaign-lead-copy h1{
+    font-size:24px;
+  }
+  .campaign-lead-brand{
+    grid-template-columns:50px 1fr;
+    display:grid;
+    align-items:center;
+  }
+  .campaign-lead-form input{
+    min-height:50px;
+    font-size:16px;
+  }
+  .campaign-lead-form .btn.primary{
+    min-height:52px;
   }
 }
 `;
