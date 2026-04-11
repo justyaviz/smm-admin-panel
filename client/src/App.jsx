@@ -1099,6 +1099,14 @@ const RUBRIC_OPTIONS = [
   { value: "sale-promo", label: "Sale & promo" }
 ];
 
+const BONUS_DIFFICULTY_OPTIONS = [
+  { value: "sodda", label: "Sodda - 25,000 UZS" },
+  { value: "orta", label: "O'rta - 50,000 UZS" },
+  { value: "murakkab", label: "Murakkab - 75,000 UZS" },
+  { value: "juda_murakkab", label: "Juda murakkab - 100,000 UZS" },
+  { value: "bonussiz", label: "Bonussiz - 0 UZS" }
+];
+
 function formatContentType(value) {
   const match = CONTENT_TYPE_OPTIONS.find((item) => item.value === value);
   return match?.label || value || "-";
@@ -1864,6 +1872,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     face_voice_user_id: "",
     proposal_count: "",
     approved_count: "",
+    difficulty_level: "sodda",
     work_url: "",
     approval_comment: "",
     content_template: "custom",
@@ -1957,6 +1966,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
       face_voice_user_id: row.video_face_user_id || "",
       proposal_count: row.proposal_count ?? "",
       approved_count: row.approved_count ?? "",
+      difficulty_level: normalizeDifficultyLevel(row.difficulty_level || "sodda"),
       work_url: row.final_url || "",
       approval_comment: row.approval_comment || "",
       content_template: row.content_template || "custom",
@@ -2016,6 +2026,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         bonus_enabled: bonusMode,
         proposal_count: bonusMode ? Number(form.proposal_count || 0) : 0,
         approved_count: bonusMode ? Number(form.approved_count || 0) : 0,
+        difficulty_level: bonusMode ? normalizeDifficultyLevel(form.difficulty_level || "sodda") : "bonussiz",
         final_url: normalizeExternalUrl(form.work_url),
         notes: "",
         approval_comment: form.approval_comment || "",
@@ -2099,7 +2110,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         />
 
         <div className="info-banner">
-          Bonus formulasi: 1 ta tasdiq = <strong>{formatMoney(bonusRate)}</strong>. Taklif soni faqat ma'lumot uchun.
+          Bonus formulasi: <strong>Sodda 25,000 UZS</strong>, <strong>O'rta 50,000 UZS</strong>, <strong>Murakkab 75,000 UZS</strong>, <strong>Juda murakkab 100,000 UZS</strong>, <strong>Bonussiz 0 UZS</strong>.
         </div>
         {!canCreateContent && !canEditContent ? (
           <div className="info-banner">Siz bu bo'limda faqat ko'rish ruxsatiga egasiz.</div>
@@ -2197,6 +2208,14 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
           {bonusMode ? (
             <>
               <label><span>Taklif soni</span><input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required disabled={formLocked} /></label>
+              <label>
+                <span>Murakkablik darajasi</span>
+                <select value={form.difficulty_level} onChange={(e) => setField("difficulty_level", e.target.value)} disabled={formLocked}>
+                  {BONUS_DIFFICULTY_OPTIONS.map((item) => (
+                    <option key={item.value} value={item.value}>{item.label}</option>
+                  ))}
+                </select>
+              </label>
               <label><span>Tasdiq soni</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} disabled={formLocked} /></label>
             </>
           ) : null}
@@ -2475,9 +2494,10 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               <div><strong>Platforma:</strong> {viewRow.platform || "-"}</div>
               <div><strong>Turi:</strong> {formatContentType(viewRow.content_type)}</div>
               <div><strong>Rubrika:</strong> {formatRubric(viewRow.rubric)}</div>
-              <div><strong>Bonus:</strong> {viewRow.bonus_enabled ? "Ha" : "Yo'q"}</div>
-              <div><strong>Taklif soni:</strong> {viewRow.proposal_count || 0}</div>
-              <div><strong>Tasdiq soni:</strong> {viewRow.approved_count || 0}</div>
+            <div><strong>Bonus:</strong> {viewRow.bonus_enabled ? "Ha" : "Yo'q"}</div>
+            <div><strong>Taklif soni:</strong> {viewRow.proposal_count || 0}</div>
+            {viewRow.bonus_enabled ? <div><strong>Murakkablik:</strong> {formatDifficultyHelp(viewRow.difficulty_level)}</div> : null}
+            <div><strong>Tasdiq soni:</strong> {viewRow.approved_count || 0}</div>
               <div className="full-col">
                 <strong>Qilingan ish linki:</strong>{" "}
                 {viewRow.final_url ? (
@@ -2517,13 +2537,63 @@ function getBonusRowAmount(item, bonusRate = 25000) {
   const approvedCount = Number(item?.approved_count || 0);
   const approvedAmount = Number(item?.approved_amount || 0);
   if (approvedAmount) return approvedAmount;
-  return approvedCount * Number(bonusRate || 0);
+  const unitAmount = item?.difficulty_level ? getDifficultyUnitAmount(item.difficulty_level) : Number(bonusRate || 0);
+  return approvedCount * unitAmount;
+}
+
+function normalizeDifficultyLevel(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["sodda", "oddiy", "normal", "easy"].includes(normalized)) return "sodda";
+  if (["juda_murakkab", "juda-murakkab", "juda murakkab", "very_hard"].includes(normalized)) return "juda_murakkab";
+  if (["murakkab", "qiyin", "hard"].includes(normalized)) return "murakkab";
+  if (["orta", "o'rta", "o‘rta", "ortacha", "o'rtacha", "o‘rtacha", "medium"].includes(normalized)) return "orta";
+  if (["bonussiz", "0", "none", "no_bonus"].includes(normalized)) return "bonussiz";
+  return "sodda";
+}
+
+function getDifficultyUnitAmount(value) {
+  switch (normalizeDifficultyLevel(value)) {
+    case "bonussiz":
+      return 0;
+    case "orta":
+      return 50000;
+    case "murakkab":
+      return 75000;
+    case "juda_murakkab":
+      return 100000;
+    case "sodda":
+    default:
+      return 25000;
+  }
+}
+
+function formatDifficultyLabel(value) {
+  const normalized = normalizeDifficultyLevel(value);
+  const match = BONUS_DIFFICULTY_OPTIONS.find((item) => item.value === normalized);
+  return match?.label.split(" - ")[0] || "Sodda";
+}
+
+function formatDifficultyHelp(value) {
+  const normalized = normalizeDifficultyLevel(value);
+  const match = BONUS_DIFFICULTY_OPTIONS.find((item) => item.value === normalized);
+  return match?.label || "Sodda - 25,000 UZS";
 }
 
 function getBonusDifficultyMeta(item) {
-  return item?.difficulty_level === "qiyin"
-    ? { label: "Qiyin", badgeClass: "mini-badge danger", rowClass: "table-row-danger" }
-    : { label: "Oddiy", badgeClass: "mini-badge default", rowClass: "" };
+  const level = normalizeDifficultyLevel(item?.difficulty_level);
+  if (level === "juda_murakkab") {
+    return { label: "Juda murakkab", badgeClass: "mini-badge danger", rowClass: "table-row-danger" };
+  }
+  if (level === "murakkab") {
+    return { label: "Murakkab", badgeClass: "mini-badge danger", rowClass: "table-row-danger" };
+  }
+  if (level === "orta") {
+    return { label: "O'rtacha", badgeClass: "mini-badge warning", rowClass: "table-row-warning" };
+  }
+  if (level === "bonussiz") {
+    return { label: "Bonussiz", badgeClass: "mini-badge default", rowClass: "" };
+  }
+  return { label: "Sodda", badgeClass: "mini-badge default", rowClass: "" };
 }
 
 function summarizeBonusEmployees(items = [], bonusRate = 25000) {
@@ -2751,7 +2821,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
     title: "",
     work_date: "",
     content_type: "post",
-    difficulty_level: "normal",
+    difficulty_level: "sodda",
     work_url: "",
     user_id: "",
     editor_user_id: "",
@@ -2844,8 +2914,10 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       { value: "all", label: "Filtr: Hammasi" },
       { value: "approval:draft", label: "Holat: Draft" },
       { value: "approval:approved", label: "Holat: Tasdiqlangan" },
-      { value: "difficulty:normal", label: "Kontent holati: Oddiy" },
-      { value: "difficulty:hard", label: "Kontent holati: Qiyin" },
+      ...BONUS_DIFFICULTY_OPTIONS.map((option) => ({
+        value: `difficulty:${option.value}`,
+        label: `Murakkablik: ${option.label}`
+      })),
       ...dynamicTypes
     ];
   }, [filteredItems]);
@@ -2857,7 +2929,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
           : tableFilter.startsWith("approval:")
             ? (row.approval_status || "draft") === tableFilter.split(":")[1]
             : tableFilter.startsWith("difficulty:")
-              ? (row.difficulty_level || "normal") === tableFilter.split(":")[1]
+              ? normalizeDifficultyLevel(row.difficulty_level || "sodda") === tableFilter.split(":")[1]
               : tableFilter.startsWith("type:")
                 ? (row.content_type || "") === tableFilter.slice(5)
                 : true;
@@ -2898,12 +2970,12 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   function buildApprovalRows(items) {
     return (items || []).map((item) => ({
       ...item,
-      difficulty_level: item.difficulty_level || "normal",
+      difficulty_level: normalizeDifficultyLevel(item.difficulty_level || "sodda"),
       proposal_count: Number(item.proposal_count || 0),
       approved_count: Number(item.approved_count || 0),
       total_amount: getBonusRowAmount(item, bonusRate),
       proposal_amount: 0,
-      approved_amount: Number(item.approved_count || 0) * bonusRate
+      approved_amount: Number(item.approved_count || 0) * getDifficultyUnitAmount(item.difficulty_level || "sodda")
     }));
   }
 
@@ -2922,7 +2994,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       title: row.content_title || "",
       work_date: formatDate(row.work_date) === "-" ? "" : formatDate(row.work_date),
       content_type: row.content_type || "post",
-      difficulty_level: row.difficulty_level || "normal",
+      difficulty_level: normalizeDifficultyLevel(row.difficulty_level || "sodda"),
       work_url: row.work_url || "",
       user_id: row.user_id || "",
       editor_user_id: row.video_editor_user_id || "",
@@ -2948,11 +3020,12 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
     setApprovalRows((prev) => prev.map((row) => {
       if (row.id !== id) return row;
       const nextApprovedCount = Number(sanitized || 0);
+      const unitAmount = getDifficultyUnitAmount(row.difficulty_level || "sodda");
       return {
         ...row,
         approved_count: sanitized,
-        approved_amount: nextApprovedCount * bonusRate,
-        total_amount: nextApprovedCount * bonusRate
+        approved_amount: nextApprovedCount * unitAmount,
+        total_amount: nextApprovedCount * unitAmount
       };
     }));
   }
@@ -3064,7 +3137,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
         work_url: normalizeExternalUrl(form.work_url),
         proposal_count: Number(form.proposal_count || 0),
         approved_count: Number(form.approved_count || 0),
-        difficulty_level: form.difficulty_level || "normal",
+        difficulty_level: normalizeDifficultyLevel(form.difficulty_level || "sodda"),
         user_id: isVideo ? null : form.user_id || null,
         video_editor_user_id: isVideo ? form.editor_user_id || null : null,
         video_face_user_id: isVideo ? form.face_voice_user_id || null : null,
@@ -3141,7 +3214,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
         />
 
         <div className="info-banner">
-          Bonus formulasi: 1 ta tasdiq = <strong>{formatMoney(bonusRate)}</strong>. Taklif soni faqat ma'lumot uchun.
+          Bonus formulasi: <strong>Sodda 25,000 UZS</strong>, <strong>O'rta 50,000 UZS</strong>, <strong>Murakkab 75,000 UZS</strong>, <strong>Juda murakkab 100,000 UZS</strong>, <strong>Bonussiz 0 UZS</strong>.
         </div>
 
         <div className="stats-grid">
@@ -3208,10 +3281,11 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
           ) : null}
 
           <label>
-            <span>Kontent holati</span>
+            <span>Murakkablik darajasi</span>
             <select value={form.difficulty_level} onChange={(e) => setField("difficulty_level", e.target.value)} disabled={bonusFormLocked}>
-              <option value="normal">Oddiy</option>
-              <option value="qiyin">Qiyin</option>
+              {BONUS_DIFFICULTY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </label>
 
@@ -3403,7 +3477,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
             visibleItems.map((row) => {
               const difficultyMeta = getBonusDifficultyMeta(row);
               return (
-                <div key={`bonus-card-${row.id}`} className={`mobile-record-card ${row.difficulty_level === "qiyin" ? "danger" : ""}`}>
+                <div key={`bonus-card-${row.id}`} className={`mobile-record-card ${["murakkab", "juda_murakkab"].includes(normalizeDifficultyLevel(row.difficulty_level)) ? "danger" : ""}`}>
                   <div className="mobile-record-head">
                     <div className="mobile-record-title">
                       <strong>{row.content_title || "-"}</strong>

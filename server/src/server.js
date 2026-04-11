@@ -232,9 +232,34 @@ async function getBonusRate() {
   }
 }
 
-async function calcMoney(count) {
-  const rate = await getBonusRate();
-  return Number(count || 0) * rate;
+function normalizeDifficultyLevel(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["sodda", "oddiy", "normal", "easy"].includes(normalized)) return "sodda";
+  if (["juda_murakkab", "juda-murakkab", "juda murakkab", "very_hard"].includes(normalized)) return "juda_murakkab";
+  if (["murakkab", "qiyin", "hard"].includes(normalized)) return "murakkab";
+  if (["orta", "o'rta", "o‘rta", "ortacha", "o'rtacha", "o‘rtacha", "medium"].includes(normalized)) return "orta";
+  if (["bonussiz", "0", "none", "no_bonus"].includes(normalized)) return "bonussiz";
+  return "sodda";
+}
+
+function getDifficultyUnitAmount(level) {
+  switch (normalizeDifficultyLevel(level)) {
+    case "bonussiz":
+      return 0;
+    case "orta":
+      return 50000;
+    case "murakkab":
+      return 75000;
+    case "juda_murakkab":
+      return 100000;
+    case "sodda":
+    default:
+      return 25000;
+  }
+}
+
+async function calcMoney(count, difficultyLevel = "sodda") {
+  return Number(count || 0) * getDifficultyUnitAmount(difficultyLevel);
 }
 
 function calcCpa(spend, leads) {
@@ -1189,10 +1214,12 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS public_share_token TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL`,
-    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS bonus_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
-    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS proposal_count INTEGER NOT NULL DEFAULT 0`,
-    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS approved_count INTEGER NOT NULL DEFAULT 0`,
-    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS notes TEXT`,
+`ALTER TABLE content_items ADD COLUMN IF NOT EXISTS bonus_enabled BOOLEAN NOT NULL DEFAULT FALSE`,
+`ALTER TABLE content_items ADD COLUMN IF NOT EXISTS proposal_count INTEGER NOT NULL DEFAULT 0`,
+`ALTER TABLE content_items ADD COLUMN IF NOT EXISTS approved_count INTEGER NOT NULL DEFAULT 0`,
+`ALTER TABLE content_items ADD COLUMN IF NOT EXISTS difficulty_level TEXT NOT NULL DEFAULT 'sodda'`,
+`ALTER TABLE content_items ALTER COLUMN difficulty_level SET DEFAULT 'sodda'`,
+`ALTER TABLE content_items ADD COLUMN IF NOT EXISTS notes TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS plan_month TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS branch_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb`,
@@ -1226,7 +1253,8 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS created_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
-    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS difficulty_level TEXT NOT NULL DEFAULT 'normal'`,
+`ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS difficulty_level TEXT NOT NULL DEFAULT 'sodda'`,
+`ALTER TABLE bonus_items ALTER COLUMN difficulty_level SET DEFAULT 'sodda'`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'draft'`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`,
@@ -1489,13 +1517,28 @@ async function ensureRuntimeSchema() {
 
 async function recomputeBonusFromItems() {
   try {
-    const bonusRate = await getBonusRate();
     await query(`
       UPDATE bonus_items
       SET
         proposal_amount = 0,
-        approved_amount = COALESCE(approved_count, 0) * ${bonusRate},
-        total_amount = COALESCE(approved_count, 0) * ${bonusRate},
+        approved_amount =
+          COALESCE(approved_count, 0) *
+          CASE
+            WHEN difficulty_level IN ('bonussiz') THEN 0
+            WHEN difficulty_level IN ('orta', 'ortacha', 'o''rtacha', 'o‘rtacha') THEN 50000
+            WHEN difficulty_level IN ('murakkab', 'qiyin') THEN 75000
+            WHEN difficulty_level IN ('juda_murakkab', 'juda murakkab', 'juda-murakkab') THEN 100000
+            ELSE 25000
+          END,
+        total_amount =
+          COALESCE(approved_count, 0) *
+          CASE
+            WHEN difficulty_level IN ('bonussiz') THEN 0
+            WHEN difficulty_level IN ('orta', 'ortacha', 'o''rtacha', 'o‘rtacha') THEN 50000
+            WHEN difficulty_level IN ('murakkab', 'qiyin') THEN 75000
+            WHEN difficulty_level IN ('juda_murakkab', 'juda murakkab', 'juda-murakkab') THEN 100000
+            ELSE 25000
+          END,
         updated_at = CURRENT_TIMESTAMP
     `);
   } catch (err) {
@@ -1522,8 +1565,9 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
 
   const proposalCount = Number(row.proposal_count || 0);
   const approvedCount = Number(row.approved_count || 0);
+  const difficultyLevel = normalizeDifficultyLevel(row.difficulty_level || "sodda");
   const proposalAmount = 0;
-  const approvedAmount = await calcMoney(approvedCount);
+  const approvedAmount = await calcMoney(approvedCount, difficultyLevel);
   const totalAmount = approvedAmount;
 
   const existing = await db.query(
@@ -1542,7 +1586,7 @@ async function upsertBonusFromContentRow(db, row, actorUserId = null) {
     proposalAmount,
     approvedAmount,
     totalAmount,
-    row.difficulty_level || "normal",
+    difficultyLevel,
     row.content_type === "video"
       ? row.video_editor_user_id || row.video_face_user_id || row.assigned_user_id || null
       : row.assigned_user_id || null,
@@ -2602,6 +2646,7 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
       bonus_enabled,
       proposal_count,
       approved_count,
+      difficulty_level,
       notes,
       branch_ids_json,
       scenario_text,
@@ -2641,6 +2686,7 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
         bonus_enabled,
         proposal_count,
         approved_count,
+        difficulty_level,
         notes,
         branch_ids_json,
         scenario_text,
@@ -2658,7 +2704,7 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
         plan_month,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
       RETURNING *
       `,
       [
@@ -2674,6 +2720,7 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
         !!bonus_enabled,
         Number(proposal_count || 0),
         Number(approved_count || 0),
+        normalizeDifficultyLevel(difficulty_level || "sodda"),
         notes || "",
         JSON.stringify(Array.isArray(branch_ids_json) ? branch_ids_json : []),
         scenario_text || "",
@@ -2757,6 +2804,7 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
       bonus_enabled,
       proposal_count,
       approved_count,
+      difficulty_level,
       notes,
       branch_ids_json,
       scenario_text,
@@ -2797,23 +2845,24 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
         bonus_enabled = $10,
         proposal_count = $11,
         approved_count = $12,
-        notes = $13,
-        branch_ids_json = $14,
-        scenario_text = $15,
-        shot_list_text = $16,
-        preview_url = $17,
-        final_url = $18,
-        edit_file_url = $19,
-        approval_comment = $20,
-        content_template = $21,
-        idea_score = $22,
-        visual_score = $23,
-        editing_score = $24,
-        result_score = $25,
-        reach_value = $26,
-        plan_month = $27,
+        difficulty_level = $13,
+        notes = $14,
+        branch_ids_json = $15,
+        scenario_text = $16,
+        shot_list_text = $17,
+        preview_url = $18,
+        final_url = $19,
+        edit_file_url = $20,
+        approval_comment = $21,
+        content_template = $22,
+        idea_score = $23,
+        visual_score = $24,
+        editing_score = $25,
+        result_score = $26,
+        reach_value = $27,
+        plan_month = $28,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $28
+      WHERE id = $29
       RETURNING *
       `,
       [
@@ -2829,6 +2878,7 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
         !!bonus_enabled,
         Number(proposal_count || 0),
         Number(approved_count || 0),
+        normalizeDifficultyLevel(difficulty_level || "sodda"),
         notes || "",
         JSON.stringify(Array.isArray(branch_ids_json) ? branch_ids_json : []),
         scenario_text || "",
@@ -2999,9 +3049,10 @@ app.post("/api/bonus-items", authRequired, actionPermissionAllowed("bonus", "cre
 
     const dateOnly = formatDateOnly(work_date);
     const month = month_label || getMonthLabel(dateOnly || new Date());
+    const difficultyLevel = normalizeDifficultyLevel(difficulty_level || "sodda");
 
     const proposalAmount = 0;
-    const approvedAmount = await calcMoney(approved_count);
+    const approvedAmount = await calcMoney(approved_count, difficultyLevel);
     const totalAmount = approvedAmount;
 
     const inserted = await query(
@@ -3042,7 +3093,7 @@ app.post("/api/bonus-items", authRequired, actionPermissionAllowed("bonus", "cre
         proposalAmount,
         approvedAmount,
         totalAmount,
-        difficulty_level === "qiyin" ? "qiyin" : "normal",
+        difficultyLevel,
         content_type === "video"
           ? video_editor_user_id || video_face_user_id || user_id || null
           : user_id || null,
@@ -3084,9 +3135,10 @@ app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "
 
     const dateOnly = formatDateOnly(work_date);
     const month = month_label || getMonthLabel(dateOnly || new Date());
+    const difficultyLevel = normalizeDifficultyLevel(difficulty_level || "sodda");
 
     const proposalAmount = 0;
-    const approvedAmount = await calcMoney(approved_count);
+    const approvedAmount = await calcMoney(approved_count, difficultyLevel);
     const totalAmount = approvedAmount;
 
     const updated = await query(
@@ -3128,7 +3180,7 @@ app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "
         proposalAmount,
         approvedAmount,
         totalAmount,
-        difficulty_level === "qiyin" ? "qiyin" : "normal",
+        difficultyLevel,
         content_type === "video"
           ? video_editor_user_id || video_face_user_id || user_id || null
           : user_id || null,
@@ -3170,17 +3222,26 @@ app.post("/api/bonus-items/approve-month", authRequired, pagePermissionAllowed("
   const client = await getClient();
 
   try {
-    const bonusRate = await getBonusRate();
     await client.query("BEGIN");
 
     for (const row of items) {
       const itemId = Number(row?.id || 0);
       const approvedCount = Math.max(0, Number(row?.approved_count || 0));
-      const approvedAmount = approvedCount * bonusRate;
 
       if (!itemId) {
         throw new Error("Bonus yozuvi ID topilmadi");
       }
+
+      const currentRow = await client.query(
+        `SELECT difficulty_level FROM bonus_items WHERE id = $1 AND month_label = $2 LIMIT 1`,
+        [itemId, month]
+      );
+
+      if (!currentRow.rows.length) {
+        throw new Error("Bonus yozuvi topilmadi yoki oy mos emas");
+      }
+
+      const approvedAmount = approvedCount * getDifficultyUnitAmount(currentRow.rows[0].difficulty_level);
 
       const updated = await client.query(
         `

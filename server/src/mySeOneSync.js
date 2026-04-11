@@ -194,6 +194,16 @@ function buildParticipantList(row) {
     .filter((entry, index, arr) => arr.findIndex((item) => item.id === entry.id) === index);
 }
 
+function mapDifficultyLevelToMySeOneValue(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["sodda", "oddiy", "normal", "easy"].includes(normalized)) return "1";
+  if (["bonussiz", "0", "none", "no_bonus"].includes(normalized)) return "0";
+  if (["juda_murakkab", "juda-murakkab", "juda murakkab", "very_hard"].includes(normalized)) return "4";
+  if (["murakkab", "qiyin", "hard"].includes(normalized)) return "3";
+  if (["orta", "o'rta", "o‘rta", "ortacha", "o'rtacha", "o‘rtacha", "medium"].includes(normalized)) return "2";
+  return "1";
+}
+
 function buildPayload(row) {
   const workDate = toDateOnly(row.work_date);
   const monthLabel = String(row.month_label || "").trim() || toMonthLabel(workDate);
@@ -213,7 +223,7 @@ function buildPayload(row) {
     throw new Error(`my.se-one sync uchun hodim mapping topilmadi: ${row.content_title || row.id}`);
   }
 
-  const complexity = Number(row.proposal_count || 0) >= 2 ? "3" : "1";
+  const complexity = mapDifficultyLevelToMySeOneValue(row.difficulty_level || "sodda");
 
   return {
     monthLabel,
