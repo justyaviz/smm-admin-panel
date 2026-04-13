@@ -110,6 +110,20 @@ function decodeHtml(value) {
     .replace(/&gt;/g, ">");
 }
 
+function isLogoutRedirectResponse(value) {
+  return /window\.location\.href\s*=\s*['"]\/logout\.php['"]/i.test(String(value || ""));
+}
+
+function isLoginFailureResponse(value) {
+  const text = String(value || "");
+  return text.includes("Login yoki parol xato");
+}
+
+function isLoginFormResponse(value) {
+  const text = String(value || "");
+  return text.includes('name="login_r"') && text.includes('name="parol_r"');
+}
+
 function stripTags(value) {
   return decodeHtml(String(value || "").replace(/<[^>]+>/g, " "))
     .replace(/\s+/g, " ")
@@ -285,9 +299,39 @@ async function createSession() {
   });
 
   cookie = mergeCookies(cookie, loginResult.headers.getSetCookie?.() || []);
+  const loginText = await loginResult.text();
 
   if (!cookie) {
     throw new Error("my.se-one cookie olinmadi");
+  }
+
+  if (isLoginFailureResponse(loginText)) {
+    throw new Error("my.se-one login yoki parol noto'g'ri");
+  }
+
+  if (isLoginFormResponse(loginText) && !/logout\.php/i.test(loginText)) {
+    throw new Error("my.se-one login sessiyasi ochilmadi");
+  }
+
+  const landingLocation = loginResult.headers.get("location");
+  if (landingLocation) {
+    const landingUrl = new URL(landingLocation, config.baseUrl).toString();
+    const landingResult = await fetch(landingUrl, {
+      headers: {
+        cookie
+      },
+      redirect: "manual",
+      signal: AbortSignal.timeout(config.timeoutMs)
+    });
+    cookie = mergeCookies(cookie, landingResult.headers.getSetCookie?.() || []);
+    const landingText = await landingResult.text();
+
+    if (isLoginFailureResponse(landingText)) {
+      throw new Error("my.se-one login yoki parol noto'g'ri");
+    }
+    if (isLogoutRedirectResponse(landingText)) {
+      throw new Error("my.se-one login sessiyasi ochilmadi");
+    }
   }
 
   return {
@@ -345,6 +389,10 @@ async function loadMonthRows(session, monthLabel) {
     throw new Error(`my.se-one jadvalini olib bo'lmadi (${response.status})`);
   }
 
+  if (isLogoutRedirectResponse(text)) {
+    throw new Error("my.se-one sessiyasi tugagan yoki login muvaffaqiyatsiz");
+  }
+
   return parseRowsFromTable(text);
 }
 
@@ -365,6 +413,10 @@ async function loadRemoteRowById(session, remoteId) {
 
   if (!response.ok) {
     throw new Error(`my.se-one yozuvini olib bo'lmadi (${response.status})`);
+  }
+
+  if (isLogoutRedirectResponse(text)) {
+    throw new Error("my.se-one sessiyasi tugagan yoki login muvaffaqiyatsiz");
   }
 
   let parsed = null;
@@ -437,6 +489,10 @@ async function deleteRemoteRow(session, remoteId) {
     throw new Error(`my.se-one yozuvini o'chirib bo'lmadi (${response.status})`);
   }
 
+  if (isLogoutRedirectResponse(text)) {
+    throw new Error("my.se-one sessiyasi tugagan yoki login muvaffaqiyatsiz");
+  }
+
   const normalized = String(text || "").trim().toLowerCase();
   if (normalized && normalized !== "ok") {
     throw new Error(`my.se-one o'chirish javobi kutilmagan: ${text.slice(0, 200)}`);
@@ -467,6 +523,10 @@ async function insertRemoteRow(session, payload) {
 
   if (!response.ok) {
     throw new Error(`my.se-one yozuvini qo'shib bo'lmadi (${response.status})`);
+  }
+
+  if (isLogoutRedirectResponse(text)) {
+    throw new Error("my.se-one sessiyasi tugagan yoki login muvaffaqiyatsiz");
   }
 
   if (text.trim().startsWith("{")) {
