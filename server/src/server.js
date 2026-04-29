@@ -6086,27 +6086,49 @@ app.get("/api/export/contest-expenses.pdf", authRequired, async (req, res) => {
 app.get("/api/export/travel-expenses.pdf", authRequired, async (req, res) => {
   try {
     const month = String(req.query.month || "").trim();
+    const dateFrom = normalizeDateOnly(String(req.query.date_from || "").trim());
+    const dateTo = normalizeDateOnly(String(req.query.date_to || "").trim());
     const params = [];
-    let whereClause = "";
+    const conditions = [];
     let title = "Safar harajatlari hisobot";
 
-    if (month) {
+    if (dateFrom) {
+      params.push(dateFrom);
+      conditions.push(`expense_date >= $${params.length}`);
+    }
+
+    if (dateTo) {
+      params.push(dateTo);
+      conditions.push(`expense_date <= $${params.length}`);
+    }
+
+    if (dateFrom || dateTo) {
+      if (dateFrom && dateTo) {
+        title = `${dateFrom} dan ${dateTo} gacha safar harajatlari hisobot`;
+      } else if (dateFrom) {
+        title = `${dateFrom} dan boshlab safar harajatlari hisobot`;
+      } else if (dateTo) {
+        title = `${dateTo} gacha safar harajatlari hisobot`;
+      }
+    } else if (month) {
       params.push(month);
-      whereClause = `WHERE to_char(expense_date, 'YYYY-MM') = $1`;
+      conditions.push(`to_char(expense_date, 'YYYY-MM') = $${params.length}`);
       title = `${month} safar harajatlari hisobot`;
     }
 
-      const rows = (
-        await query(
-          `
-          SELECT *
-          FROM travel_expenses
-          ${whereClause}
-          ORDER BY sort_order ASC NULLS LAST, expense_date ASC NULLS LAST, id ASC
-          `,
-          params
-        )
-      ).rows;
+    const whereClause = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    const rows = (
+      await query(
+        `
+        SELECT *
+        FROM travel_expenses
+        ${whereClause}
+        ORDER BY sort_order ASC NULLS LAST, expense_date ASC NULLS LAST, id ASC
+        `,
+        params
+      )
+    ).rows;
 
     sendTravelExpensePdf(res, rows, `travel-expenses-${month || "all"}.pdf`, title);
   } catch (err) {

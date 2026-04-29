@@ -57,6 +57,16 @@ function getMonthTitle(monthLabel) {
   return `${names[month] || month} ${year || ""}`.trim();
 }
 
+function getMonthRange(monthLabel = getMonthLabel()) {
+  const [year, month] = String(monthLabel || getMonthLabel()).split("-").map(Number);
+  const safeYear = Number.isFinite(year) ? year : new Date().getFullYear();
+  const safeMonth = Number.isFinite(month) ? month : new Date().getMonth() + 1;
+  const from = `${safeYear}-${String(safeMonth).padStart(2, "0")}-01`;
+  const lastDay = new Date(safeYear, safeMonth, 0).getDate();
+  const to = `${safeYear}-${String(safeMonth).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  return { from, to };
+}
+
 function getDateSortValue(value, fallback = Number.POSITIVE_INFINITY) {
   if (!value) return fallback;
   const normalized = typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)
@@ -95,6 +105,38 @@ function formatAmount(amount = 0, currency = "UZS") {
   }
 
   return `${value.toLocaleString("uz-UZ")} ${normalizedCurrency}`;
+}
+
+function summarizeAmounts(rows = [], mode = "expense") {
+  const totals = new Map();
+  (rows || []).forEach((row) => {
+    const currency = String(row.currency || "UZS").toUpperCase();
+    const current = Number(totals.get(currency) || 0);
+    const amount = Number(row.amount || 0);
+    if (mode === "income" && row.entry_type === "kirim") {
+      totals.set(currency, current + amount);
+    } else if (mode === "expense" && row.entry_type !== "kirim") {
+      totals.set(currency, current + amount);
+    }
+  });
+  return totals;
+}
+
+function subtractAmountMaps(incomeMap, expenseMap) {
+  const result = new Map();
+  const currencies = new Set([...incomeMap.keys(), ...expenseMap.keys()]);
+  currencies.forEach((currency) => {
+    result.set(currency, Number(incomeMap.get(currency) || 0) - Number(expenseMap.get(currency) || 0));
+  });
+  return result;
+}
+
+function formatAmountMap(map) {
+  const entries = [...map.entries()];
+  if (!entries.length) return "0 UZS";
+  return entries
+    .map(([currency, amount]) => formatAmount(amount, currency))
+    .join(" · ");
 }
 
 function categoryLabel(value) {
@@ -193,6 +235,8 @@ export default function TravelExpensesPanel({ travelExpenses = [], onToast, relo
   const [editRow, setEditRow] = useState(null);
   const [viewRow, setViewRow] = useState(null);
   const [monthFilter, setMonthFilter] = useState(getMonthLabel());
+  const [pdfDateFrom, setPdfDateFrom] = useState(() => getMonthRange(getMonthLabel()).from);
+  const [pdfDateTo, setPdfDateTo] = useState(() => getMonthRange(getMonthLabel()).to);
 
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -267,8 +311,17 @@ export default function TravelExpensesPanel({ travelExpenses = [], onToast, relo
 
   async function exportPdf() {
     try {
-      const query = monthFilter ? `?month=${encodeURIComponent(monthFilter)}` : "";
-      await api.exportFile(`/api/export/travel-expenses.pdf${query}`, `travel-expenses-${monthFilter || "all"}.pdf`);
+      const params = new URLSearchParams();
+      if (pdfDateFrom) params.set("date_from", pdfDateFrom);
+      if (pdfDateTo) params.set("date_to", pdfDateTo);
+      if (!pdfDateFrom && !pdfDateTo && monthFilter) {
+        params.set("month", monthFilter);
+      }
+      const query = params.toString() ? `?${params.toString()}` : "";
+      const fileSuffix = pdfDateFrom || pdfDateTo
+        ? `${pdfDateFrom || "start"}_${pdfDateTo || "end"}`
+        : monthFilter || "all";
+      await api.exportFile(`/api/export/travel-expenses.pdf${query}`, `travel-expenses-${fileSuffix}.pdf`);
       onToast("PDF tayyorlandi", "success");
     } catch (err) {
       onToast(err.message || "PDF tayyorlab bo'lmadi", "error");
@@ -292,9 +345,42 @@ export default function TravelExpensesPanel({ travelExpenses = [], onToast, relo
 
   const expenseCount = filteredRows.filter((item) => item.entry_type === "chiqim").length;
   const incomeCount = filteredRows.filter((item) => item.entry_type === "kirim").length;
+  const overallExpenseTotals = useMemo(() => summarizeAmounts(travelExpenses, "expense"), [travelExpenses]);
+  const overallIncomeTotals = useMemo(() => summarizeAmounts(travelExpenses, "income"), [travelExpenses]);
+  const overallBalanceTotals = useMemo(
+    () => subtractAmountMaps(overallIncomeTotals, overallExpenseTotals),
+    [overallIncomeTotals, overallExpenseTotals]
+  );
+
+  const pdfRangeLabel = pdfDateFrom && pdfDateTo
+    ? `${pdfDateFrom} dan ${pdfDateTo} gacha`
+    : pdfDateFrom
+      ? `${pdfDateFrom} dan boshlab`
+      : pdfDateTo
+        ? `${pdfDateTo} gacha`
+        : "Oy bo'yicha PDF";
 
   return (
     <>
+      <div className="travel-balance-card">
+        <div className="travel-balance-card-chip">Safar balansi</div>
+        <div className="travel-balance-card-brand">
+          <span>aloo travel</span>
+          <strong>Joriy balans</strong>
+        </div>
+        <div className="travel-balance-card-amount">{formatAmountMap(overallBalanceTotals)}</div>
+        <div className="travel-balance-card-meta">
+          <div>
+            <span>Umumiy kirim</span>
+            <strong>{formatAmountMap(overallIncomeTotals)}</strong>
+          </div>
+          <div>
+            <span>Umumiy chiqim</span>
+            <strong>{formatAmountMap(overallExpenseTotals)}</strong>
+          </div>
+        </div>
+      </div>
+
       <div className="card">
         <SectionTitle
           title={editRow ? `Safar harajatini tahrirlash (ID #${editRow.id})` : "Safar harajati qo'shish"}
@@ -348,10 +434,37 @@ export default function TravelExpensesPanel({ travelExpenses = [], onToast, relo
               <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
                 {monthOptions.map((item) => <option key={item} value={item}>{getMonthTitle(item)}</option>)}
               </select>
-              <button type="button" className="btn secondary" onClick={exportPdf}>PDF saqlash</button>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => {
+                  const range = getMonthRange(monthFilter);
+                  setPdfDateFrom(range.from);
+                  setPdfDateTo(range.to);
+                }}
+              >
+                Oyni qo'yish
+              </button>
             </div>
           )}
         />
+        <div className="travel-range-toolbar">
+          <div className="travel-range-toolbar-copy">
+            <strong>PDF oralig'i</strong>
+            <span>{pdfRangeLabel}</span>
+          </div>
+          <div className="travel-range-toolbar-fields">
+            <label>
+              <span>Sanadan</span>
+              <input type="date" value={pdfDateFrom} onChange={(e) => setPdfDateFrom(e.target.value)} />
+            </label>
+            <label>
+              <span>Sanagacha</span>
+              <input type="date" value={pdfDateTo} onChange={(e) => setPdfDateTo(e.target.value)} />
+            </label>
+            <button type="button" className="btn secondary" onClick={exportPdf}>PDF saqlash</button>
+          </div>
+        </div>
         <div className="table-wrap desktop-table">
           <table>
             <thead>

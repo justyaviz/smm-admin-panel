@@ -339,6 +339,8 @@ function formatDateTimeInput(value) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+const BOOT_SCREEN_MAX_WAIT_MS = 5000;
+
 function normalizeExternalUrl(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -7057,7 +7059,8 @@ function App() {
 
     const timer = setTimeout(() => {
       setBootScreenVisible(false);
-    }, 5000);
+      setBooting(false);
+    }, BOOT_SCREEN_MAX_WAIT_MS);
 
     return () => clearTimeout(timer);
   }, [booting]);
@@ -7091,11 +7094,15 @@ function App() {
             ? active
             : "dashboard";
 
-        await reloadData(initialPage, {
+        const loadPromise = reloadData(initialPage, {
           includeMe: true,
           includeSettings: true,
           includeReferences: true
         });
+        await Promise.race([
+          loadPromise,
+          new Promise((resolve) => setTimeout(resolve, BOOT_SCREEN_MAX_WAIT_MS - 300))
+        ]);
       } catch {
         clearAuth();
         if (!cancelled) {
@@ -9214,6 +9221,143 @@ body.standalone-app .login-page{
   display:grid;
   grid-template-columns:repeat(4,1fr);
   gap:18px;
+}
+.travel-balance-card{
+  position:relative;
+  overflow:hidden;
+  margin-bottom:18px;
+  padding:24px 26px;
+  border-radius:28px;
+  border:1px solid rgba(148,163,184,.18);
+  background:
+    radial-gradient(circle at top right, rgba(96,165,250,.26), transparent 35%),
+    linear-gradient(135deg, rgba(18,84,186,.96), rgba(59,130,246,.92) 38%, rgba(37,99,235,.95) 70%, rgba(14,165,233,.88));
+  box-shadow:0 26px 50px rgba(29,78,216,.22);
+  color:#eff6ff;
+}
+.travel-balance-card::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(120deg, rgba(255,255,255,.18), transparent 18%, transparent 52%, rgba(255,255,255,.12) 72%, transparent 100%);
+  pointer-events:none;
+}
+.travel-balance-card-chip{
+  position:relative;
+  z-index:1;
+  display:inline-flex;
+  align-items:center;
+  padding:8px 12px;
+  border-radius:999px;
+  background:rgba(255,255,255,.16);
+  border:1px solid rgba(255,255,255,.18);
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.travel-balance-card-brand{
+  position:relative;
+  z-index:1;
+  margin-top:18px;
+  display:grid;
+  gap:6px;
+}
+.travel-balance-card-brand span{
+  font-size:12px;
+  letter-spacing:.18em;
+  text-transform:uppercase;
+  color:rgba(239,246,255,.72);
+  font-weight:800;
+}
+.travel-balance-card-brand strong{
+  font-size:28px;
+  line-height:1;
+  letter-spacing:-.05em;
+  color:#ffffff;
+}
+.travel-balance-card-amount{
+  position:relative;
+  z-index:1;
+  margin-top:18px;
+  font-size:38px;
+  line-height:1.05;
+  letter-spacing:-.08em;
+  font-weight:900;
+  color:#ffffff;
+}
+.travel-balance-card-meta{
+  position:relative;
+  z-index:1;
+  margin-top:22px;
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:14px;
+}
+.travel-balance-card-meta div{
+  padding:14px 16px;
+  border-radius:18px;
+  background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.15);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12);
+  display:grid;
+  gap:6px;
+}
+.travel-balance-card-meta span{
+  color:rgba(239,246,255,.74);
+  font-size:11px;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+  font-weight:800;
+}
+.travel-balance-card-meta strong{
+  color:#ffffff;
+  font-size:16px;
+  line-height:1.35;
+}
+.travel-range-toolbar{
+  margin:4px 0 18px;
+  padding:16px 18px;
+  border-radius:22px;
+  border:1px solid rgba(148,163,184,.16);
+  background:linear-gradient(180deg, rgba(246,249,255,.92), rgba(255,255,255,.82));
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:16px;
+}
+.travel-range-toolbar-copy{
+  display:grid;
+  gap:4px;
+}
+.travel-range-toolbar-copy strong{
+  color:var(--text);
+  font-size:16px;
+  letter-spacing:-.03em;
+}
+.travel-range-toolbar-copy span{
+  color:var(--muted);
+  font-size:13px;
+}
+.travel-range-toolbar-fields{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:flex-end;
+  gap:12px;
+}
+.travel-range-toolbar-fields label{
+  min-width:170px;
+  display:grid;
+  gap:6px;
+}
+.travel-range-toolbar-fields label span{
+  color:var(--muted);
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.12em;
+  text-transform:uppercase;
 }
 .stat-card-title{font-size:12px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;font-weight:800}
 .stat-card-value{font-size:38px;font-weight:800;margin-top:12px;letter-spacing:-.06em}
@@ -11527,6 +11671,33 @@ tbody tr:hover{
     border-radius:12px;
     padding:11px 12px;
     font-size:14px;
+  }
+  .travel-balance-card{
+    padding:18px 16px;
+    border-radius:22px;
+  }
+  .travel-balance-card-amount{
+    font-size:28px;
+  }
+  .travel-balance-card-meta{
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  .travel-range-toolbar{
+    flex-direction:column;
+    align-items:stretch;
+    gap:12px;
+  }
+  .travel-range-toolbar-copy{
+    width:100%;
+  }
+  .travel-range-toolbar-fields{
+    width:100%;
+    grid-template-columns:1fr;
+    gap:10px;
+  }
+  .travel-range-toolbar-fields label{
+    width:100%;
   }
   .btn{
     min-height:42px;
