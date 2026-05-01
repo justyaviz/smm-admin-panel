@@ -1127,6 +1127,24 @@ function contentTypeChipTone(value) {
   return "default";
 }
 
+function PlatformBadge({ platform }) {
+  const normalized = String(platform || "").toLowerCase();
+  const Icon = normalized.includes("telegram")
+    ? Send
+    : normalized.includes("reels") || normalized.includes("story")
+      ? Clapperboard
+      : normalized.includes("instagram")
+        ? Image
+        : MessageCircle;
+
+  return (
+    <span className={`table-chip platform platform-${normalized.replace(/[^a-z0-9]+/g, "-") || "default"}`}>
+      <Icon size={13} />
+      {platform}
+    </span>
+  );
+}
+
 function rubricChipTone(value) {
   const normalized = String(value || "").toLowerCase();
   if (["sotuv", "sale-promo", "aksiyalar", "chegirma"].includes(normalized)) return "success";
@@ -1177,11 +1195,10 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
   const logoSrc = LOGIN_LOGO;
   const companyLabel = normalizeAlooText(settings?.company_name || "aloo SMM");
   const platformLabel = normalizeAlooText(settings?.platform_name || "Yagona boshqaruv platformasi");
-  const loginSignals = ["kontent flow", "bonus board", "daily control"];
   const loginModes = [
-    { id: "telegram", label: "Telegram kod", icon: Bot },
-    { id: "password", label: "Login parol", icon: ShieldCheck },
-    { id: "pin", label: "Lavozim PIN", icon: ContactRound }
+    { id: "telegram", label: "Telefon", hint: "Telegram bot kodi", icon: Bot },
+    { id: "password", label: "Parol", hint: "Login yoki telefon", icon: ShieldCheck },
+    { id: "pin", label: "Lavozim", hint: "4 xonali kod", icon: ContactRound }
   ];
   const pinUsers = useMemo(
     () => loginOptions.filter((item) => String(item.role || "").toLowerCase() === String(selectedRole || "").toLowerCase()),
@@ -1267,7 +1284,6 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
     <div className="login-page">
       <div className="login-shell">
         <div className="login-copy">
-          <div className="brand-kicker">aloo platforma</div>
           <div className="login-logo-lockup">
             <img src={logoSrc} alt="aloo logo" className="login-logo-image" />
             <div className="login-logo-copy">
@@ -1275,44 +1291,18 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
               <span>{platformLabel}</span>
             </div>
           </div>
-          <h1>Yagona SMM boshqaruv paneli</h1>
-          <p>Kontent reja, bonus, filiallar va rahbar nazorati bir xil professional muhitda.</p>
+          <div className="brand-kicker">Professional admin panel</div>
+          <h1>SMM boshqaruv tizimi</h1>
+          <p>Kontent, bonus va jamoa jarayonlari uchun toza, tez va yengil ish muhiti.</p>
           <div className="login-public-nav">
             <a href="/platforma/">Platforma</a>
             <a href="/filiallar/">Filiallar</a>
             <a href="/boglanish/">Bog'lanish</a>
           </div>
-          <div className="login-status-row">
-            {loginSignals.map((item) => (
-              <span key={item} className="login-status-pill">{item}</span>
-            ))}
-          </div>
-          <div className="login-feature-row">
-            <div className="login-feature-card">
-              <strong>Kontent nazorati</strong>
-              <span>Deadline, approval, kalendar va natijalar bitta oqimda.</span>
-            </div>
-            <div className="login-feature-card">
-              <strong>Bonus boshqaruvi</strong>
-              <span>Pending, approved, paid va payroll nazorati tayyor.</span>
-            </div>
-          </div>
-          <div className="login-metrics-row">
-            <article className="login-metric-card">
-              <span>Kontent</span>
-              <strong>Workflow 2.0</strong>
-              <small>Idea dan publishedgacha</small>
-            </article>
-            <article className="login-metric-card">
-              <span>Bonus</span>
-              <strong>Payroll ready</strong>
-              <small>Close, audit, export</small>
-            </article>
-            <article className="login-metric-card">
-              <span>Rahbar</span>
-              <strong>Executive view</strong>
-              <small>Tez xulosa va signal</small>
-            </article>
+          <div className="login-status-row compact">
+            <span className="login-status-pill">Light UI</span>
+            <span className="login-status-pill">Tez kirish</span>
+            <span className="login-status-pill">Jamoa nazorati</span>
           </div>
         </div>
 
@@ -1326,12 +1316,11 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
           <div className="login-card-top">
             <div className="small-label">Kirish</div>
             <div className="login-card-badges">
-              <span className="login-card-badge">light ui</span>
               <span className="login-card-badge">secure</span>
             </div>
           </div>
           <div className="login-title">Tizimga kirish</div>
-          <div className="login-subtitle">O'zingizga qulay kirish turini tanlang.</div>
+          <div className="login-subtitle">Yuqoridan kirish turini tanlang.</div>
 
           <div className="login-mode-switch">
             {loginModes.map((mode) => {
@@ -1344,7 +1333,10 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
                   onClick={() => setLoginMode(mode.id)}
                 >
                   <Icon size={16} />
-                  <span>{mode.label}</span>
+                  <span>
+                    <strong>{mode.label}</strong>
+                    <small>{mode.hint}</small>
+                  </span>
                 </button>
               );
             })}
@@ -1373,7 +1365,7 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
                   {sendingCode ? "Yuborilmoqda..." : "Kod olish"}
                 </button>
               </div>
-              <div className="login-inline-note">Kod Telegram bot ulangan chatga yuboriladi.</div>
+              <div className="login-inline-note">Kod Telegram bot orqali bir martalik yuboriladi.</div>
             </div>
           ) : null}
 
@@ -1430,7 +1422,7 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
                   placeholder="0000"
                 />
               </label>
-              <div className="login-inline-note">Agar PIN alohida berilmagan bo'lsa, telefon oxirgi 4 raqami ishlashi mumkin.</div>
+              <div className="login-inline-note">Lavozimni tanlang va shaxsiy 4 xonali kodingizni kiriting.</div>
             </div>
           ) : null}
 
@@ -2573,7 +2565,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                       <td>
                         <div className="table-chip-row">
                           {(splitCellValues(row.platform) || []).length ? splitCellValues(row.platform).map((platform, idx) => (
-                            <span key={`${row.id}-platform-${idx}`} className="table-chip platform">{platform}</span>
+                            <PlatformBadge key={`${row.id}-platform-${idx}`} platform={platform} />
                           )) : <span className="table-cell-muted">-</span>}
                         </div>
                       </td>
@@ -2785,32 +2777,38 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         )}
       </div>
 
-      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kontent reja tafsiloti">
+      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kontent reja tafsiloti" wide>
         {viewRow ? (
-          <>
-            <div className="detail-grid">
-              <div><strong>Kontent nomi:</strong> {viewRow.title}</div>
-              <div><strong>Sana:</strong> {formatDate(viewRow.publish_date)}</div>
-              <div><strong>Holati:</strong> <span className={approvalStatusClass(viewRow.status)}>{formatApprovalStatus(viewRow.status)}</span></div>
-              <div><strong>Platforma:</strong> {viewRow.platform || "-"}</div>
-              <div><strong>Turi:</strong> {formatContentType(viewRow.content_type)}</div>
-              <div><strong>Rubrika:</strong> {formatRubric(viewRow.rubric)}</div>
-            <div><strong>Bonus:</strong> {viewRow.bonus_enabled ? "Ha" : "Yo'q"}</div>
-            <div><strong>Taklif soni:</strong> {viewRow.proposal_count || 0}</div>
-            {viewRow.bonus_enabled ? <div><strong>Murakkablik:</strong> {formatDifficultyHelp(viewRow.difficulty_level)}</div> : null}
-            <div><strong>Tasdiq soni:</strong> {viewRow.approved_count || 0}</div>
-              <div className="full-col">
-                <strong>Qilingan ish linki:</strong>{" "}
-                {viewRow.final_url ? (
-                  <a href={normalizeExternalUrl(viewRow.final_url)} target="_blank" rel="noreferrer">
-                    Havolani ochish
-                  </a>
-                ) : "-"}
+          <div className="content-detail-layout">
+            <div className="content-detail-main">
+              <div className="detail-grid content-detail-grid">
+                <div><strong>Kontent nomi</strong><span>{viewRow.title}</span></div>
+                <div><strong>Sana</strong><span>{formatDate(viewRow.publish_date)}</span></div>
+                <div><strong>Holati</strong><span className={approvalStatusClass(viewRow.status)}>{formatApprovalStatus(viewRow.status)}</span></div>
+                <div><strong>Platforma</strong><span className="table-chip-row">{splitCellValues(viewRow.platform).length ? splitCellValues(viewRow.platform).map((platform, idx) => <PlatformBadge key={`${viewRow.id}-detail-platform-${idx}`} platform={platform} />) : "-"}</span></div>
+                <div><strong>Turi</strong><span>{formatContentType(viewRow.content_type)}</span></div>
+                <div><strong>Rubrika</strong><span>{formatRubric(viewRow.rubric)}</span></div>
+                <div><strong>Bonus</strong><span>{viewRow.bonus_enabled ? "Ha" : "Yo'q"}</span></div>
+                <div><strong>Taklif soni</strong><span>{viewRow.proposal_count || 0}</span></div>
+                {viewRow.bonus_enabled ? <div><strong>Murakkablik</strong><span>{formatDifficultyHelp(viewRow.difficulty_level)}</span></div> : null}
+                <div><strong>Tasdiq soni</strong><span>{viewRow.approved_count || 0}</span></div>
+                <div className="full-col">
+                  <strong>Qilingan ish linki</strong>
+                  <span>
+                    {viewRow.final_url ? (
+                      <a href={normalizeExternalUrl(viewRow.final_url)} target="_blank" rel="noreferrer">
+                        Havolani ochish
+                      </a>
+                    ) : "-"}
+                  </span>
+                </div>
+                <div className="full-col"><strong>Approval izohi</strong><span>{viewRow.approval_comment || "-"}</span></div>
               </div>
-              <div className="full-col"><strong>Approval izohi:</strong> {viewRow.approval_comment || "-"}</div>
             </div>
-            <DiscussionPanel entityType="content" entityId={viewRow.id} onToast={onToast} />
-          </>
+            <div className="content-detail-side">
+              <DiscussionPanel entityType="content" entityId={viewRow.id} onToast={onToast} />
+            </div>
+          </div>
         ) : null}
       </Modal>
     </div>
@@ -13750,8 +13748,621 @@ tbody tr:hover{
   border-radius:14px;
   padding:12px 14px;
 }
+
+/* unified light UI system polish */
+:root,
+:root[data-theme='dark']{
+  --blue:#2463eb;
+  --blue-strong:#1d4ed8;
+  --accent:#0f9f8f;
+  --accent-soft:rgba(15,159,143,.10);
+  --bg:#f5f7fb;
+  --bg-elevated:#ffffff;
+  --panel:#ffffff;
+  --panel-strong:#ffffff;
+  --panel-soft:#f8fafc;
+  --soft:#f6f8fb;
+  --soft-strong:#eef3f8;
+  --text:#101828;
+  --text-soft:#243042;
+  --muted:#667085;
+  --line:rgba(16,24,40,.10);
+  --line-strong:rgba(16,24,40,.16);
+  --danger:#dc2626;
+  --success:#079455;
+  --warning:#dc8a00;
+  --nav-bg:#ffffff;
+  --nav-bg-soft:#f8fafc;
+  --nav-text:#101828;
+  --nav-muted:#667085;
+  --radius-lg:24px;
+  --radius-md:16px;
+  --shadow-soft:0 12px 28px rgba(16,24,40,.06);
+  --shadow-card:0 22px 54px rgba(16,24,40,.08);
+  --shadow-float:0 28px 72px rgba(16,24,40,.14);
+  --ring:0 0 0 4px rgba(36,99,235,.12);
+}
+html,
+:root[data-theme='dark'] html{
+  color-scheme:light;
+}
+body{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.82), rgba(255,255,255,0) 420px),
+    linear-gradient(135deg, #f7f9fc 0%, #eef4fb 100%);
+}
+.app-shell{
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.65), rgba(245,247,251,.92)),
+    #f5f7fb;
+}
+.login-page{
+  display:grid;
+  place-items:center;
+  background:
+    linear-gradient(135deg, rgba(36,99,235,.08), rgba(15,159,143,.06) 46%, rgba(255,255,255,.65)),
+    #f6f8fb;
+}
+.login-shell{
+  width:min(100%, 1180px);
+  min-height:auto;
+  align-items:center;
+  grid-template-columns:minmax(0, .92fr) minmax(360px, 440px);
+  gap:clamp(24px, 4vw, 56px);
+}
+.login-copy{
+  align-self:center;
+}
+.login-logo-lockup{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  margin:0 0 24px;
+}
+.login-logo-copy strong{
+  display:block;
+  font-size:22px;
+  letter-spacing:0;
+}
+.login-logo-copy span{
+  color:var(--muted);
+  font-size:14px;
+}
+.brand-kicker{
+  margin-bottom:14px;
+  background:#fff;
+  color:var(--blue-strong);
+  border-color:rgba(36,99,235,.14);
+  letter-spacing:.08em;
+}
+.login-copy h1{
+  max-width:680px;
+  font-size:clamp(42px, 5vw, 64px);
+  letter-spacing:0;
+}
+.login-copy > p:not(.login-seo-note){
+  max-width:560px;
+  color:#475467;
+  font-size:17px;
+}
+.login-public-nav{
+  gap:10px;
+}
+.login-status-row.compact{
+  max-width:560px;
+  gap:10px;
+}
+.login-card{
+  border-radius:24px;
+  padding:24px;
+  box-shadow:0 28px 70px rgba(16,24,40,.12);
+}
+.login-card-top{
+  align-items:center;
+}
+.login-title{
+  font-size:30px;
+  letter-spacing:0;
+}
+.login-mode-switch{
+  grid-template-columns:repeat(3, minmax(0,1fr));
+  border-radius:16px;
+  padding:5px;
+  background:#eef3f8;
+}
+.login-mode-btn{
+  min-height:58px;
+  padding:8px 8px;
+  border-radius:13px;
+  gap:7px;
+}
+.login-mode-btn span{
+  display:grid;
+  gap:2px;
+  text-align:left;
+}
+.login-mode-btn strong{
+  font-size:13px;
+  line-height:1.1;
+}
+.login-mode-btn small{
+  color:inherit;
+  opacity:.72;
+  font-size:10px;
+  line-height:1.2;
+}
+.login-mode-btn.active{
+  box-shadow:0 10px 22px rgba(16,24,40,.10);
+}
+.login-card input,
+.login-card select,
+.form-grid input,
+.form-grid select,
+.form-grid textarea,
+.table-search,
+.table-filter{
+  background:#fff;
+  border:1px solid rgba(16,24,40,.12);
+  border-radius:14px;
+  color:var(--text);
+}
+.login-card input:focus,
+.login-card select:focus,
+.form-grid input:focus,
+.form-grid select:focus,
+.form-grid textarea:focus{
+  border-color:rgba(36,99,235,.42);
+  box-shadow:var(--ring);
+}
+.sidebar{
+  background:#ffffff;
+  border-right:1px solid rgba(16,24,40,.10);
+}
+.menu-btn,
+.mobile-menu-card{
+  border-radius:14px;
+  box-shadow:none;
+}
+.menu-btn.active,
+.mobile-menu-card.active{
+  background:#eef4ff;
+  color:#1d4ed8;
+  border-color:rgba(36,99,235,.16);
+}
+.topbar,
+.card,
+.stat-card,
+.dashboard-hero-card,
+.content-modern-card,
+.bonus-plastic-section,
+.calendar-card,
+.kanban-column,
+.table-wrap,
+.modal-card,
+.drawer-panel,
+.mobile-record-card,
+.permission-box,
+.permission-item{
+  background:#ffffff;
+  border:1px solid rgba(16,24,40,.10);
+  box-shadow:0 14px 34px rgba(16,24,40,.055);
+}
+.card:hover,
+.stat-card:hover{
+  transform:none;
+}
+.dashboard-hero-card{
+  border-radius:26px;
+  background:
+    linear-gradient(135deg, rgba(36,99,235,.08), rgba(15,159,143,.06)),
+    #ffffff;
+}
+.dashboard-hero-card::before,
+.dashboard-hero-glow,
+.content-modern-card::before,
+.bonus-plastic-pattern{
+  opacity:.28;
+}
+.stat-card{
+  border-radius:20px;
+}
+.stat-card-value{
+  letter-spacing:0;
+}
+.btn{
+  border-radius:12px;
+  letter-spacing:0;
+}
+.btn.primary{
+  background:linear-gradient(135deg, #2463eb, #1488cc);
+  box-shadow:0 12px 26px rgba(36,99,235,.20);
+}
+.btn.secondary,
+.btn.ghost,
+.icon-btn{
+  background:#ffffff;
+  color:#101828;
+  border:1px solid rgba(16,24,40,.12);
+}
+.table-wrap{
+  border-radius:18px;
+}
+table{
+  background:#fff;
+}
+th{
+  background:#f8fafc;
+  color:#475467;
+  font-size:12px;
+  letter-spacing:.02em;
+  text-transform:uppercase;
+}
+td{
+  color:#243042;
+}
+tbody tr:hover{
+  background:#f8fbff;
+}
+.modal-backdrop,
+.drawer-backdrop{
+  background:rgba(16,24,40,.42);
+  backdrop-filter:blur(6px);
+}
+.modal-card{
+  border-radius:22px;
+}
+.modal-head h3{
+  letter-spacing:0;
+}
+.bonus-plastic-card{
+  border-radius:18px;
+  box-shadow:0 16px 36px rgba(16,24,40,.10);
+}
+
+/* professional system upgrade: typography, tables, cards and modals */
+html,body,#root{
+  font-family:"Inter","Segoe UI",Arial,sans-serif;
+  font-variant-numeric:tabular-nums;
+}
+h1,h2,h3,h4,
+.topbar h1,
+.dashboard-hero-copy h1,
+.dashboard-metric-main,
+.stat-card-value,
+.bonus-plastic-body strong,
+.login-title{
+  font-family:"Manrope","Inter","Segoe UI",Arial,sans-serif;
+  font-variant-numeric:tabular-nums;
+}
+.dashboard-page{
+  gap:22px;
+}
+.dashboard-metrics-grid{
+  gap:16px;
+}
+.dashboard-metric-card{
+  position:relative;
+  overflow:hidden;
+  min-height:174px;
+  border-radius:18px;
+  padding:20px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(249,251,253,.94)),
+    #ffffff;
+  border:1px solid rgba(16,24,40,.10);
+  box-shadow:0 16px 38px rgba(16,24,40,.07);
+}
+.dashboard-metric-card::after{
+  content:"";
+  position:absolute;
+  right:-34px;
+  top:-34px;
+  width:108px;
+  height:108px;
+  border-radius:50%;
+  background:rgba(36,99,235,.08);
+}
+.dashboard-metric-success::after{background:rgba(7,148,85,.10)}
+.dashboard-metric-warning::after{background:rgba(220,138,0,.12)}
+.dashboard-metric-danger::after{background:rgba(220,38,38,.10)}
+.dashboard-metric-info::after{background:rgba(20,136,204,.10)}
+.dashboard-metric-label,
+.stat-card-title{
+  color:#667085;
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+.dashboard-metric-main,
+.stat-card-value{
+  color:#101828;
+  letter-spacing:0;
+}
+.dashboard-metric-hint,
+.stat-card-hint{
+  color:#667085;
+}
+.dashboard-metric-spark span{
+  border-radius:999px 999px 0 0;
+}
+.dashboard-chip,
+.login-status-pill,
+.mini-badge,
+.status-badge,
+.table-chip{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  border-radius:999px;
+  border:1px solid rgba(16,24,40,.10);
+  font-weight:800;
+  line-height:1;
+  white-space:nowrap;
+}
+.status-badge{
+  min-height:28px;
+  padding:7px 10px;
+}
+.status-badge.done,
+.status-badge.success,
+.mini-badge.success{
+  background:#ecfdf3;
+  color:#067647;
+  border-color:#abefc6;
+}
+.status-badge.doing,
+.status-badge.info,
+.mini-badge.info{
+  background:#eff8ff;
+  color:#175cd3;
+  border-color:#b2ddff;
+}
+.status-badge.warning,
+.mini-badge.warning{
+  background:#fffaeb;
+  color:#b54708;
+  border-color:#fedf89;
+}
+.status-badge.cancelled,
+.status-badge.danger,
+.mini-badge.danger{
+  background:#fef3f2;
+  color:#b42318;
+  border-color:#fecdca;
+}
+.table-chip{
+  min-height:28px;
+  padding:7px 10px;
+  background:#f8fafc;
+  color:#344054;
+}
+.table-chip.platform{
+  background:#eef4ff;
+  color:#1d4ed8;
+  border-color:#c7d7fe;
+}
+.table-chip.platform-telegram{
+  background:#eff8ff;
+  color:#026aa2;
+  border-color:#b2ddff;
+}
+.table-chip.platform-instagram{
+  background:#fdf2fa;
+  color:#c11574;
+  border-color:#fcceee;
+}
+.table-chip.type.info,
+.table-chip.rubric.info{
+  background:#eff8ff;
+  color:#175cd3;
+  border-color:#b2ddff;
+}
+.table-chip.type.warning,
+.table-chip.rubric.warning{
+  background:#fffaeb;
+  color:#b54708;
+  border-color:#fedf89;
+}
+.table-chip.type.danger,
+.table-chip.rubric.danger{
+  background:#fef3f2;
+  color:#b42318;
+  border-color:#fecdca;
+}
+.table-chip-row{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  flex-wrap:wrap;
+}
+.table-wrap{
+  max-width:100%;
+}
+.table-wrap thead th{
+  position:sticky;
+  top:0;
+  z-index:2;
+  border-bottom:1px solid rgba(16,24,40,.10);
+  box-shadow:0 1px 0 rgba(16,24,40,.04);
+}
+th,td{
+  padding:14px 16px;
+  vertical-align:middle;
+}
+tbody tr{
+  transition:background .18s ease, box-shadow .18s ease;
+}
+.table-title-main{
+  color:#101828;
+  font-weight:800;
+}
+.table-title-sub,
+.table-date-stack span,
+.table-cell-muted{
+  color:#667085;
+}
+.table-compact-amount,
+.bonus-plastic-body strong,
+.travel-balance-card-amount{
+  font-variant-numeric:tabular-nums;
+  letter-spacing:0;
+}
+.table-actions-shell,
+.icon-actions{
+  justify-content:flex-end;
+}
+.form-grid label span,
+.campaign-lead-form label span,
+.login-card label span{
+  color:#475467;
+  font-weight:750;
+}
+.form-grid input,
+.form-grid select,
+.form-grid textarea{
+  min-height:48px;
+  padding:12px 14px;
+  box-shadow:inset 0 1px 1px rgba(16,24,40,.03);
+}
+.file-picker,
+.discussion-upload{
+  border-radius:16px;
+  border:1px dashed rgba(36,99,235,.24);
+  background:#f8fbff;
+}
+.modal-wrap{
+  animation:modal-fade-in .16s ease both;
+}
+.modal-card{
+  animation:modal-rise-in .2s cubic-bezier(.2,.8,.2,1) both;
+}
+@keyframes modal-fade-in{
+  from{opacity:0}
+  to{opacity:1}
+}
+@keyframes modal-rise-in{
+  from{opacity:0;transform:translateY(14px) scale(.985)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+.content-detail-layout{
+  display:grid;
+  grid-template-columns:minmax(0, 1.04fr) minmax(340px, .96fr);
+  gap:18px;
+  align-items:start;
+}
+.content-detail-main,
+.content-detail-side{
+  min-width:0;
+}
+.content-detail-grid{
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+}
+.content-detail-grid > div{
+  display:grid;
+  gap:8px;
+  padding:14px;
+  border:1px solid rgba(16,24,40,.10);
+  border-radius:16px;
+  background:#f8fafc;
+}
+.content-detail-grid strong{
+  color:#667085;
+  font-size:12px;
+  letter-spacing:.04em;
+  text-transform:uppercase;
+}
+.content-detail-grid span{
+  color:#101828;
+  font-weight:750;
+  line-height:1.45;
+}
+.discussion-panel{
+  grid-template-columns:1fr;
+  gap:12px;
+}
+.discussion-col{
+  border:1px solid rgba(16,24,40,.10);
+  border-radius:16px;
+  background:#ffffff;
+}
+.bonus-plastic-section{
+  border-radius:22px;
+  padding:20px;
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.96), rgba(248,250,252,.92)),
+    #ffffff;
+}
+.bonus-plastic-card{
+  position:relative;
+  overflow:hidden;
+  min-height:220px;
+  border:1px solid rgba(255,255,255,.34);
+  background:
+    linear-gradient(140deg, rgba(16,24,40,.94), rgba(36,99,235,.76)),
+    #101828;
+}
+.bonus-plastic-card::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image:
+    linear-gradient(120deg, rgba(255,255,255,.18), rgba(255,255,255,0) 32%),
+    repeating-linear-gradient(135deg, rgba(255,255,255,.055) 0 1px, transparent 1px 8px);
+  pointer-events:none;
+}
+.bonus-plastic-card.card-2{
+  background:
+    linear-gradient(140deg, rgba(6,78,59,.96), rgba(15,159,143,.72)),
+    #064e3b;
+}
+.bonus-plastic-body strong{
+  font-size:clamp(25px, 3vw, 36px);
+}
+.bonus-plastic-footer,
+.bonus-plastic-top,
+.bonus-plastic-body{
+  position:relative;
+  z-index:1;
+}
+.deadline-item{
+  border:1px solid rgba(16,24,40,.10);
+  background:#ffffff;
+  border-radius:16px;
+}
+.deadline-item.warning{
+  background:#fffbf0;
+  border-color:#fedf89;
+}
+.deadline-item.danger{
+  background:#fff6f5;
+  border-color:#fecdca;
+}
+.signal-item,
+.dashboard-alert-card,
+.reminder-card{
+  border-radius:16px;
+  border:1px solid rgba(16,24,40,.10);
+}
+.toast{
+  animation:toast-in .18s ease both;
+}
+@keyframes toast-in{
+  from{opacity:0;transform:translateY(10px) scale(.98)}
+  to{opacity:1;transform:translateY(0) scale(1)}
+}
+.login-mode-panel{
+  animation:tab-fade-in .18s ease both;
+}
+@keyframes tab-fade-in{
+  from{opacity:0;transform:translateY(5px)}
+  to{opacity:1;transform:translateY(0)}
+}
 @media (max-width: 1100px){
   .login-shell{
+    grid-template-columns:1fr;
+  }
+  .content-detail-layout{
     grid-template-columns:1fr;
   }
   .login-card{
@@ -13760,6 +14371,9 @@ tbody tr:hover{
 }
 @media (max-width: 720px){
   .login-feature-row,.login-metrics-row,.login-mode-switch{
+    grid-template-columns:1fr;
+  }
+  .content-detail-grid{
     grid-template-columns:1fr;
   }
   .inline-action-row{
