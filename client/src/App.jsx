@@ -25,7 +25,6 @@ import {
   MessageCircle,
   Megaphone,
   Mic,
-  Moon,
   Menu,
   PlaneTakeoff,
   Repeat2,
@@ -37,7 +36,6 @@ import {
   Send,
   SlidersHorizontal,
   Sparkles,
-  SunMedium,
   SmilePlus,
   Trash2,
   Upload,
@@ -677,16 +675,8 @@ function Toast({ toast, onClose }) {
   );
 }
 
-function ThemeToggle({ theme, setTheme }) {
-  return (
-    <button
-      className="theme-toggle"
-      type="button"
-      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-    >
-      {theme === "dark" ? <SunMedium size={16} /> : <Moon size={16} />}
-    </button>
-  );
+function ThemeToggle() {
+  return null;
 }
 
 function NotificationsDrawer({ open, onClose, notifications = [], onRead, onReadAll }) {
@@ -1172,21 +1162,84 @@ function normalizeAlooText(value = "") {
 }
 
 function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpenInstallGuide }) {
+  const [loginMode, setLoginMode] = useState("telegram");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [pinCode, setPinCode] = useState("");
+  const [selectedRole, setSelectedRole] = useState("manager");
+  const [selectedUserId, setSelectedUserId] = useState("");
+  const [loginOptions, setLoginOptions] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [sendingCode, setSendingCode] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const logoSrc = LOGIN_LOGO;
   const companyLabel = normalizeAlooText(settings?.company_name || "aloo SMM");
   const platformLabel = normalizeAlooText(settings?.platform_name || "Yagona boshqaruv platformasi");
-  const loginSignals = ["kontent flow", "filiallar sync", "bonus live"];
+  const loginSignals = ["kontent flow", "bonus board", "daily control"];
+  const loginModes = [
+    { id: "telegram", label: "Telegram kod", icon: Bot },
+    { id: "password", label: "Login parol", icon: ShieldCheck },
+    { id: "pin", label: "Lavozim PIN", icon: ContactRound }
+  ];
+  const pinUsers = useMemo(
+    () => loginOptions.filter((item) => String(item.role || "").toLowerCase() === String(selectedRole || "").toLowerCase()),
+    [loginOptions, selectedRole]
+  );
+
+  useEffect(() => {
+    let ignore = false;
+    api.loginOptions()
+      .then((data) => {
+        if (ignore) return;
+        setLoginOptions(Array.isArray(data?.users) ? data.users : []);
+      })
+      .catch(() => {
+        if (!ignore) setLoginOptions([]);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (selectedUserId && pinUsers.some((item) => Number(item.id) === Number(selectedUserId))) return;
+    setSelectedUserId(pinUsers[0]?.id ? String(pinUsers[0].id) : "");
+  }, [pinUsers, selectedUserId]);
+
+  useEffect(() => {
+    setError("");
+    setNotice("");
+  }, [loginMode]);
 
   async function submit(e) {
     e.preventDefault();
     try {
       setLoading(true);
       setError("");
-      await api.login({ phone, password });
+      setNotice("");
+      if (loginMode === "telegram") {
+        const data = await api.verifyTelegramCode({ phone, code: otpCode });
+        const me = await api.me().catch(() => ({ user: data?.user }));
+        onLoggedIn(me.user || data?.user);
+        return;
+      }
+
+      if (loginMode === "pin") {
+        const selectedUser = loginOptions.find((item) => Number(item.id) === Number(selectedUserId));
+        const data = await api.pinLogin({
+          user_id: selectedUserId ? Number(selectedUserId) : undefined,
+          phone: selectedUser?.phone || "",
+          role: selectedRole,
+          pin_code: pinCode
+        });
+        const me = await api.me().catch(() => ({ user: data?.user }));
+        onLoggedIn(me.user || data?.user);
+        return;
+      }
+
+      await api.login({ phone, login: phone, password });
       const me = await api.me();
       onLoggedIn(me.user);
     } catch (err) {
@@ -1196,30 +1249,25 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
     }
   }
 
+  async function sendTelegramCode() {
+    try {
+      setSendingCode(true);
+      setError("");
+      setNotice("");
+      const data = await api.requestTelegramCode({ phone });
+      setNotice(data?.message || "Kod yuborildi");
+    } catch (err) {
+      setError(err.message || "Kod yuborilmadi");
+    } finally {
+      setSendingCode(false);
+    }
+  }
+
   return (
     <div className="login-page">
-      <div className="login-particles">
-        {Array.from({ length: 18 }).map((_, index) => (
-          <span
-            key={index}
-            className="login-particle"
-            style={{
-              left: `${6 + index * 5.1}%`,
-              animationDelay: `${index * 0.6}s`,
-              animationDuration: `${12 + (index % 5) * 2.3}s`
-            }}
-          />
-        ))}
-      </div>
-      <div className="login-orb orb-one" />
-      <div className="login-orb orb-two" />
-      <div className="login-orb orb-three" />
-      <div className="login-grid-line" />
-      <div className="login-noise" />
-
       <div className="login-shell">
         <div className="login-copy">
-          <div className="brand-kicker">aloo - yagona platforma</div>
+          <div className="brand-kicker">aloo platforma</div>
           <div className="login-logo-lockup">
             <img src={logoSrc} alt="aloo logo" className="login-logo-image" />
             <div className="login-logo-copy">
@@ -1227,13 +1275,10 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
               <span>{platformLabel}</span>
             </div>
           </div>
-          <h1>aloo SMM Panel</h1>
-          <p>SMM va marketing boshqaruv tizimi</p>
-          <h2>aloo do'konlar tarmog'i SMM jamoasi yagona ma'lumotlar platformasiga xush kelibsiz</h2>
-          <p>Kirish uchun login va parolingizni kiriting.</p>
+          <h1>Yagona SMM boshqaruv paneli</h1>
+          <p>Kontent reja, bonus, filiallar va rahbar nazorati bir xil professional muhitda.</p>
           <div className="login-public-nav">
             <a href="/platforma/">Platforma</a>
-            <a href="/xizmatlar/">Xizmatlar</a>
             <a href="/filiallar/">Filiallar</a>
             <a href="/boglanish/">Bog'lanish</a>
           </div>
@@ -1244,39 +1289,34 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
           </div>
           <div className="login-feature-row">
             <div className="login-feature-card">
-              <strong>Kontent</strong>
-              <span>Reja, bonus va ijro jarayonlari bir joyda.</span>
+              <strong>Kontent nazorati</strong>
+              <span>Deadline, approval, kalendar va natijalar bitta oqimda.</span>
             </div>
             <div className="login-feature-card">
-              <strong>Jamoa</strong>
-              <span>Vazifa va hisobotlar bir panelda boshqariladi.</span>
+              <strong>Bonus boshqaruvi</strong>
+              <span>Pending, approved, paid va payroll nazorati tayyor.</span>
             </div>
           </div>
-          <div className="login-seo-block">
-            <div className="login-seo-grid">
-              <article className="login-seo-card">
-                <strong>SMM boshqaruvi</strong>
-                <p>Kontent reja, bonus tizimi, reklama kampaniyalari va media kutubxona bitta platformada ishlaydi.</p>
-              </article>
-              <article className="login-seo-card">
-                <strong>Filial nazorati</strong>
-                <p>Bosh ofis va barcha filiallar bo'yicha hisobotlar, KPI va kunlik jarayonlar yagona panelda jamlanadi.</p>
-              </article>
-              <article className="login-seo-card">
-                <strong>Marketing workflow</strong>
-                <p>Vazifalar, safar rejalari, posting va ichki jamoa kommunikatsiyasi markazlashtirilgan boshqaruv bilan yuritiladi.</p>
-              </article>
-            </div>
-            <p className="login-seo-note">
-              Bosh ofis, Ohangaron, Angren, Chirchiq, Guliston, Jarqo'rg'on, Sherobod, Qibray, G'azalkent,
-              Olmaliq, Piskent, Oqqo'rg'on, Chinoz, Sho'rchi va Parkent filiallari uchun SMM va marketing boshqaruv tizimi.
-            </p>
+          <div className="login-metrics-row">
+            <article className="login-metric-card">
+              <span>Kontent</span>
+              <strong>Workflow 2.0</strong>
+              <small>Idea dan publishedgacha</small>
+            </article>
+            <article className="login-metric-card">
+              <span>Bonus</span>
+              <strong>Payroll ready</strong>
+              <small>Close, audit, export</small>
+            </article>
+            <article className="login-metric-card">
+              <span>Rahbar</span>
+              <strong>Executive view</strong>
+              <small>Tez xulosa va signal</small>
+            </article>
           </div>
         </div>
 
         <form className="login-card" onSubmit={submit}>
-          <div className="login-card-shine" />
-          <div className="login-card-glow" />
           {loading ? (
             <div className="login-loading">
               <div className="login-loader-ring" />
@@ -1286,35 +1326,119 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
           <div className="login-card-top">
             <div className="small-label">Kirish</div>
             <div className="login-card-badges">
-              <span className="login-card-badge">live</span>
+              <span className="login-card-badge">light ui</span>
               <span className="login-card-badge">secure</span>
             </div>
           </div>
-          <div className="login-title">Xush kelibsiz</div>
+          <div className="login-title">Tizimga kirish</div>
+          <div className="login-subtitle">O'zingizga qulay kirish turini tanlang.</div>
 
-          <label>
-            <span>Telefon raqam yoki login</span>
-            <input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="998939000 yoki admin"
-            />
-          </label>
+          <div className="login-mode-switch">
+            {loginModes.map((mode) => {
+              const Icon = mode.icon;
+              return (
+                <button
+                  key={mode.id}
+                  type="button"
+                  className={`login-mode-btn ${loginMode === mode.id ? "active" : ""}`}
+                  onClick={() => setLoginMode(mode.id)}
+                >
+                  <Icon size={16} />
+                  <span>{mode.label}</span>
+                </button>
+              );
+            })}
+          </div>
 
-          <label>
-            <span>Parol</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Parol"
-            />
-          </label>
+          {loginMode === "telegram" ? (
+            <div className="login-mode-panel">
+              <label>
+                <span>Telefon raqam</span>
+                <input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="99890..."
+                />
+              </label>
+              <div className="inline-action-row">
+                <label className="inline-grow">
+                  <span>Bir martalik kod</span>
+                  <input
+                    value={otpCode}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D+/g, "").slice(0, 6))}
+                    placeholder="6 xonali kod"
+                  />
+                </label>
+                <button type="button" className="btn secondary" onClick={sendTelegramCode} disabled={sendingCode || loading}>
+                  {sendingCode ? "Yuborilmoqda..." : "Kod olish"}
+                </button>
+              </div>
+              <div className="login-inline-note">Kod Telegram bot ulangan chatga yuboriladi.</div>
+            </div>
+          ) : null}
+
+          {loginMode === "password" ? (
+            <div className="login-mode-panel">
+              <label>
+                <span>Telefon yoki login</span>
+                <input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="99890... yoki admin"
+                />
+              </label>
+              <label>
+                <span>Parol</span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Parol"
+                />
+              </label>
+            </div>
+          ) : null}
+
+          {loginMode === "pin" ? (
+            <div className="login-mode-panel">
+              <label>
+                <span>Lavozim</span>
+                <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}>
+                  <option value="manager">manager</option>
+                  <option value="director">rahbar</option>
+                  <option value="editor">editor</option>
+                  <option value="mobilograf">mobilograf</option>
+                  <option value="viewer">viewer</option>
+                  <option value="admin">admin</option>
+                </select>
+              </label>
+              <label>
+                <span>Hodim</span>
+                <select value={selectedUserId} onChange={(e) => setSelectedUserId(e.target.value)}>
+                  {pinUsers.length ? pinUsers.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.full_name} - {item.department_role || item.phone_masked}
+                    </option>
+                  )) : <option value="">Hodim topilmadi</option>}
+                </select>
+              </label>
+              <label>
+                <span>Shaxsiy 4 xonali kod</span>
+                <input
+                  value={pinCode}
+                  onChange={(e) => setPinCode(e.target.value.replace(/\D+/g, "").slice(0, 4))}
+                  placeholder="0000"
+                />
+              </label>
+              <div className="login-inline-note">Agar PIN alohida berilmagan bo'lsa, telefon oxirgi 4 raqami ishlashi mumkin.</div>
+            </div>
+          ) : null}
 
           {error ? <div className="error-box">{error}</div> : null}
+          {!error && notice ? <div className="info-box">{notice}</div> : null}
 
           <button type="submit" className="btn primary large" disabled={loading}>
-            {loading ? "Kirilmoqda..." : "Kirish"}
+            {loading ? "Kirilmoqda..." : loginMode === "telegram" ? "Kod bilan kirish" : loginMode === "pin" ? "PIN bilan kirish" : "Kirish"}
           </button>
           {showInstallGuideAction ? (
             <button type="button" className="btn ghost large install-guide-btn" onClick={onOpenInstallGuide}>
@@ -1328,8 +1452,8 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
             </div>
           ) : null}
           <div className="login-card-footer">
-            <span>aloo boshqaruv paneli</span>
-            <span className="login-card-pulse">online</span>
+            <span>aloo SMM platforma</span>
+            <span className="login-card-pulse">live</span>
           </div>
         </form>
       </div>
@@ -4993,6 +5117,7 @@ function UsersPage({ users = [], onToast, reload }) {
     phone: "",
     login: "",
     password: "",
+    pin_code: "",
     role: "viewer",
     avatar_url: "",
     department_role: "",
@@ -5034,6 +5159,7 @@ function UsersPage({ users = [], onToast, reload }) {
       phone: row.phone || "",
       login: row.login || "",
       password: "",
+      pin_code: "",
       role: row.role || "viewer",
       avatar_url: row.avatar_url || "",
       department_role: row.department_role || "",
@@ -5059,6 +5185,7 @@ function UsersPage({ users = [], onToast, reload }) {
           phone: form.phone,
           login: form.login,
           role: form.role,
+          pin_code: form.pin_code,
           avatar_url: form.avatar_url,
           department_role: form.department_role,
           permissions_json: form.permissions_json
@@ -5142,6 +5269,15 @@ function UsersPage({ users = [], onToast, reload }) {
           ) : (
             <label><span>Profil rasmi linki</span><input value={form.avatar_url} onChange={(e) => setField("avatar_url", e.target.value)} placeholder="https://..." /></label>
           )}
+
+          <label>
+            <span>4 xonali PIN</span>
+            <input
+              value={form.pin_code}
+              onChange={(e) => setField("pin_code", e.target.value.replace(/\D+/g, "").slice(0, 4))}
+              placeholder={editingId ? "Yangilash uchun 4 xonali PIN" : "Masalan: 2026"}
+            />
+          </label>
 
           <label>
             <span>Rol</span>
@@ -7214,7 +7350,7 @@ function App() {
   const [bootScreenVisible, setBootScreenVisible] = useState(true);
   const [user, setUser] = useState(getCurrentUser());
   const [active, setActive] = useState(() => getPageFromPath(typeof window !== "undefined" ? window.location.pathname : "/"));
-  const [theme, setTheme] = useState(localStorage.getItem("aloo_theme") || "light");
+  const [theme, setTheme] = useState("light");
   const [toast, setToast] = useState(null);
   const [search, setSearch] = useState("");
   const [menuGroupState, setMenuGroupState] = useState(() =>
@@ -8125,6 +8261,7 @@ function App() {
 }
 
 const styles = `
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@600;700;800&display=swap');
 :root{
   --blue:#0d6efd;
   --blue-strong:#004fc4;
@@ -13340,6 +13477,294 @@ tbody tr:hover{
   }
   .campaign-lead-form .btn.primary{
     min-height:52px;
+  }
+}
+
+/* final light professional system overrides */
+html,body,#root{font-family:"Inter","Segoe UI",sans-serif}
+h1,h2,h3,h4,.brand-name,.section-title-row h2,.topbar h1,.login-title,.hero-left h1{font-family:"Manrope","Inter","Segoe UI",sans-serif}
+:root{
+  --bg:#f4f7fb;
+  --panel:#ffffff;
+  --panel-strong:#ffffff;
+  --panel-soft:#f7f9fc;
+  --soft:#f6f8fb;
+  --soft-strong:#edf2f8;
+  --text:#0f172a;
+  --muted:#64748b;
+  --line:rgba(148,163,184,.18);
+  --line-strong:rgba(100,116,139,.24);
+  --nav-bg:#ffffff;
+  --nav-bg-soft:#ffffff;
+  --nav-text:#0f172a;
+  --nav-muted:#64748b;
+  --shadow-soft:0 16px 38px rgba(15,23,42,.06);
+  --shadow-card:0 24px 60px rgba(15,23,42,.08);
+}
+body{
+  background:
+    radial-gradient(circle at 0% 0%, rgba(59,130,246,.08), transparent 22%),
+    radial-gradient(circle at 100% 0%, rgba(14,165,233,.08), transparent 18%),
+    linear-gradient(180deg, #f8fbff 0%, #f4f7fb 100%);
+}
+.login-page{
+  background:
+    radial-gradient(circle at 12% 12%, rgba(59,130,246,.10), transparent 18%),
+    radial-gradient(circle at 82% 14%, rgba(6,182,212,.10), transparent 18%),
+    linear-gradient(180deg, #f8fbff 0%, #f2f7fd 100%);
+}
+.login-page::before,.login-page::after,.login-particles,.login-orb,.login-grid-line,.login-noise,.login-card-shine,.login-card-glow{display:none}
+.login-shell{
+  width:min(100%, 1380px);
+  grid-template-columns:minmax(0, 1.15fr) minmax(380px, 480px);
+  gap:40px;
+}
+.login-copy{
+  gap:0;
+  padding-inline:0;
+}
+.brand-kicker{
+  background:#ffffff;
+  color:#2563eb;
+  border:1px solid rgba(37,99,235,.12);
+  box-shadow:0 12px 28px rgba(37,99,235,.08);
+}
+.login-logo-lockup{
+  margin-top:22px;
+  margin-bottom:18px;
+  animation:none;
+}
+.login-logo-image{
+  width:72px;
+  height:72px;
+  border-radius:22px;
+  box-shadow:0 16px 34px rgba(37,99,235,.12);
+  animation:none;
+}
+.login-copy h1{
+  margin-top:0;
+  font-size:clamp(44px, 5.2vw, 72px);
+  line-height:.98;
+  background:none;
+  color:#0f172a;
+  animation:none;
+}
+.login-copy > p:not(.login-seo-note){
+  margin-top:14px;
+  max-width:640px;
+  font-size:17px;
+  animation:none;
+}
+.login-public-nav,.login-status-row,.login-feature-row,.login-metrics-row{
+  margin-top:20px;
+}
+.login-feature-row,.login-metrics-row{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:14px;
+  max-width:780px;
+}
+.login-feature-card,.login-metric-card{
+  padding:20px;
+  border-radius:24px;
+  background:rgba(255,255,255,.88);
+  border:1px solid rgba(226,232,240,.9);
+  box-shadow:0 18px 40px rgba(15,23,42,.06);
+  animation:none;
+}
+.login-metric-card span{
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:#2563eb;
+}
+.login-metric-card strong{
+  display:block;
+  margin-top:10px;
+  font-size:20px;
+}
+.login-metric-card small{
+  display:block;
+  margin-top:8px;
+  color:var(--muted);
+  font-size:13px;
+}
+.login-status-pill,.login-public-nav a{
+  background:#ffffff;
+  border:1px solid rgba(226,232,240,.9);
+  box-shadow:0 12px 28px rgba(15,23,42,.05);
+  color:#0f172a;
+  animation:none;
+}
+.login-card{
+  width:min(100%, 460px);
+  background:rgba(255,255,255,.96);
+  border:1px solid rgba(226,232,240,.9);
+  border-radius:30px;
+  padding:28px;
+  box-shadow:0 30px 80px rgba(15,23,42,.10);
+  animation:none;
+}
+.login-subtitle{
+  margin-top:-6px;
+  color:var(--muted);
+  font-size:14px;
+}
+.login-mode-switch{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0,1fr));
+  gap:8px;
+  padding:6px;
+  border-radius:18px;
+  background:#f7f9fc;
+  border:1px solid rgba(226,232,240,.9);
+}
+.login-mode-btn{
+  min-height:46px;
+  border:0;
+  border-radius:14px;
+  background:transparent;
+  color:var(--muted);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  font-weight:700;
+  cursor:pointer;
+}
+.login-mode-btn.active{
+  background:#ffffff;
+  color:#0f172a;
+  box-shadow:0 10px 24px rgba(15,23,42,.08);
+}
+.login-mode-panel{
+  display:grid;
+  gap:14px;
+}
+.login-card select,
+.login-card input{
+  min-height:52px;
+  background:#f8fafc;
+  border:1px solid rgba(203,213,225,.9);
+  border-radius:16px;
+  box-shadow:none;
+}
+.login-card input:focus,
+.login-card select:focus{
+  border-color:rgba(37,99,235,.45);
+  box-shadow:0 0 0 4px rgba(37,99,235,.10);
+  transform:none;
+  background:#ffffff;
+}
+.inline-action-row{
+  display:flex;
+  align-items:end;
+  gap:12px;
+}
+.inline-grow{flex:1}
+.login-inline-note{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.5;
+}
+.sidebar{
+  background:rgba(255,255,255,.88);
+  border-right:1px solid rgba(226,232,240,.9);
+  box-shadow:18px 0 48px rgba(15,23,42,.05);
+}
+.sidebar::before,.sidebar::after{display:none}
+.brand-name,.brand-desc,.menu-group-toggle.open,.sidebar-search input,.menu-btn{color:var(--nav-text)}
+.sidebar-search{
+  background:#f8fafc;
+  border:1px solid rgba(226,232,240,.9);
+  color:var(--muted);
+  box-shadow:none;
+}
+.sidebar-search input::placeholder,.menu-group-toggle{color:var(--nav-muted)}
+.menu-btn{
+  background:#ffffff;
+  border:1px solid transparent;
+  box-shadow:0 10px 20px rgba(15,23,42,.04);
+}
+.menu-btn:hover{
+  transform:translateX(3px);
+  background:#f8fbff;
+  border-color:rgba(37,99,235,.14);
+  box-shadow:0 16px 28px rgba(37,99,235,.08);
+}
+.menu-btn.active{
+  background:linear-gradient(135deg, rgba(37,99,235,.10), rgba(14,165,233,.08));
+  border-color:rgba(37,99,235,.18);
+  box-shadow:0 18px 34px rgba(37,99,235,.10);
+}
+.logout-btn{
+  background:#0f172a;
+  color:#ffffff;
+  box-shadow:0 18px 34px rgba(15,23,42,.18);
+}
+.topbar,.card,.stat-card,.hero-shell,.table-wrap,.modal-card,.drawer-panel,.mobile-record-card,.notif-card,.permission-box,.permission-item{
+  background:rgba(255,255,255,.92);
+  border:1px solid rgba(226,232,240,.9);
+  box-shadow:0 18px 46px rgba(15,23,42,.06);
+}
+.topbar{
+  border-radius:26px;
+}
+.btn{
+  min-height:44px;
+  border-radius:14px;
+  font-weight:700;
+}
+.btn.primary{
+  background:linear-gradient(135deg, #2563eb, #38bdf8);
+  box-shadow:0 14px 28px rgba(37,99,235,.18);
+}
+.btn.secondary,.btn.ghost{
+  background:#ffffff;
+  color:#0f172a;
+  border:1px solid rgba(203,213,225,.95);
+  box-shadow:0 10px 20px rgba(15,23,42,.04);
+}
+.btn.secondary:hover,.btn.ghost:hover{
+  background:#f8fafc;
+}
+.table-wrap{
+  border-radius:20px;
+}
+th{
+  background:#f8fafc;
+  color:#475569;
+}
+tbody tr:hover{
+  background:rgba(37,99,235,.03);
+}
+.modal-card{
+  border-radius:28px;
+}
+.info-box{
+  background:rgba(37,99,235,.08);
+  border:1px solid rgba(37,99,235,.14);
+  color:#1d4ed8;
+  border-radius:14px;
+  padding:12px 14px;
+}
+@media (max-width: 1100px){
+  .login-shell{
+    grid-template-columns:1fr;
+  }
+  .login-card{
+    width:min(100%, 560px);
+  }
+}
+@media (max-width: 720px){
+  .login-feature-row,.login-metrics-row,.login-mode-switch{
+    grid-template-columns:1fr;
+  }
+  .inline-action-row{
+    flex-direction:column;
+    align-items:stretch;
   }
 }
 `;

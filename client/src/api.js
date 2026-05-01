@@ -84,6 +84,34 @@ export const api = {
     return data;
   },
 
+  requestTelegramCode: (payload) =>
+    request("/api/auth/request-telegram-code", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }),
+
+  verifyTelegramCode: async (payload) => {
+    const data = await request("/api/auth/verify-telegram-code", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    if (data?.token) localStorage.setItem("aloo_token", data.token);
+    if (data?.user) localStorage.setItem("aloo_user", JSON.stringify(data.user));
+    return data;
+  },
+
+  pinLogin: async (payload) => {
+    const data = await request("/api/auth/pin-login", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    if (data?.token) localStorage.setItem("aloo_token", data.token);
+    if (data?.user) localStorage.setItem("aloo_user", JSON.stringify(data.user));
+    return data;
+  },
+
+  loginOptions: () => request("/api/auth/login-options"),
+
   me: async () => {
     const data = await request("/api/auth/me");
     if (data?.user) localStorage.setItem("aloo_user", JSON.stringify(data.user));

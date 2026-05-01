@@ -136,6 +136,54 @@ function normalizeUserPermissions(role, permissions) {
   return safePermissions;
 }
 
+function normalizePhoneForAuth(value) {
+  return String(value || "").replace(/\D+/g, "");
+}
+
+function maskPhoneForDisplay(value) {
+  const digits = normalizePhoneForAuth(value);
+  if (!digits) return "raqam topilmadi";
+  if (digits.length <= 4) return digits;
+  return `${digits.slice(0, Math.max(0, digits.length - 4)).replace(/\d/g, "*")}${digits.slice(-4)}`;
+}
+
+function createAuthPayload(user = {}) {
+  return {
+    id: user.id,
+    full_name: user.full_name,
+    phone: user.phone,
+    login: user.login,
+    role: user.role,
+    avatar_url: user.avatar_url,
+    department_role: user.department_role,
+    permissions_json: user.permissions_json,
+    is_active: user.is_active
+  };
+}
+
+async function issueAuthResponse(res, user, metadata = {}) {
+  const payload = createAuthPayload(user);
+  const token = signToken(payload);
+  await logAction(user.id, "login", "auth", user.id, metadata);
+  res.json({ token, user: payload });
+}
+
+async function verifyUserPinCode(user, pinCode) {
+  const cleanPin = String(pinCode || "").trim();
+  if (!/^\d{4}$/.test(cleanPin)) return false;
+
+  if (user?.pin_code_hash) {
+    try {
+      return await bcrypt.compare(cleanPin, user.pin_code_hash);
+    } catch {
+      return false;
+    }
+  }
+
+  const fallbackPin = normalizePhoneForAuth(user?.phone).slice(-4);
+  return !!fallbackPin && cleanPin === fallbackPin;
+}
+
 function formatDateOnly(value) {
   if (!value) return null;
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
@@ -1368,6 +1416,7 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
     `ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+    `ALTER TABLE users ADD COLUMN IF NOT EXISTS pin_code_hash TEXT`,
     `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'system'`,
     `ALTER TABLE notifications ADD COLUMN IF NOT EXISTS action_url TEXT`,
     `ALTER TABLE uploads ADD COLUMN IF NOT EXISTS entity_type TEXT`,
@@ -1474,6 +1523,16 @@ async function ensureRuntimeSchema() {
       entity_id INTEGER NOT NULL,
       body TEXT NOT NULL,
       author_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS auth_login_codes (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      phone TEXT NOT NULL,
+      code_hash TEXT NOT NULL,
+      delivery_channel TEXT NOT NULL DEFAULT 'telegram',
+      expires_at TIMESTAMP NOT NULL,
+      consumed_at TIMESTAMP,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS recurring_tasks (
@@ -1855,6 +1914,57 @@ io.on("connection", async (socket) => {
 
 /* AUTH */
 
+async function findUserForAuth({ phone = "", login = "", role = "", userId = null } = {}) {
+  const normalizedPhone = normalizePhoneForAuth(phone);
+  const normalizedLogin = String(login || "").trim().toLowerCase();
+  const normalizedRole = String(role || "").trim().toLowerCase();
+  const conditions = [];
+  const params = [];
+
+  if (userId) {
+    params.push(Number(userId));
+    conditions.push(`id = $${params.length}`);
+  }
+  if (normalizedPhone) {
+    params.push(normalizedPhone);
+    conditions.push(`REGEXP_REPLACE(COALESCE(phone, ''), '\\D', '', 'g') = $${params.length}`);
+  }
+  if (normalizedLogin) {
+    params.push(normalizedLogin);
+    conditions.push(`LOWER(COALESCE(login, '')) = $${params.length}`);
+  }
+  if (normalizedRole) {
+    params.push(normalizedRole);
+    conditions.push(`LOWER(COALESCE(role, '')) = $${params.length}`);
+  }
+
+  if (!conditions.length) return null;
+
+  const result = await query(
+    `
+    SELECT
+      id,
+      full_name,
+      phone,
+      login,
+      role,
+      avatar_url,
+      department_role,
+      permissions_json,
+      is_active,
+      password_hash,
+      pin_code_hash
+    FROM users
+    WHERE ${conditions.join(" AND ")}
+    ORDER BY id DESC
+    LIMIT 1
+    `,
+    params
+  );
+
+  return result.rows[0] || null;
+}
+
 app.post("/api/auth/login", async (req, res) => {
   try {
     const { phone, login, password } = req.body;
@@ -1942,6 +2052,192 @@ app.post("/api/auth/login", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Server xatoligi" });
+  }
+});
+
+app.post("/api/auth/request-telegram-code", async (req, res) => {
+  try {
+    const normalizedPhone = normalizePhoneForAuth(req.body?.phone);
+    if (!normalizedPhone) {
+      return res.status(400).json({ message: "Telefon raqam kiriting" });
+    }
+
+    const user = await findUserForAuth({ phone: normalizedPhone });
+    if (!user) {
+      return res.status(404).json({ message: "Bu telefon bo'yicha foydalanuvchi topilmadi" });
+    }
+    if (!user.is_active) {
+      return res.status(403).json({ message: "Akkaunt bloklangan" });
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const codeHash = await bcrypt.hash(code, 10);
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+    await query(
+      `UPDATE auth_login_codes
+       SET consumed_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1 AND delivery_channel = 'telegram' AND consumed_at IS NULL`,
+      [user.id]
+    );
+
+    await query(
+      `
+      INSERT INTO auth_login_codes (user_id, phone, code_hash, delivery_channel, expires_at)
+      VALUES ($1, $2, $3, 'telegram', $4)
+      `,
+      [user.id, normalizedPhone, codeHash, expiresAt]
+    );
+
+    try {
+      await createTelegramEventNow(
+        buildPlatformTelegramTitle("🔐", "Kirish kodi", "login_code"),
+        [
+          "#login #telegram_kod #one_time_code",
+          `👤 Hodim: ${user.full_name || user.login || "Noma'lum"}`,
+          `📱 Telefon: ${maskPhoneForDisplay(user.phone)}`,
+          `🔢 Kod: ${code}`,
+          "⏳ Amal qilish vaqti: 5 daqiqa"
+        ]
+      );
+    } catch (telegramErr) {
+      console.error("telegram login code error:", telegramErr.message);
+      return res.status(500).json({ message: "Telegramga kod yuborilmadi" });
+    }
+
+    return res.json({
+      message: "Bir martalik kod Telegramga yuborildi",
+      expires_in_seconds: 300
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Kod yuborishda xatolik" });
+  }
+});
+
+app.post("/api/auth/verify-telegram-code", async (req, res) => {
+  try {
+    const normalizedPhone = normalizePhoneForAuth(req.body?.phone);
+    const code = String(req.body?.code || "").trim();
+
+    if (!normalizedPhone || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({ message: "Telefon va 6 xonali kodni kiriting" });
+    }
+
+    const user = await findUserForAuth({ phone: normalizedPhone });
+    if (!user) {
+      return res.status(404).json({ message: "Foydalanuvchi topilmadi" });
+    }
+    if (!user.is_active) {
+      return res.status(403).json({ message: "Akkaunt bloklangan" });
+    }
+
+    const codeRes = await query(
+      `
+      SELECT id, code_hash, expires_at
+      FROM auth_login_codes
+      WHERE user_id = $1
+        AND phone = $2
+        AND delivery_channel = 'telegram'
+        AND consumed_at IS NULL
+      ORDER BY created_at DESC
+      LIMIT 1
+      `,
+      [user.id, normalizedPhone]
+    );
+
+    const row = codeRes.rows[0];
+    if (!row) {
+      return res.status(400).json({ message: "Faol kod topilmadi, qayta yuboring" });
+    }
+
+    if (new Date(row.expires_at).getTime() < Date.now()) {
+      await query(`UPDATE auth_login_codes SET consumed_at = CURRENT_TIMESTAMP WHERE id = $1`, [row.id]);
+      return res.status(400).json({ message: "Kod muddati tugagan, qayta yuboring" });
+    }
+
+    const ok = await bcrypt.compare(code, row.code_hash);
+    if (!ok) {
+      return res.status(401).json({ message: "Kod noto'g'ri" });
+    }
+
+    await query(`UPDATE auth_login_codes SET consumed_at = CURRENT_TIMESTAMP WHERE id = $1`, [row.id]);
+    const token = signToken(createAuthPayload(user));
+    await logAction(user.id, "login", "auth", user.id, {
+      method: "telegram_code",
+      phone: user.phone
+    });
+    return res.json({ token, user: createAuthPayload(user) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Kodni tekshirishda xatolik" });
+  }
+});
+
+app.post("/api/auth/pin-login", async (req, res) => {
+  try {
+    const { user_id, phone, role, pin_code } = req.body || {};
+    if ((!user_id && !phone) || !role || !pin_code) {
+      return res.status(400).json({ message: "Lavozim, hodim va 4 xonali kodni kiriting" });
+    }
+
+    const user = await findUserForAuth({ userId: user_id, phone, role });
+    if (!user) {
+      return res.status(404).json({ message: "Bu ma'lumotlar bo'yicha hodim topilmadi" });
+    }
+    if (!user.is_active) {
+      return res.status(403).json({ message: "Akkaunt bloklangan" });
+    }
+
+    const pinOk = await verifyUserPinCode(user, pin_code);
+    if (!pinOk) {
+      return res.status(401).json({ message: "4 xonali kod noto'g'ri" });
+    }
+
+    const token = signToken(createAuthPayload(user));
+    await logAction(user.id, "login", "auth", user.id, {
+      method: "pin_code",
+      role: user.role,
+      phone: user.phone
+    });
+    return res.json({ token, user: createAuthPayload(user) });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "PIN orqali kirishda xatolik" });
+  }
+});
+
+app.get("/api/auth/login-options", async (_req, res) => {
+  try {
+    const result = await query(
+      `
+      SELECT
+        id,
+        full_name,
+        role,
+        department_role,
+        phone,
+        (pin_code_hash IS NOT NULL) AS has_pin_code
+      FROM users
+      WHERE is_active = TRUE
+      ORDER BY full_name ASC, id ASC
+      `
+    );
+
+    res.json({
+      users: result.rows.map((row) => ({
+        id: row.id,
+        full_name: row.full_name,
+        role: row.role,
+        department_role: row.department_role,
+        phone: row.phone,
+        phone_masked: maskPhoneForDisplay(row.phone),
+        has_pin_code: !!row.has_pin_code
+      }))
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Login variantlarini olishda xatolik" });
   }
 });
 
@@ -2521,6 +2817,7 @@ app.get("/api/users", authRequired, async (_, res) => {
         department_role,
         permissions_json,
         is_active,
+        (pin_code_hash IS NOT NULL) AS has_pin_code,
         created_at
       FROM users
       ORDER BY created_at DESC, id DESC
@@ -2540,6 +2837,7 @@ app.post("/api/users", authRequired, async (req, res) => {
       phone,
       login,
       password,
+      pin_code,
       role,
       avatar_url,
       department_role,
@@ -2565,6 +2863,9 @@ app.post("/api/users", authRequired, async (req, res) => {
     }
 
     const hashed = await bcrypt.hash(password, 10);
+    const pinHash = /^\d{4}$/.test(String(pin_code || "").trim())
+      ? await bcrypt.hash(String(pin_code).trim(), 10)
+      : null;
     const permissions = normalizeUserPermissions(role, permissions_json);
 
     const inserted = await query(
@@ -2579,9 +2880,10 @@ app.post("/api/users", authRequired, async (req, res) => {
         avatar_url,
         department_role,
         permissions_json,
+        pin_code_hash,
         is_active
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
       RETURNING
         id,
         full_name,
@@ -2591,6 +2893,7 @@ app.post("/api/users", authRequired, async (req, res) => {
         avatar_url,
         department_role,
         permissions_json,
+        (pin_code_hash IS NOT NULL) AS has_pin_code,
         is_active,
         created_at
       `,
@@ -2603,6 +2906,7 @@ app.post("/api/users", authRequired, async (req, res) => {
         avatar_url || null,
         department_role || (role === "director" ? "Rahbar" : null),
         JSON.stringify(permissions),
+        pinHash,
         true
       ]
     );
@@ -2612,6 +2916,7 @@ app.post("/api/users", authRequired, async (req, res) => {
       phone,
       role,
       department_role,
+      has_pin_code: !!pinHash,
       permissions_json: permissions
     });
 
@@ -2630,12 +2935,16 @@ app.put("/api/users/:id", authRequired, async (req, res) => {
       phone,
       login,
       role,
+      pin_code,
       avatar_url,
       department_role,
       permissions_json
     } = req.body;
 
     const permissions = normalizeUserPermissions(role, permissions_json);
+    const normalizedPin = String(pin_code || "").trim();
+    const pinHash = /^\d{4}$/.test(normalizedPin) ? await bcrypt.hash(normalizedPin, 10) : null;
+    const shouldUpdatePin = Object.prototype.hasOwnProperty.call(req.body || {}, "pin_code");
 
     const updated = await query(
       `
@@ -2648,8 +2957,12 @@ app.put("/api/users/:id", authRequired, async (req, res) => {
         avatar_url = $5,
         department_role = $6,
         permissions_json = $7,
+        pin_code_hash = CASE
+          WHEN $8 THEN $9
+          ELSE pin_code_hash
+        END,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $8
+      WHERE id = $10
       RETURNING
         id,
         full_name,
@@ -2659,6 +2972,7 @@ app.put("/api/users/:id", authRequired, async (req, res) => {
         avatar_url,
         department_role,
         permissions_json,
+        (pin_code_hash IS NOT NULL) AS has_pin_code,
         is_active
       `,
       [
@@ -2669,6 +2983,8 @@ app.put("/api/users/:id", authRequired, async (req, res) => {
         avatar_url || null,
         department_role || (role === "director" ? "Rahbar" : null),
         JSON.stringify(permissions),
+        shouldUpdatePin,
+        pinHash,
         id
       ]
     );
@@ -2682,6 +2998,7 @@ app.put("/api/users/:id", authRequired, async (req, res) => {
       phone,
       role,
       department_role,
+      has_pin_code: shouldUpdatePin ? !!pinHash : undefined,
       permissions_json: permissions
     });
 
