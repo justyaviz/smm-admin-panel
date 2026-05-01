@@ -2163,10 +2163,6 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     }
   }
 
-  const employeeDetailItems = employeeDetail
-    ? filteredItems.filter((item) => getBonusParticipantNames(item).includes(employeeDetail.name))
-    : [];
-
   return (
     <div className="page-grid content-page-modern">
       <div className="card content-modern-card content-form-card">
@@ -3539,6 +3535,10 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       onToast(err.message || "O'chirishda xatolik", "error");
     }
   }
+
+  const employeeDetailItems = employeeDetail
+    ? filteredItems.filter((item) => getBonusParticipantNames(item).includes(employeeDetail.name))
+    : [];
 
   return (
     <div className="page-grid">
