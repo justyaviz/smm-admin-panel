@@ -1917,6 +1917,33 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     rad_etildi: rows.filter((item) => item.status === "rad_etildi").length,
     yakunlandi: rows.filter((item) => ["yakunlandi", "joylangan"].includes(item.status)).length
   };
+  const todayDate = formatDate(new Date());
+  const deadlineRows = rows
+    .map((item) => {
+      const deadline = formatDate(item.publish_date);
+      const isDone = ["yakunlandi", "joylangan"].includes(item.status);
+      const daysLeft = deadline === "-" ? null : Math.ceil((new Date(`${deadline}T00:00:00`) - new Date(`${todayDate}T00:00:00`)) / 86400000);
+      const assignee = item.content_type === "video"
+        ? [item.video_editor_name, item.video_face_name].filter(Boolean).join(" / ")
+        : item.assignee_name;
+      return { ...item, deadline, daysLeft, isDone, assignee };
+    })
+    .filter((item) => item.deadline !== "-")
+    .sort((a, b) => (a.daysLeft ?? 999) - (b.daysLeft ?? 999));
+  const overdueRows = deadlineRows.filter((item) => !item.isDone && Number(item.daysLeft) < 0);
+  const todayRows = deadlineRows.filter((item) => !item.isDone && Number(item.daysLeft) === 0);
+  const upcomingRows = deadlineRows.filter((item) => !item.isDone && Number(item.daysLeft) > 0 && Number(item.daysLeft) <= 3);
+  const approvalHistoryRows = [...rows]
+    .filter((item) => item.status || item.approval_comment)
+    .sort((a, b) => new Date(b.updated_at || b.created_at || b.publish_date || 0) - new Date(a.updated_at || a.created_at || a.publish_date || 0))
+    .slice(0, 6);
+  const contentSignals = [
+    overdueRows.length ? { tone: "danger", title: "Deadline o'tgan", body: `${overdueRows.length} ta kontent muddatdan o'tgan. Mas'ulga signal yuborish kerak.` } : null,
+    todayRows.length ? { tone: "warning", title: "Bugun chiqishi kerak", body: `${todayRows.length} ta kontent bugun publish deadline holatida.` } : null,
+    workflowCounts.qayta_ishlash ? { tone: "warning", title: "Qayta ishlash navbati", body: `${workflowCounts.qayta_ishlash} ta kontent qayta ishlashda turibdi.` } : null,
+    rows.length && !rows.some((item) => item.content_type === "reels") ? { tone: "info", title: "Reels kam", body: "Bu oy reja ichida Reels ko'rinmayapti, reach uchun qo'shish foydali." } : null,
+    !rows.length ? { tone: "info", title: "Oy rejasi bo'sh", body: "Kontent kalendar hali to'ldirilmagan." } : null
+  ].filter(Boolean);
   const contentModernStats = [
     { label: "Jami reja", value: rows.length, hint: getMonthTitle(selectedMonth) },
     { label: "Jarayonda", value: workflowCounts.jarayonda, hint: "tayyorlanmoqda" },
@@ -2143,6 +2170,54 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               <small>{item.hint}</small>
             </div>
           ))}
+        </div>
+        <div className="content-control-grid">
+          <div className="content-control-panel">
+            <div className="content-control-head">
+              <strong>Mas'ul + deadline nazorati</strong>
+              <span>{overdueRows.length} kechikkan</span>
+            </div>
+            <div className="deadline-list">
+              {[...overdueRows, ...todayRows, ...upcomingRows].slice(0, 5).map((item) => (
+                <button key={`deadline-${item.id}`} type="button" className={`deadline-item ${Number(item.daysLeft) < 0 ? "danger" : Number(item.daysLeft) === 0 ? "warning" : ""}`} onClick={() => setViewRow(item)}>
+                  <span>{item.title}</span>
+                  <strong>{item.assignee || "Mas'ul yo'q"}</strong>
+                  <small>{Number(item.daysLeft) < 0 ? `${Math.abs(item.daysLeft)} kun kechikdi` : Number(item.daysLeft) === 0 ? "Bugun deadline" : `${item.daysLeft} kun qoldi`}</small>
+                </button>
+              ))}
+              {![...overdueRows, ...todayRows, ...upcomingRows].length ? <div className="empty-block">Yaqin deadline xavfi yo'q</div> : null}
+            </div>
+          </div>
+          <div className="content-control-panel">
+            <div className="content-control-head">
+              <strong>AI / avto signal</strong>
+              <span>{contentSignals.length} signal</span>
+            </div>
+            <div className="signal-list">
+              {contentSignals.map((item) => (
+                <div key={item.title} className={`signal-item ${item.tone}`}>
+                  <strong>{item.title}</strong>
+                  <span>{item.body}</span>
+                </div>
+              ))}
+              {!contentSignals.length ? <div className="signal-item success"><strong>Ritm yaxshi</strong><span>Kritik signal topilmadi.</span></div> : null}
+            </div>
+          </div>
+          <div className="content-control-panel">
+            <div className="content-control-head">
+              <strong>Approval tarixi</strong>
+              <span>so'nggi 6</span>
+            </div>
+            <div className="approval-history-mini">
+              {approvalHistoryRows.length ? approvalHistoryRows.map((item) => (
+                <button key={`approval-history-${item.id}`} type="button" onClick={() => setViewRow(item)}>
+                  <span className={approvalStatusClass(item.status)}>{formatApprovalStatus(item.status)}</span>
+                  <strong>{item.title}</strong>
+                  <small>{item.approval_comment || formatDateTime(item.updated_at || item.created_at)}</small>
+                </button>
+              )) : <div className="empty-block">Approval tarixi hali yo'q</div>}
+            </div>
+          </div>
         </div>
         {!canCreateContent && !canEditContent ? (
           <div className="info-banner">Siz bu bo'limda faqat ko'rish ruxsatiga egasiz.</div>
@@ -2933,6 +3008,8 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [approvalRows, setApprovalRows] = useState([]);
   const [approvalSaving, setApprovalSaving] = useState(false);
+  const [bonusAuditRows, setBonusAuditRows] = useState([]);
+  const [closingMonth, setClosingMonth] = useState(false);
 
   const emptyForm = {
     title: "",
@@ -3009,6 +3086,22 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
     };
   }, [reload]);
 
+  useEffect(() => {
+    let cancelled = false;
+    async function loadAuditRows() {
+      try {
+        const data = await api.list("/api/bonus-items/audit", { month: monthFilter });
+        if (!cancelled) setBonusAuditRows(data || []);
+      } catch {
+        if (!cancelled) setBonusAuditRows([]);
+      }
+    }
+    loadAuditRows();
+    return () => {
+      cancelled = true;
+    };
+  }, [monthFilter]);
+
   const monthOptions = useMemo(() => {
     return [...new Set(
       [getMonthLabel(), ...(bonusItems || []).map((item) => item.month_label || formatDate(item.work_date).slice(0, 7)).filter(Boolean)]
@@ -3075,6 +3168,13 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   const employeeStats = useMemo(() => summarizeBonusEmployees(filteredItems, bonusRate), [filteredItems, bonusRate]);
   const employeeTotalAmount = employeeStats.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const employeeBalanceStats = useMemo(() => summarizeBonusBalanceEmployees(filteredItems, bonusRate), [filteredItems, bonusRate]);
+  const bonusLeaderboard = employeeBalanceStats.slice(0, 5);
+  const pendingAmount = filteredItems
+    .filter((item) => (item.approval_status || "draft") !== "approved")
+    .reduce((sum, item) => sum + getBonusEstimatedAmount(item, bonusRate), 0);
+  const paidReadyAmount = filteredItems
+    .filter((item) => item.approval_status === "approved")
+    .reduce((sum, item) => sum + Number(item.total_amount || item.approved_amount || 0), 0);
   const approvalEmployeeStats = useMemo(() => summarizeBonusEmployees(approvalRows, bonusRate), [approvalRows, bonusRate]);
   const approvalEmployeeTotal = approvalEmployeeStats.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const approvedRowCount = filteredItems.filter((item) => item.approval_status === "approved").length;
@@ -3188,6 +3288,24 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       onToast(err.message || "Tasdiqni bekor qilib bo'lmadi", "error");
     } finally {
       setApprovalSaving(false);
+    }
+  }
+
+  async function handleMonthlyClose() {
+    const ok = window.confirm(`${getMonthTitle(monthFilter)} bonus oyini yopib, tasdiqlanmagan yozuvlarni ham payrollga tayyorlaymizmi?`);
+    if (!ok) return;
+
+    try {
+      setClosingMonth(true);
+      await api.create("bonus-items/monthly-close", { month_label: monthFilter });
+      await reload();
+      const auditRows = await api.list("/api/bonus-items/audit", { month: monthFilter }).catch(() => []);
+      setBonusAuditRows(auditRows || []);
+      onToast(`${getMonthTitle(monthFilter)} bonus oyi yopildi`, "success");
+    } catch (err) {
+      onToast(err.message || "Monthly close bajarilmadi", "error");
+    } finally {
+      setClosingMonth(false);
     }
   }
 
@@ -3327,6 +3445,18 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               >
                 Excel export
               </button>
+              <button
+                type="button"
+                className="btn secondary"
+                onClick={() => api.exportFile(`/api/export/bonus-payroll.xlsx?month=${monthFilter}`, `bonus-payroll-${monthFilter}.xlsx`)}
+              >
+                Payroll export
+              </button>
+              {canApproveBonus ? (
+                <button type="button" className="btn primary" onClick={handleMonthlyClose} disabled={closingMonth || !filteredItems.length}>
+                  {closingMonth ? "Yopilmoqda..." : "Monthly close"}
+                </button>
+              ) : null}
             </div>
           }
         />
@@ -3342,11 +3472,49 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
           <StatCard title="Yozuvlar soni" value={filteredItems.length} hint="bonus hisobotlar" />
         </div>
 
+        <div className="stats-grid bonus-close-grid">
+          <StatCard title="Pending balans" value={formatMoney(pendingAmount)} hint="taxminiy hisob" tone="warning" />
+          <StatCard title="Payroll tayyor" value={formatMoney(paidReadyAmount)} hint="tasdiqlangan" tone="success" />
+          <StatCard title="Leaderboard" value={bonusLeaderboard[0]?.name || "-"} hint={bonusLeaderboard[0] ? formatMoney(bonusLeaderboard[0].amount) : "hodim yo'q"} tone="info" />
+          <StatCard title="Audit yozuvlari" value={bonusAuditRows.length} hint="so'nggi loglar" tone="default" />
+        </div>
+
         <BonusPlasticCards
           rows={employeeBalanceStats}
           monthLabel={monthFilter}
           title="Hodim bonus balanslari"
         />
+      </div>
+
+      <div className="bonus-command-grid">
+        <div className="card bonus-command-card">
+          <SectionTitle title="Leaderboard" desc="Bonus, kontent va tasdiq bo'yicha top hodimlar" />
+          <div className="leaderboard-list">
+            {bonusLeaderboard.length ? bonusLeaderboard.map((row, index) => (
+              <div key={`leaderboard-${row.name}`} className="leaderboard-row">
+                <span className="leaderboard-rank">{index + 1}</span>
+                <div>
+                  <strong>{row.name}</strong>
+                  <small>{row.content_count} kontent • {row.approved_count || row.proposal_count || 0} birlik</small>
+                </div>
+                <b>{formatMoney(row.amount)}</b>
+              </div>
+            )) : <div className="empty-block">Leaderboard uchun ma'lumot yo'q</div>}
+          </div>
+        </div>
+
+        <div className="card bonus-command-card">
+          <SectionTitle title="Bonus audit log" desc="Tasdiq, close, export va o'zgarishlar" />
+          <div className="audit-mini-list">
+            {bonusAuditRows.length ? bonusAuditRows.slice(0, 7).map((row) => (
+              <div key={`bonus-audit-${row.id}`} className="audit-mini-row">
+                <span>{String(row.action_type || "update").replaceAll("_", " ")}</span>
+                <strong>{row.full_name || "Platforma"}</strong>
+                <small>{formatDateTime(row.created_at)}</small>
+              </div>
+            )) : <div className="empty-block">Bu oy uchun audit yozuvi yo'q</div>}
+          </div>
+        </div>
       </div>
 
       <div className="card">
@@ -11155,6 +11323,168 @@ tbody tr:hover{
   display:grid;
   gap:14px;
 }
+.content-control-grid,
+.bonus-command-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:16px;
+  margin-top:18px;
+}
+.bonus-command-grid{
+  grid-template-columns:1.05fr .95fr;
+}
+.content-control-panel,
+.bonus-command-card{
+  position:relative;
+  overflow:hidden;
+  border:1px solid rgba(15,23,42,.08);
+  border-radius:22px;
+  padding:18px;
+  background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(248,250,252,.9));
+  box-shadow:0 16px 34px rgba(15,23,42,.08);
+}
+.content-control-panel::before,
+.bonus-command-card::before{
+  content:"";
+  position:absolute;
+  inset:0 0 auto 0;
+  height:4px;
+  background:linear-gradient(90deg,#16a34a,#06b6d4,#6366f1);
+}
+.content-control-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:12px;
+}
+.content-control-head strong{
+  color:var(--text);
+  font-size:15px;
+}
+.content-control-head span{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:800;
+}
+.deadline-list,
+.signal-list,
+.approval-history-mini,
+.leaderboard-list,
+.audit-mini-list{
+  display:grid;
+  gap:10px;
+}
+.deadline-item,
+.approval-history-mini button{
+  width:100%;
+  display:grid;
+  gap:5px;
+  text-align:left;
+  border:1px solid rgba(15,23,42,.08);
+  border-radius:16px;
+  padding:12px;
+  background:#fff;
+  color:var(--text);
+  cursor:pointer;
+}
+.deadline-item span,
+.approval-history-mini strong{
+  font-weight:900;
+}
+.deadline-item strong,
+.deadline-item small,
+.approval-history-mini small{
+  color:var(--muted);
+  font-size:12px;
+}
+.deadline-item.warning{
+  border-color:rgba(245,158,11,.35);
+  background:#fffbeb;
+}
+.deadline-item.danger{
+  border-color:rgba(239,68,68,.35);
+  background:#fef2f2;
+}
+.signal-item{
+  display:grid;
+  gap:5px;
+  border-radius:16px;
+  padding:12px;
+  background:#eef6ff;
+  border:1px solid rgba(59,130,246,.18);
+}
+.signal-item strong{
+  color:var(--text);
+}
+.signal-item span{
+  color:var(--muted);
+  font-size:13px;
+  line-height:1.45;
+}
+.signal-item.warning{
+  background:#fffbeb;
+  border-color:rgba(245,158,11,.25);
+}
+.signal-item.danger{
+  background:#fef2f2;
+  border-color:rgba(239,68,68,.25);
+}
+.signal-item.success{
+  background:#ecfdf5;
+  border-color:rgba(16,185,129,.22);
+}
+.bonus-close-grid{
+  margin-top:14px;
+}
+.leaderboard-row{
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr) auto;
+  align-items:center;
+  gap:12px;
+  border:1px solid rgba(15,23,42,.08);
+  border-radius:16px;
+  padding:12px;
+  background:#fff;
+}
+.leaderboard-rank{
+  display:grid;
+  place-items:center;
+  width:34px;
+  height:34px;
+  border-radius:12px;
+  background:#052e16;
+  color:#bbf7d0;
+  font-weight:950;
+}
+.leaderboard-row strong,
+.leaderboard-row b{
+  color:var(--text);
+}
+.leaderboard-row small{
+  display:block;
+  color:var(--muted);
+  margin-top:3px;
+}
+.audit-mini-row{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:4px 12px;
+  border:1px solid rgba(15,23,42,.08);
+  border-radius:16px;
+  padding:12px;
+  background:#fff;
+}
+.audit-mini-row span{
+  color:var(--text);
+  font-weight:900;
+  text-transform:capitalize;
+}
+.audit-mini-row strong,
+.audit-mini-row small{
+  color:var(--muted);
+  font-size:12px;
+}
 .bonus-plastic-title{
   display:flex;
   align-items:center;
@@ -11468,7 +11798,7 @@ tbody tr:hover{
   box-shadow:0 16px 34px rgba(15,23,42,.07);
 }
 @media (max-width: 1100px){
-  .login-shell,.app-shell,.stats-grid,.two-grid,.form-grid,.dashboard-metrics-grid,.dashboard-metrics-grid-secondary,.dashboard-spotlight-grid,.dashboard-fold-columns,.bonus-plastic-grid{grid-template-columns:1fr}
+  .login-shell,.app-shell,.stats-grid,.two-grid,.form-grid,.dashboard-metrics-grid,.dashboard-metrics-grid-secondary,.dashboard-spotlight-grid,.dashboard-fold-columns,.bonus-plastic-grid,.content-control-grid,.bonus-command-grid{grid-template-columns:1fr}
   .content-modern-stats{grid-template-columns:1fr 1fr}
   .content-modern-form{padding:12px}
   .main-area{padding:14px}
@@ -11492,6 +11822,7 @@ tbody tr:hover{
     width:100%;
     justify-content:flex-start;
   }
+
   .login-feature-row{grid-template-columns:1fr}
   .login-seo-grid{grid-template-columns:1fr}
   .login-card{width:min(100%, 620px)}

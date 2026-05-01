@@ -478,6 +478,57 @@ function createTelegramEvent(title, lines = [], chatIdOverride = null) {
   });
 }
 
+function formatTelegramMoney(value) {
+  return `${Math.round(Number(value || 0)).toLocaleString("en-US")} UZS`;
+}
+
+function getActorName(user = {}) {
+  return user?.full_name || user?.login || "Platforma";
+}
+
+function buildPlatformTelegramTitle(emoji, title, tag) {
+  return `${emoji} SMM PLATFORMA | ${title} #${tag}`;
+}
+
+function buildContentTelegramLines(row = {}, actorName = "Platforma", action = "Yangilandi") {
+  const assignees = [row.assignee_name, row.video_editor_name, row.video_face_name]
+    .filter(Boolean)
+    .join(" / ");
+  return [
+    `#kontent #content_reja #${String(row.status || "reja").replace(/\W+/g, "_")}`,
+    `🧾 Amal: ${action}`,
+    `🎬 Kontent: ${row.title || "-"}`,
+    `📅 Deadline: ${formatDateOnly(row.publish_date) || "-"}`,
+    `👤 Mas'ul: ${assignees || "-"}`,
+    `📌 Status: ${row.status || "-"}`,
+    `📣 Platforma: ${row.platform || "-"}`,
+    `🎯 Turi: ${row.content_type || "-"}`,
+    `💰 Bonus: ${row.bonus_enabled ? "yoqilgan" : "yo'q"}`,
+    row.final_url ? `🔗 Link: ${row.final_url}` : null,
+    row.approval_comment ? `💬 Izoh: ${row.approval_comment}` : null,
+    `👨‍💼 Muallif: ${actorName}`
+  ].filter(Boolean);
+}
+
+function buildBonusTelegramLines(row = {}, actorName = "Platforma", action = "Yangilandi") {
+  const assignees = [row.full_name, row.video_editor_name, row.video_face_name]
+    .filter(Boolean)
+    .join(" / ");
+  return [
+    `#bonus #kpi #${String(row.approval_status || "draft").replace(/\W+/g, "_")}`,
+    `🧾 Amal: ${action}`,
+    `🎬 Kontent: ${row.content_title || "-"}`,
+    `📅 Oy: ${row.month_label || getMonthLabel(row.work_date)}`,
+    `👤 Hodim: ${assignees || "-"}`,
+    `📌 Turi: ${row.content_type || "-"}`,
+    `🧮 Taklif: ${Number(row.proposal_count || 0)}`,
+    `✅ Tasdiq: ${Number(row.approved_count || 0)}`,
+    `💳 Summa: ${formatTelegramMoney(row.total_amount || row.approved_amount || 0)}`,
+    row.work_url ? `🔗 Link: ${row.work_url}` : null,
+    `👨‍💼 Muallif: ${actorName}`
+  ].filter(Boolean);
+}
+
 function normalizeCampaignStatus(value) {
   const clean = String(value || "active").trim().toLowerCase();
   if (["paused", "done"].includes(clean)) return clean;
@@ -2720,6 +2771,26 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
         !!bonus_enabled,
         Number(proposal_count || 0),
         Number(approved_count || 0),
+async function getContentDetailRow(db, id) {
+  const result = await db.query(
+    `
+    SELECT
+      c.*,
+      u.full_name AS assignee_name,
+      ve.full_name AS video_editor_name,
+      vf.full_name AS video_face_name
+    FROM content_items c
+    LEFT JOIN users u ON u.id = c.assigned_user_id
+    LEFT JOIN users ve ON ve.id = c.video_editor_user_id
+    LEFT JOIN users vf ON vf.id = c.video_face_user_id
+    WHERE c.id = $1
+    LIMIT 1
+    `,
+    [id]
+  );
+  return result.rows[0] || null;
+}
+
         normalizeDifficultyLevel(difficulty_level || "sodda"),
         notes || "",
         JSON.stringify(Array.isArray(branch_ids_json) ? branch_ids_json : []),
@@ -2899,6 +2970,12 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
     );
 
     if (!updated.rows.length) {
+    const telegramRow = await getContentDetailRow(query, row.id);
+    createTelegramEvent(
+      buildPlatformTelegramTitle("🆕", "Kontent reja yaratildi", "kontent"),
+      buildContentTelegramLines(telegramRow || row, getActorName(req.user), "Yaratildi")
+    );
+
       await client.query("ROLLBACK");
       return res.status(404).json({ message: "Kontent topilmadi" });
     }
@@ -3053,6 +3130,13 @@ app.post("/api/bonus-items", authRequired, actionPermissionAllowed("bonus", "cre
 
     const proposalAmount = 0;
     const approvedAmount = await calcMoney(approved_count, difficultyLevel);
+    const telegramRow = await getContentDetailRow(query, row.id);
+    const statusChanged = previous.rows[0]?.status !== row.status;
+    createTelegramEvent(
+      buildPlatformTelegramTitle(statusChanged ? "🔄" : "✏️", statusChanged ? "Kontent status yangilandi" : "Kontent reja yangilandi", "kontent"),
+      buildContentTelegramLines(telegramRow || row, getActorName(req.user), statusChanged ? "Status o'zgardi" : "Tahrirlandi")
+    );
+
     const totalAmount = approvedAmount;
 
     const inserted = await query(
@@ -3097,6 +3181,15 @@ app.post("/api/bonus-items", authRequired, actionPermissionAllowed("bonus", "cre
         content_type === "video"
           ? video_editor_user_id || video_face_user_id || user_id || null
           : user_id || null,
+    createTelegramEvent(
+      buildPlatformTelegramTitle("🗑️", "Kontent reja o'chirildi", "kontent"),
+      [
+        "#kontent #ochirildi",
+        `🎬 Kontent: ${row.title || "-"}`,
+        `📅 Sana: ${dateOnly || "-"}`,
+        `👨‍💼 Muallif: ${getActorName(req.user)}`
+      ]
+    );
         content_type === "video" ? video_editor_user_id || null : null,
         content_type === "video" ? video_face_user_id || null : null,
         branch_id || null,
@@ -3287,6 +3380,30 @@ app.post("/api/bonus-items/approve-month", authRequired, pagePermissionAllowed("
     );
 
     await client.query("COMMIT");
+async function getBonusDetailRow(db, id) {
+  const result = await db.query(
+    `
+    SELECT
+      bi.*,
+      u.full_name,
+      ve.full_name AS video_editor_name,
+      vf.full_name AS video_face_name,
+      br.name AS branch_name,
+      approver.full_name AS approved_by_name
+    FROM bonus_items bi
+    LEFT JOIN users u ON u.id = bi.user_id
+    LEFT JOIN users ve ON ve.id = bi.video_editor_user_id
+    LEFT JOIN users vf ON vf.id = bi.video_face_user_id
+    LEFT JOIN branches br ON br.id = bi.branch_id
+    LEFT JOIN users approver ON approver.id = bi.approved_by
+    WHERE bi.id = $1
+    LIMIT 1
+    `,
+    [id]
+  );
+  return result.rows[0] || null;
+}
+
     await logAction(req.user.id, "approve", "bonus_items", null, {
       month_label: month,
       item_count: items.length
@@ -3412,6 +3529,12 @@ app.post(
         metricsImagePath,
         branches,
         reportDate: req.body?.report_date
+    const telegramRow = await getBonusDetailRow(query, inserted.rows[0].id);
+    createTelegramEvent(
+      buildPlatformTelegramTitle("💳", "Bonus yozuvi yaratildi", "bonus"),
+      buildBonusTelegramLines(telegramRow || inserted.rows[0], getActorName(req.user), "Yaratildi")
+    );
+
       });
 
       const savedRows = [];
@@ -3503,6 +3626,12 @@ app.post(
       }
 
       await createNotification(
+    const telegramRow = await getBonusDetailRow(query, updated.rows[0].id);
+    createTelegramEvent(
+      buildPlatformTelegramTitle("✏️", "Bonus yozuvi yangilandi", "bonus"),
+      buildBonusTelegramLines(telegramRow || updated.rows[0], getActorName(req.user), "Tahrirlandi")
+    );
+
         null,
         "Kunlik hisobot rasmdan to'ldirildi",
         `${imported.reportDate} sanaga ${savedRows.length} ta filial yozuvi tayyorlandi`,
@@ -3595,6 +3724,17 @@ app.put("/api/daily-reports/:id", authRequired, async (req, res) => {
       stories_count,
       posts_count,
       subscriber_count,
+    const totalAmount = refreshed.rows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0);
+    createTelegramEvent(
+      buildPlatformTelegramTitle("✅", "Oylik bonus tasdiqlandi", "bonus"),
+      [
+        "#bonus #tasdiq #monthly_close",
+        `📅 Oy: ${month}`,
+        `🧾 Yozuvlar: ${refreshed.rows.length}`,
+        `💳 Jami summa: ${formatTelegramMoney(totalAmount)}`,
+        `👨‍💼 Tasdiqladi: ${getActorName(req.user)}`
+      ]
+    );
       condition_text,
       notes
     } = req.body;
@@ -3639,6 +3779,15 @@ app.put("/api/daily-reports/:id", authRequired, async (req, res) => {
     res.status(500).json({ message: "Hisobotni yangilab boвЂlmadi" });
   }
 });
+    createTelegramEvent(
+      buildPlatformTelegramTitle("↩️", "Bonus tasdig'i bekor qilindi", "bonus"),
+      [
+        "#bonus #audit #revoke",
+        `📅 Oy: ${month}`,
+        `🧾 Yozuvlar: ${revoked.rows.length}`,
+        `👨‍💼 Muallif: ${getActorName(req.user)}`
+      ]
+    );
 
 app.delete("/api/daily-reports/:id", authRequired, async (req, res) => {
   try {
@@ -3646,9 +3795,118 @@ app.delete("/api/daily-reports/:id", authRequired, async (req, res) => {
     await logAction(req.user.id, "delete", "daily_branch_reports", Number(req.params.id), {});
     res.json({ message: "Hisobot oвЂchirildi" });
   } catch (err) {
+app.post("/api/bonus-items/monthly-close", authRequired, pagePermissionAllowed("bonus"), rolesAllowed("admin", "manager"), async (req, res) => {
+  const month = String(req.body?.month_label || getMonthLabel()).trim();
+  const client = await getClient();
+
+  try {
+    await client.query("BEGIN");
+
+    const closed = await client.query(
+      `
+      UPDATE bonus_items
+      SET
+        approved_count = CASE WHEN COALESCE(approved_count, 0) > 0 THEN approved_count ELSE COALESCE(proposal_count, 0) END,
+        proposal_amount = 0,
+        approved_amount = (CASE WHEN COALESCE(approved_count, 0) > 0 THEN approved_count ELSE COALESCE(proposal_count, 0) END) *
+          CASE
+            WHEN difficulty_level = 'orta' THEN 50000
+            WHEN difficulty_level = 'murakkab' THEN 75000
+            WHEN difficulty_level = 'juda_murakkab' THEN 100000
+            WHEN difficulty_level = 'bonussiz' THEN 0
+            ELSE 25000
+          END,
+        total_amount = (CASE WHEN COALESCE(approved_count, 0) > 0 THEN approved_count ELSE COALESCE(proposal_count, 0) END) *
+          CASE
+            WHEN difficulty_level = 'orta' THEN 50000
+            WHEN difficulty_level = 'murakkab' THEN 75000
+            WHEN difficulty_level = 'juda_murakkab' THEN 100000
+            WHEN difficulty_level = 'bonussiz' THEN 0
+            ELSE 25000
+          END,
+        approval_status = 'approved',
+        approved_by = $2,
+        approved_at = CURRENT_TIMESTAMP,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE month_label = $1
+      RETURNING *
+      `,
+      [month, req.user.id]
+    );
+
+    if (!closed.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Yopish uchun bonus yozuvlari topilmadi" });
+    }
+
+    const totalAmount = closed.rows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0);
+    const snapshot = {
+      month_label: month,
+      item_count: closed.rows.length,
+      bonus_total: totalAmount,
+      closed_by: req.user.id,
+      closed_at: new Date().toISOString()
+    };
+
+    await client.query(
+      `INSERT INTO monthly_snapshots (month_label, snapshot_type, payload_json, created_by) VALUES ($1,$2,$3,$4)`,
+      [month, "bonus_monthly_close", JSON.stringify(snapshot), req.user.id]
+    );
+
+    await client.query("COMMIT");
+    await logAction(req.user.id, "monthly_close", "bonus_items", null, snapshot);
+    createTelegramEvent(
+      buildPlatformTelegramTitle("🔒", "Bonus oyi yopildi", "bonus"),
+      [
+        "#bonus #monthly_close #payroll",
+        `📅 Oy: ${month}`,
+        `🧾 Yozuvlar: ${closed.rows.length}`,
+        `💳 Jami bonus: ${formatTelegramMoney(totalAmount)}`,
+        `👨‍💼 Yopdi: ${getActorName(req.user)}`
+      ]
+    );
+
+    res.json({ success: true, ...snapshot });
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ message: `Bonus oyini yopib bo'lmadi: ${err.message}` });
+  } finally {
+    client.release();
+  }
+});
+
+app.get("/api/bonus-items/audit", authRequired, pagePermissionAllowed("bonus"), async (req, res) => {
+  try {
+    const month = String(req.query.month || "").trim();
+    const params = [];
+    let where = `WHERE a.entity_type = 'bonus_items'`;
+    if (month) {
+      params.push(month);
+      where += ` AND (a.meta->>'month_label' = $1 OR a.created_at >= ($1 || '-01')::date AND a.created_at < (($1 || '-01')::date + INTERVAL '1 month'))`;
+    }
+    const result = await query(
+      `
+      SELECT a.*, u.full_name
+      FROM audit_logs a
+      LEFT JOIN users u ON u.id = a.user_id
+      ${where}
+      ORDER BY a.id DESC
+      LIMIT 80
+      `,
+      params
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Bonus audit log olib bo'lmadi: ${err.message}` });
+  }
+});
+
     console.error(err);
     res.status(500).json({ message: "Hisobotni oвЂchirib boвЂlmadi" });
   }
+    const telegramRow = await getBonusDetailRow(query, req.params.id);
 });
 
 /* CAMPAIGNS */
@@ -3657,6 +3915,10 @@ app.get("/api/campaigns", authRequired, async (_, res) => {
   try {
     runDetached("campaign lifecycle refresh", async () => {
       await syncCampaignLifecycleNotifications();
+    createTelegramEvent(
+      buildPlatformTelegramTitle("🗑️", "Bonus yozuvi o'chirildi", "bonus"),
+      buildBonusTelegramLines(telegramRow || syncRow || {}, getActorName(req.user), "O'chirildi")
+    );
     });
     const result = await query(
       `
@@ -6159,3 +6421,80 @@ ensureRuntimeSchema()
       }
     });
   });
+app.get("/api/export/bonus-payroll.xlsx", authRequired, pagePermissionAllowed("bonus"), async (req, res) => {
+  try {
+    const month = String(req.query.month || getMonthLabel()).trim();
+    const rows = (
+      await query(
+        `
+        WITH participant_rows AS (
+          SELECT
+            month_label,
+            COALESCE(u.full_name, 'Noma''lum') AS employee_name,
+            content_title,
+            content_type,
+            proposal_count,
+            approved_count,
+            total_amount
+          FROM bonus_items bi
+          LEFT JOIN users u ON u.id = bi.user_id
+          WHERE bi.month_label = $1 AND bi.content_type <> 'video'
+          UNION ALL
+          SELECT
+            month_label,
+            COALESCE(ve.full_name, 'Noma''lum') AS employee_name,
+            content_title,
+            content_type,
+            proposal_count,
+            approved_count,
+            total_amount
+          FROM bonus_items bi
+          LEFT JOIN users ve ON ve.id = bi.video_editor_user_id
+          WHERE bi.month_label = $1 AND bi.content_type = 'video'
+          UNION ALL
+          SELECT
+            month_label,
+            COALESCE(vf.full_name, 'Noma''lum') AS employee_name,
+            content_title,
+            content_type,
+            proposal_count,
+            approved_count,
+            total_amount
+          FROM bonus_items bi
+          LEFT JOIN users vf ON vf.id = bi.video_face_user_id
+          WHERE bi.month_label = $1 AND bi.content_type = 'video'
+        )
+        SELECT
+          month_label,
+          employee_name,
+          COUNT(*)::int AS content_count,
+          SUM(proposal_count)::int AS proposal_count,
+          SUM(approved_count)::int AS approved_count,
+          SUM(total_amount)::numeric AS payroll_amount
+        FROM participant_rows
+        WHERE employee_name <> 'Noma''lum'
+        GROUP BY month_label, employee_name
+        ORDER BY payroll_amount DESC, content_count DESC, employee_name ASC
+        `,
+        [month]
+      )
+    ).rows;
+
+    await logAction(req.user.id, "export", "bonus_items", null, { month_label: month, export_type: "payroll" });
+    createTelegramEvent(
+      buildPlatformTelegramTitle("📤", "Bonus payroll export", "bonus"),
+      [
+        "#bonus #payroll #export",
+        `📅 Oy: ${month}`,
+        `👥 Hodimlar: ${rows.length}`,
+        `👨‍💼 Export qildi: ${getActorName(req.user)}`
+      ]
+    );
+
+    await sendExcel(res, rows, `bonus-payroll-${month}.xlsx`, "BonusPayroll");
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Payroll export xatoligi" });
+  }
+});
+
