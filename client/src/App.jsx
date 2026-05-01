@@ -1366,6 +1366,9 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   const thisMonthBonus = (bonusItems || [])
     .filter((row) => (row.month_label || formatDate(row.work_date).slice(0, 7)) === currentMonth)
     .reduce((sum, row) => sum + Number(row.total_amount || row.amount || 0), 0);
+  const thisMonthBonusItems = (bonusItems || [])
+    .filter((row) => (row.month_label || formatDate(row.work_date).slice(0, 7)) === currentMonth);
+  const dashboardBonusBalances = summarizeBonusBalanceEmployees(thisMonthBonusItems, Number(summary?.bonus_rate || 25000));
   const reminders = summary?.reminders || [];
   const bonusSeries = Array.from({ length: 6 }).map((_, index) => {
     const date = new Date();
@@ -1633,6 +1636,12 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
           <DashboardMetricCard key={item.title} {...item} />
         ))}
       </div>
+
+      <BonusPlasticCards
+        rows={dashboardBonusBalances}
+        monthLabel={currentMonth}
+        title="Joriy oy bonus kartalari"
+      />
 
       <div className="dashboard-spotlight-grid">
         <div className="card dashboard-focus-card">
@@ -2564,6 +2573,14 @@ function getBonusRowAmount(item, bonusRate = 25000) {
   return approvedCount * unitAmount;
 }
 
+function getBonusEstimatedAmount(item, bonusRate = 25000) {
+  const approvedAmount = Number(item?.approved_amount || 0);
+  if (approvedAmount) return approvedAmount;
+  const count = Number(item?.approved_count || item?.proposal_count || 0);
+  const unitAmount = item?.difficulty_level ? getDifficultyUnitAmount(item.difficulty_level) : Number(bonusRate || 0);
+  return count * unitAmount;
+}
+
 function normalizeDifficultyLevel(value) {
   const normalized = String(value || "").trim().toLowerCase();
   if (["sodda", "oddiy", "normal", "easy"].includes(normalized)) return "sodda";
@@ -2648,6 +2665,83 @@ function summarizeBonusEmployees(items = [], bonusRate = 25000) {
   });
 
   return [...stats.values()].sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name));
+}
+
+function summarizeBonusBalanceEmployees(items = [], bonusRate = 25000) {
+  const stats = new Map();
+
+  (items || []).forEach((item) => {
+    const names = getBonusParticipantNames(item);
+    const amount = getBonusEstimatedAmount(item, bonusRate);
+    const proposalCount = Number(item?.proposal_count || 0);
+    const approvedCount = Number(item?.approved_count || 0);
+
+    names.forEach((name) => {
+      if (!stats.has(name)) {
+        stats.set(name, {
+          name,
+          content_count: 0,
+          proposal_count: 0,
+          approved_count: 0,
+          amount: 0
+        });
+      }
+
+      const current = stats.get(name);
+      current.content_count += 1;
+      current.proposal_count += proposalCount;
+      current.approved_count += approvedCount;
+      current.amount += amount;
+    });
+  });
+
+  return [...stats.values()].sort((a, b) => b.amount - a.amount || b.content_count - a.content_count || a.name.localeCompare(b.name));
+}
+
+function BonusPlasticCards({ rows = [], monthLabel = getMonthLabel(), title = "Bonus balans" }) {
+  const displayRows = rows.slice(0, 2);
+
+  if (!displayRows.length) {
+    return null;
+  }
+
+  return (
+    <div className="bonus-plastic-section">
+      <div className="bonus-plastic-title">
+        <span>{title}</span>
+        <strong>{getMonthTitle(monthLabel)}</strong>
+      </div>
+      <div className="bonus-plastic-grid">
+        {displayRows.map((row, index) => (
+          <div key={`${row.name}-${index}`} className={`bonus-plastic-card card-${index + 1}`}>
+            <div className="bonus-plastic-pattern" />
+            <div className="bonus-plastic-top">
+              <div className="bonus-plastic-logo">aloo</div>
+              <div className="bonus-plastic-chip" />
+            </div>
+            <div className="bonus-plastic-body">
+              <span>Balans</span>
+              <strong>{formatMoney(row.amount)}</strong>
+            </div>
+            <div className="bonus-plastic-footer">
+              <div>
+                <span>Hodim</span>
+                <strong>{row.name}</strong>
+              </div>
+              <div>
+                <span>Kontent</span>
+                <strong>{row.content_count}</strong>
+              </div>
+              <div>
+                <span>Tasdiq</span>
+                <strong>{row.approved_count || row.proposal_count || 0}</strong>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 function drawRoundedRect(ctx, x, y, width, height, radius) {
@@ -2980,6 +3074,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   const totalAmount = filteredItems.reduce((sum, item) => sum + Number(item.total_amount || item.amount || 0), 0);
   const employeeStats = useMemo(() => summarizeBonusEmployees(filteredItems, bonusRate), [filteredItems, bonusRate]);
   const employeeTotalAmount = employeeStats.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const employeeBalanceStats = useMemo(() => summarizeBonusBalanceEmployees(filteredItems, bonusRate), [filteredItems, bonusRate]);
   const approvalEmployeeStats = useMemo(() => summarizeBonusEmployees(approvalRows, bonusRate), [approvalRows, bonusRate]);
   const approvalEmployeeTotal = approvalEmployeeStats.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const approvedRowCount = filteredItems.filter((item) => item.approval_status === "approved").length;
@@ -3246,6 +3341,12 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
           <StatCard title="Jami bonus" value={formatMoney(totalAmount)} hint={getMonthTitle(monthFilter)} />
           <StatCard title="Yozuvlar soni" value={filteredItems.length} hint="bonus hisobotlar" />
         </div>
+
+        <BonusPlasticCards
+          rows={employeeBalanceStats}
+          monthLabel={monthFilter}
+          title="Hodim bonus balanslari"
+        />
       </div>
 
       <div className="card">
@@ -11050,6 +11151,121 @@ tbody tr:hover{
   width:42px;
   height:42px;
 }
+.bonus-plastic-section{
+  display:grid;
+  gap:14px;
+}
+.bonus-plastic-title{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:14px;
+  color:var(--muted);
+  font-size:13px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.bonus-plastic-title strong{
+  color:var(--text);
+  text-transform:none;
+  letter-spacing:0;
+  font-size:15px;
+}
+.bonus-plastic-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:18px;
+}
+.bonus-plastic-card{
+  position:relative;
+  overflow:hidden;
+  min-height:232px;
+  border-radius:26px;
+  padding:24px;
+  color:#06160d;
+  background:
+    radial-gradient(circle at 84% 16%, rgba(255,255,255,.48), transparent 22%),
+    linear-gradient(135deg,#2ee65e 0%,#20c957 46%,#0fbf83 100%);
+  border:1px solid rgba(0,0,0,.08);
+  box-shadow:0 24px 54px rgba(20,168,76,.22), inset 0 1px 0 rgba(255,255,255,.45);
+}
+.bonus-plastic-card.card-2{
+  background:
+    radial-gradient(circle at 84% 16%, rgba(255,255,255,.42), transparent 23%),
+    linear-gradient(135deg,#38e7a6 0%,#16c784 48%,#07966b 100%);
+}
+.bonus-plastic-pattern{
+  position:absolute;
+  inset:-22% 35% -20% -18%;
+  opacity:.22;
+  background:
+    repeating-radial-gradient(circle at 28% 50%, transparent 0 18px, rgba(0,0,0,.42) 19px 21px),
+    repeating-linear-gradient(45deg, transparent 0 22px, rgba(0,0,0,.24) 23px 25px);
+  transform:rotate(-10deg);
+}
+.bonus-plastic-top,
+.bonus-plastic-footer{
+  position:relative;
+  z-index:1;
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+}
+.bonus-plastic-logo{
+  font-size:26px;
+  font-weight:950;
+  letter-spacing:-.06em;
+}
+.bonus-plastic-chip{
+  width:54px;
+  height:40px;
+  border-radius:10px;
+  background:
+    linear-gradient(90deg, transparent 44%, rgba(0,0,0,.18) 45% 47%, transparent 48%),
+    linear-gradient(180deg,#f4f5f7,#bfc5ca);
+  border:1px solid rgba(0,0,0,.18);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.78);
+}
+.bonus-plastic-chip::after{
+  content:"";
+  position:absolute;
+}
+.bonus-plastic-body{
+  position:relative;
+  z-index:1;
+  margin-top:34px;
+  display:grid;
+  gap:8px;
+}
+.bonus-plastic-body span,
+.bonus-plastic-footer span{
+  font-size:11px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.12em;
+  opacity:.68;
+}
+.bonus-plastic-body strong{
+  font-size:34px;
+  line-height:1;
+  letter-spacing:-.05em;
+}
+.bonus-plastic-footer{
+  margin-top:34px;
+  align-items:end;
+}
+.bonus-plastic-footer div{
+  display:grid;
+  gap:5px;
+  min-width:0;
+}
+.bonus-plastic-footer strong{
+  font-size:15px;
+  line-height:1.15;
+  word-break:break-word;
+}
 .content-page-modern{
   gap:22px;
 }
@@ -11059,9 +11275,11 @@ tbody tr:hover{
   border-radius:28px;
   border:1px solid rgba(59,130,246,.13);
   background:
+    radial-gradient(circle at 100% 0%, rgba(34,197,94,.12), transparent 26%),
+    radial-gradient(circle at 0% 0%, rgba(22,144,245,.14), transparent 28%),
     linear-gradient(180deg, rgba(255,255,255,.98), rgba(246,250,255,.94)),
     var(--panel);
-  box-shadow:0 22px 48px rgba(15,23,42,.08);
+  box-shadow:0 30px 70px rgba(15,23,42,.10);
 }
 .content-modern-card::before{
   content:"";
@@ -11069,6 +11287,14 @@ tbody tr:hover{
   inset:0;
   height:5px;
   background:linear-gradient(90deg,#1690F5,#22c55e,#f59e0b);
+}
+.content-modern-card::after{
+  content:"";
+  position:absolute;
+  inset:8px;
+  border-radius:24px;
+  border:1px solid rgba(255,255,255,.58);
+  pointer-events:none;
 }
 .content-modern-card > *{
   position:relative;
@@ -11091,6 +11317,12 @@ tbody tr:hover{
   border-radius:14px;
   padding:11px 15px;
   box-shadow:0 10px 22px rgba(15,23,42,.06);
+  border-color:rgba(148,163,184,.18);
+  background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(239,246,255,.92));
+}
+.content-modern-btn:hover{
+  transform:translateY(-2px);
+  box-shadow:0 16px 30px rgba(15,23,42,.10);
 }
 .content-month-pill{
   min-height:42px;
@@ -11109,13 +11341,27 @@ tbody tr:hover{
   margin:14px 0 16px;
 }
 .content-modern-stat{
+  position:relative;
+  overflow:hidden;
   padding:15px;
   border-radius:18px;
-  background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(239,246,255,.88));
+  background:
+    linear-gradient(135deg,rgba(255,255,255,.98),rgba(239,246,255,.88)),
+    var(--panel);
   border:1px solid rgba(148,163,184,.14);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.8),0 14px 28px rgba(15,23,42,.05);
   display:grid;
   gap:6px;
+}
+.content-modern-stat::before{
+  content:"";
+  position:absolute;
+  right:-18px;
+  top:-18px;
+  width:74px;
+  height:74px;
+  border-radius:50%;
+  background:rgba(22,144,245,.10);
 }
 .content-modern-stat span{
   color:var(--muted);
@@ -11136,14 +11382,23 @@ tbody tr:hover{
 .content-modern-form{
   padding:18px;
   border-radius:22px;
-  background:rgba(248,251,255,.76);
+  background:
+    linear-gradient(180deg,rgba(255,255,255,.68),rgba(248,251,255,.84)),
+    rgba(248,251,255,.76);
   border:1px solid rgba(148,163,184,.12);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.78);
 }
 .content-modern-form label{
   padding:12px;
   border-radius:16px;
   background:rgba(255,255,255,.70);
   border:1px solid rgba(148,163,184,.10);
+  transition:border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+.content-modern-form label:focus-within{
+  border-color:rgba(22,144,245,.35);
+  box-shadow:0 16px 32px rgba(22,144,245,.08);
+  transform:translateY(-1px);
 }
 .content-modern-form input,
 .content-modern-form select,
@@ -11179,10 +11434,12 @@ tbody tr:hover{
   border-spacing:0;
 }
 .content-list-card th{
-  background:linear-gradient(180deg,rgba(239,246,255,.98),rgba(248,251,255,.96));
+  background:linear-gradient(180deg,rgba(230,241,255,.98),rgba(248,251,255,.96));
+  border-bottom:1px solid rgba(22,144,245,.14);
 }
 .content-list-card td{
   background:rgba(255,255,255,.72);
+  border-bottom-color:rgba(148,163,184,.10);
 }
 .content-list-card tbody tr:hover td{
   background:linear-gradient(90deg,rgba(22,144,245,.08),rgba(34,197,94,.04));
@@ -11194,6 +11451,10 @@ tbody tr:hover{
 .content-list-card .table-chip{
   min-height:28px;
   box-shadow:0 7px 16px rgba(15,23,42,.04);
+}
+.content-list-card .table-inline-link{
+  background:linear-gradient(135deg,rgba(22,144,245,.12),rgba(34,197,94,.10));
+  border:1px solid rgba(22,144,245,.14);
 }
 .content-list-card .table-actions-shell .icon-btn,
 .content-list-card .icon-btn{
@@ -11207,7 +11468,7 @@ tbody tr:hover{
   box-shadow:0 16px 34px rgba(15,23,42,.07);
 }
 @media (max-width: 1100px){
-  .login-shell,.app-shell,.stats-grid,.two-grid,.form-grid,.dashboard-metrics-grid,.dashboard-metrics-grid-secondary,.dashboard-spotlight-grid,.dashboard-fold-columns{grid-template-columns:1fr}
+  .login-shell,.app-shell,.stats-grid,.two-grid,.form-grid,.dashboard-metrics-grid,.dashboard-metrics-grid-secondary,.dashboard-spotlight-grid,.dashboard-fold-columns,.bonus-plastic-grid{grid-template-columns:1fr}
   .content-modern-stats{grid-template-columns:1fr 1fr}
   .content-modern-form{padding:12px}
   .main-area{padding:14px}
