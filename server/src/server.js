@@ -1344,6 +1344,12 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approval_status TEXT NOT NULL DEFAULT 'draft'`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS monthly_closed_at TIMESTAMP`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS monthly_closed_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS paid_status TEXT NOT NULL DEFAULT 'pending'`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS paid_by INTEGER REFERENCES users(id) ON DELETE SET NULL`,
+    `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS audit_reason TEXT`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS myseone_item_id INTEGER`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS myseone_synced_title TEXT`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS myseone_sync_status TEXT NOT NULL DEFAULT 'pending'`,
@@ -3404,6 +3410,16 @@ async function getBonusDetailRow(db, id) {
   return result.rows[0] || null;
 }
 
+function isBonusRowLocked(row = {}) {
+  return !!row?.monthly_closed_at || String(row?.paid_status || "").toLowerCase() === "paid";
+}
+
+function normalizePaidStatus(value) {
+  const normalized = String(value || "pending").trim().toLowerCase();
+  if (["approved", "paid"].includes(normalized)) return normalized;
+  return "pending";
+}
+
 app.get("/api/bonus-items", authRequired, pagePermissionAllowed("bonus"), async (_, res) => {
   try {
     try {
@@ -3465,7 +3481,8 @@ app.post("/api/bonus-items", authRequired, actionPermissionAllowed("bonus", "cre
       user_id,
       video_editor_user_id,
       video_face_user_id,
-      branch_id
+      branch_id,
+      audit_reason
     } = req.body;
 
     const dateOnly = formatDateOnly(work_date);
@@ -3567,6 +3584,15 @@ app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "
     const proposalAmount = 0;
     const approvedAmount = await calcMoney(approved_count, difficultyLevel);
     const totalAmount = approvedAmount;
+    const current = await getBonusDetailRow(query, req.params.id);
+
+    if (!current) {
+      return res.status(404).json({ message: "Bonus yozuvi topilmadi" });
+    }
+
+    if (isBonusRowLocked(current) && !String(audit_reason || "").trim()) {
+      return res.status(423).json({ message: "Bu oy yopilgan. O'zgartirish uchun audit sababi majburiy." });
+    }
 
     const updated = await query(
       `
@@ -3590,6 +3616,8 @@ app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "
         approval_status = 'draft',
         approved_by = NULL,
         approved_at = NULL,
+        paid_status = CASE WHEN monthly_closed_at IS NOT NULL THEN paid_status ELSE 'pending' END,
+        audit_reason = COALESCE(NULLIF($17, ''), audit_reason),
         myseone_sync_status = 'pending',
         myseone_sync_error = NULL,
         updated_at = CURRENT_TIMESTAMP
@@ -3614,7 +3642,8 @@ app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "
         content_type === "video" ? video_editor_user_id || null : null,
         content_type === "video" ? video_face_user_id || null : null,
         branch_id || null,
-        req.params.id
+        req.params.id,
+        String(audit_reason || "").trim()
       ]
     );
 
@@ -3623,7 +3652,9 @@ app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "
     }
 
     await logAction(req.user.id, "update", "bonus_items", Number(req.params.id), {
-      content_title
+      content_title,
+      audit_reason: audit_reason || null,
+      locked_override: isBonusRowLocked(current)
     });
 
     const telegramRow = await getBonusDetailRow(query, updated.rows[0].id);
@@ -3685,6 +3716,7 @@ app.post("/api/bonus-items/approve-month", authRequired, pagePermissionAllowed("
           approved_amount = $2,
           total_amount = $2,
           approval_status = 'approved',
+          paid_status = CASE WHEN paid_status = 'paid' THEN 'paid' ELSE 'approved' END,
           approved_by = $3,
           approved_at = CURRENT_TIMESTAMP,
           updated_at = CURRENT_TIMESTAMP
@@ -3765,6 +3797,9 @@ app.post("/api/bonus-items/revoke-month", authRequired, pagePermissionAllowed("b
         approved_amount = 0,
         total_amount = 0,
         approval_status = 'draft',
+        paid_status = 'pending',
+        paid_at = NULL,
+        paid_by = NULL,
         approved_by = NULL,
         approved_at = NULL,
         updated_at = CURRENT_TIMESTAMP
@@ -3825,6 +3860,9 @@ app.post("/api/bonus-items/monthly-close", authRequired, pagePermissionAllowed("
             ELSE 25000
           END,
         approval_status = 'approved',
+        monthly_closed_at = CURRENT_TIMESTAMP,
+        monthly_closed_by = $2,
+        paid_status = CASE WHEN paid_status = 'paid' THEN 'paid' ELSE 'approved' END,
         approved_by = $2,
         approved_at = CURRENT_TIMESTAMP,
         updated_at = CURRENT_TIMESTAMP
@@ -3903,10 +3941,77 @@ app.get("/api/bonus-items/audit", authRequired, pagePermissionAllowed("bonus"), 
   }
 });
 
-app.delete("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "delete"), async (req, res) => {
+app.post("/api/bonus-items/mark-paid", authRequired, pagePermissionAllowed("bonus"), rolesAllowed("admin", "manager"), async (req, res) => {
+  const month = String(req.body?.month_label || "").trim();
+  const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map((id) => Number(id)).filter(Boolean))];
+
+  if (!month && !ids.length) {
+    return res.status(400).json({ message: "Oy yoki bonus yozuvlari tanlanmagan" });
+  }
+
+  try {
+    const params = [req.user.id];
+    let where = `approval_status = 'approved'`;
+    if (ids.length) {
+      params.push(ids);
+      where += ` AND id = ANY($${params.length}::int[])`;
+    }
+    if (month) {
+      params.push(month);
+      where += ` AND month_label = $${params.length}`;
+    }
+
+    const updated = await query(
+      `
+      UPDATE bonus_items
+      SET
+        paid_status = 'paid',
+        paid_at = CURRENT_TIMESTAMP,
+        paid_by = $1,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE ${where}
+      RETURNING *
+      `,
+      params
+    );
+
+    if (!updated.rows.length) {
+      return res.status(404).json({ message: "To'lovga tayyor bonus yozuvi topilmadi" });
+    }
+
+    const totalAmount = updated.rows.reduce((sum, row) => sum + Number(row.total_amount || 0), 0);
+    await logAction(req.user.id, "mark_paid", "bonus_items", null, {
+      month_label: month || null,
+      ids,
+      item_count: updated.rows.length,
+      total_amount: totalAmount
+    });
+    createTelegramEvent(
+      buildPlatformTelegramTitle("💸", "Bonus to'landi", "bonus"),
+      [
+        "#bonus #paid #payroll",
+        month ? `📅 Oy: ${month}` : null,
+        `🧾 Yozuvlar: ${updated.rows.length}`,
+        `💳 Summa: ${formatTelegramMoney(totalAmount)}`,
+        `👨‍💼 Belgiladi: ${getActorName(req.user)}`
+      ].filter(Boolean)
+    );
+
+    res.json({ success: true, count: updated.rows.length, total_amount: totalAmount });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Bonus to'lov statusini yangilab bo'lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/bonus-items/:id/delete-with-audit", authRequired, actionPermissionAllowed("bonus", "delete"), async (req, res) => {
   try {
     const syncRow = await getBonusSyncRowById(query, req.params.id);
     const telegramRow = await getBonusDetailRow(query, req.params.id);
+    const auditReason = String(req.body?.audit_reason || "").trim();
+    if (isBonusRowLocked(telegramRow) && !auditReason) {
+      return res.status(423).json({ message: "Bu oy yopilgan. O'chirish uchun audit sababi majburiy." });
+    }
     const deleted = await query(`DELETE FROM bonus_items WHERE id = $1 RETURNING id`, [req.params.id]);
     if (!deleted.rows.length) {
       return res.status(404).json({ message: "Bonus yozuvi topilmadi" });
@@ -3914,7 +4019,39 @@ app.delete("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus"
     if (syncRow) {
       scheduleBonusDeleteSync([syncRow]);
     }
-    await logAction(req.user.id, "delete", "bonus_items", Number(req.params.id), {});
+    await logAction(req.user.id, "delete", "bonus_items", Number(req.params.id), {
+      audit_reason: auditReason || null,
+      locked_override: isBonusRowLocked(telegramRow)
+    });
+    createTelegramEvent(
+      buildPlatformTelegramTitle("🗑️", "Bonus yozuvi o'chirildi", "bonus"),
+      buildBonusTelegramLines(telegramRow || syncRow || {}, getActorName(req.user), "O'chirildi")
+    );
+    res.json({ message: "Bonus yozuvi o'chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Bonus yozuvini o'chirib bo'lmadi" });
+  }
+});
+
+app.delete("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "delete"), async (req, res) => {
+  try {
+    const syncRow = await getBonusSyncRowById(query, req.params.id);
+    const telegramRow = await getBonusDetailRow(query, req.params.id);
+    if (isBonusRowLocked(telegramRow) && !String(req.query?.audit_reason || req.body?.audit_reason || "").trim()) {
+      return res.status(423).json({ message: "Bu oy yopilgan. O'chirish uchun audit sababi majburiy." });
+    }
+    const deleted = await query(`DELETE FROM bonus_items WHERE id = $1 RETURNING id`, [req.params.id]);
+    if (!deleted.rows.length) {
+      return res.status(404).json({ message: "Bonus yozuvi topilmadi" });
+    }
+    if (syncRow) {
+      scheduleBonusDeleteSync([syncRow]);
+    }
+    await logAction(req.user.id, "delete", "bonus_items", Number(req.params.id), {
+      audit_reason: req.query?.audit_reason || req.body?.audit_reason || null,
+      locked_override: isBonusRowLocked(telegramRow)
+    });
     createTelegramEvent(
       buildPlatformTelegramTitle("🗑️", "Bonus yozuvi o'chirildi", "bonus"),
       buildBonusTelegramLines(telegramRow || syncRow || {}, getActorName(req.user), "O'chirildi")
@@ -6548,7 +6685,8 @@ app.get("/api/export/bonus-payroll.xlsx", authRequired, pagePermissionAllowed("b
             content_type,
             proposal_count,
             approved_count,
-            total_amount
+            total_amount,
+            paid_status
           FROM bonus_items bi
           LEFT JOIN users u ON u.id = bi.user_id
           WHERE bi.month_label = $1 AND bi.content_type <> 'video'
@@ -6560,7 +6698,8 @@ app.get("/api/export/bonus-payroll.xlsx", authRequired, pagePermissionAllowed("b
             content_type,
             proposal_count,
             approved_count,
-            total_amount
+            total_amount,
+            paid_status
           FROM bonus_items bi
           LEFT JOIN users ve ON ve.id = bi.video_editor_user_id
           WHERE bi.month_label = $1 AND bi.content_type = 'video'
@@ -6572,7 +6711,8 @@ app.get("/api/export/bonus-payroll.xlsx", authRequired, pagePermissionAllowed("b
             content_type,
             proposal_count,
             approved_count,
-            total_amount
+            total_amount,
+            paid_status
           FROM bonus_items bi
           LEFT JOIN users vf ON vf.id = bi.video_face_user_id
           WHERE bi.month_label = $1 AND bi.content_type = 'video'
@@ -6583,7 +6723,14 @@ app.get("/api/export/bonus-payroll.xlsx", authRequired, pagePermissionAllowed("b
           COUNT(*)::int AS content_count,
           SUM(proposal_count)::int AS proposal_count,
           SUM(approved_count)::int AS approved_count,
-          SUM(total_amount)::numeric AS payroll_amount
+          SUM(total_amount)::numeric AS payroll_amount,
+          CASE
+            WHEN COUNT(*) FILTER (WHERE paid_status = 'paid') = COUNT(*) THEN 'paid'
+            WHEN COUNT(*) FILTER (WHERE paid_status = 'approved') > 0 THEN 'approved'
+            ELSE 'pending'
+          END AS payment_status,
+          '' AS card_or_account,
+          '' AS signature
         FROM participant_rows
         WHERE employee_name <> 'Noma''lum'
         GROUP BY month_label, employee_name

@@ -1878,6 +1878,8 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
   const [viewRow, setViewRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
   const [viewMode, setViewMode] = useState("table");
+  const [calendarPlatformFilter, setCalendarPlatformFilter] = useState("all");
+  const [calendarBranchFilter, setCalendarBranchFilter] = useState("all");
 
   const emptyForm = {
     title: "",
@@ -1969,6 +1971,34 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
       tableSearch
     ));
   }, [rows, tableSearch]);
+  const calendarRows = useMemo(() => {
+    return visibleRows.filter((row) => {
+      const platformOk = calendarPlatformFilter === "all" || splitCellValues(row.platform).includes(calendarPlatformFilter);
+      const branchIds = Array.isArray(row.branch_ids_json) ? row.branch_ids_json.map(String) : [];
+      const branchOk = calendarBranchFilter === "all" || branchIds.includes(String(calendarBranchFilter));
+      return platformOk && branchOk;
+    });
+  }, [visibleRows, calendarPlatformFilter, calendarBranchFilter]);
+  const calendarPlatforms = useMemo(() => {
+    return [...new Set(visibleRows.flatMap((row) => splitCellValues(row.platform)))].filter(Boolean).sort();
+  }, [visibleRows]);
+  const weeklyLoad = useMemo(() => {
+    const stats = new Map();
+    calendarRows.forEach((row) => {
+      const date = formatDate(row.publish_date);
+      if (date === "-") return;
+      const parsed = new Date(`${date}T00:00:00`);
+      if (Number.isNaN(parsed.getTime())) return;
+      const week = Math.ceil(parsed.getDate() / 7);
+      const key = `${getMonthTitle(selectedMonth)} / ${week}-hafta`;
+      stats.set(key, (stats.get(key) || 0) + 1);
+    });
+    return [...stats.entries()].map(([label, count]) => ({ label, count }));
+  }, [calendarRows, selectedMonth]);
+  const emptyCalendarDays = useMemo(() => {
+    const days = buildMonthCalendar(selectedMonth, calendarRows, "publish_date").filter((cell) => !cell.empty);
+    return days.filter((cell) => !cell.items.length).length;
+  }, [selectedMonth, calendarRows]);
 
   async function loadMonth(monthValue = selectedMonth) {
     try {
@@ -2093,10 +2123,10 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
 
       if (editRow?.id) {
         await api.update("content", editRow.id, payload);
-        onToast("Kontent reja yangilandi", "success");
+        onToast("Kontent reja yangilandi", "success", { center: true });
       } else {
         await api.create("content", payload);
-        onToast("Kontent reja saqlandi", "success");
+        onToast("Kontent reja saqlandi", "success", { center: true });
       }
 
       await loadMonth(selectedMonth);
@@ -2132,6 +2162,10 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
       onToast(err.message || "O'chirishda xatolik", "error");
     }
   }
+
+  const employeeDetailItems = employeeDetail
+    ? filteredItems.filter((item) => getBonusParticipantNames(item).includes(employeeDetail.name))
+    : [];
 
   return (
     <div className="page-grid content-page-modern">
@@ -2520,36 +2554,73 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
             )}
           </div>
         </> : viewMode === "calendar" ? (
-          <MiniCalendar
-            monthLabel={selectedMonth}
-            rows={visibleRows}
-            dateKey="publish_date"
-            onMoveDate={async (id, nextDate) => {
-              const row = rows.find((item) => item.id === id);
-              if (!row) return;
-              try {
-                await api.update("content", id, {
-                  ...row,
-                  publish_date: nextDate,
-                  assigned_user_id: row.assigned_user_id || null,
-                  video_editor_user_id: row.video_editor_user_id || null,
-                  video_face_user_id: row.video_face_user_id || null,
-                  branch_ids_json: Array.isArray(row.branch_ids_json) ? row.branch_ids_json : [],
-                  approval_comment: row.approval_comment || ""
-                });
-                await loadMonth(selectedMonth);
-                await reload();
-                onToast("Kontent sanasi ko'chirildi", "success");
-              } catch (err) {
-                onToast(err.message || "Sanani ko'chirib bo'lmadi", "error");
-              }
-            }}
-            renderItem={(item) => (
-              <button key={item.id} type="button" className={`calendar-pill ${item.bonus_enabled ? "bonus" : ""}`} onClick={() => setViewRow(item)}>
-                {item.title}
-              </button>
-            )}
-          />
+          <div className="calendar-pro-shell">
+            <div className="calendar-pro-toolbar">
+              <div className="calendar-signal-card">
+                <strong>Haftalik yuklama</strong>
+                <div className="calendar-load-bars">
+                  {weeklyLoad.length ? weeklyLoad.map((item) => (
+                    <span key={item.label} style={{ "--load": `${Math.min(100, item.count * 20)}%` }}>
+                      {item.label}: <b>{item.count}</b>
+                    </span>
+                  )) : <span>Bu oy uchun yuklama yo'q</span>}
+                </div>
+              </div>
+              <div className="calendar-signal-card">
+                <strong>Bo'sh kunlar signali</strong>
+                <span>{emptyCalendarDays} kun bo'sh. Kontent ritmini teng taqsimlash mumkin.</span>
+              </div>
+              <label>
+                <span>Platforma</span>
+                <select value={calendarPlatformFilter} onChange={(e) => setCalendarPlatformFilter(e.target.value)}>
+                  <option value="all">Hammasi</option>
+                  {calendarPlatforms.map((item) => <option key={item} value={item}>{item}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Filial rangi</span>
+                <select value={calendarBranchFilter} onChange={(e) => setCalendarBranchFilter(e.target.value)}>
+                  <option value="all">Barcha filiallar</option>
+                  {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+                </select>
+              </label>
+            </div>
+            <MiniCalendar
+              monthLabel={selectedMonth}
+              rows={calendarRows}
+              dateKey="publish_date"
+              onMoveDate={async (id, nextDate) => {
+                const row = rows.find((item) => item.id === id);
+                if (!row) return;
+                try {
+                  await api.update("content", id, {
+                    ...row,
+                    publish_date: nextDate,
+                    assigned_user_id: row.assigned_user_id || null,
+                    video_editor_user_id: row.video_editor_user_id || null,
+                    video_face_user_id: row.video_face_user_id || null,
+                    branch_ids_json: Array.isArray(row.branch_ids_json) ? row.branch_ids_json : [],
+                    approval_comment: row.approval_comment || ""
+                  });
+                  await loadMonth(selectedMonth);
+                  await reload();
+                  onToast("Kontent sanasi ko'chirildi", "success", { center: true });
+                } catch (err) {
+                  onToast(err.message || "Sanani ko'chirib bo'lmadi", "error");
+                }
+              }}
+              renderItem={(item) => {
+                const branchIds = Array.isArray(item.branch_ids_json) ? item.branch_ids_json.map(Number) : [];
+                const branchIndex = branchIds.length ? Math.abs(branchIds[0]) % 6 : 0;
+                return (
+                  <button key={item.id} type="button" className={`calendar-pill content-calendar-pill branch-tone-${branchIndex} ${item.bonus_enabled ? "bonus" : ""}`} onClick={() => setViewRow(item)}>
+                    <span>{item.platform || "-"}</span>
+                    {item.title}
+                  </button>
+                );
+              }}
+            />
+          </div>
         ) : (
           <KanbanBoard
             columns={[
@@ -2776,7 +2847,7 @@ function summarizeBonusBalanceEmployees(items = [], bonusRate = 25000) {
   return [...stats.values()].sort((a, b) => b.amount - a.amount || b.content_count - a.content_count || a.name.localeCompare(b.name));
 }
 
-function BonusPlasticCards({ rows = [], monthLabel = getMonthLabel(), title = "Bonus balans" }) {
+function BonusPlasticCards({ rows = [], monthLabel = getMonthLabel(), title = "Bonus balans", onSelect = null }) {
   const displayRows = rows.slice(0, 2);
 
   if (!displayRows.length) {
@@ -2791,7 +2862,7 @@ function BonusPlasticCards({ rows = [], monthLabel = getMonthLabel(), title = "B
       </div>
       <div className="bonus-plastic-grid">
         {displayRows.map((row, index) => (
-          <div key={`${row.name}-${index}`} className={`bonus-plastic-card card-${index + 1}`}>
+          <button key={`${row.name}-${index}`} type="button" className={`bonus-plastic-card card-${index + 1}`} onClick={() => onSelect?.(row)}>
             <div className="bonus-plastic-pattern" />
             <div className="bonus-plastic-top">
               <div className="bonus-plastic-logo">aloo</div>
@@ -2815,7 +2886,7 @@ function BonusPlasticCards({ rows = [], monthLabel = getMonthLabel(), title = "B
                 <strong>{row.approved_count || row.proposal_count || 0}</strong>
               </div>
             </div>
-          </div>
+          </button>
         ))}
       </div>
     </div>
@@ -3013,6 +3084,8 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   const [approvalSaving, setApprovalSaving] = useState(false);
   const [bonusAuditRows, setBonusAuditRows] = useState([]);
   const [closingMonth, setClosingMonth] = useState(false);
+  const [employeeDetail, setEmployeeDetail] = useState(null);
+  const [markingPaid, setMarkingPaid] = useState(false);
 
   const emptyForm = {
     title: "",
@@ -3127,6 +3200,9 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       { value: "all", label: "Filtr: Hammasi" },
       { value: "approval:draft", label: "Holat: Draft" },
       { value: "approval:approved", label: "Holat: Tasdiqlangan" },
+      { value: "paid:pending", label: "To'lov: Pending" },
+      { value: "paid:approved", label: "To'lov: Approved" },
+      { value: "paid:paid", label: "To'lov: Paid" },
       ...BONUS_DIFFICULTY_OPTIONS.map((option) => ({
         value: `difficulty:${option.value}`,
         label: `Murakkablik: ${option.label}`
@@ -3141,6 +3217,8 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
           ? true
           : tableFilter.startsWith("approval:")
             ? (row.approval_status || "draft") === tableFilter.split(":")[1]
+            : tableFilter.startsWith("paid:")
+              ? (row.paid_status || "pending") === tableFilter.split(":")[1]
             : tableFilter.startsWith("difficulty:")
               ? normalizeDifficultyLevel(row.difficulty_level || "sodda") === tableFilter.split(":")[1]
               : tableFilter.startsWith("type:")
@@ -3173,11 +3251,16 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   const employeeBalanceStats = useMemo(() => summarizeBonusBalanceEmployees(filteredItems, bonusRate), [filteredItems, bonusRate]);
   const bonusLeaderboard = employeeBalanceStats.slice(0, 5);
   const pendingAmount = filteredItems
-    .filter((item) => (item.approval_status || "draft") !== "approved")
+    .filter((item) => (item.paid_status || "pending") === "pending")
     .reduce((sum, item) => sum + getBonusEstimatedAmount(item, bonusRate), 0);
-  const paidReadyAmount = filteredItems
-    .filter((item) => item.approval_status === "approved")
+  const approvedReadyAmount = filteredItems
+    .filter((item) => (item.paid_status || "pending") === "approved")
     .reduce((sum, item) => sum + Number(item.total_amount || item.approved_amount || 0), 0);
+  const paidAmount = filteredItems
+    .filter((item) => (item.paid_status || "pending") === "paid")
+    .reduce((sum, item) => sum + Number(item.total_amount || item.approved_amount || 0), 0);
+  const monthClosed = filteredItems.some((item) => item.monthly_closed_at);
+  const paidRowsCount = filteredItems.filter((item) => (item.paid_status || "pending") === "paid").length;
   const approvalEmployeeStats = useMemo(() => summarizeBonusEmployees(approvalRows, bonusRate), [approvalRows, bonusRate]);
   const approvalEmployeeTotal = approvalEmployeeStats.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const approvedRowCount = filteredItems.filter((item) => item.approval_status === "approved").length;
@@ -3312,6 +3395,24 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
     }
   }
 
+  async function handleMarkPaid() {
+    const ok = window.confirm(`${getMonthTitle(monthFilter)} tasdiqlangan bonuslarini Paid holatiga o'tkazaymi?`);
+    if (!ok) return;
+
+    try {
+      setMarkingPaid(true);
+      await api.create("bonus-items/mark-paid", { month_label: monthFilter });
+      await reload();
+      const auditRows = await api.list("/api/bonus-items/audit", { month: monthFilter }).catch(() => []);
+      setBonusAuditRows(auditRows || []);
+      onToast(`${getMonthTitle(monthFilter)} bonuslari Paid holatiga o'tdi`, "success", { center: true });
+    } catch (err) {
+      onToast(err.message || "Paid statusini berib bo'lmadi", "error");
+    } finally {
+      setMarkingPaid(false);
+    }
+  }
+
   function handleDownloadApprovalImage() {
     if (!monthApproved) {
       onToast("Avval oylik bonusni tasdiqlang", "error");
@@ -3384,11 +3485,19 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       };
 
       if (editRow?.id) {
+        if (editRow.monthly_closed_at || editRow.paid_status === "paid") {
+          const reason = window.prompt("Bu bonus oyi yopilgan yoki to'langan. O'zgartirish sababini yozing:");
+          if (!reason?.trim()) {
+            onToast("Audit sababi kiritilmadi", "error");
+            return;
+          }
+          payload.audit_reason = reason.trim();
+        }
         await api.update("bonus-items", editRow.id, payload);
-        onToast("Bonus hisobot yangilandi", "success");
+        onToast("Bonus hisobot yangilandi", "success", { center: true });
       } else {
         await api.create("bonus-items", payload);
-        onToast("Bonus hisobot saqlandi", "success");
+        onToast("Bonus hisobot saqlandi", "success", { center: true });
       }
 
       await reload();
@@ -3413,7 +3522,17 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
         onToast("Bonus ID topilmadi", "error");
         return;
       }
-      await api.remove("bonus-items", numericId);
+      const row = filteredItems.find((item) => Number(item.id) === numericId);
+      if (row?.monthly_closed_at || row?.paid_status === "paid") {
+        const reason = window.prompt("Bu bonus oyi yopilgan yoki to'langan. O'chirish sababini yozing:");
+        if (!reason?.trim()) {
+          onToast("Audit sababi kiritilmadi", "error");
+          return;
+        }
+        await api.post(`/api/bonus-items/${numericId}/delete-with-audit`, { audit_reason: reason.trim() });
+      } else {
+        await api.remove("bonus-items", numericId);
+      }
       await reload();
       onToast("Bonus yozuvi o'chirildi", "success", { deleteCenter: true });
     } catch (err) {
@@ -3456,9 +3575,14 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                 Payroll export
               </button>
               {canApproveBonus ? (
-                <button type="button" className="btn primary" onClick={handleMonthlyClose} disabled={closingMonth || !filteredItems.length}>
-                  {closingMonth ? "Yopilmoqda..." : "Monthly close"}
-                </button>
+                <>
+                  <button type="button" className="btn secondary" onClick={handleMarkPaid} disabled={markingPaid || !approvedRowCount || paidRowsCount === approvedRowCount}>
+                    {markingPaid ? "Belgilanmoqda..." : "Paid qilish"}
+                  </button>
+                  <button type="button" className="btn primary" onClick={handleMonthlyClose} disabled={closingMonth || !filteredItems.length || monthClosed}>
+                    {closingMonth ? "Yopilmoqda..." : monthClosed ? "Oy yopilgan" : "Monthly close"}
+                  </button>
+                </>
               ) : null}
             </div>
           }
@@ -3477,15 +3601,16 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
 
         <div className="stats-grid bonus-close-grid">
           <StatCard title="Pending balans" value={formatMoney(pendingAmount)} hint="taxminiy hisob" tone="warning" />
-          <StatCard title="Payroll tayyor" value={formatMoney(paidReadyAmount)} hint="tasdiqlangan" tone="success" />
-          <StatCard title="Leaderboard" value={bonusLeaderboard[0]?.name || "-"} hint={bonusLeaderboard[0] ? formatMoney(bonusLeaderboard[0].amount) : "hodim yo'q"} tone="info" />
-          <StatCard title="Audit yozuvlari" value={bonusAuditRows.length} hint="so'nggi loglar" tone="default" />
+          <StatCard title="Approved" value={formatMoney(approvedReadyAmount)} hint="payrollga tayyor" tone="info" />
+          <StatCard title="Paid" value={formatMoney(paidAmount)} hint={`${paidRowsCount} yozuv to'langan`} tone="success" />
+          <StatCard title="Monthly close" value={monthClosed ? "Locked" : "Open"} hint={monthClosed ? "audit sabab bilan o'zgaradi" : "yopilmagan"} tone={monthClosed ? "warning" : "default"} />
         </div>
 
         <BonusPlasticCards
           rows={employeeBalanceStats}
           monthLabel={monthFilter}
           title="Hodim bonus balanslari"
+          onSelect={setEmployeeDetail}
         />
       </div>
 
@@ -3745,8 +3870,8 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                       <td><span className="table-compact-metric approved">{row.approved_count || 0}</span></td>
                       <td><span className="table-compact-amount">{formatMoney(row.total_amount || row.amount || 0)}</span></td>
                       <td>
-                        <span className={`mini-badge ${row.approval_status === "approved" ? "success" : "warning"}`}>
-                          {row.approval_status === "approved" ? "Tasdiqlandi" : "Draft"}
+                        <span className={`mini-badge ${row.paid_status === "paid" ? "success" : row.approval_status === "approved" ? "info" : "warning"}`}>
+                          {row.paid_status === "paid" ? "Paid" : row.approval_status === "approved" ? "Approved" : "Pending"}
                         </span>
                       </td>
                       <td>
@@ -3778,8 +3903,8 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                       <strong>{row.content_title || "-"}</strong>
                       <span>{formatDate(row.work_date)} • {formatContentType(row.content_type)}</span>
                     </div>
-                    <span className={`mini-badge ${row.approval_status === "approved" ? "success" : "warning"}`}>
-                      {row.approval_status === "approved" ? "Tasdiqlandi" : "Draft"}
+                    <span className={`mini-badge ${row.paid_status === "paid" ? "success" : row.approval_status === "approved" ? "info" : "warning"}`}>
+                      {row.paid_status === "paid" ? "Paid" : row.approval_status === "approved" ? "Approved" : "Pending"}
                     </span>
                   </div>
                   <div className="mobile-record-grid">
@@ -3956,6 +4081,51 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
         </div>
       </Modal>
 
+      <Modal open={!!employeeDetail} onClose={() => setEmployeeDetail(null)} title={`${employeeDetail?.name || "Hodim"} bonus drill-down`} wide>
+        {employeeDetail ? (
+          <div className="bonus-drilldown">
+            <div className="stats-grid">
+              <StatCard title="Kontent" value={employeeDetail.content_count} hint={getMonthTitle(monthFilter)} />
+              <StatCard title="Taklif" value={employeeDetail.proposal_count} hint="jami birlik" tone="warning" />
+              <StatCard title="Tasdiq" value={employeeDetail.approved_count} hint="approved birlik" tone="info" />
+              <StatCard title="Balans" value={formatMoney(employeeDetail.amount)} hint="taxminiy / tasdiqlangan" tone="success" />
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Kontent</th>
+                    <th>Sana</th>
+                    <th>Turi</th>
+                    <th>Taklif</th>
+                    <th>Tasdiq</th>
+                    <th>To'lov</th>
+                    <th>Summa</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employeeDetailItems.length ? employeeDetailItems.map((row) => (
+                    <tr key={`employee-detail-${row.id}`}>
+                      <td>{row.content_title || "-"}</td>
+                      <td>{formatDate(row.work_date)}</td>
+                      <td>{formatContentType(row.content_type)}</td>
+                      <td>{row.proposal_count || 0}</td>
+                      <td>{row.approved_count || 0}</td>
+                      <td>
+                        <span className={`mini-badge ${row.paid_status === "paid" ? "success" : row.approval_status === "approved" ? "info" : "warning"}`}>
+                          {row.paid_status === "paid" ? "Paid" : row.approval_status === "approved" ? "Approved" : "Pending"}
+                        </span>
+                      </td>
+                      <td>{formatMoney(getBonusEstimatedAmount(row, bonusRate))}</td>
+                    </tr>
+                  )) : <tr><td colSpan="7" className="empty-cell">Bu hodim bo'yicha yozuv topilmadi</td></tr>}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
+
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Bonus yozuvi tafsiloti">
         {viewRow ? (
           <>
@@ -3967,7 +4137,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               <div><strong>Kontent holati:</strong> {getBonusDifficultyMeta(viewRow).label}</div>
               <div><strong>Taklif:</strong> {viewRow.proposal_count || 0}</div>
               <div><strong>Tasdiq:</strong> {viewRow.approved_count || 0}</div>
-              <div><strong>Holat:</strong> {viewRow.approval_status === "approved" ? "Tasdiqlangan" : "Draft"}</div>
+              <div><strong>Holat:</strong> {viewRow.paid_status === "paid" ? "Paid" : viewRow.approval_status === "approved" ? "Approved" : "Pending"}</div>
               <div><strong>Jami:</strong> {formatMoney(viewRow.total_amount || viewRow.amount || 0)}</div>
               <div className="full-col">
                 <strong>Qilingan ish linki:</strong>{" "}
@@ -7515,7 +7685,7 @@ function App() {
     const normalizedMessage = String(message || "").trim() || (type === "error" ? "Xatolik yuz berdi" : "Saqlandi");
     const shouldCenter =
       type === "success" &&
-      (options.center ?? /(saql|yangila|o['’]?chir|yarat|tasdiq|bekor qil|qo['’]?sh|bajar)/i.test(normalizedMessage));
+      (options.center ?? /(saql|saqlandi|yangila|yangilandi|o['‘’`]?chir|ochir|yarat|tasdiq|bekor qil|qo['‘’`]?sh|qosh|bajar|paid|yopildi)/i.test(normalizedMessage));
 
     const isDelete = type === "success" && options.deleteCenter === true;
     setToast({
@@ -11688,6 +11858,94 @@ tbody tr:hover{
   color:var(--muted);
   font-size:12px;
 }
+.bonus-drilldown{
+  display:grid;
+  gap:18px;
+}
+.calendar-pro-shell{
+  display:grid;
+  gap:16px;
+}
+.calendar-pro-toolbar{
+  display:grid;
+  grid-template-columns:1.2fr 1fr minmax(160px,.7fr) minmax(180px,.8fr);
+  gap:12px;
+  align-items:stretch;
+}
+.calendar-pro-toolbar label,
+.calendar-signal-card{
+  display:grid;
+  gap:8px;
+  padding:14px;
+  border:1px solid rgba(148,163,184,.16);
+  border-radius:18px;
+  background:linear-gradient(145deg,rgba(255,255,255,.96),rgba(241,247,255,.90));
+  box-shadow:0 12px 28px rgba(15,23,42,.06);
+}
+.calendar-pro-toolbar label span,
+.calendar-signal-card strong{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+.calendar-pro-toolbar select{
+  min-height:42px;
+  border-radius:14px;
+  border:1px solid rgba(148,163,184,.22);
+  padding:0 12px;
+  background:#fff;
+  color:var(--text);
+  font:inherit;
+  font-weight:800;
+}
+.calendar-signal-card > span,
+.calendar-load-bars span{
+  color:var(--text);
+  font-size:13px;
+  line-height:1.45;
+}
+.calendar-load-bars{
+  display:grid;
+  gap:7px;
+}
+.calendar-load-bars span{
+  position:relative;
+  overflow:hidden;
+  border-radius:12px;
+  padding:8px 10px;
+  background:#f1f5f9;
+}
+.calendar-load-bars span::before{
+  content:"";
+  position:absolute;
+  inset:0 auto 0 0;
+  width:var(--load);
+  background:linear-gradient(90deg,rgba(22,144,245,.18),rgba(34,197,94,.16));
+}
+.calendar-load-bars span b,
+.calendar-load-bars span{
+  position:relative;
+}
+.content-calendar-pill{
+  display:grid;
+  gap:3px;
+  text-align:left;
+  line-height:1.25;
+  border-left:4px solid #1690f5;
+}
+.content-calendar-pill span{
+  font-size:10px;
+  color:var(--muted);
+  font-weight:900;
+  text-transform:uppercase;
+}
+.content-calendar-pill.branch-tone-1{border-left-color:#22c55e}
+.content-calendar-pill.branch-tone-2{border-left-color:#f59e0b}
+.content-calendar-pill.branch-tone-3{border-left-color:#8b5cf6}
+.content-calendar-pill.branch-tone-4{border-left-color:#ef4444}
+.content-calendar-pill.branch-tone-5{border-left-color:#06b6d4}
 .bonus-plastic-title{
   display:flex;
   align-items:center;
@@ -11713,6 +11971,8 @@ tbody tr:hover{
 .bonus-plastic-card{
   position:relative;
   overflow:hidden;
+  text-align:left;
+  cursor:pointer;
   min-height:232px;
   border-radius:26px;
   padding:24px;
@@ -11722,6 +11982,11 @@ tbody tr:hover{
     linear-gradient(135deg,#2ee65e 0%,#20c957 46%,#0fbf83 100%);
   border:1px solid rgba(0,0,0,.08);
   box-shadow:0 24px 54px rgba(20,168,76,.22), inset 0 1px 0 rgba(255,255,255,.45);
+  transition:transform .18s ease, box-shadow .18s ease;
+}
+.bonus-plastic-card:hover{
+  transform:translateY(-3px);
+  box-shadow:0 28px 64px rgba(20,168,76,.28), inset 0 1px 0 rgba(255,255,255,.45);
 }
 .bonus-plastic-card.card-2{
   background:
@@ -12001,7 +12266,7 @@ tbody tr:hover{
   box-shadow:0 16px 34px rgba(15,23,42,.07);
 }
 @media (max-width: 1100px){
-  .login-shell,.app-shell,.stats-grid,.two-grid,.form-grid,.dashboard-metrics-grid,.dashboard-metrics-grid-secondary,.dashboard-spotlight-grid,.dashboard-fold-columns,.bonus-plastic-grid,.content-control-grid,.bonus-command-grid,.discussion-panel{grid-template-columns:1fr}
+  .login-shell,.app-shell,.stats-grid,.two-grid,.form-grid,.dashboard-metrics-grid,.dashboard-metrics-grid-secondary,.dashboard-spotlight-grid,.dashboard-fold-columns,.bonus-plastic-grid,.content-control-grid,.bonus-command-grid,.discussion-panel,.calendar-pro-toolbar{grid-template-columns:1fr}
   .content-modern-stats{grid-template-columns:1fr 1fr}
   .content-modern-form{padding:12px}
   .main-area{padding:14px}
