@@ -374,79 +374,6 @@ function sortRowsByDate(rows = [], dateKey = "publish_date", direction = "asc") 
   });
 }
 
-function getContentWorkflowStage(status) {
-  const normalized = String(status || "").toLowerCase();
-  if (["idea", "goya", "g'oya", "reja"].includes(normalized)) return "idea";
-  if (["scenario", "ssenariy", "tasdiqlandi"].includes(normalized)) return "scenario";
-  if (["shooting", "tasvir", "tasvirga_olindi", "jarayonda", "tayyorlanmoqda"].includes(normalized)) return "shooting";
-  if (["editing", "montaj", "tayyor", "qayta_ishlash"].includes(normalized)) return "editing";
-  if (["approval", "tasdiq", "review"].includes(normalized)) return "approval";
-  if (["published", "joylangan", "yakunlandi"].includes(normalized)) return "published";
-  return "idea";
-}
-
-function getContentWorkflowLabel(stage) {
-  const labels = {
-    idea: "Idea",
-    scenario: "Scenario",
-    shooting: "Shooting",
-    editing: "Editing",
-    approval: "Approval",
-    published: "Published"
-  };
-  return labels[stage] || "Idea";
-}
-
-function summarizeContentByPlatform(rows = []) {
-  return Object.values((rows || []).reduce((acc, row) => {
-    splitCellValues(row.platform).forEach((platform) => {
-      const key = platform || "Platformasiz";
-      if (!acc[key]) {
-        acc[key] = { platform: key, total: 0, published: 0, reach: 0, reels: 0, story: 0, post: 0 };
-      }
-      const type = String(row.content_type || "").toLowerCase();
-      acc[key].total += 1;
-      acc[key].published += ["joylangan", "yakunlandi", "published"].includes(String(row.status || "").toLowerCase()) ? 1 : 0;
-      acc[key].reach += Number(row.reach_value || 0);
-      acc[key].reels += type.includes("reel") ? 1 : 0;
-      acc[key].story += type.includes("story") ? 1 : 0;
-      acc[key].post += type.includes("post") ? 1 : 0;
-    });
-    return acc;
-  }, {})).sort((a, b) => b.total - a.total);
-}
-
-function summarizeReportsForMonth(reports = [], monthLabel = getMonthLabel()) {
-  return (reports || []).filter((row) => formatDate(row.report_date).slice(0, 7) === monthLabel)
-    .reduce((acc, row) => {
-      acc.stories += Number(row.stories_count || 0);
-      acc.posts += Number(row.posts_count || 0);
-      acc.reels += Number(row.reels_count || 0);
-      acc.subscribers += Number(row.subscriber_count || 0);
-      acc.reach += Number(row.reach_value || row.coverage_count || 0);
-      acc.reports += 1;
-      return acc;
-    }, { stories: 0, posts: 0, reels: 0, subscribers: 0, reach: 0, reports: 0 });
-}
-
-function summarizeBranchesForMonth(reports = [], monthLabel = getMonthLabel()) {
-  return Object.values((reports || [])
-    .filter((row) => formatDate(row.report_date).slice(0, 7) === monthLabel)
-    .reduce((acc, row) => {
-      const key = row.branch_name || "Filialsiz";
-      if (!acc[key]) {
-        acc[key] = { name: key, stories: 0, posts: 0, reels: 0, subscribers: 0, reports: 0, score: 0 };
-      }
-      acc[key].stories += Number(row.stories_count || 0);
-      acc[key].posts += Number(row.posts_count || 0);
-      acc[key].reels += Number(row.reels_count || 0);
-      acc[key].subscribers += Number(row.subscriber_count || 0);
-      acc[key].reports += 1;
-      acc[key].score += Number(row.posts_count || 0) * 3 + Number(row.reels_count || 0) * 4 + Number(row.stories_count || 0);
-      return acc;
-    }, {}));
-}
-
 function buildMonthCalendar(monthLabel, rows = [], dateKey = "publish_date") {
   const [year, month] = String(monthLabel || getMonthLabel()).split("-").map(Number);
   const firstDay = new Date(year, (month || 1) - 1, 1);
@@ -1476,30 +1403,6 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
     acc[key].subscribers += Number(row.subscriber_count || 0);
     return acc;
   }, {})).sort((a, b) => b.score - a.score).slice(0, 5);
-  const monthComparison = [shiftMonth(currentMonth, -2), shiftMonth(currentMonth, -1), currentMonth].map((month) => ({
-    month,
-    title: getMonthTitle(month).split(" ")[0],
-    ...summarizeReportsForMonth(dailyReports, month)
-  }));
-  const currentBranchScores = summarizeBranchesForMonth(dailyReports, currentMonth);
-  const previousBranchScores = summarizeBranchesForMonth(dailyReports, shiftMonth(currentMonth, -1));
-  const branchSignals = currentBranchScores
-    .map((branch) => {
-      const previous = previousBranchScores.find((item) => item.name === branch.name);
-      const previousScore = previous?.score || 0;
-      const change = previousScore ? Math.round(((branch.score - previousScore) / previousScore) * 100) : (branch.score > 0 ? 100 : 0);
-      const signal =
-        branch.reports === 0 || branch.score === 0
-          ? "Hisobot sust"
-          : change < -25
-            ? "Sustlashdi"
-            : change > 20
-              ? "O'smoqda"
-              : "Barqaror";
-      return { ...branch, previousScore, change, signal };
-    })
-    .sort((a, b) => a.score - b.score)
-    .slice(0, 6);
   const travelWorkflow = [
     { label: "Reja", value: (travelPlans || []).filter((item) => item.status === "reja").length },
     { label: "Tasdiqlandi", value: (travelPlans || []).filter((item) => item.status === "tasdiqlandi").length },
@@ -1729,56 +1632,6 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
         {secondaryMetrics.map((item) => (
           <DashboardMetricCard key={item.title} {...item} />
         ))}
-      </div>
-
-      <div className="v2-panel-grid">
-        <div className="card v2-panel">
-          <SectionTitle
-            title="May dashboard 2.0"
-            desc="Mart / Aprel / May bo'yicha filial hisobotlari va o'sish ko'rsatkichlari"
-            right={<span className="dashboard-chip small">v2.0</span>}
-          />
-          <div className="month-compare-grid">
-            {monthComparison.map((item) => (
-              <div key={item.month} className={`month-compare-card ${item.month === currentMonth ? "current" : ""}`}>
-                <div className="month-compare-head">
-                  <strong>{item.title}</strong>
-                  <span>{item.reports} hisobot</span>
-                </div>
-                <div className="month-compare-metrics">
-                  <span>Story <b>{item.stories}</b></span>
-                  <span>Post <b>{item.posts}</b></span>
-                  <span>Reels <b>{item.reels}</b></span>
-                  <span>Obunachi <b>{item.subscribers.toLocaleString()}</b></span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="card v2-panel">
-          <SectionTitle
-            title="Sust filial signali"
-            desc="Joriy oy balli avvalgi oyga nisbatan pasaygan filiallar"
-            right={<span className="dashboard-chip small warning">{branchSignals.filter((item) => item.signal === "Sustlashdi").length} signal</span>}
-          />
-          <div className="branch-signal-list">
-            {branchSignals.length ? branchSignals.map((item) => (
-              <div key={item.name} className={`branch-signal-card ${item.signal === "Sustlashdi" ? "danger" : item.signal === "O'smoqda" ? "success" : ""}`}>
-                <div>
-                  <strong>{item.name}</strong>
-                  <span>{item.signal}</span>
-                </div>
-                <div className="branch-signal-score">
-                  <b>{item.score}</b>
-                  <small>{item.change > 0 ? "+" : ""}{item.change}%</small>
-                </div>
-              </div>
-            )) : (
-              <div className="empty-block">May oyi bo'yicha filial signallari hali shakllanmadi</div>
-            )}
-          </div>
-        </div>
       </div>
 
       <div className="dashboard-spotlight-grid">
@@ -2029,10 +1882,6 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     approved_count: "",
     difficulty_level: "sodda",
     work_url: "",
-    scenario_text: "",
-    shot_list_text: "",
-    preview_url: "",
-    edit_file_url: "",
     approval_comment: "",
     content_template: "custom",
     idea_score: 0,
@@ -2052,26 +1901,13 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
   const overdueTasks = [];
   const tasks = [];
   const workflowCounts = {
-    idea: rows.filter((item) => getContentWorkflowStage(item.status) === "idea").length,
-    scenario: rows.filter((item) => getContentWorkflowStage(item.status) === "scenario").length,
-    shooting: rows.filter((item) => getContentWorkflowStage(item.status) === "shooting").length,
-    editing: rows.filter((item) => getContentWorkflowStage(item.status) === "editing").length,
-    approval: rows.filter((item) => getContentWorkflowStage(item.status) === "approval").length,
-    published: rows.filter((item) => getContentWorkflowStage(item.status) === "published").length
+    reja: rows.filter((item) => item.status === "reja").length,
+    tasdiqlandi: rows.filter((item) => item.status === "tasdiqlandi").length,
+    jarayonda: rows.filter((item) => ["jarayonda", "tayyorlanmoqda", "tayyor"].includes(item.status)).length,
+    qayta_ishlash: rows.filter((item) => item.status === "qayta_ishlash").length,
+    rad_etildi: rows.filter((item) => item.status === "rad_etildi").length,
+    yakunlandi: rows.filter((item) => ["yakunlandi", "joylangan"].includes(item.status)).length
   };
-  const workflowStages = ["idea", "scenario", "shooting", "editing", "approval", "published"];
-  const contentPlatformStats = useMemo(() => summarizeContentByPlatform(rows), [rows]);
-  const contentSlaSignals = useMemo(() => {
-    const todayTime = new Date(formatDate(new Date())).getTime();
-    return rows
-      .filter((row) => {
-        const status = getContentWorkflowStage(row.status);
-        if (status === "published") return false;
-        const dueTime = getDateSortValue(row.publish_date, Number.POSITIVE_INFINITY);
-        return dueTime < todayTime;
-      })
-      .slice(0, 5);
-  }, [rows]);
   const visibleRows = useMemo(() => {
     return rows.filter((row) => rowMatchesSearch(
       [
@@ -2141,10 +1977,6 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
       difficulty_level: normalizeDifficultyLevel(row.difficulty_level || "sodda"),
       work_url: row.final_url || "",
       approval_comment: row.approval_comment || "",
-      scenario_text: row.scenario_text || "",
-      shot_list_text: row.shot_list_text || "",
-      preview_url: row.preview_url || "",
-      edit_file_url: row.edit_file_url || "",
       content_template: row.content_template || "custom",
       idea_score: row.idea_score || 0,
       visual_score: row.visual_score || 0,
@@ -2204,10 +2036,6 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         approved_count: bonusMode ? Number(form.approved_count || 0) : 0,
         difficulty_level: bonusMode ? normalizeDifficultyLevel(form.difficulty_level || "sodda") : "bonussiz",
         final_url: normalizeExternalUrl(form.work_url),
-        scenario_text: form.scenario_text || "",
-        shot_list_text: form.shot_list_text || "",
-        preview_url: normalizeExternalUrl(form.preview_url),
-        edit_file_url: normalizeExternalUrl(form.edit_file_url),
         notes: "",
         approval_comment: form.approval_comment || "",
         content_template: form.content_template || "custom",
@@ -2291,27 +2119,6 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
 
         <div className="info-banner">
           Bonus formulasi: <strong>Sodda 25,000 UZS</strong>, <strong>O'rta 50,000 UZS</strong>, <strong>Murakkab 75,000 UZS</strong>, <strong>Juda murakkab 100,000 UZS</strong>, <strong>Bonussiz 0 UZS</strong>.
-        </div>
-        <div className="content-v2-grid">
-          <div className="content-workflow-strip">
-            {workflowStages.map((stage, index) => (
-              <div key={stage} className={`workflow-step ${stage}`}>
-                <span>{index + 1}</span>
-                <strong>{getContentWorkflowLabel(stage)}</strong>
-                <small>{workflowCounts[stage] || 0} ta</small>
-              </div>
-            ))}
-          </div>
-          <div className="content-signal-box">
-            <strong>Deadline signali</strong>
-            {contentSlaSignals.length ? (
-              contentSlaSignals.map((item) => (
-                <span key={item.id}>{item.title} - {formatDate(item.publish_date)}</span>
-              ))
-            ) : (
-              <span>Kechikkan kontent yo'q</span>
-            )}
-          </div>
         </div>
         {!canCreateContent && !canEditContent ? (
           <div className="info-banner">Siz bu bo'limda faqat ko'rish ruxsatiga egasiz.</div>
@@ -2431,11 +2238,6 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
             />
           </label>
 
-          <label className="full-col"><span>Scenario / ssenariy</span><textarea value={form.scenario_text} onChange={(e) => setField("scenario_text", e.target.value)} rows={2} placeholder="Kontent g'oyasi, hook va asosiy ssenariy" disabled={formLocked} /></label>
-          <label className="full-col"><span>Shooting shot-list</span><textarea value={form.shot_list_text} onChange={(e) => setField("shot_list_text", e.target.value)} rows={2} placeholder="Kadrlar, lokatsiya, kerakli materiallar" disabled={formLocked} /></label>
-          <label><span>Preview link</span><input value={form.preview_url} onChange={(e) => setField("preview_url", e.target.value)} placeholder="Tasdiq uchun preview" disabled={formLocked} /></label>
-          <label><span>Edit fayl linki</span><input value={form.edit_file_url} onChange={(e) => setField("edit_file_url", e.target.value)} placeholder="Montaj/project fayli" disabled={formLocked} /></label>
-
           <label className="full-col"><span>Approval izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} placeholder="Tasdiqlash yoki qayta ishlash bo'yicha izoh" disabled={formLocked} /></label>
 
           <button className="btn primary" type="submit" disabled={saving || formLocked}>
@@ -2444,45 +2246,8 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         </form>
       </div>
 
-      <div className="v2-panel-grid">
-        <div className="card v2-panel">
-          <SectionTitle
-            title="Platform performance"
-            desc="Instagram / Telegram / Reels / Story / Post kesimida tezkor tracking"
-          />
-          <div className="platform-performance-grid">
-            {contentPlatformStats.length ? contentPlatformStats.map((item) => (
-              <div key={item.platform} className="platform-performance-card">
-                <div className="platform-performance-head">
-                  <strong>{item.platform}</strong>
-                  <span>{item.published}/{item.total} published</span>
-                </div>
-                <div className="platform-performance-metrics">
-                  <span>Reels <b>{item.reels}</b></span>
-                  <span>Story <b>{item.story}</b></span>
-                  <span>Post <b>{item.post}</b></span>
-                  <span>Reach <b>{item.reach.toLocaleString()}</b></span>
-                </div>
-              </div>
-            )) : (
-              <div className="empty-block">Platforma bo'yicha statistika hali yo'q</div>
-            )}
-          </div>
-        </div>
+      
 
-        <div className="card v2-panel">
-          <SectionTitle
-            title="Approval tarixi"
-            desc="Har bir karta ichida izohlar, fayllar va approval comment saqlanadi"
-            right={<span className="dashboard-chip small live">Workflow 2.0</span>}
-          />
-          <div className="quick-list">
-            <div className="quick-item">Idea, Scenario, Shooting, Editing, Approval, Published oqimi yoqildi.</div>
-            <div className="quick-item">Preview, edit fayl, ssenariy va shot-list bitta kontent kartasida saqlanadi.</div>
-            <div className="quick-item">Kechikkan kontentlar yuqoridagi deadline signalida chiqadi.</div>
-          </div>
-        </div>
-      </div>
 
       <div className="card">
         <SectionTitle
@@ -2748,16 +2513,6 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                     Havolani ochish
                   </a>
                 ) : "-"}
-              </div>
-              <div className="full-col"><strong>Scenario:</strong> {viewRow.scenario_text || "-"}</div>
-              <div className="full-col"><strong>Shooting shot-list:</strong> {viewRow.shot_list_text || "-"}</div>
-              <div className="full-col">
-                <strong>Preview:</strong>{" "}
-                {viewRow.preview_url ? <a href={normalizeExternalUrl(viewRow.preview_url)} target="_blank" rel="noreferrer">Ochish</a> : "-"}
-              </div>
-              <div className="full-col">
-                <strong>Edit fayl:</strong>{" "}
-                {viewRow.edit_file_url ? <a href={normalizeExternalUrl(viewRow.edit_file_url)} target="_blank" rel="noreferrer">Ochish</a> : "-"}
               </div>
               <div className="full-col"><strong>Approval izohi:</strong> {viewRow.approval_comment || "-"}</div>
             </div>
@@ -3093,8 +2848,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   const canCreateBonus = canDoAction(user, "bonus", "create");
   const canEditBonus = canDoAction(user, "bonus", "edit");
   const canDeleteBonus = canDoAction(user, "bonus", "delete");
-  const approvedEditLocked = editRow?.approval_status === "approved" && !canApproveBonus;
-  const bonusFormLocked = (editRow ? !canEditBonus : !canCreateBonus) || approvedEditLocked;
+  const bonusFormLocked = editRow ? !canEditBonus : !canCreateBonus;
 
   useEffect(() => {
     let cancelled = false;
@@ -3211,17 +2965,6 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   const totalAmount = filteredItems.reduce((sum, item) => sum + Number(item.total_amount || item.amount || 0), 0);
   const employeeStats = useMemo(() => summarizeBonusEmployees(filteredItems, bonusRate), [filteredItems, bonusRate]);
   const employeeTotalAmount = employeeStats.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const topKpiEmployees = employeeStats.slice(0, 4).map((row) => {
-    const proposed = Number(row.proposal_count || 0);
-    const approved = Number(row.approved_count || 0);
-    const approvalRate = proposed ? Math.round((approved / proposed) * 100) : 0;
-    const kpiScore = Math.min(100, Math.round((Number(row.content_count || 0) * 12) + (approvalRate * 0.45) + (Number(row.amount || 0) / Math.max(bonusRate, 1)) * 4));
-    return { ...row, approvalRate, kpiScore };
-  });
-  const difficultyMix = BONUS_DIFFICULTY_OPTIONS.map((option) => ({
-    ...option,
-    count: filteredItems.filter((item) => normalizeDifficultyLevel(item.difficulty_level || "sodda") === option.value).length
-  })).filter((item) => item.count > 0);
   const approvalEmployeeStats = useMemo(() => summarizeBonusEmployees(approvalRows, bonusRate), [approvalRows, bonusRate]);
   const approvalEmployeeTotal = approvalEmployeeStats.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const approvedRowCount = filteredItems.filter((item) => item.approval_status === "approved").length;
@@ -3488,29 +3231,10 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
           <StatCard title="Jami bonus" value={formatMoney(totalAmount)} hint={getMonthTitle(monthFilter)} />
           <StatCard title="Yozuvlar soni" value={filteredItems.length} hint="bonus hisobotlar" />
         </div>
-        <div className="v2-panel-grid bonus-v2-grid">
-          <div className="v2-mini-panel">
-            <strong>Formula markazi</strong>
-            <span>Stavka sozlamadan boshqariladi: {formatMoney(bonusRate)}</span>
-            <div className="difficulty-mix">
-              {difficultyMix.length ? difficultyMix.map((item) => (
-                <span key={item.value}>{item.label}: <b>{item.count}</b></span>
-              )) : <span>Murakkablik kesimi hali yo'q</span>}
-            </div>
-          </div>
-          <div className="v2-mini-panel">
-            <strong>Monthly lock</strong>
-            <span>{monthApproved ? `${getMonthTitle(monthFilter)} yopilgan. O'zgartirish audit bilan qayd etiladi.` : "Oy hali tasdiqlanmagan, rahbar tasdig'i kutilmoqda."}</span>
-            <div className={`lock-status ${monthApproved ? "locked" : ""}`}>{monthApproved ? "LOCKED" : "OPEN"}</div>
-          </div>
-        </div>
       </div>
 
       <div className="card">
         <SectionTitle title={editRow ? "Bonus hisobotni tahrirlash" : "Hisobot qo'shish"} />
-        {approvedEditLocked ? (
-          <div className="info-banner">Bu bonus yozuvi tasdiqlangan. Faqat rahbar tasdiqni bekor qilib yoki qayta tasdiqlab o'zgartira oladi.</div>
-        ) : null}
         {!canCreateBonus && !canEditBonus ? (
           <div className="info-banner">Siz bu bo'limda faqat ko'rish ruxsatiga egasiz.</div>
         ) : null}
@@ -3620,19 +3344,6 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
             Oxirgi tasdiq: <strong>{lastApprovalMeta.approved_by_name || "Rahbar"}</strong> • {formatDateTime(lastApprovalMeta.approved_at)}
           </div>
         ) : null}
-        <div className="employee-kpi-strip">
-          {topKpiEmployees.length ? topKpiEmployees.map((row) => (
-            <div key={`kpi-${row.name}`} className="employee-kpi-card">
-              <div>
-                <strong>{row.name}</strong>
-                <span>{row.content_count} kontent / {row.approvalRate}% tasdiq</span>
-              </div>
-              <b>{row.kpiScore}</b>
-            </div>
-          )) : (
-            <div className="empty-block">Hodim KPI kartalari uchun bonus yozuvi kerak</div>
-          )}
-        </div>
         <div className="table-wrap">
           <table>
             <thead>
