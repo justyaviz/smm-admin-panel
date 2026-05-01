@@ -1908,6 +1908,12 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     rad_etildi: rows.filter((item) => item.status === "rad_etildi").length,
     yakunlandi: rows.filter((item) => ["yakunlandi", "joylangan"].includes(item.status)).length
   };
+  const contentModernStats = [
+    { label: "Jami reja", value: rows.length, hint: getMonthTitle(selectedMonth) },
+    { label: "Jarayonda", value: workflowCounts.jarayonda, hint: "tayyorlanmoqda" },
+    { label: "Yakunlangan", value: workflowCounts.yakunlandi, hint: "joylangan" },
+    { label: "Bonusli", value: rows.filter((item) => item.bonus_enabled).length, hint: "bonus oqimi" }
+  ];
   const visibleRows = useMemo(() => {
     return rows.filter((row) => rowMatchesSearch(
       [
@@ -2089,27 +2095,27 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
   }
 
   return (
-    <div className="page-grid">
-      <div className="card">
+    <div className="page-grid content-page-modern">
+      <div className="card content-modern-card content-form-card">
         <SectionTitle
           title={editRow ? "Kontent rejani tahrirlash" : "Kontent reja yaratish"}
           desc={`${getMonthTitle(selectedMonth)} uchun`}
           right={
-            <div className="toolbar-actions">
-              <button type="button" className="btn secondary" onClick={() => setViewMode(viewMode === "table" ? "calendar" : viewMode === "calendar" ? "kanban" : "table")}>
+            <div className="toolbar-actions content-modern-toolbar">
+              <button type="button" className="btn secondary content-modern-btn" onClick={() => setViewMode(viewMode === "table" ? "calendar" : viewMode === "calendar" ? "kanban" : "table")}>
                 {viewMode === "table" ? "Calendar view" : viewMode === "calendar" ? "Kanban view" : "Table view"}
               </button>
-              <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>
+              <button type="button" className="btn secondary content-modern-btn" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>
                 {"Oldingi oy"}
               </button>
-              <div className="summary-pill">
+              <div className="summary-pill content-month-pill">
                 <strong>{getMonthTitle(selectedMonth)}</strong>
               </div>
-              <button type="button" className="btn secondary" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>
+              <button type="button" className="btn secondary content-modern-btn" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>
                 {"Keyingi oy"}
               </button>
               {editRow ? (
-                <button type="button" className="btn secondary" onClick={resetForm}>
+                <button type="button" className="btn secondary content-modern-btn" onClick={resetForm}>
                   Bekor qilish
                 </button>
               ) : null}
@@ -2120,10 +2126,19 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         <div className="info-banner">
           Bonus formulasi: <strong>Sodda 25,000 UZS</strong>, <strong>O'rta 50,000 UZS</strong>, <strong>Murakkab 75,000 UZS</strong>, <strong>Juda murakkab 100,000 UZS</strong>, <strong>Bonussiz 0 UZS</strong>.
         </div>
+        <div className="content-modern-stats">
+          {contentModernStats.map((item) => (
+            <div key={item.label} className="content-modern-stat">
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.hint}</small>
+            </div>
+          ))}
+        </div>
         {!canCreateContent && !canEditContent ? (
           <div className="info-banner">Siz bu bo'limda faqat ko'rish ruxsatiga egasiz.</div>
         ) : null}
-        <form className="form-grid" onSubmit={handleSubmit}>
+        <form className="form-grid content-modern-form" onSubmit={handleSubmit}>
           <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required disabled={formLocked} /></label>
           <label><span>Joylash sanasi</span><input type="date" value={form.publish_date} onChange={(e) => setField("publish_date", e.target.value)} required disabled={formLocked} /></label>
           <label>
@@ -2240,7 +2255,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
 
           <label className="full-col"><span>Approval izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} placeholder="Tasdiqlash yoki qayta ishlash bo'yicha izoh" disabled={formLocked} /></label>
 
-          <button className="btn primary" type="submit" disabled={saving || formLocked}>
+          <button className="btn primary content-submit-btn" type="submit" disabled={saving || formLocked}>
             {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}
           </button>
         </form>
@@ -2249,12 +2264,12 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
       
 
 
-      <div className="card">
+      <div className="card content-modern-card content-list-card">
         <SectionTitle
           title={`${getMonthTitle(selectedMonth)} kontent rejasi`}
           right={
-            <div className="toolbar-actions">
-              <label className="table-search" aria-label="Kontent qidiruvi">
+            <div className="toolbar-actions content-modern-toolbar">
+              <label className="table-search content-modern-search" aria-label="Kontent qidiruvi">
                 <Search size={16} />
                 <input
                   value={tableSearch}
@@ -2264,7 +2279,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               </label>
               <button
                 type="button"
-                className="btn secondary"
+                className="btn secondary content-modern-btn"
                 onClick={() => api.exportFile("/api/export/content.xlsx", `content-${selectedMonth}.xlsx`)}
               >
                 Excel export
@@ -11035,8 +11050,166 @@ tbody tr:hover{
   width:42px;
   height:42px;
 }
+.content-page-modern{
+  gap:22px;
+}
+.content-modern-card{
+  position:relative;
+  overflow:hidden;
+  border-radius:28px;
+  border:1px solid rgba(59,130,246,.13);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.98), rgba(246,250,255,.94)),
+    var(--panel);
+  box-shadow:0 22px 48px rgba(15,23,42,.08);
+}
+.content-modern-card::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  height:5px;
+  background:linear-gradient(90deg,#1690F5,#22c55e,#f59e0b);
+}
+.content-modern-card > *{
+  position:relative;
+  z-index:1;
+}
+.content-page-modern .section-title-row{
+  padding-bottom:14px;
+  border-bottom:1px solid rgba(148,163,184,.14);
+}
+.content-page-modern .section-title-row h2{
+  font-size:30px;
+  letter-spacing:-.04em;
+}
+.content-modern-toolbar{
+  align-items:center;
+  gap:10px;
+}
+.content-modern-btn{
+  min-height:42px;
+  border-radius:14px;
+  padding:11px 15px;
+  box-shadow:0 10px 22px rgba(15,23,42,.06);
+}
+.content-month-pill{
+  min-height:42px;
+  display:flex;
+  align-items:center;
+  border-radius:14px;
+  padding:10px 15px;
+  background:linear-gradient(135deg,rgba(22,144,245,.12),rgba(34,197,94,.10));
+  border:1px solid rgba(22,144,245,.16);
+  color:var(--text);
+}
+.content-modern-stats{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+  margin:14px 0 16px;
+}
+.content-modern-stat{
+  padding:15px;
+  border-radius:18px;
+  background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(239,246,255,.88));
+  border:1px solid rgba(148,163,184,.14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
+  display:grid;
+  gap:6px;
+}
+.content-modern-stat span{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.content-modern-stat strong{
+  font-size:28px;
+  line-height:1;
+  letter-spacing:-.04em;
+}
+.content-modern-stat small{
+  color:var(--muted);
+  font-size:12px;
+}
+.content-modern-form{
+  padding:18px;
+  border-radius:22px;
+  background:rgba(248,251,255,.76);
+  border:1px solid rgba(148,163,184,.12);
+}
+.content-modern-form label{
+  padding:12px;
+  border-radius:16px;
+  background:rgba(255,255,255,.70);
+  border:1px solid rgba(148,163,184,.10);
+}
+.content-modern-form input,
+.content-modern-form select,
+.content-modern-form textarea{
+  border-radius:13px;
+  border-color:rgba(148,163,184,.18);
+  background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(245,249,255,.92));
+}
+.content-modern-form input:focus,
+.content-modern-form select:focus,
+.content-modern-form textarea:focus,
+.content-modern-search:focus-within{
+  border-color:rgba(22,144,245,.42);
+  box-shadow:0 0 0 4px rgba(22,144,245,.10);
+}
+.content-page-modern .checkbox-row{
+  display:flex;
+  align-items:center;
+  min-height:100%;
+}
+.content-submit-btn{
+  min-height:52px;
+  align-self:end;
+  border-radius:16px;
+}
+.content-list-card .table-wrap{
+  border-radius:22px;
+  border-color:rgba(148,163,184,.14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.72);
+}
+.content-list-card table{
+  border-collapse:separate;
+  border-spacing:0;
+}
+.content-list-card th{
+  background:linear-gradient(180deg,rgba(239,246,255,.98),rgba(248,251,255,.96));
+}
+.content-list-card td{
+  background:rgba(255,255,255,.72);
+}
+.content-list-card tbody tr:hover td{
+  background:linear-gradient(90deg,rgba(22,144,245,.08),rgba(34,197,94,.04));
+}
+.content-list-card .table-title-main{
+  font-size:15px;
+  font-weight:900;
+}
+.content-list-card .table-chip{
+  min-height:28px;
+  box-shadow:0 7px 16px rgba(15,23,42,.04);
+}
+.content-list-card .table-actions-shell .icon-btn,
+.content-list-card .icon-btn{
+  border-radius:12px;
+  background:linear-gradient(180deg,rgba(255,255,255,.98),rgba(239,246,255,.9));
+  border:1px solid rgba(148,163,184,.16);
+}
+.content-page-modern .mobile-record-card{
+  border-radius:22px;
+  border-color:rgba(59,130,246,.14);
+  box-shadow:0 16px 34px rgba(15,23,42,.07);
+}
 @media (max-width: 1100px){
   .login-shell,.app-shell,.stats-grid,.two-grid,.form-grid,.dashboard-metrics-grid,.dashboard-metrics-grid-secondary,.dashboard-spotlight-grid,.dashboard-fold-columns{grid-template-columns:1fr}
+  .content-modern-stats{grid-template-columns:1fr 1fr}
+  .content-modern-form{padding:12px}
   .main-area{padding:14px}
   .login-page{padding:18px}
   .topbar h1{font-size:28px}
