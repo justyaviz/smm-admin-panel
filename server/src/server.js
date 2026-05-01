@@ -2778,7 +2778,8 @@ app.get("/api/branches", authRequired, async (_, res) => {
 /* CONTENT */
 
 async function getContentDetailRow(db, id) {
-  const result = await db.query(
+  const result = await runDbQuery(
+    db,
     `
     SELECT
       c.*,
@@ -3387,7 +3388,8 @@ app.post("/api/content/batch-delete", authRequired, actionPermissionAllowed("con
 /* BONUS */
 
 async function getBonusDetailRow(db, id) {
-  const result = await db.query(
+  const result = await runDbQuery(
+    db,
     `
     SELECT
       bi.*,
