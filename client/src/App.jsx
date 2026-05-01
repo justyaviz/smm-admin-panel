@@ -512,7 +512,6 @@ function DiscussionPanel({ entityType, entityId, onToast }) {
       const attachmentsRes = await api.list(`/api/attachments/${entityType}/${entityId}`);
       setAttachments(attachmentsRes || []);
       setFile(null);
-      setTagText("");
       onToast?.("Fayl biriktirildi", "success");
     } catch (err) {
       onToast?.(err.message || "Fayl yuklab bo'lmadi", "error");
@@ -565,7 +564,11 @@ function DiscussionPanel({ entityType, entityId, onToast }) {
           )) : <div className="empty-block">Hozircha fayl yo'q</div>}
         </div>
         <div className="discussion-upload">
-          <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          <label className="file-picker">
+            <Upload size={16} />
+            <span>{file ? file.name : "Fayl tanlash"}</span>
+            <input type="file" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          </label>
           <button type="button" className="btn secondary" onClick={uploadAttachment} disabled={!file || saving}>Fayl biriktirish</button>
         </div>
       </div>
@@ -10959,6 +10962,206 @@ tbody tr:hover{
   grid-template-columns:repeat(2,1fr);
   gap:12px;
 }
+.modal-card{
+  isolation:isolate;
+}
+.modal-card::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  border-radius:inherit;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(22,144,245,.14), transparent 32%),
+    radial-gradient(circle at 92% 20%, rgba(34,197,94,.13), transparent 30%);
+  pointer-events:none;
+}
+.modal-head{
+  padding-bottom:14px;
+  border-bottom:1px solid rgba(148,163,184,.14);
+}
+.modal-head .icon-btn{
+  width:42px;
+  height:42px;
+  border-radius:16px;
+  background:linear-gradient(180deg,#fff,#eef6ff);
+  box-shadow:0 12px 28px rgba(15,23,42,.10);
+}
+.detail-grid{
+  gap:14px;
+}
+.detail-grid > div{
+  min-height:70px;
+  padding:15px 16px;
+  border:1px solid rgba(148,163,184,.16);
+  border-radius:18px;
+  background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(241,247,255,.90));
+  box-shadow:0 12px 28px rgba(15,23,42,.06);
+  color:var(--text);
+  line-height:1.45;
+}
+.detail-grid > div.full-col{
+  min-height:auto;
+}
+.detail-grid strong{
+  display:block;
+  margin-bottom:5px;
+  color:var(--muted);
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+}
+.detail-grid a{
+  display:inline-flex;
+  align-items:center;
+  min-height:34px;
+  padding:7px 11px;
+  border-radius:12px;
+  background:linear-gradient(135deg,rgba(22,144,245,.12),rgba(34,197,94,.10));
+  border:1px solid rgba(22,144,245,.16);
+  color:#0f6fd4;
+  font-weight:900;
+  text-decoration:none;
+}
+.discussion-panel{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:18px;
+  margin-top:18px;
+}
+.discussion-col{
+  display:grid;
+  gap:12px;
+  padding:16px;
+  border:1px solid rgba(148,163,184,.16);
+  border-radius:22px;
+  background:linear-gradient(145deg,rgba(255,255,255,.94),rgba(248,250,252,.88));
+  box-shadow:0 14px 34px rgba(15,23,42,.06);
+}
+.discussion-col h4{
+  margin:0;
+  color:var(--text);
+  font-size:15px;
+  font-weight:950;
+}
+.discussion-list{
+  display:grid;
+  gap:10px;
+}
+.discussion-list .empty-block{
+  min-height:72px;
+  display:grid;
+  place-items:center;
+  border-radius:18px;
+  background:linear-gradient(180deg,rgba(248,250,252,.82),rgba(255,255,255,.74));
+}
+.discussion-item,
+.attachment-item{
+  display:grid;
+  gap:7px;
+  padding:13px;
+  border:1px solid rgba(148,163,184,.16);
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 10px 22px rgba(15,23,42,.05);
+}
+.discussion-item strong,
+.attachment-item strong{
+  color:var(--text);
+}
+.discussion-item span,
+.attachment-item span{
+  color:var(--muted);
+  font-size:12px;
+}
+.discussion-item p{
+  margin:0;
+  color:var(--text);
+  line-height:1.45;
+}
+.discussion-form,
+.discussion-upload{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto;
+  gap:10px;
+  align-items:center;
+}
+.discussion-form input{
+  min-height:48px;
+  border-radius:16px;
+  border:1px solid rgba(148,163,184,.22);
+  padding:0 14px;
+  background:#fff;
+  color:var(--text);
+  font:inherit;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.8);
+}
+.discussion-form input:focus{
+  outline:none;
+  border-color:rgba(22,144,245,.45);
+  box-shadow:0 0 0 4px rgba(22,144,245,.10);
+}
+.file-picker{
+  min-height:48px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:0 14px;
+  border-radius:16px;
+  border:1px dashed rgba(22,144,245,.35);
+  background:linear-gradient(135deg,rgba(22,144,245,.08),rgba(255,255,255,.96));
+  color:var(--text);
+  font-weight:850;
+  cursor:pointer;
+  min-width:0;
+}
+.file-picker span{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.file-picker input{
+  position:absolute;
+  width:1px;
+  height:1px;
+  opacity:0;
+  pointer-events:none;
+}
+.content-list-card table,
+.card:has(.bonus-command-card) table{
+  border-collapse:separate;
+  border-spacing:0 8px;
+}
+.content-list-card tbody tr,
+.page-grid > .card tbody tr{
+  box-shadow:0 10px 24px rgba(15,23,42,.045);
+}
+.content-list-card td,
+.page-grid > .card td{
+  background:rgba(255,255,255,.92);
+  border-top:1px solid rgba(148,163,184,.12);
+  border-bottom:1px solid rgba(148,163,184,.12);
+}
+.content-list-card td:first-child,
+.page-grid > .card td:first-child{
+  border-left:1px solid rgba(148,163,184,.12);
+  border-radius:16px 0 0 16px;
+}
+.content-list-card td:last-child,
+.page-grid > .card td:last-child{
+  border-right:1px solid rgba(148,163,184,.12);
+  border-radius:0 16px 16px 0;
+}
+.content-control-panel,
+.bonus-command-card,
+.bonus-plastic-section{
+  animation:panelRise .35s ease both;
+}
+@keyframes panelRise{
+  from{opacity:0;transform:translateY(8px)}
+  to{opacity:1;transform:translateY(0)}
+}
 .media-grid{
   display:grid;
   grid-template-columns:repeat(4,1fr);
@@ -11798,7 +12001,7 @@ tbody tr:hover{
   box-shadow:0 16px 34px rgba(15,23,42,.07);
 }
 @media (max-width: 1100px){
-  .login-shell,.app-shell,.stats-grid,.two-grid,.form-grid,.dashboard-metrics-grid,.dashboard-metrics-grid-secondary,.dashboard-spotlight-grid,.dashboard-fold-columns,.bonus-plastic-grid,.content-control-grid,.bonus-command-grid{grid-template-columns:1fr}
+  .login-shell,.app-shell,.stats-grid,.two-grid,.form-grid,.dashboard-metrics-grid,.dashboard-metrics-grid-secondary,.dashboard-spotlight-grid,.dashboard-fold-columns,.bonus-plastic-grid,.content-control-grid,.bonus-command-grid,.discussion-panel{grid-template-columns:1fr}
   .content-modern-stats{grid-template-columns:1fr 1fr}
   .content-modern-form{padding:12px}
   .main-area{padding:14px}
@@ -12594,6 +12797,14 @@ tbody tr:hover{
   .detail-grid{
     grid-template-columns:1fr;
     gap:10px;
+  }
+  .discussion-form,
+  .discussion-upload{
+    grid-template-columns:1fr;
+  }
+  .discussion-col{
+    padding:12px;
+    border-radius:18px;
   }
   .table-actions{
     gap:6px;
