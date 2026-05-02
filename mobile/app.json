@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "aloo Mobile",
+    "slug": "aloo-smm-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "aloosmm",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#f4f9ff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "uz.aloosmm.mobile"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#f4f9ff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "uz.aloosmm.mobile"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store"
+    ],
+    "extra": {
+      "appVariant": "production"
+    }
+  }
+}

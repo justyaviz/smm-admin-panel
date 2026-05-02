@@ -1,0 +1,28 @@
+{
+  "name": "alooSMM 3.0",
+  "short_name": "alooSMM",
+  "description": "Professional SMM va marketing boshqaruv platformasi",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui", "browser"],
+  "orientation": "portrait",
+  "background_color": "#0A0A0F",
+  "theme_color": "#6366F1",
+  "lang": "uz",
+  "icons": [
+    {
+      "src": "/icon-192.svg?v=3.0",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.svg?v=3.0",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
