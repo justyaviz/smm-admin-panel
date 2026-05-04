@@ -57,8 +57,7 @@ const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: LayoutDashboard, tone: "indigo" },
   { id: "content", title: "Kontent reja", icon: Clapperboard, tone: "cyan" },
   { id: "bonus", title: "Bonus tizimi", icon: BadgeDollarSign, tone: "emerald" },
-  { id: "expenses", title: "Harajatlar", icon: ReceiptText, tone: "amber" },
-  { id: "finance", title: "Finance dashboard", icon: Landmark, tone: "blue" },
+  { id: "expenses", title: "Harajatlar va finance", icon: ReceiptText, tone: "amber" },
   { id: "travelPlans", title: "Safar rejasi", icon: PlaneTakeoff, tone: "violet" },
   { id: "analytics", title: "Analytics", icon: BarChart3, tone: "sky" },
   { id: "moodPulse", title: "Mood pulse", icon: HeartPulse, tone: "pink" },
@@ -77,7 +76,7 @@ const MENU = [
 
 const MENU_GROUPS = [
   { id: "core", title: "Asosiy", items: ["dashboard", "content", "bonus", "tasks"] },
-  { id: "operations", title: "Jarayonlar", items: ["travelPlans", "campaigns", "expenses", "finance", "dailyReports", "recurring"] },
+  { id: "operations", title: "Jarayonlar", items: ["travelPlans", "campaigns", "expenses", "dailyReports", "recurring"] },
   { id: "insights", title: "Tahlil va KPI", items: ["analytics", "moodPulse", "employeeKpi", "uploads"] },
   { id: "system", title: "Boshqaruv", items: ["users", "audit", "profile", "settings", "aiAssistant"] }
 ];
@@ -89,7 +88,7 @@ const ROUTES_BY_PAGE = {
   content: "/kontent",
   bonus: "/bonus",
   expenses: "/harajatlar",
-  finance: "/finance",
+  finance: "/harajatlar",
   travelPlans: "/safar",
   analytics: "/analytics",
   moodPulse: "/mood-pulse",
@@ -115,7 +114,7 @@ const PAGE_BY_ROUTE = {
   "/kontent": "content",
   "/bonus": "bonus",
   "/harajatlar": "expenses",
-  "/finance": "finance",
+  "/finance": "expenses",
   "/safar": "travelPlans",
   "/analytics": "analytics",
   "/mood-pulse": "moodPulse",
@@ -3317,7 +3316,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
     return [
       { value: "all", label: "Filtr: Hammasi" },
       { value: "approval:draft", label: "Holat: Draft" },
-      { value: "approval:approved", label: "Holat: Tasdiqlangan" },
+      { value: "approval:approved", label: "Holat: Payroll ready" },
       { value: "paid:pending", label: "To'lov: Pending" },
       { value: "paid:approved", label: "To'lov: Approved" },
       { value: "paid:paid", label: "To'lov: Paid" },
@@ -3496,7 +3495,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   }
 
   async function handleMonthlyClose() {
-    const ok = window.confirm(`${getMonthTitle(monthFilter)} bonus oyini yopib, tasdiqlanmagan yozuvlarni ham payrollga tayyorlaymizmi?`);
+    const ok = window.confirm(`${getMonthTitle(monthFilter)} bonus oyini yopib, barcha yozuvlarni payrollga tayyorlaymizmi?`);
     if (!ok) return;
 
     try {
@@ -3514,7 +3513,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   }
 
   async function handleMarkPaid() {
-    const ok = window.confirm(`${getMonthTitle(monthFilter)} tasdiqlangan bonuslarini Paid holatiga o'tkazaymi?`);
+    const ok = window.confirm(`${getMonthTitle(monthFilter)} bonuslarini Paid holatiga o'tkazaymi?`);
     if (!ok) return;
 
     try {
@@ -3698,7 +3697,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               </button>
               {canApproveBonus ? (
                 <>
-                  <button type="button" className="btn secondary" onClick={handleMarkPaid} disabled={markingPaid || !approvedRowCount || paidRowsCount === approvedRowCount}>
+                  <button type="button" className="btn secondary" onClick={handleMarkPaid} disabled={markingPaid || !filteredItems.length || paidRowsCount === filteredItems.length}>
                     {markingPaid ? "Belgilanmoqda..." : "Paid qilish"}
                   </button>
                   <button type="button" className="btn primary" onClick={handleMonthlyClose} disabled={closingMonth || !filteredItems.length || monthClosed}>
@@ -3716,14 +3715,14 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
 
         <div className="stats-grid">
           <StatCard title="Taklif soni" value={totalProposalCount} hint="joriy oy" />
-          <StatCard title="Tasdiq summasi" value={formatMoney(totalApprovedAmount)} hint="joriy oy" />
+              <StatCard title="Payroll summa" value={formatMoney(totalApprovedAmount || totalAmount)} hint="joriy oy" />
           <StatCard title="Jami bonus" value={formatMoney(totalAmount)} hint={getMonthTitle(monthFilter)} />
           <StatCard title="Yozuvlar soni" value={filteredItems.length} hint="bonus hisobotlar" />
         </div>
 
         <div className="stats-grid bonus-close-grid">
           <StatCard title="Pending balans" value={formatMoney(pendingAmount)} hint="taxminiy hisob" tone="warning" />
-          <StatCard title="Approved" value={formatMoney(approvedReadyAmount)} hint="payrollga tayyor" tone="info" />
+          <StatCard title="Payroll ready" value={formatMoney(approvedReadyAmount || pendingAmount)} hint="oy yopilganda tayyor" tone="info" />
           <StatCard title="Paid" value={formatMoney(paidAmount)} hint={`${paidRowsCount} yozuv to'langan`} tone="success" />
           <StatCard title="Monthly close" value={monthClosed ? "Locked" : "Open"} hint={monthClosed ? "audit sabab bilan o'zgaradi" : "yopilmagan"} tone={monthClosed ? "warning" : "default"} />
         </div>
@@ -3852,32 +3851,15 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       <div className="card">
         <SectionTitle
           title="Hodim bo'yicha bonus summalari"
-          right={canApproveBonus ? (
+          right={(
             <div className="toolbar-actions">
-              <span className={`mini-badge ${monthApproved ? "success" : "warning"}`}>
-                {monthApproved ? "Tasdiqlangan" : "Tasdiqlanmagan"}
+              <span className="mini-badge info">MySeOne sync</span>
+              <span className={`mini-badge ${monthClosed ? "success" : "warning"}`}>
+                {monthClosed ? "Payroll yopilgan" : "Payroll ochiq"}
               </span>
-              <button type="button" className="btn secondary" onClick={openApprovalModal} disabled={!filteredItems.length}>
-                Oylik bonusni tasdiqlash
-              </button>
-              {approvedRowCount ? (
-                <button type="button" className="btn secondary" onClick={handleRevokeMonth}>
-                  Tasdiqni bekor qilish
-                </button>
-              ) : null}
-              {monthApproved ? (
-                <button type="button" className="btn secondary" onClick={handleDownloadApprovalImage}>
-                  Chop etish
-                </button>
-              ) : null}
             </div>
-          ) : null}
+          )}
         />
-        {lastApprovalMeta ? (
-          <div className="bonus-approval-meta">
-            Oxirgi tasdiq: <strong>{lastApprovalMeta.approved_by_name || "Rahbar"}</strong> • {formatDateTime(lastApprovalMeta.approved_at)}
-          </div>
-        ) : null}
         <div className="table-wrap">
           <table>
             <thead>
@@ -3993,7 +3975,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                       <td><span className="table-compact-amount">{formatMoney(row.total_amount || row.amount || 0)}</span></td>
                       <td>
                         <span className={`mini-badge ${row.paid_status === "paid" ? "success" : row.approval_status === "approved" ? "info" : "warning"}`}>
-                          {row.paid_status === "paid" ? "Paid" : row.approval_status === "approved" ? "Approved" : "Pending"}
+                          {row.paid_status === "paid" ? "Paid" : row.approval_status === "approved" ? "Payroll ready" : "Pending"}
                         </span>
                       </td>
                       <td>
@@ -4026,7 +4008,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                       <span>{formatDate(row.work_date)} • {formatContentType(row.content_type)}</span>
                     </div>
                     <span className={`mini-badge ${row.paid_status === "paid" ? "success" : row.approval_status === "approved" ? "info" : "warning"}`}>
-                      {row.paid_status === "paid" ? "Paid" : row.approval_status === "approved" ? "Approved" : "Pending"}
+                      {row.paid_status === "paid" ? "Paid" : row.approval_status === "approved" ? "Payroll ready" : "Pending"}
                     </span>
                   </div>
                   <div className="mobile-record-grid">
@@ -4235,7 +4217,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                       <td>{row.approved_count || 0}</td>
                       <td>
                         <span className={`mini-badge ${row.paid_status === "paid" ? "success" : row.approval_status === "approved" ? "info" : "warning"}`}>
-                          {row.paid_status === "paid" ? "Paid" : row.approval_status === "approved" ? "Approved" : "Pending"}
+                          {row.paid_status === "paid" ? "Paid" : row.approval_status === "approved" ? "Payroll ready" : "Pending"}
                         </span>
                       </td>
                       <td>{formatMoney(getBonusEstimatedAmount(row, bonusRate))}</td>
@@ -4259,7 +4241,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               <div><strong>Kontent holati:</strong> {getBonusDifficultyMeta(viewRow).label}</div>
               <div><strong>Taklif:</strong> {viewRow.proposal_count || 0}</div>
               <div><strong>Tasdiq:</strong> {viewRow.approved_count || 0}</div>
-              <div><strong>Holat:</strong> {viewRow.paid_status === "paid" ? "Paid" : viewRow.approval_status === "approved" ? "Approved" : "Pending"}</div>
+              <div><strong>Holat:</strong> {viewRow.paid_status === "paid" ? "Paid" : viewRow.approval_status === "approved" ? "Payroll ready" : "Pending"}</div>
               <div><strong>Jami:</strong> {formatMoney(viewRow.total_amount || viewRow.amount || 0)}</div>
               <div className="full-col">
                 <strong>Qilingan ish linki:</strong>{" "}
@@ -4269,7 +4251,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                   </a>
                 ) : "-"}
               </div>
-              <div className="full-col"><strong>Tasdiqlagan:</strong> {viewRow.approved_by_name || "-"}</div>
+              <div className="full-col"><strong>Manba:</strong> MySeOne / ichki payroll</div>
             </div>
             <DiscussionPanel entityType="bonus_item" entityId={viewRow.id} onToast={onToast} />
           </>
@@ -6389,7 +6371,75 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme, onToast, relo
   );
 }
 
-function ExpensesPage({ expenses = [], contestExpenses = [], onToast, reload }) {
+function FiscalReceipt({ row, settings }) {
+  if (!row) return null;
+  const receiptNo = String(row.id || Date.now()).padStart(10, "0");
+  const createdAt = formatDateTime(row.created_at || new Date());
+  const amount = Number(row.amount || 0);
+
+  return (
+    <div className="fiscal-receipt">
+      <div className="receipt-brand">
+        <img src={LOGIN_LOGO} alt="aloo SMM" />
+        <div>
+          <strong>{settings?.company_name || "aloo SMM"}</strong>
+          <span>{settings?.platform_name || "SMM boshqaruv platformasi"}</span>
+        </div>
+      </div>
+      <div className="receipt-center">
+        <strong>Fiskal chek</strong>
+        <span>Harajat / xizmat to'lovi</span>
+      </div>
+      <div className="receipt-meta">
+        <span>Chek raqami: {receiptNo}</span>
+        <span>Sana: {createdAt}</span>
+        <span>To'lov turi: {paymentTypeLabel(row.payment_type)}</span>
+      </div>
+      <div className="receipt-divider" />
+      <div className="receipt-table">
+        <div className="receipt-table-head">
+          <span>Nomi</span>
+          <span>Soni</span>
+          <span>Narxi</span>
+        </div>
+        <div className="receipt-table-row">
+          <span>{row.title || "Harajat"}</span>
+          <span>1</span>
+          <span>{amount.toLocaleString("uz-UZ")} {row.currency || "UZS"}</span>
+        </div>
+        <div className="receipt-small-line">
+          <span>Xizmat</span>
+          <strong>{row.vendor_name || "Aloo SMM xizmat xarajati"}</strong>
+        </div>
+        <div className="receipt-small-line">
+          <span>Kategoriya</span>
+          <strong>{expenseCategoryLabel(row.category)}</strong>
+        </div>
+        <div className="receipt-small-line">
+          <span>Karta egasi</span>
+          <strong>{row.card_holder || "-"}</strong>
+        </div>
+      </div>
+      <div className="receipt-divider" />
+      <div className="receipt-total-line">
+        <span>Jami to'lov:</span>
+        <strong>{amount.toLocaleString("uz-UZ")} {row.currency || "UZS"}</strong>
+      </div>
+      <div className="receipt-tax-line">
+        <span>Umumiy QQS qiymati</span>
+        <strong>0.00</strong>
+      </div>
+      <div className="receipt-qr" aria-label="QR kod">
+        {Array.from({ length: 49 }).map((_, index) => (
+          <i key={index} className={(index * 7 + receiptNo.length) % 3 === 0 ? "on" : ""} />
+        ))}
+      </div>
+      <div className="receipt-footer">aloo SMM harajat cheki</div>
+    </div>
+  );
+}
+
+function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bonusItems = [], travelPlans = [], budgets = [], settings = {}, onToast, reload }) {
   const emptyForm = {
     expense_date: "",
     title: "",
@@ -6405,6 +6455,7 @@ function ExpensesPage({ expenses = [], contestExpenses = [], onToast, reload }) 
   const [saving, setSaving] = useState(false);
   const [editRow, setEditRow] = useState(null);
   const [viewRow, setViewRow] = useState(null);
+  const [receiptRow, setReceiptRow] = useState(null);
   const [monthFilter, setMonthFilter] = useState(getMonthLabel());
   const [mode, setMode] = useState("general");
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -6439,7 +6490,8 @@ function ExpensesPage({ expenses = [], contestExpenses = [], onToast, reload }) 
         await api.update("expenses", editRow.id, payload);
         onToast("Harajat yangilandi", "success");
       } else {
-        await api.create("expenses", payload);
+        const created = await api.create("expenses", payload);
+        setReceiptRow(created || payload);
         onToast("Harajat saqlandi", "success");
       }
       await reload();
@@ -6468,6 +6520,17 @@ function ExpensesPage({ expenses = [], contestExpenses = [], onToast, reload }) 
     "expense_date"
   ), [expenses, monthFilter]);
   const totalAmount = filteredExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+  const monthlyAds = campaigns
+    .filter((item) => formatDate(item.start_at || item.start_date).startsWith(monthFilter) || formatDate(item.end_at || item.end_date).startsWith(monthFilter))
+    .reduce((sum, item) => sum + Number(item.spend || 0), 0);
+  const monthlyBonus = bonusItems
+    .filter((item) => (item.month_label || formatDate(item.work_date).slice(0, 7)) === monthFilter)
+    .reduce((sum, item) => sum + Number(item.total_amount || item.amount || 0), 0);
+  const monthlyTravel = travelPlans
+    .filter((item) => formatDate(item.plan_date).startsWith(monthFilter))
+    .reduce((sum, item) => sum + Number(item.budget_amount || 0), 0);
+  const activeBudgets = budgets.filter((item) => item.month_label === monthFilter);
+  const budgetTotal = activeBudgets.reduce((sum, item) => sum + Number(item.limit_amount || 0), 0);
   const categoryTotals = [
     { key: "servis", label: "Servis" },
     { key: "reklama", label: "Reklama" },
@@ -6485,8 +6548,8 @@ function ExpensesPage({ expenses = [], contestExpenses = [], onToast, reload }) 
     <div className="page-grid">
       <div className="card">
         <SectionTitle
-          title="Harajatlar bo'limi"
-          desc="Oddiy harajatlar va konkurs harajatlarini alohida boshqarish"
+          title="Harajatlar va finance markazi"
+          desc="Oddiy harajat, konkurs, budjet va finance snapshot bitta sahifada"
           right={
             <div className="toolbar-actions">
               <button
@@ -6512,6 +6575,20 @@ function ExpensesPage({ expenses = [], contestExpenses = [], onToast, reload }) 
         <ContestExpensesPanel contestExpenses={contestExpenses} onToast={onToast} reload={reload} />
       ) : (
         <>
+      <div className="finance-command-card">
+        <div>
+          <span className="small-label">Finance 9.0</span>
+          <h2>{getMonthTitle(monthFilter)} xarajat nazorati</h2>
+          <p>Harajat qo'shilganda avtomatik Aloo SMM fiskal chek chiqadi. Reklama, bonus, safar va budjet signallari shu yerda jamlanadi.</p>
+        </div>
+        <div className="finance-command-grid">
+          <div><span>Oddiy harajat</span><strong>{formatMoney(totalAmount)}</strong></div>
+          <div><span>Reklama sarfi</span><strong>{formatUsd(monthlyAds)}</strong></div>
+          <div><span>Bonus payroll</span><strong>{formatMoney(monthlyBonus)}</strong></div>
+          <div><span>Safar budjeti</span><strong>{formatMoney(monthlyTravel)}</strong></div>
+        </div>
+      </div>
+
       <div className="card">
         <SectionTitle title={editRow ? "Harajatni tahrirlash" : "Harajat qo'shish"} right={editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null} />
         <form className="form-grid" onSubmit={handleSubmit}>
@@ -6530,7 +6607,8 @@ function ExpensesPage({ expenses = [], contestExpenses = [], onToast, reload }) 
 
       <div className="stats-grid">
         <StatCard title="Jami harajat" value={formatMoney(totalAmount)} hint={getMonthTitle(monthFilter)} tone="danger" />
-        <StatCard title="Yozuvlar soni" value={filteredExpenses.length} hint="filtrlangan yozuvlar" tone="info" />
+        <StatCard title="Budjet limiti" value={formatMoney(budgetTotal)} hint={`${activeBudgets.length} kategoriya`} tone="info" />
+        <StatCard title="Yozuvlar soni" value={filteredExpenses.length} hint="filtrlangan yozuvlar" tone="success" />
       </div>
 
       <div className="card">
@@ -6634,6 +6712,13 @@ function ExpensesPage({ expenses = [], contestExpenses = [], onToast, reload }) 
           <label><span>To'lov turi</span><select value={form.payment_type} onChange={(e) => setField("payment_type", e.target.value)}><option value="visa">Visa karta</option><option value="cash">Naqd</option><option value="bank">Bank</option></select></label>
           <div className="full-col"><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
         </div> : null}
+      </Modal>
+      <Modal open={!!receiptRow} onClose={() => setReceiptRow(null)} title="Aloo SMM fiskal chek">
+        <FiscalReceipt row={receiptRow} settings={settings} />
+        <div className="toolbar-actions mt16">
+          <button type="button" className="btn primary" onClick={() => window.print()}>Chop etish</button>
+          <button type="button" className="btn secondary" onClick={() => setReceiptRow(null)}>Yopish</button>
+        </div>
       </Modal>
         </>
       )}
@@ -7549,12 +7634,20 @@ function App() {
         setBonusItems(await api.list("bonus-items").catch(() => []));
         break;
       case "expenses": {
-        const [expensesRes, contestExpensesRes] = await Promise.all([
+        const [expensesRes, contestExpensesRes, campaignsRes, bonusItemsRes, travelPlansRes, budgetsRes] = await Promise.all([
           api.list("expenses").catch(() => []),
-          api.list("contest-expenses").catch(() => [])
+          api.list("contest-expenses").catch(() => []),
+          api.list("campaigns").catch(() => []),
+          api.list("bonus-items").catch(() => []),
+          api.list("travel-plans").catch(() => []),
+          api.list("budgets").catch(() => [])
         ]);
         setExpenses(expensesRes || []);
         setContestExpenses(contestExpensesRes || []);
+        setCampaigns(campaignsRes || []);
+        setBonusItems(bonusItemsRes || []);
+        setTravelPlans(travelPlansRes || []);
+        setBudgets(budgetsRes || []);
         break;
       }
       case "finance": {
@@ -7950,7 +8043,7 @@ function App() {
   } else if (active === "bonus") {
     page = <BonusPage bonusItems={bonusItems} users={users} branches={branches} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "expenses") {
-    page = <ExpensesPage expenses={expenses} contestExpenses={contestExpenses} onToast={showToast} reload={reloadData} />;
+    page = <ExpensesPage expenses={expenses} contestExpenses={contestExpenses} campaigns={campaigns} bonusItems={bonusItems} travelPlans={travelPlans} budgets={budgets} settings={settings} onToast={showToast} reload={reloadData} />;
   } else if (active === "finance") {
     page = <FinanceDashboardPage expenses={expenses} campaigns={campaigns} bonusItems={bonusItems} travelPlans={travelPlans} budgets={budgets} onToast={showToast} reload={reloadData} />;
   } else if (active === "travelPlans") {
@@ -14354,6 +14447,218 @@ tbody tr{
 .login-mode-panel{
   animation:tab-fade-in .18s ease both;
 }
+.finance-command-card{
+  position:relative;
+  overflow:hidden;
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) minmax(360px, .82fr);
+  gap:24px;
+  padding:26px;
+  border-radius:26px;
+  border:1px solid rgba(16,24,40,.10);
+  background:
+    linear-gradient(135deg, rgba(16,24,40,.96), rgba(15,76,117,.86)),
+    #101828;
+  color:#fff;
+  box-shadow:0 26px 70px rgba(16,24,40,.18);
+}
+.finance-command-card::after{
+  content:"";
+  position:absolute;
+  inset:auto -80px -110px auto;
+  width:280px;
+  height:280px;
+  border-radius:50%;
+  background:rgba(20,184,166,.20);
+  filter:blur(6px);
+}
+.finance-command-card h2{
+  margin:10px 0 8px;
+  font-size:clamp(28px, 3vw, 44px);
+  line-height:1.04;
+  letter-spacing:0;
+}
+.finance-command-card p{
+  margin:0;
+  max-width:680px;
+  color:rgba(255,255,255,.76);
+  line-height:1.65;
+}
+.finance-command-card .small-label{
+  color:#7dd3fc;
+}
+.finance-command-grid{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:12px;
+}
+.finance-command-grid div{
+  display:grid;
+  gap:8px;
+  padding:16px;
+  border-radius:18px;
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.14);
+  backdrop-filter:blur(12px);
+}
+.finance-command-grid span{
+  color:rgba(255,255,255,.68);
+  font-size:12px;
+  font-weight:800;
+  text-transform:uppercase;
+  letter-spacing:.04em;
+}
+.finance-command-grid strong{
+  font-family:"Manrope","Inter",sans-serif;
+  font-size:20px;
+  font-variant-numeric:tabular-nums;
+}
+.fiscal-receipt{
+  width:min(100%, 420px);
+  margin:0 auto;
+  padding:24px 20px 28px;
+  background:#fff;
+  color:#222;
+  border:1px solid rgba(16,24,40,.12);
+  border-radius:18px;
+  box-shadow:0 18px 44px rgba(16,24,40,.10);
+  font-family:"Inter","Segoe UI",Arial,sans-serif;
+}
+.receipt-brand{
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:12px;
+  border:1px solid rgba(16,24,40,.10);
+  border-radius:16px;
+}
+.receipt-brand img{
+  width:52px;
+  height:52px;
+  border-radius:14px;
+  object-fit:cover;
+}
+.receipt-brand strong{
+  display:block;
+  font-size:22px;
+  letter-spacing:0;
+}
+.receipt-brand span,
+.receipt-meta span,
+.receipt-small-line span,
+.receipt-tax-line span,
+.receipt-footer{
+  color:#667085;
+}
+.receipt-center{
+  display:grid;
+  gap:4px;
+  text-align:center;
+  margin:22px 0 14px;
+}
+.receipt-center strong{
+  font-size:24px;
+  color:#007f73;
+}
+.receipt-meta{
+  display:grid;
+  gap:4px;
+  font-size:14px;
+}
+.receipt-divider{
+  height:1px;
+  margin:12px 0;
+  background:repeating-linear-gradient(90deg, #111 0 8px, transparent 8px 12px);
+  opacity:.7;
+}
+.receipt-table{
+  display:grid;
+  gap:8px;
+}
+.receipt-table-head,
+.receipt-table-row,
+.receipt-small-line,
+.receipt-tax-line{
+  display:grid;
+  grid-template-columns:1fr 56px 116px;
+  gap:8px;
+  align-items:start;
+}
+.receipt-table-head{
+  font-weight:800;
+  color:#475467;
+}
+.receipt-table-row span:last-child,
+.receipt-total-line strong,
+.receipt-tax-line strong{
+  text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+.receipt-small-line{
+  grid-template-columns:110px 1fr;
+  font-size:12px;
+}
+.receipt-small-line strong{
+  text-align:right;
+  font-weight:600;
+}
+.receipt-total-line{
+  display:flex;
+  justify-content:space-between;
+  gap:16px;
+  align-items:flex-end;
+}
+.receipt-total-line span{
+  font-size:22px;
+}
+.receipt-total-line strong{
+  font-size:30px;
+  font-weight:500;
+}
+.receipt-tax-line{
+  grid-template-columns:1fr auto;
+  margin-top:4px;
+}
+.receipt-qr{
+  width:180px;
+  height:180px;
+  margin:22px auto 10px;
+  display:grid;
+  grid-template-columns:repeat(7, 1fr);
+  gap:3px;
+  padding:8px;
+  background:#fff;
+  border:6px solid #111;
+}
+.receipt-qr i{
+  background:#fff;
+}
+.receipt-qr i.on{
+  background:#111;
+}
+.receipt-footer{
+  text-align:center;
+  font-size:12px;
+}
+@media print{
+  body *{
+    visibility:hidden;
+  }
+  .fiscal-receipt,
+  .fiscal-receipt *{
+    visibility:visible;
+  }
+  .fiscal-receipt{
+    position:absolute;
+    left:0;
+    top:0;
+    width:100%;
+    box-shadow:none;
+    border:0;
+  }
+}
 @keyframes tab-fade-in{
   from{opacity:0;transform:translateY(5px)}
   to{opacity:1;transform:translateY(0)}
@@ -14365,6 +14670,9 @@ tbody tr{
   .content-detail-layout{
     grid-template-columns:1fr;
   }
+  .finance-command-card{
+    grid-template-columns:1fr;
+  }
   .login-card{
     width:min(100%, 560px);
   }
@@ -14374,6 +14682,9 @@ tbody tr{
     grid-template-columns:1fr;
   }
   .content-detail-grid{
+    grid-template-columns:1fr;
+  }
+  .finance-command-grid{
     grid-template-columns:1fr;
   }
   .inline-action-row{
