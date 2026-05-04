@@ -1,18 +1,18 @@
 export const DESIGN_SYSTEM_VERSION = "9.0";
 
 export const brandPalette = {
-  background: "#E6E6E6",
+  background: "#F6F8FB",
   surface: "#FFFFFF",
-  surfaceSoft: "#F7F7F7",
-  text: "#111111",
-  muted: "#6F6F6F",
-  primary: "#0F9A3A",
-  primaryHover: "#0B7D30",
-  accent: "#FFE600",
-  warning: "#F47A2A",
-  success: "#0F9A3A",
+  surfaceSoft: "#F3F6FA",
+  text: "#151515",
+  muted: "#6B6F7A",
+  primary: "#1478F2",
+  primaryHover: "#0B63D1",
+  accent: "#EAF3FF",
+  warning: "#FF7A1A",
+  success: "#21B573",
   danger: "#EF4444",
-  border: "#D9D9D9"
+  border: "#E6EAF0"
 };
 
 export const buttonVariants = {
