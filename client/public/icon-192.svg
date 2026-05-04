@@ -1,13 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
-  <rect width="512" height="512" rx="96" fill="#2392EE"/>
-  <text
-    x="256"
-    y="310"
-    fill="#FFFFFF"
-    text-anchor="middle"
-    font-family="Arial Rounded MT Bold, Trebuchet MS, Segoe UI, Arial, sans-serif"
-    font-size="182"
-    font-weight="700"
-    letter-spacing="-14"
-  >aloo</text>
+  <rect width="512" height="512" rx="118" fill="#1478F2"/>
+  <path d="M151 176h146c35 0 64 29 64 64s-29 64-64 64H214" stroke="#FFFFFF" stroke-width="44" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M151 336l74-160" stroke="#FFFFFF" stroke-width="44" stroke-linecap="round"/>
+  <circle cx="151" cy="336" r="24" fill="#FFFFFF"/>
+  <circle cx="151" cy="176" r="24" fill="#FFFFFF"/>
+  <circle cx="361" cy="240" r="24" fill="#FFFFFF"/>
 </svg>

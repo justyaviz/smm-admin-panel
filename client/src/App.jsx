@@ -816,6 +816,69 @@ function DashboardMetricCard({ title, numericValue = 0, format, hint, tone = "de
   );
 }
 
+function BillzCatalogPanel({ title, desc, kpis = [], tabs = [], rows = [], actionLabel = "Yangi yozuv" }) {
+  return (
+    <section className="billz-catalog-panel">
+      <div className="billz-catalog-head">
+        <div>
+          <div className="billz-kicker">Aloo operating system</div>
+          <h2>{title}</h2>
+          {desc ? <p>{desc}</p> : null}
+        </div>
+        <button type="button" className="billz-action-btn">{actionLabel}</button>
+      </div>
+      <div className="billz-kpi-row">
+        {kpis.map((item) => {
+          const Icon = item.icon || LayoutGrid;
+          return (
+            <div key={item.label} className="billz-kpi-card">
+              <span className="billz-kpi-icon"><Icon size={18} /></span>
+              <div>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="billz-toolbar">
+        <div className="billz-tabs">
+          {tabs.map((tab, index) => (
+            <button key={tab} type="button" className={index === 0 ? "active" : ""}>{tab}</button>
+          ))}
+        </div>
+        <div className="billz-searchbar">
+          <Search size={16} />
+          <span>Qidiruv, filtr va tezkor amal</span>
+        </div>
+        <button type="button" className="billz-filter-btn"><Filter size={16} /> Filtrlar</button>
+      </div>
+      <div className="billz-catalog-table">
+        <div className="billz-catalog-tr head">
+          <span>Nomi</span>
+          <span>Tur</span>
+          <span>Holat</span>
+          <span>Qiymat</span>
+        </div>
+        {rows.length ? rows.slice(0, 6).map((row) => (
+          <div key={row.id || row.name} className="billz-catalog-tr">
+            <span className="billz-row-title">{row.name}</span>
+            <span>{row.type}</span>
+            <span><i className={`billz-dot ${row.tone || "info"}`} /> {row.status}</span>
+            <strong>{row.value}</strong>
+          </div>
+        )) : (
+          <div className="billz-empty-state">
+            <Sparkles size={20} />
+            <strong>Ma'lumot tayyorlanmoqda</strong>
+            <span>Jadvalga yozuvlar kelganda shu yerda ko'rinadi.</span>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 function DashboardDisclosure({ title, desc, badge, defaultOpen = true, children, right = null }) {
   return (
     <details className="dashboard-fold" open={defaultOpen}>
@@ -1877,9 +1940,49 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
       ]
     }
   ];
+  const dashboardCatalogRows = [
+    ...operationSignals.map((item) => ({
+      id: item.id,
+      name: item.title,
+      type: "Signal",
+      status: item.tone === "danger" ? "Kritik" : item.tone === "warning" ? "Diqqat" : "Info",
+      value: item.text,
+      tone: item.tone
+    })),
+    ...thisMonthContent.slice(0, 4).map((item) => ({
+      id: `content-${item.id}`,
+      name: item.title || "Kontent",
+      type: formatContentType(item.content_type),
+      status: formatApprovalStatus(item.status),
+      value: formatDate(item.publish_date),
+      tone: ["joylangan", "yakunlandi"].includes(item.status) ? "success" : "info"
+    })),
+    ...branchKpis.slice(0, 3).map((item) => ({
+      id: `branch-${item.name}`,
+      name: item.name,
+      type: "Filial",
+      status: "KPI",
+      value: `${item.score} ball`,
+      tone: "success"
+    }))
+  ];
 
   return (
     <div className="page-grid dashboard-page">
+      <BillzCatalogPanel
+        title="Boshqaruv katalogi"
+        desc="KPI, signal, kontent va filial holatlari Billz katalog uslubida birinchi ekranda."
+        actionLabel="Yangi vazifa"
+        tabs={["Barchasi", "Kontent", "Bonus", "Finance", "Signal"]}
+        kpis={[
+          { label: "Kontent reja", value: `${totalPlan} ta`, icon: Clapperboard },
+          { label: "Payroll", value: formatMoney(thisMonthBonus), icon: BadgeDollarSign },
+          { label: "Signal", value: operationSignals.length, icon: Bell },
+          { label: "Vazifalar", value: summary?.task_count || 0, icon: ListTodo }
+        ]}
+        rows={dashboardCatalogRows}
+      />
+
       <div className="dashboard-hero-card">
         <div className="dashboard-hero-copy">
           <div className="small-label">Boshqaruv markazi</div>
@@ -8845,6 +8948,13 @@ function App() {
                 </div>
               );
             })}
+          </div>
+
+          <div className="sidebar-help-card">
+            <span>Yordam kerakmi?</span>
+            <strong>Aloo SMM support</strong>
+            <small>Telegram bot, deadline, payroll va finance bo'yicha tezkor yordam.</small>
+            <a href="/login">Demo olish</a>
           </div>
 
           <button className="logout-btn" type="button" onClick={logout}>
@@ -16697,6 +16807,389 @@ tr:hover td,
   border-radius:14px !important;
   box-shadow:none !important;
 }
+.sidebar-help-card{
+  display:grid;
+  gap:8px;
+  margin-top:auto;
+  padding:16px;
+  border-radius:20px;
+  background:#FFFFFF;
+  border:1px solid #E3E8F0;
+  box-shadow:0 12px 28px rgba(15,23,42,.04);
+}
+.sidebar-help-card span{
+  color:#98A1AF;
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.sidebar-help-card strong{
+  color:#151515;
+  font-size:16px;
+}
+.sidebar-help-card small{
+  color:#6B6F7A;
+  line-height:1.45;
+}
+.sidebar-help-card a{
+  width:max-content;
+  min-height:36px;
+  display:inline-flex;
+  align-items:center;
+  padding:0 14px;
+  border-radius:12px;
+  background:#1478F2;
+  color:#FFFFFF;
+  text-decoration:none;
+  font-weight:900;
+}
+.billz-catalog-panel{
+  background:#FFFFFF;
+  border:1px solid #E6EAF0;
+  border-radius:28px;
+  padding:24px;
+  box-shadow:0 18px 48px rgba(15,23,42,.06);
+  display:grid;
+  gap:18px;
+}
+.billz-catalog-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:18px;
+}
+.billz-kicker{
+  color:#1478F2;
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.billz-catalog-head h2{
+  margin:8px 0 0;
+  font-size:38px;
+  line-height:1.08;
+  font-weight:900;
+  color:#151515;
+  font-family:"Manrope","Inter",sans-serif;
+}
+.billz-catalog-head p{
+  max-width:720px;
+  margin:10px 0 0;
+  color:#6B6F7A;
+  font-size:16px;
+  line-height:1.55;
+  font-weight:700;
+}
+.billz-action-btn{
+  min-width:132px;
+  height:52px;
+  border:0;
+  border-radius:16px;
+  background:#1478F2;
+  color:#FFFFFF;
+  font-weight:900;
+  box-shadow:0 12px 24px rgba(20,120,242,.20);
+}
+.billz-kpi-row{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:14px;
+}
+.billz-kpi-card{
+  min-height:100px;
+  padding:18px;
+  border:1px solid #EDF1F6;
+  border-radius:22px;
+  display:flex;
+  gap:14px;
+  align-items:flex-start;
+  box-shadow:0 10px 28px rgba(15,23,42,.04);
+}
+.billz-kpi-icon{
+  width:38px;
+  height:38px;
+  display:grid;
+  place-items:center;
+  border-radius:14px;
+  background:#E7F0FE;
+  color:#1478F2;
+}
+.billz-kpi-card span:not(.billz-kpi-icon){
+  color:#8A93A0;
+  font-size:12px;
+  font-weight:850;
+}
+.billz-kpi-card strong{
+  display:block;
+  margin-top:7px;
+  color:#1478F2;
+  font-size:24px;
+  font-weight:900;
+  font-variant-numeric:tabular-nums;
+}
+.billz-toolbar{
+  display:grid;
+  grid-template-columns:auto minmax(240px, 1fr) auto;
+  gap:12px;
+  align-items:center;
+}
+.billz-tabs{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+}
+.billz-tabs button,
+.billz-filter-btn{
+  min-height:42px;
+  border:0;
+  border-radius:14px;
+  background:#F3F6FA;
+  color:#7A828F;
+  padding:0 14px;
+  font-weight:900;
+}
+.billz-tabs button.active{
+  background:#E7F0FE;
+  color:#1478F2;
+}
+.billz-searchbar{
+  min-height:46px;
+  border-radius:14px;
+  background:#F7F9FC;
+  border:1px solid #E6EAF0;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:0 14px;
+  color:#9AA3AF;
+  font-weight:800;
+}
+.billz-filter-btn{
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.billz-catalog-table{
+  border:1px solid #E6EAF0;
+  border-radius:20px;
+  overflow:hidden;
+}
+.billz-catalog-tr{
+  min-height:54px;
+  display:grid;
+  grid-template-columns:minmax(180px, 1.2fr) .7fr .7fr 1fr;
+  gap:14px;
+  align-items:center;
+  padding:0 16px;
+  border-bottom:1px solid #EEF2F6;
+  color:#5A6270;
+  font-weight:750;
+}
+.billz-catalog-tr:last-child{
+  border-bottom:0;
+}
+.billz-catalog-tr.head{
+  background:#F7F9FC;
+  color:#98A1AF;
+  font-size:12px;
+  font-weight:900;
+}
+.billz-row-title{
+  color:#1478F2;
+  font-weight:900;
+}
+.billz-catalog-tr strong{
+  color:#151515;
+  font-weight:900;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.billz-dot{
+  width:9px;
+  height:9px;
+  display:inline-block;
+  border-radius:50%;
+  background:#1478F2;
+  margin-right:6px;
+}
+.billz-dot.success{background:#21B573}
+.billz-dot.warning{background:#FF7A1A}
+.billz-dot.danger{background:#EF4444}
+.billz-empty-state{
+  min-height:160px;
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:8px;
+  color:#8A93A0;
+}
+.billz-empty-state strong{
+  color:#151515;
+}
+.billz-empty-state svg{
+  color:#1478F2;
+}
+.login-page{
+  background:#FFFFFF !important;
+  min-height:100vh !important;
+  padding:42px !important;
+  display:grid !important;
+  place-items:center !important;
+}
+.login-page::before,
+.login-page::after{
+  display:none !important;
+}
+.login-shell{
+  width:min(1180px, 100%) !important;
+  min-height:720px !important;
+  display:grid !important;
+  grid-template-columns:1.05fr .95fr !important;
+  gap:34px !important;
+  align-items:center !important;
+}
+.login-copy{
+  min-height:620px !important;
+  padding:42px !important;
+  border-radius:38px !important;
+  background:#F6F8FB !important;
+  border:1px solid #E6EAF0 !important;
+  box-shadow:0 22px 60px rgba(15,23,42,.08) !important;
+  overflow:hidden !important;
+}
+.login-logo-lockup{
+  margin-bottom:34px !important;
+}
+.login-logo-image{
+  width:54px !important;
+  height:54px !important;
+  border-radius:16px !important;
+}
+.login-logo-copy strong{
+  color:#151515 !important;
+  font-family:"Manrope","Inter",sans-serif !important;
+  font-weight:900 !important;
+  font-size:24px !important;
+}
+.login-logo-copy span{
+  color:#7A828F !important;
+  font-weight:750 !important;
+}
+.login-copy h1{
+  color:#151515 !important;
+  font-size:56px !important;
+  line-height:1.08 !important;
+  font-weight:900 !important;
+  font-family:"Manrope","Inter",sans-serif !important;
+  max-width:560px !important;
+}
+.login-copy p{
+  max-width:540px !important;
+  color:#6B6F7A !important;
+  font-size:19px !important;
+  line-height:1.55 !important;
+  font-weight:700 !important;
+}
+.login-public-nav{
+  display:none !important;
+}
+.login-status-row.compact{
+  display:flex !important;
+  flex-wrap:wrap !important;
+  gap:8px !important;
+  margin-top:24px !important;
+}
+.login-status-pill,
+.login-card-badge{
+  background:#E7F0FE !important;
+  color:#1478F2 !important;
+  border:1px solid #D5E6FF !important;
+  border-radius:999px !important;
+  font-weight:900 !important;
+}
+.login-command-preview{
+  background:#FFFFFF !important;
+  border-color:#E6EAF0 !important;
+  box-shadow:0 18px 44px rgba(15,23,42,.07) !important;
+}
+.login-preview-metrics div{
+  background:#F7F9FC !important;
+  border-color:#E6EAF0 !important;
+}
+.login-preview-metrics strong{
+  color:#1478F2 !important;
+}
+.login-preview-flow span.active,
+.login-progress-steps span.active{
+  background:#E7F0FE !important;
+  color:#1478F2 !important;
+  border-color:#D5E6FF !important;
+}
+.login-card{
+  width:100% !important;
+  max-width:500px !important;
+  justify-self:end !important;
+  border-radius:32px !important;
+  background:#FFFFFF !important;
+  border:1px solid #E6EAF0 !important;
+  box-shadow:0 24px 70px rgba(15,23,42,.12) !important;
+  padding:32px !important;
+}
+.login-title{
+  color:#151515 !important;
+  font-size:34px !important;
+  font-family:"Manrope","Inter",sans-serif !important;
+  font-weight:900 !important;
+}
+.login-subtitle{
+  color:#7A828F !important;
+  font-weight:700 !important;
+}
+.login-mode-switch{
+  background:#F3F6FA !important;
+  border:1px solid #E6EAF0 !important;
+  border-radius:18px !important;
+  padding:6px !important;
+  display:grid !important;
+  grid-template-columns:repeat(3, minmax(0, 1fr)) !important;
+  gap:6px !important;
+}
+.login-mode-btn{
+  border:0 !important;
+  border-radius:14px !important;
+  background:transparent !important;
+  box-shadow:none !important;
+}
+.login-mode-btn.active{
+  background:#FFFFFF !important;
+  color:#1478F2 !important;
+  box-shadow:0 10px 24px rgba(15,23,42,.08) !important;
+}
+.login-mode-panel label span,
+.login-card label span{
+  color:#667085 !important;
+  font-weight:850 !important;
+}
+.login-card input,
+.login-card select{
+  min-height:52px !important;
+  background:#F7F9FC !important;
+  border:1px solid #E1E7EF !important;
+  border-radius:16px !important;
+  color:#151515 !important;
+  font-weight:750 !important;
+}
+.login-card .btn.primary{
+  min-height:54px !important;
+  border-radius:17px !important;
+  background:#1478F2 !important;
+  color:#fff !important;
+  font-weight:900 !important;
+}
+.login-loader-ring{
+  border-top-color:#1478F2 !important;
+}
 @media (max-width: 900px){
   .app-shell{
     display:block !important;
@@ -16706,6 +17199,46 @@ tr:hover td,
   }
   .topbar{
     border-radius:18px !important;
+  }
+  .sidebar-help-card{
+    display:none;
+  }
+  .billz-catalog-head,
+  .billz-toolbar{
+    grid-template-columns:1fr;
+    display:grid;
+  }
+  .billz-kpi-row{
+    grid-template-columns:1fr;
+  }
+  .billz-catalog-tr{
+    grid-template-columns:1fr;
+    padding:14px 16px;
+    gap:6px;
+  }
+  .billz-catalog-tr.head{
+    display:none;
+  }
+  .login-page{
+    padding:18px !important;
+  }
+  .login-shell{
+    grid-template-columns:1fr !important;
+    min-height:auto !important;
+  }
+  .login-copy{
+    min-height:auto !important;
+    padding:28px !important;
+  }
+  .login-copy h1{
+    font-size:38px !important;
+  }
+  .login-card{
+    justify-self:stretch !important;
+    max-width:none !important;
+  }
+  .login-mode-switch{
+    grid-template-columns:1fr !important;
   }
 }
 `;
