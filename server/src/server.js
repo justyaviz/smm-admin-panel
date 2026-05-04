@@ -514,9 +514,7 @@ function addApprovalComment(entityType, entityId, authorUserId, body) {
 
 async function createTelegramEventNow(title, lines = [], chatIdOverride = null) {
   const cleanLines = lines.filter(Boolean).map((line) => String(line).trim()).filter(Boolean);
-  const safeTitle = String(title || "").toLowerCase();
-  if (safeTitle.includes("safar")) return;
-  const resolvedChatId = chatIdOverride || (safeTitle.includes("safar") ? TRAVEL_PLAN_CHAT_ID : null);
+  const resolvedChatId = chatIdOverride || null;
   await sendTelegramMessageNow([title, ...cleanLines].join("\n"), resolvedChatId);
 }
 
@@ -536,6 +534,30 @@ function getActorName(user = {}) {
 
 function buildPlatformTelegramTitle(emoji, title, tag) {
   return `${emoji} SMM PLATFORMA | ${title} #${tag}`;
+}
+
+async function notifyBudgetOverrunForExpense(row = {}, actorName = "Platforma") {
+  const category = row.category || "boshqa";
+  const month = getMonthLabel(row.expense_date);
+  if (!month || !category) return;
+  const [budgetRes, actualRes] = await Promise.all([
+    query(`SELECT * FROM budgets WHERE month_label = $1 AND category = $2 ORDER BY id DESC LIMIT 1`, [month, category]),
+    query(`SELECT COALESCE(SUM(amount),0)::numeric AS total FROM expenses WHERE to_char(expense_date, 'YYYY-MM') = $1 AND category = $2`, [month, category])
+  ]);
+  const budget = budgetRes.rows[0];
+  if (!budget) return;
+  const limit = Number(budget.limit_amount || 0);
+  const actual = Number(actualRes.rows[0]?.total || 0);
+  if (!limit || actual <= limit) return;
+  createTelegramEvent(buildPlatformTelegramTitle("🚨", "Harajat limiti oshdi", "finance"), [
+    "#finance #budget_limit #signal",
+    `Oy: ${month}`,
+    `Kategoriya: ${category}`,
+    `Limit: ${formatTelegramMoney(limit)}`,
+    `Hozirgi sarf: ${formatTelegramMoney(actual)}`,
+    `Oxirgi harajat: ${row.title || "-"}`,
+    `Kiritdi: ${actorName}`
+  ]);
 }
 
 function buildContentTelegramLines(row = {}, actorName = "Platforma", action = "Yangilandi") {
@@ -2802,6 +2824,45 @@ app.post("/api/settings/test-telegram", authRequired, async (req, res) => {
   }
 });
 
+app.post("/api/telegram/workflow-digest", authRequired, rolesAllowed("admin", "manager", "director"), async (req, res) => {
+  try {
+    const today = formatDateOnly(new Date());
+    const month = getMonthLabel();
+    const [taskRes, contentRes, dailyRes, bonusRes, expenseSignalRes] = await Promise.all([
+      query(`SELECT title, due_date, priority FROM tasks WHERE status <> 'done' AND due_date <= CURRENT_DATE + INTERVAL '3 day' ORDER BY due_date ASC, priority DESC LIMIT 6`),
+      query(`SELECT title, publish_date, platform, status FROM content_items WHERE publish_date <= CURRENT_DATE + INTERVAL '2 day' AND status NOT IN ('yakunlandi','joylangan','published','archived') ORDER BY publish_date ASC LIMIT 6`),
+      query(`SELECT COUNT(*)::int AS count FROM daily_branch_reports WHERE report_date = CURRENT_DATE`),
+      query(`SELECT COUNT(*)::int AS pending_count, COALESCE(SUM(total_amount),0)::numeric AS pending_total FROM bonus_items WHERE month_label = $1 AND paid_status <> 'paid'`, [month]),
+      query(`
+        SELECT b.category, b.limit_amount, COALESCE(SUM(e.amount),0)::numeric AS actual
+        FROM budgets b
+        LEFT JOIN expenses e ON e.category = b.category AND to_char(e.expense_date,'YYYY-MM') = b.month_label
+        WHERE b.month_label = $1
+        GROUP BY b.id, b.category, b.limit_amount
+        HAVING COALESCE(SUM(e.amount),0) > b.limit_amount
+        ORDER BY actual DESC
+        LIMIT 5
+      `, [month])
+    ]);
+    const lines = [
+      "#daily_digest #workflow #telegram",
+      `Sana: ${today}`,
+      `Daily report: ${dailyRes.rows[0]?.count || 0} ta`,
+      `Bonus pending: ${bonusRes.rows[0]?.pending_count || 0} / ${formatTelegramMoney(bonusRes.rows[0]?.pending_total || 0)}`,
+      taskRes.rows.length ? `Vazifalar: ${taskRes.rows.map((item) => `${item.title} (${formatDateOnly(item.due_date) || "-"})`).join("; ")}` : "Vazifa eslatma yo'q",
+      contentRes.rows.length ? `Kontent deadline: ${contentRes.rows.map((item) => `${item.title} (${formatDateOnly(item.publish_date) || "-"})`).join("; ")}` : "Kontent deadline signali yo'q",
+      expenseSignalRes.rows.length ? `Budget signal: ${expenseSignalRes.rows.map((item) => `${item.category}: ${formatTelegramMoney(item.actual)} / ${formatTelegramMoney(item.limit_amount)}`).join("; ")}` : "Budget signal yo'q",
+      `Yubordi: ${getActorName(req.user)}`
+    ];
+    await createTelegramEventNow(buildPlatformTelegramTitle("📡", "Kunlik workflow digest", "digest"), lines);
+    await logAction(req.user.id, "send_digest", "telegram", null, { month_label: month });
+    res.json({ message: "Workflow digest Telegram guruhga yuborildi", lines });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Workflow digest yuborilmadi: ${err.message}` });
+  }
+});
+
 /* USERS */
 
 app.get("/api/users", authRequired, async (_, res) => {
@@ -4601,6 +4662,15 @@ app.post("/api/daily-reports", authRequired, async (req, res) => {
 
     await createNotification(null, "Yangi hisobot kiritildi", formatDateOnly(report_date), "success");
     await logAction(req.user.id, "create", "daily_branch_reports", inserted.rows[0].id, {});
+    createTelegramEvent(buildPlatformTelegramTitle("рџ“Љ", "Daily report kiritildi", "daily_report"), [
+      "#daily_report #filial",
+      `Sana: ${formatDateOnly(inserted.rows[0].report_date) || "-"}`,
+      `Filial ID: ${inserted.rows[0].branch_id || "-"}`,
+      `Stories: ${inserted.rows[0].stories_count || 0}`,
+      `Post: ${inserted.rows[0].posts_count || 0}`,
+      `Subscriber: ${inserted.rows[0].subscriber_count || 0}`,
+      `Kiritdi: ${getActorName(req.user)}`
+    ]);
 
     res.json(inserted.rows[0]);
   } catch (err) {
@@ -4655,6 +4725,14 @@ app.put("/api/daily-reports/:id", authRequired, async (req, res) => {
     }
 
     await logAction(req.user.id, "update", "daily_branch_reports", Number(req.params.id), {});
+    createTelegramEvent(buildPlatformTelegramTitle("вњЏпёЏ", "Daily report yangilandi", "daily_report"), [
+      "#daily_report #filial",
+      `Sana: ${formatDateOnly(updated.rows[0].report_date) || "-"}`,
+      `Filial ID: ${updated.rows[0].branch_id || "-"}`,
+      `Stories: ${updated.rows[0].stories_count || 0}`,
+      `Post: ${updated.rows[0].posts_count || 0}`,
+      `Yangiladi: ${getActorName(req.user)}`
+    ]);
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
@@ -4664,8 +4742,17 @@ app.put("/api/daily-reports/:id", authRequired, async (req, res) => {
 
 app.delete("/api/daily-reports/:id", authRequired, async (req, res) => {
   try {
-    await query(`DELETE FROM daily_branch_reports WHERE id = $1`, [req.params.id]);
+    const deleted = await query(`DELETE FROM daily_branch_reports WHERE id = $1 RETURNING *`, [req.params.id]);
+    if (!deleted.rows.length) {
+      return res.status(404).json({ message: "Hisobot topilmadi" });
+    }
     await logAction(req.user.id, "delete", "daily_branch_reports", Number(req.params.id), {});
+    createTelegramEvent(buildPlatformTelegramTitle("рџ—‘пёЏ", "Daily report o'chirildi", "daily_report"), [
+      "#daily_report #filial",
+      `Sana: ${formatDateOnly(deleted.rows[0].report_date) || "-"}`,
+      `Filial ID: ${deleted.rows[0].branch_id || "-"}`,
+      `O'chirdi: ${getActorName(req.user)}`
+    ]);
     res.json({ message: "Hisobot oвЂchirildi" });
   } catch (err) {
     console.error(err);
@@ -5196,6 +5283,13 @@ app.put("/api/tasks/:id", authRequired, async (req, res) => {
       "task",
       "/tasks"
     );
+    await createTelegramEvent(buildPlatformTelegramTitle("✏️", "Vazifa yangilandi", "task"), [
+      "#task #reminder",
+      `Vazifa: ${updated.rows[0].title || "-"}`,
+      `Status: ${updated.rows[0].status || "-"}`,
+      `Muddat: ${formatDateOnly(updated.rows[0].due_date) || "ko'rsatilmagan"}`,
+      `Yangiladi: ${getActorName(req.user)}`
+    ]);
     await logAction(req.user.id, "update", "tasks", Number(req.params.id), {});
     res.json(updated.rows[0]);
   } catch (err) {
@@ -5651,6 +5745,16 @@ app.post("/api/expenses", authRequired, async (req, res) => {
     );
 
     await logAction(req.user.id, "create", "expenses", inserted.rows[0].id, { title, amount });
+    createTelegramEvent(buildPlatformTelegramTitle("рџ§ѕ", "Harajat qo'shildi", "finance"), [
+      "#finance #expense #fiskal_chek",
+      `Sana: ${formatDateOnly(inserted.rows[0].expense_date) || "-"}`,
+      `Nomi: ${inserted.rows[0].title || "-"}`,
+      `Kategoriya: ${inserted.rows[0].category || "-"}`,
+      `To'lov: ${inserted.rows[0].payment_type || "-"}`,
+      `Summa: ${formatTelegramMoney(inserted.rows[0].amount)}`,
+      `Kiritdi: ${getActorName(req.user)}`
+    ]);
+    await notifyBudgetOverrunForExpense(inserted.rows[0], getActorName(req.user));
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
@@ -5708,6 +5812,14 @@ app.put("/api/expenses/:id", authRequired, async (req, res) => {
     }
 
     await logAction(req.user.id, "update", "expenses", Number(req.params.id), { title, amount });
+    createTelegramEvent(buildPlatformTelegramTitle("вњЏпёЏ", "Harajat yangilandi", "finance"), [
+      "#finance #expense",
+      `Nomi: ${updated.rows[0].title || "-"}`,
+      `Kategoriya: ${updated.rows[0].category || "-"}`,
+      `Summa: ${formatTelegramMoney(updated.rows[0].amount)}`,
+      `Yangiladi: ${getActorName(req.user)}`
+    ]);
+    await notifyBudgetOverrunForExpense(updated.rows[0], getActorName(req.user));
     res.json(updated.rows[0]);
   } catch (err) {
     console.error(err);
@@ -5717,8 +5829,17 @@ app.put("/api/expenses/:id", authRequired, async (req, res) => {
 
 app.delete("/api/expenses/:id", authRequired, async (req, res) => {
   try {
-    await query(`DELETE FROM expenses WHERE id = $1`, [req.params.id]);
+    const deleted = await query(`DELETE FROM expenses WHERE id = $1 RETURNING *`, [req.params.id]);
+    if (!deleted.rows.length) {
+      return res.status(404).json({ message: "Harajat topilmadi" });
+    }
     await logAction(req.user.id, "delete", "expenses", Number(req.params.id), {});
+    createTelegramEvent(buildPlatformTelegramTitle("рџ—‘пёЏ", "Harajat o'chirildi", "finance"), [
+      "#finance #expense",
+      `Nomi: ${deleted.rows[0].title || "-"}`,
+      `Summa: ${formatTelegramMoney(deleted.rows[0].amount)}`,
+      `O'chirdi: ${getActorName(req.user)}`
+    ]);
     res.json({ message: "Harajat oвЂchirildi" });
   } catch (err) {
     console.error(err);
@@ -5793,6 +5914,13 @@ app.post("/api/contest-expenses", authRequired, async (req, res) => {
       prize_name,
       winner_name
     });
+    createTelegramEvent(buildPlatformTelegramTitle("рџЋЃ", "Konkurs harajati qo'shildi", "finance"), [
+      "#finance #contest_expense",
+      `Konkurs: ${inserted.rows[0].contest_name || "-"}`,
+      `Sovrin: ${inserted.rows[0].prize_name || "-"}`,
+      `G'olib: ${inserted.rows[0].winner_name || "-"}`,
+      `Kiritdi: ${getActorName(req.user)}`
+    ]);
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
@@ -5917,6 +6045,14 @@ app.post("/api/travel-expenses", authRequired, async (req, res) => {
     );
 
     await logAction(req.user.id, "create", "travel_expenses", inserted.rows[0].id, { title, amount });
+    createTelegramEvent(buildPlatformTelegramTitle("рџљђ", "Safar harajati qo'shildi", "finance"), [
+      "#finance #travel_expense #safar",
+      `Sana: ${formatDateOnly(inserted.rows[0].expense_date) || "-"}`,
+      `Nomi: ${inserted.rows[0].title || "-"}`,
+      `Kategoriya: ${inserted.rows[0].category || "-"}`,
+      `Summa: ${formatTelegramMoney(inserted.rows[0].amount)}`,
+      `Kiritdi: ${getActorName(req.user)}`
+    ]);
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
@@ -6352,6 +6488,60 @@ app.get("/api/budgets", authRequired, async (_, res) => {
   }
 });
 
+app.get("/api/finance/month-locks", authRequired, pagePermissionAllowed("expenses"), async (_, res) => {
+  try {
+    const result = await query(
+      `
+      SELECT id, month_label, snapshot_type, created_at, created_by
+      FROM monthly_snapshots
+      WHERE snapshot_type = 'finance_close'
+      ORDER BY month_label DESC, id DESC
+      `
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Finance oy locklarini olib bo'lmadi: ${err.message}` });
+  }
+});
+
+app.post("/api/finance/monthly-close", authRequired, pagePermissionAllowed("expenses"), rolesAllowed("admin", "manager", "director"), async (req, res) => {
+  try {
+    const month = String(req.body?.month_label || getMonthLabel()).trim();
+    const exists = await query(`SELECT id FROM monthly_snapshots WHERE month_label = $1 AND snapshot_type = 'finance_close' LIMIT 1`, [month]);
+    if (exists.rows.length) {
+      return res.status(409).json({ message: "Bu finance oyi allaqachon yopilgan" });
+    }
+    const [expenseRes, budgetRes] = await Promise.all([
+      query(`SELECT COALESCE(SUM(amount),0)::numeric AS total, COUNT(*)::int AS count FROM expenses WHERE to_char(expense_date,'YYYY-MM') = $1`, [month]),
+      query(`SELECT COALESCE(SUM(limit_amount),0)::numeric AS total, COUNT(*)::int AS count FROM budgets WHERE month_label = $1`, [month])
+    ]);
+    const payload = {
+      month_label: month,
+      expense_total: Number(expenseRes.rows[0]?.total || 0),
+      expense_count: Number(expenseRes.rows[0]?.count || 0),
+      budget_total: Number(budgetRes.rows[0]?.total || 0),
+      budget_count: Number(budgetRes.rows[0]?.count || 0)
+    };
+    const inserted = await query(
+      `INSERT INTO monthly_snapshots (month_label, snapshot_type, payload_json, created_by) VALUES ($1,$2,$3,$4) RETURNING *`,
+      [month, "finance_close", JSON.stringify(payload), req.user.id]
+    );
+    await logAction(req.user.id, "monthly_close", "expenses", null, payload);
+    createTelegramEvent(buildPlatformTelegramTitle("🔒", "Finance oyi yopildi", "finance"), [
+      "#finance #monthly_close",
+      `Oy: ${month}`,
+      `Harajat: ${formatTelegramMoney(payload.expense_total)}`,
+      `Budjet: ${formatTelegramMoney(payload.budget_total)}`,
+      `Yopdi: ${getActorName(req.user)}`
+    ]);
+    res.json(inserted.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: `Finance oyini yopib bo'lmadi: ${err.message}` });
+  }
+});
+
 app.post("/api/budgets", authRequired, async (req, res) => {
   try {
     const { month_label, category, limit_amount, notes } = req.body;
@@ -6359,6 +6549,14 @@ app.post("/api/budgets", authRequired, async (req, res) => {
       `INSERT INTO budgets (month_label, category, limit_amount, notes, created_by) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
       [month_label || getMonthLabel(), category || "servis", Number(limit_amount || 0), notes || "", req.user.id]
     );
+    await logAction(req.user.id, "create", "budgets", inserted.rows[0].id, { month_label: inserted.rows[0].month_label, category: inserted.rows[0].category });
+    createTelegramEvent(buildPlatformTelegramTitle("📌", "Budget limit qo'shildi", "finance"), [
+      "#finance #budget",
+      `Oy: ${inserted.rows[0].month_label}`,
+      `Kategoriya: ${inserted.rows[0].category}`,
+      `Limit: ${formatTelegramMoney(inserted.rows[0].limit_amount)}`,
+      `Kiritdi: ${getActorName(req.user)}`
+    ]);
     res.json(inserted.rows[0]);
   } catch (err) {
     console.error(err);
@@ -6373,6 +6571,16 @@ app.put("/api/budgets/:id", authRequired, async (req, res) => {
       `UPDATE budgets SET month_label=$1, category=$2, limit_amount=$3, notes=$4, updated_at=CURRENT_TIMESTAMP WHERE id=$5 RETURNING *`,
       [month_label || getMonthLabel(), category || "servis", Number(limit_amount || 0), notes || "", req.params.id]
     );
+    if (updated.rows[0]) {
+      await logAction(req.user.id, "update", "budgets", Number(req.params.id), { month_label: updated.rows[0].month_label, category: updated.rows[0].category });
+      createTelegramEvent(buildPlatformTelegramTitle("✏️", "Budget limit yangilandi", "finance"), [
+        "#finance #budget",
+        `Oy: ${updated.rows[0].month_label}`,
+        `Kategoriya: ${updated.rows[0].category}`,
+        `Limit: ${formatTelegramMoney(updated.rows[0].limit_amount)}`,
+        `Yangiladi: ${getActorName(req.user)}`
+      ]);
+    }
     res.json(updated.rows[0] || null);
   } catch (err) {
     console.error(err);
@@ -6382,7 +6590,17 @@ app.put("/api/budgets/:id", authRequired, async (req, res) => {
 
 app.delete("/api/budgets/:id", authRequired, async (req, res) => {
   try {
-    await query(`DELETE FROM budgets WHERE id = $1`, [req.params.id]);
+    const deleted = await query(`DELETE FROM budgets WHERE id = $1 RETURNING *`, [req.params.id]);
+    if (!deleted.rows.length) {
+      return res.status(404).json({ message: "Budjet topilmadi" });
+    }
+    await logAction(req.user.id, "delete", "budgets", Number(req.params.id), {});
+    createTelegramEvent(buildPlatformTelegramTitle("🗑️", "Budget limit o'chirildi", "finance"), [
+      "#finance #budget",
+      `Oy: ${deleted.rows[0].month_label}`,
+      `Kategoriya: ${deleted.rows[0].category}`,
+      `O'chirdi: ${getActorName(req.user)}`
+    ]);
     res.json({ message: "Budjet o'chirildi" });
   } catch (err) {
     console.error(err);
@@ -6796,6 +7014,57 @@ app.post("/api/ai/assist", authRequired, async (req, res) => {
     const clean = String(prompt || "").trim();
     const branch = branch_name ? ` ${branch_name}` : "";
     const type = content_type ? ` ${content_type}` : "";
+    const month = getMonthLabel();
+    const today = formatDateOnly(new Date());
+    const [deadlineRes, taskRes, bonusRes, expenseRes, budgetRes, branchRes] = await Promise.all([
+      query(`SELECT COUNT(*)::int AS count FROM content_items WHERE publish_date IS NOT NULL AND publish_date <= CURRENT_DATE AND status NOT IN ('yakunlandi','joylangan','published','archived')`),
+      query(`SELECT COUNT(*)::int AS overdue, COUNT(*) FILTER (WHERE due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 day')::int AS due_soon FROM tasks WHERE status <> 'done'`),
+      query(`SELECT COALESCE(SUM(total_amount),0)::numeric AS total, COUNT(*)::int AS count FROM bonus_items WHERE month_label = $1 AND paid_status <> 'paid'`, [month]),
+      query(`SELECT COALESCE(SUM(amount),0)::numeric AS total, COUNT(*)::int AS count FROM expenses WHERE to_char(expense_date,'YYYY-MM') = $1`, [month]),
+      query(`
+        SELECT b.category, b.limit_amount, COALESCE(SUM(e.amount),0)::numeric AS actual
+        FROM budgets b
+        LEFT JOIN expenses e ON e.category = b.category AND to_char(e.expense_date,'YYYY-MM') = b.month_label
+        WHERE b.month_label = $1
+        GROUP BY b.id, b.category, b.limit_amount
+        HAVING COALESCE(SUM(e.amount),0) > b.limit_amount
+        ORDER BY actual DESC
+      `, [month]),
+      query(`
+        SELECT b.name, COALESCE(SUM(d.stories_count + d.posts_count),0)::int AS score
+        FROM branches b
+        LEFT JOIN daily_branch_reports d ON d.branch_id = b.id AND d.report_date >= CURRENT_DATE - INTERVAL '7 day'
+        GROUP BY b.id, b.name
+        ORDER BY score ASC, b.name ASC
+        LIMIT 3
+      `)
+    ]);
+    const context = {
+      today,
+      month,
+      content_deadline_risk: Number(deadlineRes.rows[0]?.count || 0),
+      overdue_tasks: Number(taskRes.rows[0]?.overdue || 0),
+      due_soon_tasks: Number(taskRes.rows[0]?.due_soon || 0),
+      pending_bonus_count: Number(bonusRes.rows[0]?.count || 0),
+      pending_bonus_total: Number(bonusRes.rows[0]?.total || 0),
+      expense_count: Number(expenseRes.rows[0]?.count || 0),
+      expense_total: Number(expenseRes.rows[0]?.total || 0),
+      budget_overruns: budgetRes.rows,
+      weak_branches: branchRes.rows
+    };
+    const todaySummary = [
+      `Bugun (${today}) muhim signallar:`,
+      `- Kontent deadline risk: ${context.content_deadline_risk} ta`,
+      `- Kechikkan vazifa: ${context.overdue_tasks} ta, yaqin muddat: ${context.due_soon_tasks} ta`,
+      `- Payroll pending: ${context.pending_bonus_count} yozuv / ${formatTelegramMoney(context.pending_bonus_total)}`,
+      `- Finance sarf: ${formatTelegramMoney(context.expense_total)} (${context.expense_count} yozuv)`,
+      context.budget_overruns.length
+        ? `- Budget oshgan: ${context.budget_overruns.map((item) => `${item.category} ${formatTelegramMoney(item.actual)} / ${formatTelegramMoney(item.limit_amount)}`).join("; ")}`
+        : "- Budget overrun yo'q",
+      context.weak_branches.length
+        ? `- Sust filiallar: ${context.weak_branches.map((item) => `${item.name} (${item.score})`).join(", ")}`
+        : "- Filial signal yo'q"
+    ].join("\n");
     const templates = {
       title: `Bugungi${branch}${type} uchun jalb qiluvchi sarlavha: "${clean || "Yangi kontent"}"`,
       caption: `${branch || "Brend"} uchun qisqa caption:\n1. E'tiborli kirish\n2. Foydali asosiy gap\n3. Kuchli CTA`,
@@ -6803,9 +7072,13 @@ app.post("/api/ai/assist", authRequired, async (req, res) => {
       ideas: `Kontent g'oyalari:\n- Mijoz hikoyasi\n- Filial ichki lavhasi\n- Oldin/keyin format\n- Top 3 maslahat\n- Trendga mos reels`,
       hook: `Hook variantlari:\n- Birinchi 3 soniyada diqqatni ushlaydigan savol\n- Kutilmagan natija bilan kirish\n- "Buni ko'pchilik bilmaydi" usuli`,
       cta: `CTA variantlari:\n- Hozir yozib qoldiring\n- Filialga tashrif buyuring\n- Batafsil ma'lumot uchun DM qiling`,
-      plan: `Kontent plan:\n1. Dushanba - product reels\n2. Chorshanba - branch backstage\n3. Juma - aksiya post\n4. Shanba - customer feedback story`
+      plan: todaySummary
     };
-    res.json({ mode: mode || "ideas", output: templates[mode || "ideas"] || templates.ideas });
+    const selectedMode = mode || "ideas";
+    const output = clean.toLowerCase().includes("bugun") || selectedMode === "today"
+      ? todaySummary
+      : templates[selectedMode] || templates.ideas;
+    res.json({ mode: selectedMode, output, context });
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: `AI yordamchi javob qaytara olmadi: ${err.message}` });
@@ -7132,6 +7405,48 @@ app.get("/api/export/campaigns.xlsx", authRequired, async (_, res) => {
   }
 });
 
+app.get("/api/export/expenses.xlsx", authRequired, pagePermissionAllowed("expenses"), async (req, res) => {
+  try {
+    const month = String(req.query.month || "").trim();
+    const params = [];
+    const monthWhere = month ? `WHERE to_char(expense_date, 'YYYY-MM') = $1` : "";
+    if (month) params.push(month);
+    const rows = (
+      await query(
+        `
+        SELECT
+          expense_date,
+          title,
+          vendor_name,
+          card_holder,
+          amount,
+          currency,
+          category,
+          payment_type,
+          notes
+        FROM expenses
+        ${monthWhere}
+        ORDER BY expense_date DESC NULLS LAST, id DESC
+        `,
+        params
+      )
+    ).rows;
+
+    await logAction(req.user.id, "export", "expenses", null, { month_label: month || "all", export_type: "xlsx" });
+    createTelegramEvent(buildPlatformTelegramTitle("рџ“¤", "Finance Excel export", "finance"), [
+      "#finance #expenses #export",
+      `рџ“… Oy: ${month || "all"}`,
+      `рџ§ѕ Yozuvlar: ${rows.length}`,
+      `рџ‘ЁвЂЌрџ’ј Export qildi: ${getActorName(req.user)}`
+    ]);
+
+    await sendExcel(res, rows, `expenses-${month || "all"}.xlsx`, "Expenses");
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Harajat Excel export xatoligi" });
+  }
+});
+
 app.get("/api/export/daily-reports.pdf", authRequired, async (_, res) => {
   try {
     const rows = (
@@ -7153,6 +7468,46 @@ app.get("/api/export/daily-reports.pdf", authRequired, async (_, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Export xatoligi" });
+  }
+});
+
+app.get("/api/export/expenses.pdf", authRequired, pagePermissionAllowed("expenses"), async (req, res) => {
+  try {
+    const month = String(req.query.month || "").trim();
+    const params = [];
+    const monthWhere = month ? `WHERE to_char(expense_date, 'YYYY-MM') = $1` : "";
+    if (month) params.push(month);
+    const rows = (
+      await query(
+        `
+        SELECT
+          expense_date,
+          title,
+          vendor_name,
+          category,
+          payment_type,
+          amount,
+          currency
+        FROM expenses
+        ${monthWhere}
+        ORDER BY expense_date DESC NULLS LAST, id DESC
+        `,
+        params
+      )
+    ).rows;
+
+    await logAction(req.user.id, "export", "expenses", null, { month_label: month || "all", export_type: "pdf" });
+    createTelegramEvent(buildPlatformTelegramTitle("рџ“¤", "Finance PDF export", "finance"), [
+      "#finance #expenses #export",
+      `рџ“… Oy: ${month || "all"}`,
+      `рџ§ѕ Yozuvlar: ${rows.length}`,
+      `рџ‘ЁвЂЌрџ’ј Export qildi: ${getActorName(req.user)}`
+    ]);
+
+    sendSimplePdf(res, `Aloo SMM finance markazi ${month || ""}`.trim(), rows, `expenses-${month || "all"}.pdf`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Harajat PDF export xatoligi" });
   }
 });
 

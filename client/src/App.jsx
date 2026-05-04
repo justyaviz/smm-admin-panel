@@ -52,6 +52,7 @@ import { applySeo } from "./seo";
 import ContestExpensesPanel from "./ContestExpensesPanel";
 import DailyReportImageImportPanel from "./DailyReportImageImportPanel";
 import TravelExpensesPanel from "./TravelExpensesPanel";
+import { DESIGN_SYSTEM_VERSION, buttonVariants, statusBadgeTone } from "./design-system";
 
 const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: LayoutDashboard, tone: "indigo" },
@@ -177,6 +178,14 @@ const PERMISSION_OPTIONS = [
 
 const DIRECTOR_PERMISSION_PRESET = PERMISSION_OPTIONS.map((item) => item.id);
 
+const ROLE_WORKSPACE_PRESETS = {
+  director: ["dashboard", "expenses", "analytics", "dailyReports", "aiAssistant", "profile"],
+  manager: ["dashboard", "content", "tasks", "campaigns", "dailyReports", "aiAssistant", "profile"],
+  editor: ["dashboard", "tasks", "uploads", "content", "aiAssistant", "profile"],
+  mobilograf: ["dashboard", "travelPlans", "tasks", "content", "uploads", "profile"],
+  viewer: ["dashboard", "content", "bonus", "expenses", "travelPlans", "dailyReports", "profile"]
+};
+
 const UZBEKISTAN_REGIONS = [
   "Toshkent shahri",
   "Toshkent viloyati",
@@ -201,7 +210,7 @@ function isLeadershipRole(role) {
 function getRolePreset(role) {
   if (role === "director") {
     return {
-      department_role: "Rahbar",
+      department_role: "Director",
       permissions_json: DIRECTOR_PERMISSION_PRESET
     };
   }
@@ -210,7 +219,7 @@ function getRolePreset(role) {
 }
 
 function formatRoleLabel(role) {
-  if (role === "director") return "rahbar";
+  if (role === "director") return "director";
   return role || "-";
 }
 
@@ -877,7 +886,7 @@ function approvalStatusMeta(status, kind = "content") {
   const normalized = String(status || "").toLowerCase();
   const contentMap = {
     reja: { label: "Reja", tone: "todo" },
-    tasdiqlandi: { label: "Tasdiqlandi", tone: "warning" },
+    tasdiqlandi: { label: "Workflow", tone: "warning" },
     jarayonda: { label: "Jarayonda", tone: "doing" },
     tayyorlanmoqda: { label: "Jarayonda", tone: "doing" },
     tayyor: { label: "Jarayonda", tone: "doing" },
@@ -890,7 +899,7 @@ function approvalStatusMeta(status, kind = "content") {
   };
   const travelMap = {
     reja: { label: "Reja", tone: "todo" },
-    tasdiqlandi: { label: "Tasdiqlandi", tone: "warning" },
+    tasdiqlandi: { label: "Workflow", tone: "warning" },
     jarayonda: { label: "Jarayonda", tone: "doing" },
     tasvirga_olindi: { label: "Jarayonda", tone: "doing" },
     yakunlandi: { label: "Yakunlandi", tone: "done" },
@@ -1039,6 +1048,7 @@ function canAccessPage(user, pageKey) {
 
 function canDoAction(user, pageKey, action) {
   if (user?.role === "admin") return true;
+  if (user?.role === "viewer") return false;
   return hasPermission(user, `${pageKey}_${action}`);
 }
 
@@ -1126,6 +1136,48 @@ function contentTypeChipTone(value) {
   return "default";
 }
 
+function getDeadlineRisk(row = {}) {
+  const deadline = formatDate(row.publish_date || row.deadline_date || row.plan_date);
+  const done = ["yakunlandi", "joylangan", "paid", "published", "archived"].includes(String(row.status || row.paid_status || ""));
+  if (deadline === "-" || done) return { tone: "success", label: done ? "Yakunlangan" : "Muddat yo'q" };
+  const today = new Date(`${formatDate(new Date())}T00:00:00`);
+  const date = new Date(`${deadline}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return { tone: "default", label: "Muddat yo'q" };
+  const days = Math.ceil((date - today) / 86400000);
+  if (days < 0) return { tone: "danger", label: `${Math.abs(days)} kun kechikdi` };
+  if (days === 0) return { tone: "warning", label: "Bugun deadline" };
+  if (days <= 3) return { tone: "warning", label: `${days} kun qoldi` };
+  return { tone: "success", label: `${days} kun qoldi` };
+}
+
+function DeadlineRiskPill({ row }) {
+  const risk = getDeadlineRisk(row);
+  return <span className={`deadline-risk-pill ${risk.tone}`}>{risk.label}</span>;
+}
+
+function ContentStatusStepper({ status }) {
+  const steps = [
+    { id: "reja", label: "Reja" },
+    { id: "tasdiqlandi", label: "Workflow" },
+    { id: "jarayonda", label: "Ishda" },
+    { id: "qayta_ishlash", label: "Revizion" },
+    { id: "yakunlandi", label: "Yakun" }
+  ];
+  const normalized = ["tayyorlanmoqda", "tayyor"].includes(status) ? "jarayonda" : status === "joylangan" ? "yakunlandi" : status;
+  const activeIndex = Math.max(0, steps.findIndex((step) => step.id === normalized));
+
+  return (
+    <div className="content-status-stepper">
+      {steps.map((step, index) => (
+        <span key={step.id} className={index <= activeIndex ? "active" : ""}>
+          <i />
+          {step.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function PlatformBadge({ platform }) {
   const normalized = String(platform || "").toLowerCase();
   const Icon = normalized.includes("telegram")
@@ -1187,6 +1239,7 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
   const [selectedRole, setSelectedRole] = useState("manager");
   const [selectedUserId, setSelectedUserId] = useState("");
   const [loginOptions, setLoginOptions] = useState([]);
+  const [loginStep, setLoginStep] = useState("phone");
   const [loading, setLoading] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
   const [error, setError] = useState("");
@@ -1198,6 +1251,12 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
     { id: "telegram", label: "Telefon", hint: "Telegram bot kodi", icon: Bot },
     { id: "password", label: "Parol", hint: "Login yoki telefon", icon: ShieldCheck },
     { id: "pin", label: "Lavozim", hint: "4 xonali kod", icon: ContactRound }
+  ];
+  const telegramSteps = [
+    { id: "phone", label: "Raqam" },
+    { id: "sent", label: "Kod yuborildi" },
+    { id: "verify", label: "Tekshirish" },
+    { id: "done", label: "Kirish" }
   ];
   const pinUsers = useMemo(
     () => loginOptions.filter((item) => String(item.role || "").toLowerCase() === String(selectedRole || "").toLowerCase()),
@@ -1227,6 +1286,7 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
   useEffect(() => {
     setError("");
     setNotice("");
+    setLoginStep("phone");
   }, [loginMode]);
 
   async function submit(e) {
@@ -1236,7 +1296,9 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
       setError("");
       setNotice("");
       if (loginMode === "telegram") {
+        setLoginStep("verify");
         const data = await api.verifyTelegramCode({ phone, code: otpCode });
+        setLoginStep("done");
         const me = await api.me().catch(() => ({ user: data?.user }));
         onLoggedIn(me.user || data?.user);
         return;
@@ -1271,6 +1333,7 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
       setError("");
       setNotice("");
       const data = await api.requestTelegramCode({ phone });
+      setLoginStep("sent");
       setNotice(data?.message || "Kod yuborildi");
     } catch (err) {
       setError(err.message || "Kod yuborilmadi");
@@ -1290,9 +1353,9 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
               <span>{platformLabel}</span>
             </div>
           </div>
-          <div className="brand-kicker">Professional admin panel</div>
-          <h1>SMM boshqaruv tizimi</h1>
-          <p>Kontent, bonus va jamoa jarayonlari uchun toza, tez va yengil ish muhiti.</p>
+          <div className="brand-kicker">Aloo SMM Operating System {DESIGN_SYSTEM_VERSION}</div>
+          <h1>Command center kirish oynasi</h1>
+          <p>Kontent studio, payroll, finance va AI signallar bitta professional ish muhitida.</p>
           <div className="login-public-nav">
             <a href="/platforma/">Platforma</a>
             <a href="/filiallar/">Filiallar</a>
@@ -1300,8 +1363,24 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
           </div>
           <div className="login-status-row compact">
             <span className="login-status-pill">Light UI</span>
-            <span className="login-status-pill">Tez kirish</span>
-            <span className="login-status-pill">Jamoa nazorati</span>
+            <span className="login-status-pill">Telegram secure</span>
+            <span className="login-status-pill">Role workspace</span>
+          </div>
+          <div className="login-command-preview">
+            <div className="login-command-top">
+              <span>Live platform preview</span>
+              <strong>OS 9.0</strong>
+            </div>
+            <div className="login-preview-metrics">
+              <div><span>Kontent ritmi</span><strong>82%</strong></div>
+              <div><span>Payroll ready</span><strong>12</strong></div>
+              <div><span>Finance signal</span><strong>3</strong></div>
+            </div>
+            <div className="login-preview-flow">
+              {["Studio", "MySeOne", "Finance", "AI signal"].map((item, index) => (
+                <span key={item} className={index === 1 ? "active" : ""}>{item}</span>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -1319,7 +1398,7 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
             </div>
           </div>
           <div className="login-title">Tizimga kirish</div>
-          <div className="login-subtitle">Yuqoridan kirish turini tanlang.</div>
+          <div className="login-subtitle">Kirish turini tanlang va ishchi workspace oching.</div>
 
           <div className="login-mode-switch">
             {loginModes.map((mode) => {
@@ -1342,6 +1421,20 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
           </div>
 
           {loginMode === "telegram" ? (
+            <div className="login-progress-steps">
+              {telegramSteps.map((step, index) => {
+                const activeIndex = telegramSteps.findIndex((item) => item.id === loginStep);
+                return (
+                  <span key={step.id} className={index <= activeIndex ? "active" : ""}>
+                    <i>{index + 1}</i>
+                    {step.label}
+                  </span>
+                );
+              })}
+            </div>
+          ) : null}
+
+          {loginMode === "telegram" ? (
             <div className="login-mode-panel">
               <label>
                 <span>Telefon raqam</span>
@@ -1356,7 +1449,11 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
                   <span>Bir martalik kod</span>
                   <input
                     value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value.replace(/\D+/g, "").slice(0, 6))}
+                    onChange={(e) => {
+                      const nextCode = e.target.value.replace(/\D+/g, "").slice(0, 6);
+                      setOtpCode(nextCode);
+                      setLoginStep(nextCode ? "verify" : "sent");
+                    }}
                     placeholder="6 xonali kod"
                   />
                 </label>
@@ -1396,7 +1493,7 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
                 <span>Lavozim</span>
                 <select value={selectedRole} onChange={(e) => setSelectedRole(e.target.value)}>
                   <option value="manager">manager</option>
-                  <option value="director">rahbar</option>
+                  <option value="director">director</option>
                   <option value="editor">editor</option>
                   <option value="mobilograf">mobilograf</option>
                   <option value="viewer">viewer</option>
@@ -1452,12 +1549,97 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
   );
 }
 
-function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], contentRows = [], campaigns = [], travelPlans = [], user = null }) {
+function RoleWorkspacePanel({ role = "", summary = {}, contentRows = [], bonusItems = [], expenses = [], tasks = [], uploads = [], travelPlans = [], campaigns = [] }) {
+  const normalizedRole = String(role || "viewer").toLowerCase();
+  const currentMonth = getMonthLabel();
+  const monthExpenses = (expenses || []).filter((item) => formatDate(item.expense_date).startsWith(currentMonth));
+  const monthBonus = (bonusItems || []).filter((item) => (item.month_label || formatDate(item.work_date).slice(0, 7)) === currentMonth);
+  const pendingTasks = (tasks || []).filter((item) => item.status !== "done");
+  const overdueContent = (contentRows || []).filter((item) => getDeadlineRisk(item).tone === "danger");
+  const roleConfigs = {
+    director: {
+      eyebrow: "Director workspace",
+      title: "Finance, KPI va signal markazi",
+      desc: "Pul oqimi, filial ritmi va risk signallari bitta ekranda.",
+      cards: [
+        { label: "Oylik harajat", value: formatMoney(monthExpenses.reduce((sum, item) => sum + Number(item.amount || 0), 0)), tone: "danger" },
+        { label: "Budget signal", value: summary?.budget_alerts?.filter((item) => item.exceeded).length || 0, tone: "warning" },
+        { label: "Faol target", value: (campaigns || []).filter((item) => !["done", "yakunlandi"].includes(String(item.status || ""))).length, tone: "info" },
+        { label: "Smart signal", value: summary?.smart_alerts?.length || 0, tone: "success" }
+      ]
+    },
+    manager: {
+      eyebrow: "Manager workspace",
+      title: "Studio, vazifa va workflow",
+      desc: "Kontent reja, vazifalar va deadline risklari manager uchun jamlandi.",
+      cards: [
+        { label: "Kontent reja", value: contentRows.length, tone: "info" },
+        { label: "Deadline risk", value: overdueContent.length, tone: overdueContent.length ? "danger" : "success" },
+        { label: "Ochiq vazifa", value: pendingTasks.length, tone: "warning" },
+        { label: "Workflow", value: contentRows.filter((item) => item.status === "tasdiqlandi").length, tone: "success" }
+      ]
+    },
+    editor: {
+      eyebrow: "Editor workspace",
+      title: "Vazifa, fayl va montaj navbati",
+      desc: "Editor uchun topshiriqlar, fayl kutubxonasi va kontent pipeline alohida ko'rinadi.",
+      cards: [
+        { label: "Ochiq vazifa", value: pendingTasks.length, tone: "warning" },
+        { label: "Media fayl", value: uploads.length, tone: "info" },
+        { label: "Qayta ishlash", value: contentRows.filter((item) => item.status === "qayta_ishlash").length, tone: "danger" },
+        { label: "Yakunlangan", value: contentRows.filter((item) => ["yakunlandi", "joylangan"].includes(item.status)).length, tone: "success" }
+      ]
+    },
+    mobilograf: {
+      eyebrow: "Mobilograf workspace",
+      title: "Safar, suratga olish va kontent topshiriq",
+      desc: "Safar rejasi, deadline va media topshiriqlar mobilograf uchun qisqartirildi.",
+      cards: [
+        { label: "Safar reja", value: travelPlans.length, tone: "info" },
+        { label: "Jarayonda", value: travelPlans.filter((item) => ["jarayonda", "tasvirga_olindi"].includes(item.status)).length, tone: "warning" },
+        { label: "Deadline risk", value: overdueContent.length, tone: overdueContent.length ? "danger" : "success" },
+        { label: "Media fayl", value: uploads.length, tone: "success" }
+      ]
+    },
+    viewer: {
+      eyebrow: "Viewer workspace",
+      title: "Faqat kuzatish rejimi",
+      desc: "Ma'lumotlarni ko'rish mumkin, yaratish va tahrirlash actionlari yopiq.",
+      cards: [
+        { label: "Kontent", value: contentRows.length, tone: "info" },
+        { label: "Bonus", value: monthBonus.length, tone: "success" },
+        { label: "Harajat", value: monthExpenses.length, tone: "warning" },
+        { label: "Hisobot", value: summary?.today_report_count || 0, tone: "default" }
+      ]
+    }
+  };
+  const config = roleConfigs[normalizedRole] || roleConfigs.viewer;
+
+  return (
+    <div className={`role-workspace-panel role-${normalizedRole}`}>
+      <div className="role-workspace-copy">
+        <span className="small-label">{config.eyebrow}</span>
+        <h2>{config.title}</h2>
+        <p>{config.desc}</p>
+      </div>
+      <div className="role-workspace-grid">
+        {config.cards.map((item) => (
+          <div key={item.label} className={`role-workspace-card ${item.tone}`}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], contentRows = [], campaigns = [], travelPlans = [], tasks = [], uploads = [], expenses = [], user = null }) {
   const currentMonth = getMonthLabel();
   const roleLabelMap = {
     admin: "Admin boshqaruv paneli",
     manager: "Manager nazorat paneli",
-    director: "Rahbar nazorat paneli",
+    director: "Director command center",
     mobilograf: "Mobilograf ish maydoni",
     editor: "Editor ish maydoni",
     viewer: "Kuzatuv paneli"
@@ -1467,7 +1649,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
     user?.role === "mobilograf"
       ? "Bugungi vazifalar, safar rejalari va kontent topshiriqlari bir joyda."
       : user?.role === "editor"
-        ? "Tasdiqlash, montaj va kontent jarayonlarini bir ekranda kuzating."
+        ? "Workflow, montaj va kontent jarayonlarini bir ekranda kuzating."
         : "Kontent reja, bonus, filial hisobotlari va media boshqaruvi bitta joyda.";
   const todayKey = formatDate(new Date());
 
@@ -1497,7 +1679,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   });
   const contentSeries = [
     { label: "Reja", value: thisMonthContent.filter((r) => r.status === "reja").length },
-    { label: "Tasdiqlandi", value: thisMonthContent.filter((r) => r.status === "tasdiqlandi").length },
+    { label: "Workflow", value: thisMonthContent.filter((r) => r.status === "tasdiqlandi").length },
     { label: "Jarayonda", value: thisMonthContent.filter((r) => ["tayyorlanmoqda", "jarayonda"].includes(r.status)).length },
     { label: "Yakunlandi", value: thisMonthContent.filter((r) => ["joylangan", "yakunlandi"].includes(r.status)).length }
   ];
@@ -1526,7 +1708,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   }, {})).sort((a, b) => b.score - a.score).slice(0, 5);
   const travelWorkflow = [
     { label: "Reja", value: (travelPlans || []).filter((item) => item.status === "reja").length },
-    { label: "Tasdiqlandi", value: (travelPlans || []).filter((item) => item.status === "tasdiqlandi").length },
+    { label: "Workflow", value: (travelPlans || []).filter((item) => item.status === "tasdiqlandi").length },
     { label: "Jarayonda", value: (travelPlans || []).filter((item) => ["jarayonda", "tasvirga_olindi"].includes(item.status)).length },
     { label: "Yakunlandi", value: (travelPlans || []).filter((item) => item.status === "yakunlandi").length }
   ];
@@ -1541,7 +1723,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
     const endTime = getDateSortValue(item.end_at || item.end_date, Number.POSITIVE_INFINITY);
     return endTime >= Date.now();
   }).length;
-  const approvalSlaBreaches = [...(contentRows || []), ...(travelPlans || [])].filter((row) => {
+  const workflowSlaBreaches = [...(contentRows || []), ...(travelPlans || [])].filter((row) => {
     const status = String(row.status || "");
     if (["tasdiqlandi", "yakunlandi", "joylangan", "published", "approved", "archived"].includes(status)) return false;
     const createdAt = new Date(row.created_at || row.plan_date || row.publish_date || Date.now());
@@ -1570,7 +1752,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
         (
           progress +
           Number(summary?.daily_task_progress || 0) +
-          Math.max(0, 100 - (approvalSlaBreaches * 5))
+          Math.max(0, 100 - (workflowSlaBreaches * 5))
         ) / 3
       )
     )
@@ -1603,12 +1785,12 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
       title: "Operatsion pulse",
       numericValue: overallPulse,
       format: (next) => `${Math.round(next)}%`,
-      hint: "kontent, vazifa va approval tezligi",
+      hint: "kontent, vazifa va workflow tezligi",
       tone: overallPulse >= 75 ? "success" : overallPulse >= 45 ? "warning" : "danger",
       spark: [
         progress,
         Number(summary?.daily_task_progress || 0),
-        Math.max(10, 100 - (approvalSlaBreaches * 6)),
+        Math.max(10, 100 - (workflowSlaBreaches * 6)),
         Math.min(100, ((summary?.today_report_count || 0) * 20) || 10),
         Math.min(100, activeCampaigns * 18 || 10),
         Math.min(100, travelWorkflow[1].value * 18 || 10)
@@ -1678,13 +1860,13 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
       spark: spendSeries.map((item) => item.amount)
     },
     {
-      title: "Approval SLA",
-      numericValue: approvalSlaBreaches,
+      title: "Workflow SLA",
+      numericValue: workflowSlaBreaches,
       format: (next) => Math.round(next),
       hint: "48 soatdan oshgan jarayonlar",
-      tone: approvalSlaBreaches > 0 ? "danger" : "success",
+      tone: workflowSlaBreaches > 0 ? "danger" : "success",
       spark: [
-        approvalSlaBreaches,
+        workflowSlaBreaches,
         contentSeries[0].value,
         contentSeries[2].value,
         travelWorkflow[0].value,
@@ -1732,7 +1914,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
             <div className="dashboard-side-card">
               <span>Safar</span>
               <strong><AnimatedNumber value={travelWorkflow[1].value} format={(next) => Math.round(next)} /></strong>
-              <small>tasdiqlangan safar rejasi</small>
+              <small>workflowdan o'tgan safar rejasi</small>
             </div>
             <div className="dashboard-side-card">
               <span>Reklama</span>
@@ -1742,6 +1924,18 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
           </div>
         </div>
       </div>
+
+      <RoleWorkspacePanel
+        role={user?.role}
+        summary={summary}
+        contentRows={contentRows}
+        bonusItems={bonusItems}
+        expenses={expenses}
+        tasks={tasks}
+        uploads={uploads}
+        travelPlans={travelPlans}
+        campaigns={campaigns}
+      />
 
       <div className="dashboard-metrics-grid">
         {primaryMetrics.map((item) => (
@@ -1792,8 +1986,8 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
                 <strong>{summary?.daily_task_progress || 0}%</strong>
               </div>
               <div className="dashboard-focus-item">
-                <span>Approval SLA</span>
-                <strong>{approvalSlaBreaches}</strong>
+                <span>Workflow SLA</span>
+                <strong>{workflowSlaBreaches}</strong>
               </div>
               <div className="dashboard-focus-item">
                 <span>Bugungi hisobot</span>
@@ -1938,13 +2132,13 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
 
       <DashboardDisclosure
         title="Workflow va eksportlar"
-        desc="Tasdiqlash oqimlari va tezkor eksport markazi"
+        desc="Workflow oqimlari va tezkor eksport markazi"
         badge={`${summary?.task_count || 0} vazifa`}
         defaultOpen={false}
       >
         <div className="dashboard-fold-columns">
           <div className="card dashboard-nested-card">
-            <SectionTitle title="Kontent approval workflow" desc="Kontent statuslarining joriy holati" />
+            <SectionTitle title="Kontent studio workflow" desc="Kontent statuslarining joriy holati" />
             <div className="quick-list">
               {contentSeries.map((item) => (
                 <div key={item.label} className="quick-item">
@@ -1956,7 +2150,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
           </div>
 
           <div className="card dashboard-nested-card">
-            <SectionTitle title="Safar approval workflow" desc="Safar rejalari oqimi" />
+            <SectionTitle title="Safar workflow" desc="Safar rejalari oqimi" />
             <div className="quick-list">
               {travelWorkflow.map((item) => (
                 <div key={item.label} className="quick-item">
@@ -1995,6 +2189,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
   const [viewMode, setViewMode] = useState("table");
   const [calendarPlatformFilter, setCalendarPlatformFilter] = useState("all");
   const [calendarBranchFilter, setCalendarBranchFilter] = useState("all");
+  const [bulkStatus, setBulkStatus] = useState("jarayonda");
 
   const emptyForm = {
     title: "",
@@ -2053,7 +2248,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
   const overdueRows = deadlineRows.filter((item) => !item.isDone && Number(item.daysLeft) < 0);
   const todayRows = deadlineRows.filter((item) => !item.isDone && Number(item.daysLeft) === 0);
   const upcomingRows = deadlineRows.filter((item) => !item.isDone && Number(item.daysLeft) > 0 && Number(item.daysLeft) <= 3);
-  const approvalHistoryRows = [...rows]
+  const workflowHistoryRows = [...rows]
     .filter((item) => item.status || item.approval_comment)
     .sort((a, b) => new Date(b.updated_at || b.created_at || b.publish_date || 0) - new Date(a.updated_at || a.created_at || a.publish_date || 0))
     .slice(0, 6);
@@ -2278,6 +2473,28 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     }
   }
 
+  async function bulkUpdateVisibleStatus() {
+    if (!canEditContent) {
+      onToast("Sizda kontentni bulk tahrirlash ruxsati yo'q", "error");
+      return;
+    }
+    const ids = visibleRows.map((row) => Number(row.id)).filter(Boolean);
+    if (!ids.length) {
+      onToast("Bulk update uchun yozuv topilmadi", "error");
+      return;
+    }
+    const ok = window.confirm(`${ids.length} ta ko'rinayotgan kontent statusini "${formatApprovalStatus(bulkStatus)}" qilamizmi?`);
+    if (!ok) return;
+    try {
+      await api.create("content/batch-update", { ids, updates: { status: bulkStatus } });
+      await loadMonth(selectedMonth);
+      await reload();
+      onToast("Kontent bulk status yangilandi", "success", { center: true });
+    } catch (err) {
+      onToast(err.message || "Bulk status yangilanmadi", "error");
+    }
+  }
+
   return (
     <div className="page-grid content-page-modern">
       <div className="card content-modern-card content-form-card">
@@ -2353,17 +2570,17 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
           </div>
           <div className="content-control-panel">
             <div className="content-control-head">
-              <strong>Approval tarixi</strong>
+              <strong>Workflow tarixi</strong>
               <span>so'nggi 6</span>
             </div>
             <div className="approval-history-mini">
-              {approvalHistoryRows.length ? approvalHistoryRows.map((item) => (
+              {workflowHistoryRows.length ? workflowHistoryRows.map((item) => (
                 <button key={`approval-history-${item.id}`} type="button" onClick={() => setViewRow(item)}>
                   <span className={approvalStatusClass(item.status)}>{formatApprovalStatus(item.status)}</span>
                   <strong>{item.title}</strong>
                   <small>{item.approval_comment || formatDateTime(item.updated_at || item.created_at)}</small>
                 </button>
-              )) : <div className="empty-block">Approval tarixi hali yo'q</div>}
+              )) : <div className="empty-block">Workflow tarixi hali yo'q</div>}
             </div>
           </div>
         </div>
@@ -2377,7 +2594,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
             <span>Holati</span>
             <select value={form.status} onChange={(e) => setField("status", e.target.value)} disabled={formLocked}>
               <option value="reja">Reja</option>
-              <option value="tasdiqlandi">Tasdiqlandi</option>
+              <option value="tasdiqlandi">Workflow</option>
               <option value="jarayonda">Jarayonda</option>
               <option value="qayta_ishlash">Qayta ishlash</option>
               <option value="rad_etildi">Rad etildi</option>
@@ -2471,7 +2688,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                   ))}
                 </select>
               </label>
-              <label><span>Tasdiq soni</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} disabled={formLocked} /></label>
+              <label><span>Qabul birlik</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} disabled={formLocked} /></label>
             </>
           ) : null}
 
@@ -2485,7 +2702,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
             />
           </label>
 
-          <label className="full-col"><span>Approval izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} placeholder="Tasdiqlash yoki qayta ishlash bo'yicha izoh" disabled={formLocked} /></label>
+          <label className="full-col"><span>Workflow izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} placeholder="Qayta ishlash, fayl yoki publish bo'yicha izoh" disabled={formLocked} /></label>
 
           <button className="btn primary content-submit-btn" type="submit" disabled={saving || formLocked}>
             {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}
@@ -2515,6 +2732,16 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                 onClick={() => api.exportFile("/api/export/content.xlsx", `content-${selectedMonth}.xlsx`)}
               >
                 Excel export
+              </button>
+              <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)}>
+                <option value="reja">Reja</option>
+                <option value="tasdiqlandi">Workflow</option>
+                <option value="jarayonda">Jarayonda</option>
+                <option value="qayta_ishlash">Qayta ishlash</option>
+                <option value="yakunlandi">Yakunlandi</option>
+              </select>
+              <button type="button" className="btn secondary content-modern-btn" onClick={bulkUpdateVisibleStatus} disabled={!canEditContent || !visibleRows.length}>
+                Bulk status
               </button>
             </div>
           }
@@ -2557,7 +2784,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                       <td>
                         <div className="table-date-stack">
                           <strong>{formatDate(row.publish_date)}</strong>
-                          <span>{row.bonus_enabled ? "Bonus oqimida" : "Kontent oqimida"}</span>
+                          <DeadlineRiskPill row={row} />
                         </div>
                       </td>
                       <td><span className={approvalStatusClass(row.status)}>{formatApprovalStatus(row.status)}</span></td>
@@ -2570,6 +2797,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                       </td>
                       <td>
                         <span className={`table-chip type ${contentTypeChipTone(row.content_type)}`}>
+                          <Clapperboard size={13} />
                           {formatContentType(row.content_type)}
                         </span>
                       </td>
@@ -2736,7 +2964,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
           <KanbanBoard
             columns={[
               { id: "reja", label: "Reja", tone: "default" },
-              { id: "tasdiqlandi", label: "Tasdiqlandi", tone: "warning" },
+              { id: "tasdiqlandi", label: "Workflow", tone: "warning" },
               { id: "jarayonda", label: "Jarayonda", tone: "info" },
               { id: "qayta_ishlash", label: "Qayta ishlash", tone: "warning" },
               { id: "rad_etildi", label: "Rad etildi", tone: "danger" },
@@ -2780,9 +3008,11 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         {viewRow ? (
           <div className="content-detail-layout">
             <div className="content-detail-main">
+              <ContentStatusStepper status={viewRow.status} />
               <div className="detail-grid content-detail-grid">
                 <div><strong>Kontent nomi</strong><span>{viewRow.title}</span></div>
                 <div><strong>Sana</strong><span>{formatDate(viewRow.publish_date)}</span></div>
+                <div><strong>Deadline risk</strong><span><DeadlineRiskPill row={viewRow} /></span></div>
                 <div><strong>Holati</strong><span className={approvalStatusClass(viewRow.status)}>{formatApprovalStatus(viewRow.status)}</span></div>
                 <div><strong>Platforma</strong><span className="table-chip-row">{splitCellValues(viewRow.platform).length ? splitCellValues(viewRow.platform).map((platform, idx) => <PlatformBadge key={`${viewRow.id}-detail-platform-${idx}`} platform={platform} />) : "-"}</span></div>
                 <div><strong>Turi</strong><span>{formatContentType(viewRow.content_type)}</span></div>
@@ -2790,7 +3020,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                 <div><strong>Bonus</strong><span>{viewRow.bonus_enabled ? "Ha" : "Yo'q"}</span></div>
                 <div><strong>Taklif soni</strong><span>{viewRow.proposal_count || 0}</span></div>
                 {viewRow.bonus_enabled ? <div><strong>Murakkablik</strong><span>{formatDifficultyHelp(viewRow.difficulty_level)}</span></div> : null}
-                <div><strong>Tasdiq soni</strong><span>{viewRow.approved_count || 0}</span></div>
+                <div><strong>Qabul birlik</strong><span>{viewRow.approved_count || 0}</span></div>
                 <div className="full-col">
                   <strong>Qilingan ish linki</strong>
                   <span>
@@ -2801,7 +3031,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                     ) : "-"}
                   </span>
                 </div>
-                <div className="full-col"><strong>Approval izohi</strong><span>{viewRow.approval_comment || "-"}</span></div>
+                <div className="full-col"><strong>Workflow izohi</strong><span>{viewRow.approval_comment || "-"}</span></div>
               </div>
             </div>
             <div className="content-detail-side">
@@ -2999,7 +3229,7 @@ function BonusPlasticCards({ rows = [], monthLabel = getMonthLabel(), title = "B
                 <strong>{row.content_count}</strong>
               </div>
               <div>
-                <span>Tasdiq</span>
+                <span>Payroll</span>
                 <strong>{row.approved_count || row.proposal_count || 0}</strong>
               </div>
             </div>
@@ -3100,7 +3330,7 @@ function downloadBonusApprovalImage({
 
   ctx.fillStyle = "#1277da";
   ctx.font = "600 15px 'Segoe UI'";
-  ctx.fillText("aloo bonus approval", outerPadding + 28, 72);
+  ctx.fillText("aloo bonus payroll", outerPadding + 28, 72);
 
   ctx.fillStyle = "#0f172a";
   ctx.font = "700 42px 'Segoe UI'";
@@ -3109,8 +3339,8 @@ function downloadBonusApprovalImage({
   ctx.fillStyle = "#64748b";
   ctx.font = "500 18px 'Segoe UI'";
   const subtitle = approvedByName
-    ? `Tasdiqlagan: ${approvedByName}${approvedAt ? ` • ${formatDateTime(approvedAt)}` : ""}`
-    : "Rahbar tomonidan tasdiqlangan bonus hisoboti";
+    ? `Payroll manba: ${approvedByName}${approvedAt ? ` • ${formatDateTime(approvedAt)}` : ""}`
+    : "MySeOne payroll bo'yicha tayyorlangan bonus hisoboti";
   ctx.fillText(subtitle, outerPadding + 28, 156);
 
   const statCards = [
@@ -3166,7 +3396,7 @@ function downloadBonusApprovalImage({
     ctx.fillStyle = "#64748b";
     ctx.font = "500 16px 'Segoe UI'";
     ctx.fillText(`Kontent soni: ${row.content_count}`, x + 114, y + 82);
-    ctx.fillText(`Tasdiq soni: ${row.approved_count}`, x + 114, y + 108);
+    ctx.fillText(`Payroll birlik: ${row.approved_count}`, x + 114, y + 108);
 
     ctx.fillStyle = "#1277da";
     ctx.font = "600 14px 'Segoe UI'";
@@ -3178,11 +3408,11 @@ function downloadBonusApprovalImage({
 
   ctx.fillStyle = "#64748b";
   ctx.font = "500 16px 'Segoe UI'";
-  ctx.fillText("aloo SMM panel • bonus approval export", outerPadding, height - 34);
+  ctx.fillText("aloo SMM panel • bonus payroll export", outerPadding, height - 34);
 
   const link = document.createElement("a");
   link.href = canvas.toDataURL("image/png");
-  link.download = `bonus-approval-${monthLabel}.png`;
+  link.download = `bonus-payroll-${monthLabel}.png`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -3429,7 +3659,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
 
   function openApprovalModal() {
     if (!filteredItems.length) {
-      onToast("Tasdiqlash uchun bonus yozuvlari topilmadi", "error");
+      onToast("Payroll uchun bonus yozuvlari topilmadi", "error");
       return;
     }
     setApprovalRows(buildApprovalRows(filteredItems));
@@ -3453,7 +3683,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
 
   async function handleApproveMonth() {
     if (!approvalRows.length) {
-      onToast("Tasdiqlash uchun yozuv topilmadi", "error");
+      onToast("Payroll uchun yozuv topilmadi", "error");
       return;
     }
 
@@ -3468,16 +3698,16 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       });
       await reload();
       setApprovalOpen(false);
-      onToast(`${getMonthTitle(monthFilter)} bonuslari tasdiqlandi`, "success");
+      onToast(`${getMonthTitle(monthFilter)} bonuslari payroll ready bo'ldi`, "success");
     } catch (err) {
-      onToast(err.message || "Bonuslarni tasdiqlab bo'lmadi", "error");
+      onToast(err.message || "Bonuslarni payrollga tayyorlab bo'lmadi", "error");
     } finally {
       setApprovalSaving(false);
     }
   }
 
   async function handleRevokeMonth() {
-    const ok = window.confirm(`${getMonthTitle(monthFilter)} oyidagi tasdiqlarni bekor qilaymi?`);
+    const ok = window.confirm(`${getMonthTitle(monthFilter)} oyidagi payroll ready holatini bekor qilaymi?`);
     if (!ok) return;
 
     try {
@@ -3486,9 +3716,9 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       await reload();
       setApprovalRows([]);
       setApprovalOpen(false);
-      onToast(`${getMonthTitle(monthFilter)} bonus tasdig'i bekor qilindi`, "success");
+      onToast(`${getMonthTitle(monthFilter)} payroll holati bekor qilindi`, "success");
     } catch (err) {
-      onToast(err.message || "Tasdiqni bekor qilib bo'lmadi", "error");
+      onToast(err.message || "Payroll holatini bekor qilib bo'lmadi", "error");
     } finally {
       setApprovalSaving(false);
     }
@@ -3532,14 +3762,14 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
 
   function handleDownloadApprovalImage() {
     if (!monthApproved) {
-      onToast("Avval oylik bonusni tasdiqlang", "error");
+      onToast("Avval oylik bonusni payroll ready qiling", "error");
       return;
     }
 
     const exported = downloadBonusApprovalImage({
       monthLabel: monthFilter,
       employeeRows: employeeStats,
-      approvedByName: lastApprovalMeta?.approved_by_name || user?.full_name || "Rahbar",
+      approvedByName: lastApprovalMeta?.approved_by_name || user?.full_name || "Platforma",
       approvedAt: lastApprovalMeta?.approved_at,
       totalAmount: employeeTotalAmount,
       uniqueTotalAmount: totalAmount,
@@ -3737,7 +3967,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
 
       <div className="bonus-command-grid">
         <div className="card bonus-command-card">
-          <SectionTitle title="Leaderboard" desc="Bonus, kontent va tasdiq bo'yicha top hodimlar" />
+          <SectionTitle title="Leaderboard" desc="Bonus, kontent va payroll bo'yicha top hodimlar" />
           <div className="leaderboard-list">
             {bonusLeaderboard.length ? bonusLeaderboard.map((row, index) => (
               <div key={`leaderboard-${row.name}`} className="leaderboard-row">
@@ -3753,7 +3983,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
         </div>
 
         <div className="card bonus-command-card">
-          <SectionTitle title="Bonus audit log" desc="Tasdiq, close, export va o'zgarishlar" />
+          <SectionTitle title="Bonus audit log" desc="Payroll, close, export va o'zgarishlar" />
           <div className="audit-mini-list">
             {bonusAuditRows.length ? bonusAuditRows.slice(0, 7).map((row) => (
               <div key={`bonus-audit-${row.id}`} className="audit-mini-row">
@@ -3831,7 +4061,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
           </label>
 
           <label><span>Taklif soni</span><input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required disabled={bonusFormLocked} /></label>
-          <label><span>Tasdiq soni</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} disabled={bonusFormLocked} /></label>
+          <label><span>Payroll birlik</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} disabled={bonusFormLocked} /></label>
           <label className="full-col">
             <span>Qilingan ish linki</span>
             <input
@@ -3927,7 +4157,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                 <th>Hodim / Video</th>
                 <th>Kontent holati</th>
                 <th>Taklif</th>
-                <th>Tasdiq</th>
+                <th>Payroll</th>
                 <th>Jami</th>
                 <th>Holat</th>
                 <th>Amallar</th>
@@ -4025,7 +4255,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                       <div>{row.proposal_count || 0}</div>
                     </div>
                     <div className="mobile-record-field">
-                      <label>Tasdiq</label>
+                      <label>Payroll</label>
                       <div>{row.approved_count || 0}</div>
                     </div>
                     <div className="mobile-record-field">
@@ -4054,17 +4284,17 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
       <Modal
         open={approvalOpen}
         onClose={() => setApprovalOpen(false)}
-        title={`${getMonthTitle(monthFilter)} bonuslarini tasdiqlash`}
+        title={`${getMonthTitle(monthFilter)} bonus payroll`}
         wide
       >
         <div className="bonus-approval-stack">
           <div className="info-banner">
-            Rahbar oynasi: faqat <strong>Tasdiq soni</strong> maydoni ochiq. Qolgan barcha ustunlar faqat ko'rish uchun.
+            Payroll oynasi: faqat <strong>qabul qilingan birlik</strong> maydoni ochiq. Qolgan barcha ustunlar faqat ko'rish uchun.
           </div>
           <div className="bonus-approval-meta">
             {monthApproved
-              ? "Bu oy tasdiqlangan. Zarurat bo'lsa tasdiq sonlarini yangilab qayta saqlashingiz mumkin."
-              : "Tasdiqlashdan keyin rahbar uchun chop etish tugmasi faollashadi."}
+              ? "Bu oy payroll ready. Zarurat bo'lsa birliklarni yangilab qayta saqlashingiz mumkin."
+              : "Payroll ready holatidan keyin eksport va to'lov tugmalari faollashadi."}
           </div>
           <div className="table-wrap">
             <table>
@@ -4077,7 +4307,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                   <th>Hodim / Video</th>
                   <th>Kontent holati</th>
                   <th>Taklif</th>
-                  <th>Tasdiq soni</th>
+                  <th>Payroll birlik</th>
                   <th>Jami bonus</th>
                 </tr>
               </thead>
@@ -4119,7 +4349,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                     );
                   })
                 ) : (
-                  <tr><td colSpan="9" className="empty-cell">Tasdiqlash uchun yozuv topilmadi</td></tr>
+                  <tr><td colSpan="9" className="empty-cell">Payroll uchun yozuv topilmadi</td></tr>
                 )}
               </tbody>
             </table>
@@ -4133,7 +4363,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                   <tr>
                     <th>Hodim</th>
                     <th>Kontent soni</th>
-                    <th>Tasdiq birlik</th>
+                    <th>Payroll birlik</th>
                     <th>Jami bonus</th>
                   </tr>
                 </thead>
@@ -4174,11 +4404,11 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               </button>
               {approvedRowCount ? (
                 <button type="button" className="btn secondary" onClick={handleRevokeMonth} disabled={approvalSaving}>
-                  Tasdiqni bekor qilish
+                  Payrollni bekor qilish
                 </button>
               ) : null}
               <button type="button" className="btn primary" onClick={handleApproveMonth} disabled={approvalSaving || !approvalRows.length}>
-                {approvalSaving ? "Tasdiqlanmoqda..." : "Tasdiqlash"}
+                {approvalSaving ? "Tayyorlanmoqda..." : "Payroll ready"}
               </button>
             </div>
           </div>
@@ -4191,7 +4421,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
             <div className="stats-grid">
               <StatCard title="Kontent" value={employeeDetail.content_count} hint={getMonthTitle(monthFilter)} />
               <StatCard title="Taklif" value={employeeDetail.proposal_count} hint="jami birlik" tone="warning" />
-              <StatCard title="Tasdiq" value={employeeDetail.approved_count} hint="approved birlik" tone="info" />
+              <StatCard title="Payroll" value={employeeDetail.approved_count} hint="qabul birlik" tone="info" />
               <StatCard title="Balans" value={formatMoney(employeeDetail.amount)} hint="taxminiy / tasdiqlangan" tone="success" />
             </div>
             <div className="table-wrap">
@@ -4202,7 +4432,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                     <th>Sana</th>
                     <th>Turi</th>
                     <th>Taklif</th>
-                    <th>Tasdiq</th>
+                    <th>Payroll</th>
                     <th>To'lov</th>
                     <th>Summa</th>
                   </tr>
@@ -4240,7 +4470,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               <div><strong>Hodim / Video:</strong> {getBonusAssigneeLabel(viewRow)}</div>
               <div><strong>Kontent holati:</strong> {getBonusDifficultyMeta(viewRow).label}</div>
               <div><strong>Taklif:</strong> {viewRow.proposal_count || 0}</div>
-              <div><strong>Tasdiq:</strong> {viewRow.approved_count || 0}</div>
+              <div><strong>Payroll birlik:</strong> {viewRow.approved_count || 0}</div>
               <div><strong>Holat:</strong> {viewRow.paid_status === "paid" ? "Paid" : viewRow.approval_status === "approved" ? "Payroll ready" : "Pending"}</div>
               <div><strong>Jami:</strong> {formatMoney(viewRow.total_amount || viewRow.amount || 0)}</div>
               <div className="full-col">
@@ -4292,7 +4522,16 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
     setEditRow(null);
   }
 
+  function resetBudgetForm() {
+    setBudgetForm({ month_label: monthFilter || getMonthLabel(), category: "servis", limit_amount: "", notes: "" });
+    setEditBudget(null);
+  }
+
   function startEdit(row) {
+    if (financeLocks.some((item) => item.month_label === formatDate(row.expense_date).slice(0, 7))) {
+      onToast("Bu finance oyi yopilgan. Tahrirlash bloklangan.", "error");
+      return;
+    }
     setEditRow(row);
     setForm({
       report_date: formatDate(row.report_date) === "-" ? "" : formatDate(row.report_date),
@@ -4308,6 +4547,10 @@ function DailyReportsPage({ reports = [], branches = [], onToast, reload }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (financeLocks.some((item) => item.month_label === String(form.expense_date || "").slice(0, 7))) {
+      onToast("Bu finance oyi yopilgan. Harajat qo'shib yoki tahrirlab bo'lmaydi.", "error");
+      return;
+    }
     try {
       setSaving(true);
       if (editRow?.id) {
@@ -5264,7 +5507,7 @@ function UsersPage({ users = [], onToast, reload }) {
             <select value={form.role} onChange={(e) => handleRoleChange(e.target.value)}>
               <option value="admin">admin</option>
               <option value="manager">manager</option>
-              <option value="director">rahbar</option>
+                  <option value="director">director</option>
               <option value="editor">editor</option>
               <option value="mobilograf">mobilograf</option>
               <option value="viewer">viewer</option>
@@ -6439,7 +6682,7 @@ function FiscalReceipt({ row, settings }) {
   );
 }
 
-function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bonusItems = [], travelPlans = [], budgets = [], settings = {}, onToast, reload }) {
+function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bonusItems = [], travelPlans = [], budgets = [], financeLocks = [], settings = {}, user = null, onToast, reload }) {
   const emptyForm = {
     expense_date: "",
     title: "",
@@ -6458,7 +6701,18 @@ function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bon
   const [receiptRow, setReceiptRow] = useState(null);
   const [monthFilter, setMonthFilter] = useState(getMonthLabel());
   const [mode, setMode] = useState("general");
+  const [budgetForm, setBudgetForm] = useState({ month_label: getMonthLabel(), category: "servis", limit_amount: "", notes: "" });
+  const [editBudget, setEditBudget] = useState(null);
+  const [closingFinance, setClosingFinance] = useState(false);
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const setBudgetField = (key, value) => setBudgetForm((prev) => ({ ...prev, [key]: value }));
+  const readOnly = user?.role === "viewer";
+
+  useEffect(() => {
+    if (!editBudget) {
+      setBudgetForm((prev) => ({ ...prev, month_label: monthFilter || getMonthLabel() }));
+    }
+  }, [editBudget, monthFilter]);
 
   function resetForm() {
     setForm(emptyForm);
@@ -6466,6 +6720,10 @@ function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bon
   }
 
   function startEdit(row) {
+    if (readOnly) {
+      onToast("Viewer rejimida tahrirlash yopiq", "error");
+      return;
+    }
     setEditRow(row);
     setForm({
       expense_date: formatDate(row.expense_date) === "-" ? "" : formatDate(row.expense_date),
@@ -6483,6 +6741,10 @@ function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bon
 
   async function handleSubmit(e) {
     e.preventDefault();
+    if (readOnly) {
+      onToast("Viewer rejimida harajat saqlash yopiq", "error");
+      return;
+    }
     try {
       setSaving(true);
       const payload = { ...form, amount: Number(form.amount || 0) };
@@ -6504,8 +6766,17 @@ function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bon
   }
 
   async function removeRow(id) {
+    if (readOnly) {
+      onToast("Viewer rejimida o'chirish yopiq", "error");
+      return;
+    }
     if (!window.confirm("Rostdan ham o'chirilsinmi?")) return;
     try {
+      const target = expenses.find((item) => Number(item.id) === Number(id));
+      if (target && financeLocks.some((item) => item.month_label === formatDate(target.expense_date).slice(0, 7))) {
+        onToast("Bu finance oyi yopilgan. O'chirish bloklangan.", "error");
+        return;
+      }
       await api.remove("expenses", id);
       await reload();
       onToast("Harajat o'chirildi", "success", { deleteCenter: true });
@@ -6530,7 +6801,10 @@ function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bon
     .filter((item) => formatDate(item.plan_date).startsWith(monthFilter))
     .reduce((sum, item) => sum + Number(item.budget_amount || 0), 0);
   const activeBudgets = budgets.filter((item) => item.month_label === monthFilter);
+  const monthClosed = financeLocks.some((item) => item.month_label === monthFilter);
   const budgetTotal = activeBudgets.reduce((sum, item) => sum + Number(item.limit_amount || 0), 0);
+  const financeTotal = totalAmount + monthlyBonus + monthlyTravel;
+  const cashflowDelta = budgetTotal ? budgetTotal - financeTotal : -financeTotal;
   const categoryTotals = [
     { key: "servis", label: "Servis" },
     { key: "reklama", label: "Reklama" },
@@ -6579,29 +6853,36 @@ function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bon
         <div>
           <span className="small-label">Finance 9.0</span>
           <h2>{getMonthTitle(monthFilter)} xarajat nazorati</h2>
-          <p>Harajat qo'shilganda avtomatik Aloo SMM fiskal chek chiqadi. Reklama, bonus, safar va budjet signallari shu yerda jamlanadi.</p>
+          <p>Harajat qo'shilganda avtomatik Aloo SMM fiskal chek chiqadi. Reklama, bonus, safar, budget lock va limit signallari shu yerda jamlanadi.</p>
         </div>
         <div className="finance-command-grid">
           <div><span>Oddiy harajat</span><strong>{formatMoney(totalAmount)}</strong></div>
           <div><span>Reklama sarfi</span><strong>{formatUsd(monthlyAds)}</strong></div>
           <div><span>Bonus payroll</span><strong>{formatMoney(monthlyBonus)}</strong></div>
           <div><span>Safar budjeti</span><strong>{formatMoney(monthlyTravel)}</strong></div>
+          <div><span>Cashflow delta</span><strong>{formatMoney(cashflowDelta)}</strong></div>
         </div>
       </div>
+
+      {monthClosed ? (
+        <div className="info-banner finance-lock-banner">
+          {getMonthTitle(monthFilter)} finance oyi yopilgan. Bu oy uchun harajat qo'shish, tahrirlash va o'chirish bloklangan.
+        </div>
+      ) : null}
 
       <div className="card">
         <SectionTitle title={editRow ? "Harajatni tahrirlash" : "Harajat qo'shish"} right={editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null} />
         <form className="form-grid" onSubmit={handleSubmit}>
-          <label><span>Sana</span><input type="date" value={form.expense_date} onChange={(e) => setField("expense_date", e.target.value)} required /></label>
-          <label><span>Nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
-          <label><span>Xizmat yoki ilova</span><input value={form.vendor_name} onChange={(e) => setField("vendor_name", e.target.value)} placeholder="Canva, Meta, CapCut..." /></label>
-          <label><span>Karta egasi</span><input value={form.card_holder} onChange={(e) => setField("card_holder", e.target.value)} placeholder="Visa karta egasi" /></label>
-          <label><span>Summa</span><input type="number" min="0" value={form.amount} onChange={(e) => setField("amount", e.target.value)} required /></label>
-          <label><span>Valyuta</span><select value={form.currency} onChange={(e) => setField("currency", e.target.value)}><option value="UZS">UZS</option><option value="USD">USD</option></select></label>
-          <label><span>Kategoriya</span><select value={form.category} onChange={(e) => setField("category", e.target.value)}><option value="servis">Servis</option><option value="reklama">Reklama</option><option value="safar">Safar</option><option value="boshqa">Boshqa</option></select></label>
-          <label><span>To'lov turi</span><select value={form.payment_type} onChange={(e) => setField("payment_type", e.target.value)}><option value="visa">Visa karta</option><option value="cash">Naqd</option><option value="bank">Bank</option></select></label>
-          <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
-          <button className="btn primary" type="submit" disabled={saving}>{saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}</button>
+          <label><span>Sana</span><input type="date" value={form.expense_date} onChange={(e) => setField("expense_date", e.target.value)} required disabled={monthClosed} /></label>
+          <label><span>Nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required disabled={monthClosed} /></label>
+          <label><span>Xizmat yoki ilova</span><input value={form.vendor_name} onChange={(e) => setField("vendor_name", e.target.value)} placeholder="Canva, Meta, CapCut..." disabled={monthClosed} /></label>
+          <label><span>Karta egasi</span><input value={form.card_holder} onChange={(e) => setField("card_holder", e.target.value)} placeholder="Visa karta egasi" disabled={monthClosed} /></label>
+          <label><span>Summa</span><input type="number" min="0" value={form.amount} onChange={(e) => setField("amount", e.target.value)} required disabled={monthClosed} /></label>
+          <label><span>Valyuta</span><select value={form.currency} onChange={(e) => setField("currency", e.target.value)} disabled={monthClosed}><option value="UZS">UZS</option><option value="USD">USD</option></select></label>
+          <label><span>Kategoriya</span><select value={form.category} onChange={(e) => setField("category", e.target.value)} disabled={monthClosed}><option value="servis">Servis</option><option value="reklama">Reklama</option><option value="safar">Safar</option><option value="boshqa">Boshqa</option></select></label>
+          <label><span>To'lov turi</span><select value={form.payment_type} onChange={(e) => setField("payment_type", e.target.value)} disabled={monthClosed}><option value="visa">Visa karta</option><option value="cash">Naqd</option><option value="bank">Bank</option></select></label>
+          <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} disabled={monthClosed} /></label>
+          <button className="btn primary" type="submit" disabled={saving || monthClosed || readOnly}>{saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}</button>
         </form>
       </div>
 
@@ -6609,6 +6890,7 @@ function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bon
         <StatCard title="Jami harajat" value={formatMoney(totalAmount)} hint={getMonthTitle(monthFilter)} tone="danger" />
         <StatCard title="Budjet limiti" value={formatMoney(budgetTotal)} hint={`${activeBudgets.length} kategoriya`} tone="info" />
         <StatCard title="Yozuvlar soni" value={filteredExpenses.length} hint="filtrlangan yozuvlar" tone="success" />
+        <StatCard title="Cashflow delta" value={formatMoney(cashflowDelta)} hint={budgetTotal ? "limitdan qoldiq" : "limit kiritilmagan"} tone={cashflowDelta >= 0 ? "success" : "danger"} />
       </div>
 
       <div className="card">
@@ -6616,9 +6898,20 @@ function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bon
           title="Oy bo'yicha harajatlar"
           desc="Kategoriya kesimida tezkor ko'rinish"
           right={
-            <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
-              {monthOptions.map((item) => <option key={item} value={item}>{getMonthTitle(item)}</option>)}
-            </select>
+            <div className="toolbar-actions">
+              <select value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)}>
+                {monthOptions.map((item) => <option key={item} value={item}>{getMonthTitle(item)}</option>)}
+              </select>
+              <button type="button" className="btn secondary" onClick={() => api.exportFile(`/api/export/expenses.xlsx?month=${monthFilter}`, `expenses-${monthFilter}.xlsx`)}>
+                Excel export
+              </button>
+              <button type="button" className="btn secondary" onClick={() => api.exportFile(`/api/export/expenses.pdf?month=${monthFilter}`, `expenses-${monthFilter}.pdf`)}>
+                PDF export
+              </button>
+              <button type="button" className="btn secondary" onClick={closeFinanceMonth} disabled={closingFinance || monthClosed || readOnly}>
+                {closingFinance ? "Yopilmoqda..." : monthClosed ? "Oy yopilgan" : "Oy yopish"}
+              </button>
+            </div>
           }
         />
         <div className="expense-chart">
@@ -6633,6 +6926,43 @@ function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bon
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      <div className="card">
+        <SectionTitle
+          title="Budget limit markazi"
+          desc="Kategoriya limitlari, real sarf va overrun signallari"
+          right={editBudget ? <button type="button" className="btn secondary" onClick={resetBudgetForm}>Bekor qilish</button> : null}
+        />
+        <form className="form-grid finance-budget-form" onSubmit={handleBudgetSubmit}>
+          <label><span>Oy</span><input type="month" value={budgetForm.month_label} onChange={(e) => setBudgetField("month_label", e.target.value)} required /></label>
+          <label><span>Kategoriya</span><select value={budgetForm.category} onChange={(e) => setBudgetField("category", e.target.value)}><option value="servis">Servis</option><option value="reklama">Reklama</option><option value="safar">Safar</option><option value="boshqa">Boshqa</option></select></label>
+          <label><span>Limit</span><input type="number" min="0" value={budgetForm.limit_amount} onChange={(e) => setBudgetField("limit_amount", e.target.value)} required /></label>
+          <label><span>Izoh</span><input value={budgetForm.notes} onChange={(e) => setBudgetField("notes", e.target.value)} /></label>
+          <button type="submit" className="btn primary" disabled={readOnly}>{editBudget ? "Limitni yangilash" : "Limit qo'shish"}</button>
+        </form>
+        <div className="finance-budget-grid">
+          {activeBudgets.length ? activeBudgets.map((budget) => {
+            const actual = categoryTotals.find((item) => item.key === budget.category)?.amount || 0;
+            const limit = Number(budget.limit_amount || 0);
+            const percent = limit ? Math.min(140, (actual / limit) * 100) : 0;
+            const over = limit && actual > limit;
+            return (
+              <div key={budget.id} className={`finance-budget-card ${over ? "danger" : "success"}`}>
+                <div>
+                  <span>{expenseCategoryLabel(budget.category)}</span>
+                  <strong>{formatMoney(limit)}</strong>
+                  <small>Sarf: {formatMoney(actual)}</small>
+                </div>
+                <div className="finance-budget-track"><i style={{ width: `${Math.max(percent, actual ? 8 : 0)}%` }} /></div>
+                <div className="toolbar-actions">
+                  <button type="button" className="btn secondary" onClick={() => startBudgetEdit(budget)}>Edit</button>
+                  <button type="button" className="btn ghost danger" onClick={() => removeBudget(budget.id)}>Delete</button>
+                </div>
+              </div>
+            );
+          }) : <div className="empty-block">Bu oy uchun budget limit yo'q</div>}
         </div>
       </div>
 
@@ -6884,7 +7214,7 @@ function TravelPlansPage({ travelPlans = [], travelExpenses = [], branches = [],
           <label><span>Mehmonxona</span><input value={form.hotel_text} onChange={(e) => setField("hotel_text", e.target.value)} /></label>
           <label><span>Deadline</span><input type="date" value={form.deadline_date} onChange={(e) => setField("deadline_date", e.target.value)} /></label>
           <label className="full-col"><span>Checklist</span><input value={(form.checklist_json || []).join(", ")} onChange={(e) => setField("checklist_json", e.target.value.split(",").map((item) => item.trim()).filter(Boolean))} /></label>
-          <label className="full-col"><span>Approval izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} /></label>
+          <label className="full-col"><span>Workflow izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} /></label>
           <label className="full-col"><span>Izoh</span><input value={form.notes} onChange={(e) => setField("notes", e.target.value)} /></label>
           <button className="btn primary" type="submit" disabled={saving}>{saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Saqlash"}</button>
         </form>
@@ -7007,7 +7337,7 @@ function TravelPlansPage({ travelPlans = [], travelExpenses = [], branches = [],
             <div><strong>Transport:</strong> {viewRow.transport_text || "-"}</div>
             <div><strong>Mehmonxona:</strong> {viewRow.hotel_text || "-"}</div>
             <div><strong>Deadline:</strong> {formatDate(viewRow.deadline_date)}</div>
-            <div className="full-col"><strong>Approval izohi:</strong> {viewRow.approval_comment || "-"}</div>
+            <div className="full-col"><strong>Workflow izohi:</strong> {viewRow.approval_comment || "-"}</div>
             <div className="full-col"><strong>Izoh:</strong> {viewRow.notes || "-"}</div>
             <div className="full-col"><strong>Checklist:</strong> {(Array.isArray(viewRow.checklist_json) ? viewRow.checklist_json : []).join(", ") || "-"}</div>
           </div>
@@ -7397,10 +7727,161 @@ function AiAssistantPage({ branches = [], onToast }) {
   const [contentType, setContentType] = useState("reels");
   const [branchName, setBranchName] = useState("");
   const [output, setOutput] = useState("");
+  const [sendingDigest, setSendingDigest] = useState(false);
+  const aiQuickActions = [
+    { id: "today", label: "Bugun nima muhim?", mode: "plan", prompt: "Bugungi eng muhim signal va ishlar bo'yicha qisqa executive xulosa ber." },
+    { id: "idea", label: "Kontent idea", mode: "ideas", prompt: "Aloo SMM uchun sotuvga yordam beradigan 5 ta zamonaviy kontent g'oya ber." },
+    { id: "caption", label: "Caption", mode: "caption", prompt: "Instagram uchun qisqa, premium va aniq CTA bilan caption yoz." },
+    { id: "deadline", label: "Deadline signal", mode: "plan", prompt: "Kontent deadline xavflarini aniqlash uchun signal matni tuz." },
+    { id: "bonus", label: "Bonus anomaly", mode: "plan", prompt: "Bonus payroll ichida noodatiy o'sish yoki kamayish bo'lsa qanday tekshirish kerakligini yoz." },
+    { id: "finance", label: "Harajat signal", mode: "plan", prompt: "Harajat budget limitdan oshganda Telegramga boradigan qisqa signal yoz." },
+    { id: "branch", label: "Filial sust", mode: "plan", prompt: "Filial KPI sustlashganda managerga yuboriladigan ishchi signal matni yoz." }
+  ];
+
+  async function runAi() {
+    try {
+      const result = await api.create("ai/assist", { mode, prompt, branch_name: branchName, content_type: contentType });
+      setOutput(result?.output || "");
+    } catch (err) {
+      onToast(err.message || "AI yordamchi xatolik berdi", "error");
+    }
+  }
+
+  async function sendWorkflowDigest() {
+    try {
+      setSendingDigest(true);
+      const result = await api.create("telegram/workflow-digest", {});
+      onToast(result?.message || "Workflow digest yuborildi", "success");
+    } catch (err) {
+      onToast(err.message || "Workflow digest yuborilmadi", "error");
+    } finally {
+      setSendingDigest(false);
+    }
+  }
+
+  async function handleBudgetSubmit(e) {
+    e.preventDefault();
+    if (readOnly) {
+      onToast("Viewer rejimida budget o'zgartirish yopiq", "error");
+      return;
+    }
+    try {
+      const payload = { ...budgetForm, month_label: budgetForm.month_label || monthFilter, limit_amount: Number(budgetForm.limit_amount || 0) };
+      if (editBudget?.id) {
+        await api.update("budgets", editBudget.id, payload);
+        onToast("Budget limit yangilandi", "success");
+      } else {
+        await api.create("budgets", payload);
+        onToast("Budget limit saqlandi", "success");
+      }
+      await reload();
+      resetBudgetForm();
+    } catch (err) {
+      onToast(err.message || "Budget limit saqlanmadi", "error");
+    }
+  }
+
+  function startBudgetEdit(row) {
+    if (readOnly) {
+      onToast("Viewer rejimida budget tahrirlash yopiq", "error");
+      return;
+    }
+    setEditBudget(row);
+    setBudgetForm({
+      month_label: row.month_label || monthFilter,
+      category: row.category || "servis",
+      limit_amount: row.limit_amount || "",
+      notes: row.notes || ""
+    });
+  }
+
+  async function removeBudget(id) {
+    if (readOnly) {
+      onToast("Viewer rejimida budget o'chirish yopiq", "error");
+      return;
+    }
+    if (!window.confirm("Budget limit o'chirilsinmi?")) return;
+    try {
+      await api.remove("budgets", id);
+      await reload();
+      onToast("Budget limit o'chirildi", "success", { deleteCenter: true });
+    } catch (err) {
+      onToast(err.message || "Budget limit o'chmadi", "error");
+    }
+  }
+
+  async function closeFinanceMonth() {
+    if (readOnly) {
+      onToast("Viewer rejimida oy yopish yopiq", "error");
+      return;
+    }
+    const ok = window.confirm(`${getMonthTitle(monthFilter)} finance oyini yopamizmi? Bu oydagi harajatlar tahriri bloklanadi.`);
+    if (!ok) return;
+    try {
+      setClosingFinance(true);
+      await api.create("finance/monthly-close", { month_label: monthFilter });
+      await reload();
+      onToast(`${getMonthTitle(monthFilter)} finance oyi yopildi`, "success");
+    } catch (err) {
+      onToast(err.message || "Finance oyini yopib bo'lmadi", "error");
+    } finally {
+      setClosingFinance(false);
+    }
+  }
+
   return (
-    <div className="page-grid">
-      <div className="card">
-        <SectionTitle title="AI yordamchi" desc="Sarlavha, caption, ssenariy va g'oya generator" />
+    <div className="page-grid ai-workbench-page">
+      <div className="ai-workbench-hero">
+        <div>
+          <span className="small-label">AI Yordamchi 9.0</span>
+          <h1>Ishchi signal va kontent generatori</h1>
+          <p>Oddiy chat emas: bugungi prioritet, kontent idea, caption, deadline, bonus, finance va filial signallarini tez tayyorlaydi.</p>
+        </div>
+        <div className="ai-signal-stack">
+          {aiQuickActions.slice(0, 4).map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => {
+                setMode(item.mode);
+                setPrompt(item.prompt);
+              }}
+            >
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="card ai-workbench-card">
+        <SectionTitle
+          title="AI command panel"
+          desc="Mode tanlang yoki tezkor signal kartasidan boshlang"
+          right={(
+            <div className="toolbar-actions">
+              <span className={statusBadgeTone.info}>Aloo OS</span>
+              <button type="button" className={buttonVariants.secondary} onClick={sendWorkflowDigest} disabled={sendingDigest}>
+                {sendingDigest ? "Yuborilmoqda..." : "Telegram digest"}
+              </button>
+            </div>
+          )}
+        />
+        <div className="ai-action-grid">
+          {aiQuickActions.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              className={prompt === item.prompt ? "active" : ""}
+              onClick={() => {
+                setMode(item.mode);
+                setPrompt(item.prompt);
+              }}
+            >
+              <strong>{item.label}</strong>
+              <span>{item.prompt}</span>
+            </button>
+          ))}
+        </div>
         <div className="form-grid">
           <label><span>Mode</span><select value={mode} onChange={(e) => setMode(e.target.value)}><option value="ideas">ideas</option><option value="title">title</option><option value="caption">caption</option><option value="script">script</option><option value="hook">hook</option><option value="cta">cta</option><option value="plan">plan</option></select></label>
           <label>
@@ -7413,14 +7894,7 @@ function AiAssistantPage({ branches = [], onToast }) {
           </label>
           <label><span>Filial</span><select value={branchName} onChange={(e) => setBranchName(e.target.value)}><option value="">Tanlang</option>{branches.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select></label>
           <label className="full-col"><span>Mavzu</span><textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} /></label>
-          <button className="btn primary" type="button" onClick={async () => {
-            try {
-              const result = await api.create("ai/assist", { mode, prompt, branch_name: branchName, content_type: contentType });
-              setOutput(result?.output || "");
-            } catch (err) {
-              onToast(err.message || "AI yordamchi xatolik berdi", "error");
-            }
-          }}>Generatsiya qilish</button>
+          <button className="btn primary" type="button" onClick={runAi}>Generatsiya qilish</button>
         </div>
         <div className="ai-output">{output || "Natija shu yerda chiqadi"}</div>
       </div>
@@ -7471,6 +7945,7 @@ function App() {
   const [recurringTasks, setRecurringTasks] = useState([]);
   const [recurringExpenses, setRecurringExpenses] = useState([]);
   const [budgets, setBudgets] = useState([]);
+  const [financeLocks, setFinanceLocks] = useState([]);
   const [analyticsData, setAnalyticsData] = useState(null);
   const [topPerformers, setTopPerformers] = useState(null);
   const [executiveSummary, setExecutiveSummary] = useState(null);
@@ -7613,18 +8088,24 @@ function App() {
   const loadPageData = useCallback(async (pageId) => {
     switch (pageId) {
       case "dashboard": {
-        const [bonusItemsRes, contentRes, dailyReportsRes, campaignsRes, travelPlansRes] = await Promise.all([
+        const [bonusItemsRes, contentRes, dailyReportsRes, campaignsRes, travelPlansRes, tasksRes, uploadsRes, expensesRes] = await Promise.all([
           api.list("bonus-items").catch(() => []),
           api.list("content").catch(() => []),
           api.list("daily-reports").catch(() => []),
           api.list("campaigns").catch(() => []),
-          api.list("travel-plans").catch(() => [])
+          api.list("travel-plans").catch(() => []),
+          api.list("tasks").catch(() => []),
+          api.list("uploads").catch(() => []),
+          api.list("expenses").catch(() => [])
         ]);
         setBonusItems(bonusItemsRes || []);
         setContentRows(contentRes || []);
         setDailyReports(dailyReportsRes || []);
         setCampaigns(campaignsRes || []);
         setTravelPlans(travelPlansRes || []);
+        setTasks(tasksRes || []);
+        setUploads(uploadsRes || []);
+        setExpenses(expensesRes || []);
         break;
       }
       case "content":
@@ -7634,13 +8115,14 @@ function App() {
         setBonusItems(await api.list("bonus-items").catch(() => []));
         break;
       case "expenses": {
-        const [expensesRes, contestExpensesRes, campaignsRes, bonusItemsRes, travelPlansRes, budgetsRes] = await Promise.all([
+        const [expensesRes, contestExpensesRes, campaignsRes, bonusItemsRes, travelPlansRes, budgetsRes, financeLocksRes] = await Promise.all([
           api.list("expenses").catch(() => []),
           api.list("contest-expenses").catch(() => []),
           api.list("campaigns").catch(() => []),
           api.list("bonus-items").catch(() => []),
           api.list("travel-plans").catch(() => []),
-          api.list("budgets").catch(() => [])
+          api.list("budgets").catch(() => []),
+          api.list("/api/finance/month-locks").catch(() => [])
         ]);
         setExpenses(expensesRes || []);
         setContestExpenses(contestExpensesRes || []);
@@ -7648,6 +8130,7 @@ function App() {
         setBonusItems(bonusItemsRes || []);
         setTravelPlans(travelPlansRes || []);
         setBudgets(budgetsRes || []);
+        setFinanceLocks(financeLocksRes || []);
         break;
       }
       case "finance": {
@@ -7848,8 +8331,12 @@ function App() {
   const allowedMenu = useMemo(() => {
     if (user?.role === "admin") return MENU;
     const permissions = safePermissions(user?.permissions_json);
+    const rolePreset = ROLE_WORKSPACE_PRESETS[user?.role] || null;
     if (!permissions.length) {
-      return MENU.filter((item) => item.id === "dashboard" || item.id === "profile");
+      return MENU.filter((item) => (rolePreset || ["dashboard", "profile"]).includes(item.id));
+    }
+    if (rolePreset) {
+      return MENU.filter((item) => permissions.includes(item.id) && rolePreset.includes(item.id));
     }
     return MENU.filter((item) => permissions.includes(item.id));
   }, [user]);
@@ -7898,13 +8385,20 @@ function App() {
   }, [filteredMenu]);
 
   const mobilePrimaryMenu = useMemo(() => {
-    const preferred = ["dashboard", "content", "bonus", "tasks", "profile"];
+    const rolePreferred = {
+      director: ["dashboard", "expenses", "analytics", "aiAssistant", "profile"],
+      manager: ["dashboard", "content", "tasks", "dailyReports", "profile"],
+      editor: ["dashboard", "tasks", "uploads", "content", "profile"],
+      mobilograf: ["dashboard", "travelPlans", "tasks", "uploads", "profile"],
+      viewer: ["dashboard", "content", "expenses", "profile"]
+    };
+    const preferred = rolePreferred[user?.role] || ["dashboard", "content", "bonus", "tasks", "profile"];
     const pinned = preferred
       .map((id) => allowedMenu.find((item) => item.id === id))
       .filter(Boolean);
     const extras = allowedMenu.filter((item) => !pinned.some((entry) => entry.id === item.id));
     return [...pinned, ...extras].slice(0, 4);
-  }, [allowedMenu]);
+  }, [allowedMenu, user?.role]);
   const activeMenuItem = MENU.find((item) => item.id === active) || MENU[0];
   const ActivePageIcon = activeMenuItem?.icon || LayoutDashboard;
 
@@ -8035,6 +8529,9 @@ function App() {
         contentRows={contentRows}
         campaigns={campaigns}
         travelPlans={travelPlans}
+        tasks={tasks}
+        uploads={uploads}
+        expenses={expenses}
         user={user}
       />
     );
@@ -8043,7 +8540,7 @@ function App() {
   } else if (active === "bonus") {
     page = <BonusPage bonusItems={bonusItems} users={users} branches={branches} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "expenses") {
-    page = <ExpensesPage expenses={expenses} contestExpenses={contestExpenses} campaigns={campaigns} bonusItems={bonusItems} travelPlans={travelPlans} budgets={budgets} settings={settings} onToast={showToast} reload={reloadData} />;
+    page = <ExpensesPage expenses={expenses} contestExpenses={contestExpenses} campaigns={campaigns} bonusItems={bonusItems} travelPlans={travelPlans} budgets={budgets} financeLocks={financeLocks} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "finance") {
     page = <FinanceDashboardPage expenses={expenses} campaigns={campaigns} bonusItems={bonusItems} travelPlans={travelPlans} budgets={budgets} onToast={showToast} reload={reloadData} />;
   } else if (active === "travelPlans") {
@@ -14515,6 +15012,124 @@ tbody tr{
   font-size:20px;
   font-variant-numeric:tabular-nums;
 }
+.role-workspace-panel{
+  display:grid;
+  grid-template-columns:minmax(0, .95fr) minmax(420px, 1.05fr);
+  gap:18px;
+  align-items:stretch;
+  padding:22px;
+  border-radius:24px;
+  border:1px solid rgba(16,24,40,.10);
+  background:#fff;
+  box-shadow:0 18px 48px rgba(16,24,40,.08);
+}
+.role-workspace-copy{
+  display:grid;
+  align-content:center;
+  gap:8px;
+}
+.role-workspace-copy h2{
+  margin:0;
+  color:#101828;
+  font-size:clamp(24px, 3vw, 38px);
+  letter-spacing:0;
+}
+.role-workspace-copy p{
+  margin:0;
+  color:#667085;
+  line-height:1.6;
+}
+.role-workspace-grid{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:10px;
+}
+.role-workspace-card{
+  display:grid;
+  gap:10px;
+  min-height:120px;
+  padding:16px;
+  border-radius:18px;
+  border:1px solid rgba(16,24,40,.10);
+  background:#f8fafc;
+}
+.role-workspace-card span{
+  color:#667085;
+  font-size:12px;
+  font-weight:850;
+  text-transform:uppercase;
+}
+.role-workspace-card strong{
+  color:#101828;
+  font-size:clamp(22px, 3vw, 34px);
+  font-variant-numeric:tabular-nums;
+  align-self:end;
+}
+.role-workspace-card.success{background:#ecfdf3;border-color:#abefc6}
+.role-workspace-card.warning{background:#fffaeb;border-color:#fedf89}
+.role-workspace-card.danger{background:#fef3f2;border-color:#fecdca}
+.role-workspace-card.info{background:#eff8ff;border-color:#b2ddff}
+.finance-lock-banner{
+  border-color:#fedf89;
+  background:#fffaeb;
+}
+.finance-budget-form{
+  margin-bottom:18px;
+}
+.finance-budget-grid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:12px;
+}
+.finance-budget-card{
+  display:grid;
+  gap:12px;
+  padding:16px;
+  border-radius:18px;
+  border:1px solid rgba(16,24,40,.10);
+  background:#fff;
+}
+.finance-budget-card > div:first-child{
+  display:grid;
+  gap:6px;
+}
+.finance-budget-card span{
+  color:#667085;
+  font-size:12px;
+  font-weight:850;
+  text-transform:uppercase;
+}
+.finance-budget-card strong{
+  color:#101828;
+  font-size:24px;
+  font-variant-numeric:tabular-nums;
+}
+.finance-budget-card small{
+  color:#667085;
+}
+.finance-budget-card.danger{
+  border-color:#fecdca;
+  background:#fff8f7;
+}
+.finance-budget-card.success{
+  border-color:#abefc6;
+  background:#fbfffd;
+}
+.finance-budget-track{
+  height:10px;
+  overflow:hidden;
+  border-radius:999px;
+  background:#eef2f6;
+}
+.finance-budget-track i{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:#10b981;
+}
+.finance-budget-card.danger .finance-budget-track i{
+  background:#ef4444;
+}
 .fiscal-receipt{
   width:min(100%, 420px);
   margin:0 auto;
@@ -14642,6 +15257,202 @@ tbody tr{
   text-align:center;
   font-size:12px;
 }
+.login-command-preview{
+  display:grid;
+  gap:14px;
+  margin-top:24px;
+  padding:18px;
+  border-radius:24px;
+  background:rgba(255,255,255,.86);
+  border:1px solid rgba(16,24,40,.10);
+  box-shadow:0 18px 44px rgba(16,24,40,.10);
+  backdrop-filter:blur(16px);
+}
+.login-command-top,
+.login-preview-metrics{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+}
+.login-command-top span,
+.login-preview-metrics span{
+  color:#667085;
+  font-size:12px;
+  font-weight:800;
+  text-transform:uppercase;
+}
+.login-command-top strong{
+  color:#0f766e;
+}
+.login-preview-metrics{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+}
+.login-preview-metrics div{
+  display:grid;
+  gap:7px;
+  padding:14px;
+  border-radius:18px;
+  background:#f8fafc;
+  border:1px solid rgba(16,24,40,.08);
+}
+.login-preview-metrics strong{
+  color:#101828;
+  font-size:22px;
+  font-variant-numeric:tabular-nums;
+}
+.login-preview-flow{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:8px;
+}
+.login-preview-flow span,
+.login-progress-steps span{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  min-height:34px;
+  padding:8px 10px;
+  border-radius:999px;
+  border:1px solid rgba(16,24,40,.10);
+  background:#fff;
+  color:#667085;
+  font-size:12px;
+  font-weight:850;
+}
+.login-preview-flow span.active,
+.login-progress-steps span.active{
+  color:#0f766e;
+  background:#ecfdf3;
+  border-color:#abefc6;
+}
+.login-progress-steps{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:8px;
+  margin:14px 0 4px;
+}
+.login-progress-steps i{
+  width:20px;
+  height:20px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:50%;
+  background:rgba(16,24,40,.08);
+  color:inherit;
+  font-style:normal;
+  font-size:11px;
+}
+.deadline-risk-pill{
+  display:inline-flex;
+  align-items:center;
+  width:max-content;
+  min-height:26px;
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:850;
+  border:1px solid rgba(16,24,40,.10);
+}
+.deadline-risk-pill.success{background:#ecfdf3;color:#067647;border-color:#abefc6}
+.deadline-risk-pill.warning{background:#fffaeb;color:#b54708;border-color:#fedf89}
+.deadline-risk-pill.danger{background:#fef3f2;color:#b42318;border-color:#fecdca}
+.deadline-risk-pill.default{background:#f8fafc;color:#475467}
+.content-status-stepper{
+  display:grid;
+  grid-template-columns:repeat(5, minmax(0, 1fr));
+  gap:8px;
+  margin-bottom:14px;
+}
+.content-status-stepper span{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+  padding:10px 12px;
+  border-radius:14px;
+  background:#f8fafc;
+  border:1px solid rgba(16,24,40,.08);
+  color:#667085;
+  font-size:12px;
+  font-weight:850;
+}
+.content-status-stepper i{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  background:#cbd5e1;
+}
+.content-status-stepper span.active{
+  color:#175cd3;
+  background:#eff8ff;
+  border-color:#b2ddff;
+}
+.content-status-stepper span.active i{
+  background:#2563eb;
+}
+.ai-workbench-hero{
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) minmax(320px, .75fr);
+  gap:24px;
+  align-items:end;
+  padding:28px;
+  border-radius:28px;
+  background:linear-gradient(135deg, #101828, #0f766e);
+  color:#fff;
+  box-shadow:0 26px 70px rgba(16,24,40,.16);
+}
+.ai-workbench-hero h1{
+  margin:8px 0 10px;
+  font-size:clamp(30px, 4vw, 52px);
+  letter-spacing:0;
+}
+.ai-workbench-hero p{
+  max-width:720px;
+  color:rgba(255,255,255,.76);
+}
+.ai-signal-stack{
+  display:grid;
+  gap:10px;
+}
+.ai-signal-stack button,
+.ai-action-grid button{
+  text-align:left;
+  border:1px solid rgba(16,24,40,.10);
+  border-radius:18px;
+  background:#fff;
+  color:#101828;
+  padding:14px 16px;
+  font-weight:850;
+  cursor:pointer;
+}
+.ai-signal-stack button{
+  background:rgba(255,255,255,.12);
+  color:#fff;
+  border-color:rgba(255,255,255,.20);
+}
+.ai-action-grid{
+  display:grid;
+  grid-template-columns:repeat(3, minmax(0, 1fr));
+  gap:12px;
+  margin-bottom:18px;
+}
+.ai-action-grid button{
+  display:grid;
+  gap:7px;
+}
+.ai-action-grid button span{
+  color:#667085;
+  font-size:12px;
+  line-height:1.45;
+}
+.ai-action-grid button.active{
+  background:#eff8ff;
+  border-color:#b2ddff;
+}
 @media print{
   body *{
     visibility:hidden;
@@ -14673,18 +15484,32 @@ tbody tr{
   .finance-command-card{
     grid-template-columns:1fr;
   }
+  .role-workspace-panel,
+  .finance-budget-grid{
+    grid-template-columns:1fr;
+  }
+  .role-workspace-grid{
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+  }
+  .ai-workbench-hero,
+  .ai-action-grid{
+    grid-template-columns:1fr;
+  }
   .login-card{
     width:min(100%, 560px);
   }
 }
 @media (max-width: 720px){
-  .login-feature-row,.login-metrics-row,.login-mode-switch{
+  .login-feature-row,.login-metrics-row,.login-mode-switch,.login-preview-metrics,.login-preview-flow,.login-progress-steps,.content-status-stepper{
     grid-template-columns:1fr;
   }
   .content-detail-grid{
     grid-template-columns:1fr;
   }
   .finance-command-grid{
+    grid-template-columns:1fr;
+  }
+  .role-workspace-grid{
     grid-template-columns:1fr;
   }
   .inline-action-row{
