@@ -7131,8 +7131,87 @@ function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bon
   }));
   const maxCategoryAmount = Math.max(...categoryTotals.map((item) => item.amount), 1);
 
+  function resetBudgetForm() {
+    setBudgetForm({ month_label: monthFilter || getMonthLabel(), category: "servis", limit_amount: "", notes: "" });
+    setEditBudget(null);
+  }
+
+  async function handleBudgetSubmit(e) {
+    e.preventDefault();
+    if (readOnly) {
+      onToast("Viewer rejimida budget o'zgartirish yopiq", "error");
+      return;
+    }
+    try {
+      const payload = {
+        ...budgetForm,
+        month_label: budgetForm.month_label || monthFilter,
+        limit_amount: Number(budgetForm.limit_amount || 0)
+      };
+      if (editBudget?.id) {
+        await api.update("budgets", editBudget.id, payload);
+        onToast("Budget limit yangilandi", "success");
+      } else {
+        await api.create("budgets", payload);
+        onToast("Budget limit saqlandi", "success");
+      }
+      await reload();
+      resetBudgetForm();
+    } catch (err) {
+      onToast(err.message || "Budget limit saqlanmadi", "error");
+    }
+  }
+
+  function startBudgetEdit(row) {
+    if (readOnly) {
+      onToast("Viewer rejimida budget tahrirlash yopiq", "error");
+      return;
+    }
+    setEditBudget(row);
+    setBudgetForm({
+      month_label: row.month_label || monthFilter,
+      category: row.category || "servis",
+      limit_amount: row.limit_amount || "",
+      notes: row.notes || ""
+    });
+  }
+
+  async function removeBudget(id) {
+    if (readOnly) {
+      onToast("Viewer rejimida budget o'chirish yopiq", "error");
+      return;
+    }
+    if (!window.confirm("Budget limit o'chirilsinmi?")) return;
+    try {
+      await api.remove("budgets", id);
+      await reload();
+      onToast("Budget limit o'chirildi", "success", { deleteCenter: true });
+    } catch (err) {
+      onToast(err.message || "Budget limit o'chmadi", "error");
+    }
+  }
+
+  async function closeFinanceMonth() {
+    if (readOnly) {
+      onToast("Viewer rejimida oy yopish yopiq", "error");
+      return;
+    }
+    const ok = window.confirm(`${getMonthTitle(monthFilter)} finance oyini yopamizmi? Bu oydagi harajatlar tahriri bloklanadi.`);
+    if (!ok) return;
+    try {
+      setClosingFinance(true);
+      await api.create("finance/monthly-close", { month_label: monthFilter });
+      await reload();
+      onToast(`${getMonthTitle(monthFilter)} finance oyi yopildi`, "success");
+    } catch (err) {
+      onToast(err.message || "Finance oyini yopib bo'lmadi", "error");
+    } finally {
+      setClosingFinance(false);
+    }
+  }
+
   return (
-    <div className="page-grid">
+    <div className="page-grid finance-center-page">
       <div className="card">
         <SectionTitle
           title="Harajatlar va finance markazi"
@@ -17513,6 +17592,44 @@ tr:hover td,
 @keyframes skeleton-shimmer{
   from{background-position:0 0}
   to{background-position:-220% 0}
+}
+.finance-center-page{
+  background:#F6F8FB !important;
+  min-height:calc(100vh - 132px);
+  border-radius:0 !important;
+}
+.finance-center-page .finance-command-card{
+  background:linear-gradient(135deg,#101828 0%,#1478F2 100%) !important;
+  color:#FFFFFF !important;
+  border:0 !important;
+  box-shadow:0 24px 68px rgba(20,120,242,.22) !important;
+}
+.finance-center-page .finance-command-card h2,
+.finance-center-page .finance-command-card p,
+.finance-center-page .finance-command-card .small-label{
+  color:#FFFFFF !important;
+}
+.finance-center-page .finance-command-card p{
+  opacity:.78;
+}
+.finance-center-page .finance-command-grid > div{
+  background:rgba(255,255,255,.12) !important;
+  border:1px solid rgba(255,255,255,.18) !important;
+  box-shadow:none !important;
+  backdrop-filter:blur(14px);
+}
+.finance-center-page .finance-command-grid span{
+  color:rgba(255,255,255,.72) !important;
+}
+.finance-center-page .finance-command-grid strong{
+  color:#FFFFFF !important;
+}
+.finance-center-page > .card,
+.finance-center-page .stats-grid,
+.finance-center-page .table-wrap,
+.finance-center-page .finance-budget-card,
+.finance-center-page .expense-bar-card{
+  position:relative;
 }
 @media (max-width: 900px){
   .app-shell{
