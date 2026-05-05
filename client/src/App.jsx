@@ -54,6 +54,7 @@ import ContestExpensesPanel from "./ContestExpensesPanel";
 import DailyReportImageImportPanel from "./DailyReportImageImportPanel";
 import TravelExpensesPanel from "./TravelExpensesPanel";
 import { DESIGN_SYSTEM_VERSION, buttonVariants, statusBadgeTone } from "./design-system";
+import { UiHealthStrip, UiOpsTimeline, UiStatusStepper } from "./ui-system";
 
 const MENU = [
   { id: "dashboard", title: "Bosh sahifa", icon: LayoutDashboard, tone: "indigo" },
@@ -3712,7 +3713,41 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
     .filter((item) => (item.paid_status || "pending") === "paid")
     .reduce((sum, item) => sum + Number(item.total_amount || item.approved_amount || 0), 0);
   const monthClosed = filteredItems.some((item) => item.monthly_closed_at);
+  const pendingRowsCount = filteredItems.filter((item) => (item.paid_status || "pending") === "pending").length;
+  const readyRowsCount = filteredItems.filter((item) => (item.paid_status || "pending") === "approved" || item.approval_status === "approved").length;
   const paidRowsCount = filteredItems.filter((item) => (item.paid_status || "pending") === "paid").length;
+  const payrollSteps = [
+    {
+      label: "MySeOne sync",
+      value: `${filteredItems.length} yozuv`,
+      detail: "avtomatik yangilanadi",
+      status: filteredItems.length ? "done" : "idle"
+    },
+    {
+      label: "Pending",
+      value: formatMoney(pendingAmount),
+      detail: `${pendingRowsCount} yozuv tekshiruvda`,
+      status: pendingRowsCount ? "warning" : "done"
+    },
+    {
+      label: "Payroll ready",
+      value: formatMoney(approvedReadyAmount || totalApprovedAmount),
+      detail: `${readyRowsCount} yozuv tayyor`,
+      status: readyRowsCount ? "active" : "idle"
+    },
+    {
+      label: "Paid",
+      value: formatMoney(paidAmount),
+      detail: `${paidRowsCount} yozuv to'langan`,
+      status: paidRowsCount ? "done" : "idle"
+    },
+    {
+      label: "Month lock",
+      value: monthClosed ? "Locked" : "Open",
+      detail: monthClosed ? "audit bilan himoyalangan" : "yopishga tayyor",
+      status: monthClosed ? "done" : "idle"
+    }
+  ];
   const approvalEmployeeStats = useMemo(() => summarizeBonusEmployees(approvalRows, bonusRate), [approvalRows, bonusRate]);
   const approvalEmployeeTotal = approvalEmployeeStats.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const approvedRowCount = filteredItems.filter((item) => item.approval_status === "approved").length;
@@ -4047,6 +4082,8 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
         <div className="info-banner">
           Bonus formulasi: <strong>Sodda 25,000 UZS</strong>, <strong>O'rta 50,000 UZS</strong>, <strong>Murakkab 75,000 UZS</strong>, <strong>Juda murakkab 100,000 UZS</strong>, <strong>Bonussiz 0 UZS</strong>.
         </div>
+
+        <UiStatusStepper steps={payrollSteps} />
 
         <div className="stats-grid">
           <StatCard title="Taklif soni" value={totalProposalCount} hint="joriy oy" />
@@ -6755,6 +6792,7 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme, onToast, relo
   const fileInputRef = useRef(null);
   const [backupPreview, setBackupPreview] = useState(null);
   const [pendingPayload, setPendingPayload] = useState(null);
+  const [testingTelegram, setTestingTelegram] = useState(false);
   const shareUrl = settings?.public_share_token ? `${API_BASE}/api/share/report/${settings.public_share_token}` : "";
 
   useEffect(() => {
@@ -6762,6 +6800,45 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme, onToast, relo
   }, [settings]);
 
   const setField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+  const telegramConfigured = Boolean(form.telegram_bot_token && form.telegram_chat_id);
+  const telegramMonitorItems = [
+    {
+      label: "Bot token",
+      value: form.telegram_bot_token ? "Ulangan" : "Kerak",
+      hint: form.telegram_bot_token ? "xabar yuborishga tayyor" : "token kiriting",
+      tone: form.telegram_bot_token ? "success" : "danger"
+    },
+    {
+      label: "SMM group",
+      value: form.telegram_chat_id ? "Chat ID bor" : "Chat ID yo'q",
+      hint: form.telegram_chat_id || "guruh ID kiritilmagan",
+      tone: form.telegram_chat_id ? "success" : "warning"
+    },
+    {
+      label: "Workflow",
+      value: telegramConfigured ? "Real-time" : "Offline",
+      hint: "login, deadline, bonus, finance",
+      tone: telegramConfigured ? "info" : "default"
+    }
+  ];
+  const telegramOps = [
+    { title: "Login kod", text: "Telefon raqam orqali bir martalik kod yuboriladi", meta: telegramConfigured ? "ready" : "setup", tone: telegramConfigured ? "success" : "warning" },
+    { title: "Deadline signal", text: "Kontent deadline yaqinlashganda guruhga xabar ketadi", meta: "auto", tone: "info" },
+    { title: "Bonus paid", text: "Payroll paid bo'lganda hodim va guruhga notification", meta: "payroll", tone: "success" },
+    { title: "Finance risk", text: "Budget limit oshsa signal markaziga chiqadi", meta: "monitor", tone: "warning" }
+  ];
+
+  async function testTelegramConnection() {
+    try {
+      setTestingTelegram(true);
+      const data = await api.create("settings/test-telegram", {});
+      onToast(data?.message || "Telegram test yuborildi", "success");
+    } catch (err) {
+      onToast(err.message || "Telegram test yuborilmadi", "error");
+    } finally {
+      setTestingTelegram(false);
+    }
+  }
 
   return (
     <div className="page-grid">
@@ -6794,6 +6871,21 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme, onToast, relo
             </div>
           </div>
         </div>
+
+        <div className="settings-ops-card">
+          <SectionTitle
+            title="Telegram production monitoring"
+            desc="Bot xabarlari, login kod va workflow signal holati"
+            right={(
+              <button className="btn secondary" type="button" onClick={testTelegramConnection} disabled={testingTelegram || !telegramConfigured}>
+                {testingTelegram ? "Tekshirilmoqda..." : "Telegram test"}
+              </button>
+            )}
+          />
+          <UiHealthStrip items={telegramMonitorItems} />
+          <UiOpsTimeline items={telegramOps} />
+        </div>
+
         <button className="btn primary mt16" onClick={() => onSave(form)} disabled={saving}>
           {saving ? "Saqlanmoqda..." : "Saqlash"}
         </button>
@@ -6815,14 +6907,9 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme, onToast, relo
           <button className="btn secondary" onClick={() => fileInputRef.current?.click()} disabled={importing}>
             {importing ? "Restore..." : "Backup restore"}
           </button>
-          <button className="btn secondary" onClick={async () => {
-            try {
-              const data = await api.create("settings/test-telegram", {});
-              alert(data?.message || "Telegram test yuborildi");
-            } catch (err) {
-              alert(err.message || "Telegram test yuborilmadi");
-            }
-          }}>Telegram test</button>
+          <button className="btn secondary" onClick={testTelegramConnection} disabled={testingTelegram || !telegramConfigured}>
+            {testingTelegram ? "Tekshirilmoqda..." : "Telegram test"}
+          </button>
           <button className="btn secondary" onClick={async () => {
             try {
               await api.create("settings/share-token", {});
@@ -7128,8 +7215,38 @@ function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bon
     amount: filteredExpenses
       .filter((row) => (row.category || "boshqa") === item.key)
       .reduce((sum, row) => sum + Number(row.amount || 0), 0)
-  }));
+    }));
   const maxCategoryAmount = Math.max(...categoryTotals.map((item) => item.amount), 1);
+  const overBudgetCount = activeBudgets.filter((budget) => {
+    const actual = categoryTotals.find((item) => item.key === budget.category)?.amount || 0;
+    return Number(budget.limit_amount || 0) > 0 && actual > Number(budget.limit_amount || 0);
+  }).length;
+  const financeHealthItems = [
+    {
+      label: "Budget control",
+      value: overBudgetCount ? `${overBudgetCount} limit oshdi` : "Barqaror",
+      hint: budgetTotal ? formatMoney(budgetTotal) : "limit kiritilmagan",
+      tone: overBudgetCount ? "danger" : "success"
+    },
+    {
+      label: "Month lock",
+      value: monthClosed ? "Yopilgan" : "Ochiq",
+      hint: getMonthTitle(monthFilter),
+      tone: monthClosed ? "warning" : "info"
+    },
+    {
+      label: "Fiscal receipt",
+      value: `${filteredExpenses.length} chek`,
+      hint: "har bir harajat uchun",
+      tone: filteredExpenses.length ? "success" : "default"
+    },
+    {
+      label: "Cashflow",
+      value: cashflowDelta >= 0 ? "Limit ichida" : "Risk",
+      hint: formatMoney(cashflowDelta),
+      tone: cashflowDelta >= 0 ? "success" : "danger"
+    }
+  ];
 
   function resetBudgetForm() {
     setBudgetForm({ month_label: monthFilter || getMonthLabel(), category: "servis", limit_amount: "", notes: "" });
@@ -7255,6 +7372,8 @@ function ExpensesPage({ expenses = [], contestExpenses = [], campaigns = [], bon
           <div><span>Cashflow delta</span><strong>{formatMoney(cashflowDelta)}</strong></div>
         </div>
       </div>
+
+      <UiHealthStrip items={financeHealthItems} />
 
       {monthClosed ? (
         <div className="info-banner finance-lock-banner">
@@ -8148,76 +8267,6 @@ function AiAssistantPage({ branches = [], onToast }) {
       onToast(err.message || "Workflow digest yuborilmadi", "error");
     } finally {
       setSendingDigest(false);
-    }
-  }
-
-  async function handleBudgetSubmit(e) {
-    e.preventDefault();
-    if (readOnly) {
-      onToast("Viewer rejimida budget o'zgartirish yopiq", "error");
-      return;
-    }
-    try {
-      const payload = { ...budgetForm, month_label: budgetForm.month_label || monthFilter, limit_amount: Number(budgetForm.limit_amount || 0) };
-      if (editBudget?.id) {
-        await api.update("budgets", editBudget.id, payload);
-        onToast("Budget limit yangilandi", "success");
-      } else {
-        await api.create("budgets", payload);
-        onToast("Budget limit saqlandi", "success");
-      }
-      await reload();
-      resetBudgetForm();
-    } catch (err) {
-      onToast(err.message || "Budget limit saqlanmadi", "error");
-    }
-  }
-
-  function startBudgetEdit(row) {
-    if (readOnly) {
-      onToast("Viewer rejimida budget tahrirlash yopiq", "error");
-      return;
-    }
-    setEditBudget(row);
-    setBudgetForm({
-      month_label: row.month_label || monthFilter,
-      category: row.category || "servis",
-      limit_amount: row.limit_amount || "",
-      notes: row.notes || ""
-    });
-  }
-
-  async function removeBudget(id) {
-    if (readOnly) {
-      onToast("Viewer rejimida budget o'chirish yopiq", "error");
-      return;
-    }
-    if (!window.confirm("Budget limit o'chirilsinmi?")) return;
-    try {
-      await api.remove("budgets", id);
-      await reload();
-      onToast("Budget limit o'chirildi", "success", { deleteCenter: true });
-    } catch (err) {
-      onToast(err.message || "Budget limit o'chmadi", "error");
-    }
-  }
-
-  async function closeFinanceMonth() {
-    if (readOnly) {
-      onToast("Viewer rejimida oy yopish yopiq", "error");
-      return;
-    }
-    const ok = window.confirm(`${getMonthTitle(monthFilter)} finance oyini yopamizmi? Bu oydagi harajatlar tahriri bloklanadi.`);
-    if (!ok) return;
-    try {
-      setClosingFinance(true);
-      await api.create("finance/monthly-close", { month_label: monthFilter });
-      await reload();
-      onToast(`${getMonthTitle(monthFilter)} finance oyi yopildi`, "success");
-    } catch (err) {
-      onToast(err.message || "Finance oyini yopib bo'lmadi", "error");
-    } finally {
-      setClosingFinance(false);
     }
   }
 
@@ -17631,6 +17680,166 @@ tr:hover td,
 .finance-center-page .expense-bar-card{
   position:relative;
 }
+.ui-status-stepper{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:10px;
+  margin:18px 0;
+}
+.ui-status-step{
+  position:relative;
+  display:grid;
+  grid-template-columns:34px minmax(0,1fr);
+  gap:10px;
+  align-items:flex-start;
+  padding:14px;
+  border:1px solid #E6EAF0;
+  border-radius:18px;
+  background:#FFFFFF;
+  box-shadow:0 10px 26px rgba(15,23,42,.045);
+}
+.ui-status-step:after{
+  content:"";
+  position:absolute;
+  top:31px;
+  right:-10px;
+  width:10px;
+  height:2px;
+  background:#DDE6F2;
+}
+.ui-status-step:last-child:after{
+  display:none;
+}
+.ui-step-marker{
+  width:34px;
+  height:34px;
+  border-radius:12px;
+  display:grid;
+  place-items:center;
+  background:#F2F6FC;
+  color:#8A93A0;
+  font-weight:900;
+}
+.ui-step-body{
+  min-width:0;
+  display:grid;
+  gap:3px;
+}
+.ui-step-body span,
+.ui-health-item span{
+  color:#8A93A0;
+  font-size:12px;
+  font-weight:900;
+}
+.ui-step-body strong,
+.ui-health-item strong{
+  color:#151515;
+  font-family:"Manrope","Inter",sans-serif;
+  font-size:16px;
+  font-weight:900;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.ui-step-body small,
+.ui-health-item small,
+.ui-ops-row small{
+  color:#8A93A0;
+  font-weight:750;
+  line-height:1.45;
+}
+.ui-status-step.done .ui-step-marker,
+.ui-health-item.success:before,
+.ui-ops-row.success .ui-ops-dot{
+  background:#EAF8F1;
+  color:#21B573;
+}
+.ui-status-step.active .ui-step-marker,
+.ui-health-item.info:before,
+.ui-ops-row.info .ui-ops-dot{
+  background:#EAF3FF;
+  color:#1478F2;
+}
+.ui-status-step.warning .ui-step-marker,
+.ui-health-item.warning:before,
+.ui-ops-row.warning .ui-ops-dot{
+  background:#FFF4E8;
+  color:#F47A2A;
+}
+.ui-health-strip{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+  margin:16px 0;
+}
+.ui-health-item{
+  position:relative;
+  overflow:hidden;
+  display:grid;
+  gap:5px;
+  padding:16px 16px 16px 48px;
+  border:1px solid #E6EAF0;
+  border-radius:18px;
+  background:#FFFFFF;
+  box-shadow:0 10px 28px rgba(15,23,42,.045);
+}
+.ui-health-item:before{
+  content:"";
+  position:absolute;
+  left:16px;
+  top:18px;
+  width:20px;
+  height:20px;
+  border-radius:9px;
+  background:#F2F6FC;
+}
+.ui-health-item.danger:before,
+.ui-ops-row.danger .ui-ops-dot{
+  background:#FEECEC;
+}
+.ui-health-item.danger strong{
+  color:#EF4444;
+}
+.ui-ops-timeline{
+  display:grid;
+  gap:10px;
+}
+.ui-ops-row{
+  display:grid;
+  grid-template-columns:14px minmax(0,1fr) auto;
+  gap:10px;
+  align-items:center;
+  padding:12px 14px;
+  border:1px solid #E6EAF0;
+  border-radius:16px;
+  background:#F9FBFE;
+}
+.ui-ops-dot{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  background:#DDE6F2;
+}
+.ui-ops-row strong{
+  display:block;
+  color:#151515;
+  font-weight:900;
+}
+.ui-ops-row em{
+  color:#1478F2;
+  font-style:normal;
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.settings-ops-card{
+  margin-top:18px;
+  padding:18px;
+  border:1px solid #E6EAF0;
+  border-radius:22px;
+  background:#FFFFFF;
+  box-shadow:0 14px 36px rgba(15,23,42,.045);
+}
 @media (max-width: 900px){
   .app-shell{
     display:block !important;
@@ -17680,6 +17889,13 @@ tr:hover td,
   }
   .login-mode-switch{
     grid-template-columns:1fr !important;
+  }
+  .ui-status-stepper,
+  .ui-health-strip{
+    grid-template-columns:1fr !important;
+  }
+  .ui-status-step:after{
+    display:none;
   }
 }
 `;
