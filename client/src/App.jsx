@@ -14,7 +14,6 @@ import {
   Eye,
   FileBarChart2,
   Gift,
-  HeartPulse,
   Image,
   Landmark,
   LayoutDashboard,
@@ -27,7 +26,6 @@ import {
   Mic,
   Menu,
   PlaneTakeoff,
-  Repeat2,
   Pencil,
   PhoneCall,
   ReceiptText,
@@ -39,7 +37,6 @@ import {
   SmilePlus,
   Trash2,
   Upload,
-  Users as UsersIcon,
   ShieldCheck,
   Target,
   ClipboardList,
@@ -63,9 +60,6 @@ const MENU = [
   { id: "expenses", title: "Harajatlar va finance", icon: ReceiptText, tone: "amber" },
   { id: "travelPlans", title: "Safar rejasi", icon: PlaneTakeoff, tone: "violet" },
   { id: "analytics", title: "Analytics", icon: BarChart3, tone: "sky" },
-  { id: "moodPulse", title: "Mood pulse", icon: HeartPulse, tone: "pink" },
-  { id: "employeeKpi", title: "Employee KPI", icon: UsersIcon, tone: "teal" },
-  { id: "recurring", title: "Recurring", icon: Repeat2, tone: "orange" },
   { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: ClipboardList, tone: "slate" },
   { id: "campaigns", title: "Reklama kampaniyalari", icon: Target, tone: "fuchsia" },
   { id: "uploads", title: "Media kutubxona", icon: Image, tone: "purple" },
@@ -73,15 +67,14 @@ const MENU = [
   { id: "tasks", title: "Vazifalar", icon: ListTodo, tone: "green" },
   { id: "audit", title: "Audit log", icon: ShieldCheck, tone: "red" },
   { id: "profile", title: "Profil", icon: CircleUserRound, tone: "cyan" },
-  { id: "settings", title: "Sozlamalar", icon: SlidersHorizontal, tone: "slate" },
-  { id: "aiAssistant", title: "AI yordamchi", icon: Sparkles, tone: "violet" }
+  { id: "settings", title: "Sozlamalar", icon: SlidersHorizontal, tone: "slate" }
 ];
 
 const MENU_GROUPS = [
   { id: "core", title: "Asosiy", items: ["dashboard", "content", "bonus", "tasks"] },
-  { id: "operations", title: "Jarayonlar", items: ["travelPlans", "campaigns", "expenses", "dailyReports", "recurring"] },
-  { id: "insights", title: "Tahlil va KPI", items: ["analytics", "moodPulse", "employeeKpi", "uploads"] },
-  { id: "system", title: "Boshqaruv", items: ["users", "audit", "profile", "settings", "aiAssistant"] }
+  { id: "operations", title: "Jarayonlar", items: ["travelPlans", "campaigns", "expenses", "dailyReports"] },
+  { id: "insights", title: "Tahlil", items: ["analytics", "uploads"] },
+  { id: "system", title: "Boshqaruv", items: ["users", "audit", "profile", "settings"] }
 ];
 
 const ROUTES_BY_PAGE = {
@@ -95,9 +88,6 @@ const ROUTES_BY_PAGE = {
   finance: "/harajatlar",
   travelPlans: "/safar",
   analytics: "/analytics",
-  moodPulse: "/mood-pulse",
-  employeeKpi: "/xodim-kpi",
-  recurring: "/recurring",
   dailyReports: "/kunlik-hisobotlar",
   campaigns: "/reklama",
   uploads: "/media",
@@ -105,8 +95,7 @@ const ROUTES_BY_PAGE = {
   tasks: "/vazifalar",
   audit: "/audit",
   profile: "/profil",
-  settings: "/sozlamalar",
-  aiAssistant: "/ai-yordamchi"
+  settings: "/sozlamalar"
 };
 
 const PAGE_BY_ROUTE = {
@@ -121,9 +110,6 @@ const PAGE_BY_ROUTE = {
   "/finance": "expenses",
   "/safar": "travelPlans",
   "/analytics": "analytics",
-  "/mood-pulse": "moodPulse",
-  "/xodim-kpi": "employeeKpi",
-  "/recurring": "recurring",
   "/kunlik-hisobotlar": "dailyReports",
   "/reklama": "campaigns",
   "/media": "uploads",
@@ -131,8 +117,7 @@ const PAGE_BY_ROUTE = {
   "/vazifalar": "tasks",
   "/audit": "audit",
   "/profil": "profile",
-  "/sozlamalar": "settings",
-  "/ai-yordamchi": "aiAssistant"
+  "/sozlamalar": "settings"
 };
 
 const PERMISSION_OPTIONS = [
@@ -151,9 +136,6 @@ const PERMISSION_OPTIONS = [
   { id: "expenses_delete", label: "Harajat o'chirish" },
   { id: "travelPlans", label: "Safar rejasi" },
   { id: "analytics", label: "Analytics" },
-  { id: "moodPulse", label: "Mood pulse" },
-  { id: "employeeKpi", label: "Employee KPI" },
-  { id: "recurring", label: "Recurring" },
   { id: "travelPlans_create", label: "Safar reja qo'shish" },
   { id: "travelPlans_edit", label: "Safar reja tahrirlash" },
   { id: "travelPlans_delete", label: "Safar reja o'chirish" },
@@ -175,16 +157,14 @@ const PERMISSION_OPTIONS = [
   { id: "audit", label: "Audit log" },
   { id: "profile", label: "Profil" },
   { id: "settings", label: "Sozlamalar" }
-  ,
-  { id: "aiAssistant", label: "AI yordamchi" }
 ];
 
 const DIRECTOR_PERMISSION_PRESET = PERMISSION_OPTIONS.map((item) => item.id);
 
 const ROLE_WORKSPACE_PRESETS = {
-  director: ["dashboard", "expenses", "analytics", "dailyReports", "aiAssistant", "profile"],
-  manager: ["dashboard", "content", "tasks", "campaigns", "dailyReports", "aiAssistant", "profile"],
-  editor: ["dashboard", "tasks", "uploads", "content", "aiAssistant", "profile"],
+  director: ["dashboard", "expenses", "analytics", "dailyReports", "profile"],
+  manager: ["dashboard", "content", "tasks", "campaigns", "dailyReports", "profile"],
+  editor: ["dashboard", "tasks", "uploads", "content", "profile"],
   mobilograf: ["dashboard", "travelPlans", "tasks", "content", "uploads", "profile"],
   viewer: ["dashboard", "content", "bonus", "expenses", "travelPlans", "dailyReports", "profile"]
 };
@@ -8383,15 +8363,12 @@ function App() {
   const [campaigns, setCampaigns] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
-  const [recurringTasks, setRecurringTasks] = useState([]);
-  const [recurringExpenses, setRecurringExpenses] = useState([]);
   const [budgets, setBudgets] = useState([]);
   const [financeLocks, setFinanceLocks] = useState([]);
   const [analyticsData, setAnalyticsData] = useState(null);
   const [topPerformers, setTopPerformers] = useState(null);
   const [executiveSummary, setExecutiveSummary] = useState(null);
   const [employeeKpi, setEmployeeKpi] = useState([]);
-  const [moodEntries, setMoodEntries] = useState([]);
   const [savingSettings, setSavingSettings] = useState(false);
 
   useEffect(() => {
@@ -8489,9 +8466,7 @@ function App() {
       "dailyReports",
       "campaigns",
       "users",
-      "tasks",
-      "recurring",
-      "aiAssistant"
+      "tasks"
     ].includes(pageId);
   }, []);
 
@@ -8608,21 +8583,6 @@ function App() {
         setEmployeeKpi(employeeKpiRes || []);
         setExecutiveSummary(executiveSummaryRes || null);
         setTopPerformers(analyticsRes?.top_performers || null);
-        break;
-      }
-      case "moodPulse":
-        setMoodEntries(await api.list("/api/team-mood").catch(() => []));
-        break;
-      case "employeeKpi":
-        setEmployeeKpi(await api.list("/api/employee-kpi").catch(() => []));
-        break;
-      case "recurring": {
-        const [recurringTasksRes, recurringExpensesRes] = await Promise.all([
-          api.list("recurring-tasks").catch(() => []),
-          api.list("recurring-expenses").catch(() => [])
-        ]);
-        setRecurringTasks(recurringTasksRes || []);
-        setRecurringExpenses(recurringExpensesRes || []);
         break;
       }
       case "dailyReports":
@@ -8828,7 +8788,7 @@ function App() {
 
   const mobilePrimaryMenu = useMemo(() => {
     const rolePreferred = {
-      director: ["dashboard", "expenses", "analytics", "aiAssistant", "profile"],
+      director: ["dashboard", "expenses", "analytics", "profile"],
       manager: ["dashboard", "content", "tasks", "dailyReports", "profile"],
       editor: ["dashboard", "tasks", "uploads", "content", "profile"],
       mobilograf: ["dashboard", "travelPlans", "tasks", "uploads", "profile"],
@@ -8992,12 +8952,6 @@ function App() {
     page = <TravelPlansPage travelPlans={travelPlans} travelExpenses={travelExpenses} branches={branches} onToast={showToast} reload={reloadData} />;
   } else if (active === "analytics") {
     page = <AnalyticsPage analyticsData={{ ...(analyticsData || {}), employee_kpi: employeeKpi, executive_summary: executiveSummary?.text }} />;
-  } else if (active === "moodPulse") {
-    page = <MoodPulsePage rows={moodEntries} user={user} onToast={showToast} reload={reloadData} />;
-  } else if (active === "employeeKpi") {
-    page = <EmployeeKpiPage rows={employeeKpi} />;
-  } else if (active === "recurring") {
-    page = <RecurringPage recurringTasks={recurringTasks} recurringExpenses={recurringExpenses} users={users} onToast={showToast} reload={reloadData} />;
   } else if (active === "dailyReports") {
     page = <DailyReportsPage reports={dailyReports} branches={branches} onToast={showToast} reload={reloadData} />;
   } else if (active === "campaigns") {
@@ -9014,8 +8968,6 @@ function App() {
     page = <ProfilePage user={user} onToast={showToast} refreshUser={setUser} />;
   } else if (active === "settings") {
     page = <SettingsPage settings={settings} onSave={saveSettings} saving={savingSettings} theme={theme} setTheme={setTheme} onToast={showToast} reload={reloadData} />;
-  } else if (active === "aiAssistant") {
-    page = <AiAssistantPage branches={branches} onToast={showToast} />;
   }
 
   return (
