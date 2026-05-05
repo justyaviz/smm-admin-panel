@@ -17190,6 +17190,330 @@ tr:hover td,
 .login-loader-ring{
   border-top-color:#1478F2 !important;
 }
+
+/* Billz-grade component detailing */
+.section-title-row{
+  align-items:center !important;
+  gap:18px !important;
+  margin-bottom:18px !important;
+}
+.section-title-row h2{
+  color:#151515 !important;
+  font-size:26px !important;
+  line-height:1.16 !important;
+  font-weight:900 !important;
+}
+.section-title-row p{
+  margin-top:6px !important;
+  color:#7A828F !important;
+  font-size:14px !important;
+  line-height:1.45 !important;
+  font-weight:700 !important;
+}
+.toolbar-actions{
+  gap:10px !important;
+  align-items:center !important;
+}
+.toolbar-actions select,
+.toolbar-actions input,
+.toolbar-actions .btn,
+.content-modern-toolbar .btn,
+.content-modern-toolbar select{
+  min-height:44px !important;
+  border-radius:14px !important;
+}
+.toolbar-actions select,
+.calendar-pro-toolbar select,
+.content-modern-toolbar select{
+  background:#F7F9FC !important;
+  border:1px solid #E3E8F0 !important;
+  color:#4F5662 !important;
+  font-weight:850 !important;
+  padding:0 36px 0 14px !important;
+}
+.icon-actions,
+.table-actions-shell{
+  display:flex !important;
+  justify-content:flex-end !important;
+  gap:7px !important;
+}
+.icon-btn,
+.icon-actions button,
+.table-actions-shell button:not(.btn){
+  width:34px !important;
+  height:34px !important;
+  min-width:34px !important;
+  border-radius:11px !important;
+  border:1px solid #E3E8F0 !important;
+  background:#F7F9FC !important;
+  color:#1478F2 !important;
+  display:inline-grid !important;
+  place-items:center !important;
+  box-shadow:none !important;
+}
+.icon-btn:hover,
+.icon-actions button:hover,
+.table-actions-shell button:not(.btn):hover{
+  background:#E7F0FE !important;
+  border-color:#D5E6FF !important;
+  transform:none !important;
+}
+.icon-actions button:last-child,
+.table-actions-shell button:last-child{
+  color:#EF4444 !important;
+}
+.form-grid{
+  gap:14px !important;
+}
+.form-grid label{
+  gap:8px !important;
+}
+.form-grid label span,
+.modal-card label span,
+.card label span{
+  color:#6B6F7A !important;
+  font-size:12px !important;
+  font-weight:900 !important;
+  letter-spacing:0 !important;
+}
+.form-grid input,
+.form-grid select,
+.form-grid textarea,
+.modal-card input,
+.modal-card select,
+.modal-card textarea,
+.card input,
+.card select,
+.card textarea{
+  min-height:52px !important;
+  border-radius:16px !important;
+  padding:0 15px !important;
+  background:#F7F9FC !important;
+  border:1px solid #E1E7EF !important;
+  color:#151515 !important;
+  font-weight:750 !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75) !important;
+}
+.form-grid textarea,
+.modal-card textarea,
+.card textarea{
+  min-height:104px !important;
+  padding:14px 15px !important;
+}
+.form-grid input:focus,
+.form-grid select:focus,
+.form-grid textarea:focus,
+.modal-card input:focus,
+.modal-card select:focus,
+.modal-card textarea:focus,
+.card input:focus,
+.card select:focus,
+.card textarea:focus{
+  background:#FFFFFF !important;
+  border-color:#1478F2 !important;
+  box-shadow:0 0 0 4px rgba(20,120,242,.12) !important;
+}
+.full-col{
+  grid-column:1 / -1 !important;
+}
+.stats-grid{
+  gap:14px !important;
+}
+.stat-card{
+  min-height:126px !important;
+  display:grid !important;
+  align-content:start !important;
+  gap:8px !important;
+}
+.stat-card-indicator{
+  width:34px !important;
+  height:34px !important;
+  border-radius:13px !important;
+  position:static !important;
+  box-shadow:none !important;
+  background:#E7F0FE !important;
+}
+.stat-card-title{
+  color:#8A93A0 !important;
+  font-size:12px !important;
+  font-weight:900 !important;
+  text-transform:none !important;
+}
+.stat-card-value{
+  margin:0 !important;
+  font-size:30px !important;
+  line-height:1.08 !important;
+  color:#1478F2 !important;
+  font-weight:900 !important;
+}
+.stat-card-hint{
+  color:#7A828F !important;
+  font-size:13px !important;
+  font-weight:700 !important;
+}
+.dashboard-metric-card{
+  background:#FFFFFF !important;
+  border:1px solid #E6EAF0 !important;
+  border-radius:24px !important;
+  box-shadow:0 16px 40px rgba(15,23,42,.055) !important;
+  overflow:hidden !important;
+}
+.dashboard-metric-dot{
+  width:34px !important;
+  height:34px !important;
+  border-radius:13px !important;
+  background:#E7F0FE !important;
+  box-shadow:none !important;
+}
+.dashboard-metric-spark span{
+  background:#D5E6FF !important;
+  border-radius:999px 999px 0 0 !important;
+}
+.dashboard-metric-main{
+  font-size:34px !important;
+}
+.content-modern-stats,
+.bonus-command-grid,
+.finance-command-grid,
+.role-workspace-grid,
+.finance-budget-grid{
+  gap:14px !important;
+}
+.content-modern-stat,
+.bonus-command-grid > div,
+.finance-command-grid > div,
+.role-workspace-card,
+.finance-budget-card{
+  background:#FFFFFF !important;
+  border:1px solid #E6EAF0 !important;
+  border-radius:22px !important;
+  box-shadow:0 12px 32px rgba(15,23,42,.045) !important;
+}
+.content-modern-stat span,
+.bonus-command-grid span,
+.finance-command-grid span,
+.role-workspace-card span,
+.finance-budget-card span{
+  color:#8A93A0 !important;
+  font-size:12px !important;
+  font-weight:900 !important;
+  letter-spacing:0 !important;
+}
+.content-modern-stat strong,
+.bonus-command-grid strong,
+.finance-command-grid strong,
+.role-workspace-card strong,
+.finance-budget-card strong{
+  color:#1478F2 !important;
+  font-family:"Manrope","Inter",sans-serif !important;
+  font-weight:900 !important;
+}
+.content-control-panel,
+.discussion-col,
+.calendar-pro-shell,
+.kanban-column,
+.bonus-plastic-section,
+.finance-command-card,
+.role-workspace-panel{
+  background:#FFFFFF !important;
+  border:1px solid #E6EAF0 !important;
+  border-radius:26px !important;
+  box-shadow:0 16px 44px rgba(15,23,42,.055) !important;
+}
+.content-control-head strong,
+.calendar-pro-day strong,
+.kanban-head strong{
+  color:#151515 !important;
+  font-weight:900 !important;
+}
+.content-control-head span,
+.calendar-pro-day small,
+.kanban-head span{
+  color:#8A93A0 !important;
+  font-weight:850 !important;
+}
+.deadline-item,
+.signal-item,
+.approval-history-mini button,
+.kanban-card,
+.mobile-record-card,
+.reminder-card{
+  background:#FFFFFF !important;
+  border:1px solid #E6EAF0 !important;
+  border-radius:18px !important;
+  box-shadow:0 10px 24px rgba(15,23,42,.04) !important;
+}
+.deadline-item:hover,
+.approval-history-mini button:hover,
+.kanban-card:hover{
+  background:#F9FBFE !important;
+  border-color:#D5E6FF !important;
+}
+.kanban-board{
+  gap:14px !important;
+}
+.kanban-head{
+  background:#F7F9FC !important;
+  border:1px solid #E6EAF0 !important;
+  border-radius:16px !important;
+  padding:12px 14px !important;
+}
+.kanban-empty,
+.empty-block,
+.empty-cell,
+.billz-empty-state{
+  background:#F7F9FC !important;
+  border:1px dashed #D8DEE8 !important;
+  border-radius:18px !important;
+  color:#8A93A0 !important;
+  font-weight:800 !important;
+}
+.table-wrap{
+  overflow:hidden !important;
+}
+.table-wrap table th:first-child,
+.table-wrap table td:first-child{
+  padding-left:20px !important;
+}
+.table-wrap table th:last-child,
+.table-wrap table td:last-child{
+  padding-right:20px !important;
+}
+.table-wrap tbody tr{
+  height:58px !important;
+}
+.table-wrap tbody td{
+  vertical-align:middle !important;
+}
+.table-badge-stack{
+  display:flex !important;
+  gap:6px !important;
+  align-items:center !important;
+  flex-wrap:wrap !important;
+}
+.toast,
+.toast-success,
+.toast-error{
+  border-radius:18px !important;
+  box-shadow:0 20px 54px rgba(15,23,42,.18) !important;
+}
+.toast-success{
+  background:#1478F2 !important;
+}
+.toast-error{
+  background:#EF4444 !important;
+}
+.skeleton-line{
+  height:12px;
+  border-radius:999px;
+  background:linear-gradient(90deg,#EEF2F6,#F8FAFC,#EEF2F6);
+  background-size:220% 100%;
+  animation:skeleton-shimmer 1.25s linear infinite;
+}
+@keyframes skeleton-shimmer{
+  from{background-position:0 0}
+  to{background-position:-220% 0}
+}
 @media (max-width: 900px){
   .app-shell{
     display:block !important;
