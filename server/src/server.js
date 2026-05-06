@@ -97,7 +97,6 @@ const DIRECTOR_PERMISSION_PRESET = [
   "moodPulse",
   "employeeKpi",
   "health",
-  "recurring",
   "travelPlans_create",
   "travelPlans_edit",
   "travelPlans_delete",
@@ -913,83 +912,6 @@ async function resetSequence(client, tableName) {
   }
 }
 
-async function runRecurringAutomation() {
-  try {
-    await query(
-      `
-      INSERT INTO tasks (title, description, status, priority, due_date, assignee_user_id, created_by, recurrence_key)
-      SELECT
-        rt.title,
-        COALESCE(rt.description, ''),
-        'todo',
-        COALESCE(rt.priority, 'medium'),
-        CASE
-          WHEN rt.frequency = 'weekly' THEN CURRENT_DATE + ((COALESCE(rt.day_of_week, 1) - EXTRACT(ISODOW FROM CURRENT_DATE)::int + 7) % 7)
-          ELSE DATE_TRUNC('month', CURRENT_DATE)::date + (COALESCE(rt.day_of_month, 1) - 1)
-        END,
-        rt.assignee_user_id,
-        rt.created_by,
-        CASE
-          WHEN rt.frequency = 'weekly' THEN CONCAT('task:', rt.id, ':', TO_CHAR(CURRENT_DATE, 'IYYY-IW'))
-          ELSE CONCAT('task:', rt.id, ':', TO_CHAR(CURRENT_DATE, 'YYYY-MM'))
-        END
-      FROM recurring_tasks rt
-      WHERE rt.is_active = TRUE
-        AND NOT EXISTS (
-          SELECT 1
-          FROM tasks t
-          WHERE t.recurrence_key = (
-            CASE
-              WHEN rt.frequency = 'weekly' THEN CONCAT('task:', rt.id, ':', TO_CHAR(CURRENT_DATE, 'IYYY-IW'))
-              ELSE CONCAT('task:', rt.id, ':', TO_CHAR(CURRENT_DATE, 'YYYY-MM'))
-            END
-          )
-        )
-      RETURNING id
-      `
-    ).catch(() => null);
-
-    await query(
-      `
-      INSERT INTO expenses (expense_date, title, vendor_name, card_holder, amount, currency, category, payment_type, notes, created_by, recurrence_key)
-      SELECT
-        CASE
-          WHEN re.frequency = 'weekly' THEN CURRENT_DATE + ((COALESCE(re.day_of_week, 1) - EXTRACT(ISODOW FROM CURRENT_DATE)::int + 7) % 7)
-          ELSE DATE_TRUNC('month', CURRENT_DATE)::date + (COALESCE(re.day_of_month, 1) - 1)
-        END,
-        re.title,
-        COALESCE(re.vendor_name, ''),
-        COALESCE(re.card_holder, ''),
-        COALESCE(re.amount, 0),
-        COALESCE(re.currency, 'UZS'),
-        COALESCE(re.category, 'servis'),
-        COALESCE(re.payment_type, 'visa'),
-        COALESCE(re.notes, ''),
-        re.created_by,
-        CASE
-          WHEN re.frequency = 'weekly' THEN CONCAT('expense:', re.id, ':', TO_CHAR(CURRENT_DATE, 'IYYY-IW'))
-          ELSE CONCAT('expense:', re.id, ':', TO_CHAR(CURRENT_DATE, 'YYYY-MM'))
-        END
-      FROM recurring_expenses re
-      WHERE re.is_active = TRUE
-        AND NOT EXISTS (
-          SELECT 1
-          FROM expenses e
-          WHERE e.recurrence_key = (
-            CASE
-              WHEN re.frequency = 'weekly' THEN CONCAT('expense:', re.id, ':', TO_CHAR(CURRENT_DATE, 'IYYY-IW'))
-              ELSE CONCAT('expense:', re.id, ':', TO_CHAR(CURRENT_DATE, 'YYYY-MM'))
-            END
-          )
-        )
-      RETURNING id
-      `
-    ).catch(() => null);
-  } catch (err) {
-    console.error("recurring automation error:", err.message);
-  }
-}
-
 function emitToUser(userId, eventName, payload) {
   if (!userId) return;
   io.to(`user:${userId}`).emit(eventName, payload);
@@ -1556,38 +1478,6 @@ async function ensureRuntimeSchema() {
       expires_at TIMESTAMP NOT NULL,
       consumed_at TIMESTAMP,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`,
-    `CREATE TABLE IF NOT EXISTS recurring_tasks (
-      id SERIAL PRIMARY KEY,
-      title TEXT NOT NULL,
-      description TEXT,
-      frequency TEXT NOT NULL DEFAULT 'monthly',
-      day_of_week INTEGER,
-      day_of_month INTEGER,
-      priority TEXT NOT NULL DEFAULT 'medium',
-      assignee_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      is_active BOOLEAN NOT NULL DEFAULT TRUE,
-      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )`,
-    `CREATE TABLE IF NOT EXISTS recurring_expenses (
-      id SERIAL PRIMARY KEY,
-      title TEXT NOT NULL,
-      vendor_name TEXT,
-      card_holder TEXT,
-      amount NUMERIC(14,2) NOT NULL DEFAULT 0,
-      currency TEXT NOT NULL DEFAULT 'UZS',
-      category TEXT NOT NULL DEFAULT 'servis',
-      payment_type TEXT NOT NULL DEFAULT 'visa',
-      frequency TEXT NOT NULL DEFAULT 'monthly',
-      day_of_week INTEGER,
-      day_of_month INTEGER,
-      notes TEXT,
-      is_active BOOLEAN NOT NULL DEFAULT TRUE,
-      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS budgets (
       id SERIAL PRIMARY KEY,
@@ -2399,7 +2289,6 @@ app.post("/api/auth/change-password", authRequired, async (req, res) => {
 
 app.get("/api/dashboard/summary", authRequired, async (req, res) => {
   try {
-    await runRecurringAutomation();
     const currentMonth = getMonthLabel();
     const reminderSql =
       isLeadershipRole(req.user.role)
@@ -6378,105 +6267,7 @@ app.delete("/api/travel-plans/:id", authRequired, async (req, res) => {
   }
 });
 
-/* RECURRING / BUDGET / ANALYTICS / AI */
-
-app.get("/api/recurring-tasks", authRequired, async (_, res) => {
-  try {
-    const result = await query(`SELECT rt.*, u.full_name AS assignee_name FROM recurring_tasks rt LEFT JOIN users u ON u.id = rt.assignee_user_id ORDER BY rt.id DESC`);
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: `Takrorlanuvchi vazifalarni olib bo'lmadi: ${err.message}` });
-  }
-});
-
-app.post("/api/recurring-tasks", authRequired, async (req, res) => {
-  try {
-    const { title, description, frequency, day_of_week, day_of_month, priority, assignee_user_id, is_active } = req.body;
-    const inserted = await query(
-      `INSERT INTO recurring_tasks (title, description, frequency, day_of_week, day_of_month, priority, assignee_user_id, is_active, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
-      [title, description || "", frequency || "monthly", day_of_week || null, day_of_month || null, priority || "medium", assignee_user_id || null, is_active !== false, req.user.id]
-    );
-    res.json(inserted.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: `Takrorlanuvchi vazifani saqlab bo'lmadi: ${err.message}` });
-  }
-});
-
-app.put("/api/recurring-tasks/:id", authRequired, async (req, res) => {
-  try {
-    const { title, description, frequency, day_of_week, day_of_month, priority, assignee_user_id, is_active } = req.body;
-    const updated = await query(
-      `UPDATE recurring_tasks SET title=$1, description=$2, frequency=$3, day_of_week=$4, day_of_month=$5, priority=$6, assignee_user_id=$7, is_active=$8, updated_at=CURRENT_TIMESTAMP WHERE id=$9 RETURNING *`,
-      [title, description || "", frequency || "monthly", day_of_week || null, day_of_month || null, priority || "medium", assignee_user_id || null, is_active !== false, req.params.id]
-    );
-    res.json(updated.rows[0] || null);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: `Takrorlanuvchi vazifani yangilab bo'lmadi: ${err.message}` });
-  }
-});
-
-app.delete("/api/recurring-tasks/:id", authRequired, async (req, res) => {
-  try {
-    await query(`DELETE FROM recurring_tasks WHERE id = $1`, [req.params.id]);
-    res.json({ message: "Takrorlanuvchi vazifa o'chirildi" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: `Takrorlanuvchi vazifani o'chirib bo'lmadi: ${err.message}` });
-  }
-});
-
-app.get("/api/recurring-expenses", authRequired, async (_, res) => {
-  try {
-    const result = await query(`SELECT * FROM recurring_expenses ORDER BY id DESC`);
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: `Takrorlanuvchi harajatlarni olib bo'lmadi: ${err.message}` });
-  }
-});
-
-app.post("/api/recurring-expenses", authRequired, async (req, res) => {
-  try {
-    const { title, vendor_name, card_holder, amount, currency, category, payment_type, frequency, day_of_week, day_of_month, notes, is_active } = req.body;
-    const inserted = await query(
-      `INSERT INTO recurring_expenses (title, vendor_name, card_holder, amount, currency, category, payment_type, frequency, day_of_week, day_of_month, notes, is_active, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-      [title, vendor_name || "", card_holder || "", Number(amount || 0), currency || "UZS", category || "servis", payment_type || "visa", frequency || "monthly", day_of_week || null, day_of_month || null, notes || "", is_active !== false, req.user.id]
-    );
-    res.json(inserted.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: `Takrorlanuvchi harajatni saqlab bo'lmadi: ${err.message}` });
-  }
-});
-
-app.put("/api/recurring-expenses/:id", authRequired, async (req, res) => {
-  try {
-    const { title, vendor_name, card_holder, amount, currency, category, payment_type, frequency, day_of_week, day_of_month, notes, is_active } = req.body;
-    const updated = await query(
-      `UPDATE recurring_expenses SET title=$1, vendor_name=$2, card_holder=$3, amount=$4, currency=$5, category=$6, payment_type=$7, frequency=$8, day_of_week=$9, day_of_month=$10, notes=$11, is_active=$12, updated_at=CURRENT_TIMESTAMP WHERE id=$13 RETURNING *`,
-      [title, vendor_name || "", card_holder || "", Number(amount || 0), currency || "UZS", category || "servis", payment_type || "visa", frequency || "monthly", day_of_week || null, day_of_month || null, notes || "", is_active !== false, req.params.id]
-    );
-    res.json(updated.rows[0] || null);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: `Takrorlanuvchi harajatni yangilab bo'lmadi: ${err.message}` });
-  }
-});
-
-app.delete("/api/recurring-expenses/:id", authRequired, async (req, res) => {
-  try {
-    await query(`DELETE FROM recurring_expenses WHERE id = $1`, [req.params.id]);
-    res.json({ message: "Takrorlanuvchi harajat o'chirildi" });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: `Takrorlanuvchi harajatni o'chirib bo'lmadi: ${err.message}` });
-  }
-});
+/* BUDGET / ANALYTICS */
 
 app.get("/api/budgets", authRequired, async (_, res) => {
   try {
@@ -6610,7 +6401,6 @@ app.delete("/api/budgets/:id", authRequired, async (req, res) => {
 
 app.get("/api/analytics/overview", authRequired, async (_, res) => {
   try {
-    await runRecurringAutomation();
     const [bonusByMonth, spendByMonth, contentByStatus, branchKpi, topUsers, budgetsRes, expenseTotals, workloadHeatmap, employeeKpi, moodSummary] = await Promise.all([
       query(`SELECT month_label, COALESCE(SUM(total_amount),0)::numeric AS total FROM bonus_items GROUP BY month_label ORDER BY month_label DESC LIMIT 6`),
       query(`SELECT to_char(COALESCE(start_date,end_date,CURRENT_DATE), 'YYYY-MM') AS month_label, COALESCE(SUM(spend),0)::numeric AS total FROM campaigns GROUP BY 1 ORDER BY 1 DESC LIMIT 6`),
@@ -6665,55 +6455,6 @@ app.get("/api/analytics/posting-insights", authRequired, async (_, res) => {
   }
 });
 
-app.get("/api/team-mood", authRequired, async (_, res) => {
-  try {
-    const result = await query(`
-      SELECT
-        tm.*,
-        u.full_name,
-        u.avatar_url
-      FROM team_mood_entries tm
-      LEFT JOIN users u ON u.id = tm.user_id
-      ORDER BY tm.entry_date DESC, tm.updated_at DESC
-      LIMIT 100
-    `);
-    res.json(result.rows);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: `Mood pulse bo'lmadi: ${err.message}` });
-  }
-});
-
-app.post("/api/team-mood", authRequired, async (req, res) => {
-  try {
-    const score = Math.min(5, Math.max(1, Number(req.body?.mood_score || 3)));
-    const note = String(req.body?.note || "").trim();
-    const result = await query(
-      `
-      INSERT INTO team_mood_entries (user_id, entry_date, mood_score, note)
-      VALUES ($1, CURRENT_DATE, $2, $3)
-      ON CONFLICT (user_id, entry_date)
-      DO UPDATE SET
-        mood_score = EXCLUDED.mood_score,
-        note = EXCLUDED.note,
-        updated_at = CURRENT_TIMESTAMP
-      RETURNING *
-      `,
-      [req.user.id, score, note]
-    );
-
-    if (score <= 2) {
-      await createNotification(null, "Team mood alert", `${req.user.full_name} past kayfiyat belgiladi`, "warning", "reminder", "/team-mood");
-    }
-
-    await logAction(req.user.id, "upsert", "team_mood_entries", result.rows[0].id, { mood_score: score });
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: `Mood pulse saqlanmadi: ${err.message}` });
-  }
-});
-
 app.get("/api/reports/advanced", authRequired, async (req, res) => {
   try {
     const range = String(req.query.range || "monthly");
@@ -6762,8 +6503,6 @@ app.get("/api/backup/export", authRequired, rolesAllowed("admin"), async (_, res
       "comments",
       "messages",
       "notifications",
-      "recurring_tasks",
-      "recurring_expenses",
       "uploads"
     ];
     const payload = {};
@@ -6798,8 +6537,6 @@ app.post("/api/backup/import", authRequired, rolesAllowed("admin"), async (req, 
       "comments",
       "messages",
       "notifications",
-      "recurring_tasks",
-      "recurring_expenses",
       "uploads"
     ];
 
@@ -7005,83 +6742,6 @@ app.get("/api/share/report/:token", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: `Share report bo'lmadi: ${err.message}` });
-  }
-});
-
-app.post("/api/ai/assist", authRequired, async (req, res) => {
-  try {
-    const { mode, prompt, branch_name, content_type } = req.body;
-    const clean = String(prompt || "").trim();
-    const branch = branch_name ? ` ${branch_name}` : "";
-    const type = content_type ? ` ${content_type}` : "";
-    const month = getMonthLabel();
-    const today = formatDateOnly(new Date());
-    const [deadlineRes, taskRes, bonusRes, expenseRes, budgetRes, branchRes] = await Promise.all([
-      query(`SELECT COUNT(*)::int AS count FROM content_items WHERE publish_date IS NOT NULL AND publish_date <= CURRENT_DATE AND status NOT IN ('yakunlandi','joylangan','published','archived')`),
-      query(`SELECT COUNT(*)::int AS overdue, COUNT(*) FILTER (WHERE due_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '3 day')::int AS due_soon FROM tasks WHERE status <> 'done'`),
-      query(`SELECT COALESCE(SUM(total_amount),0)::numeric AS total, COUNT(*)::int AS count FROM bonus_items WHERE month_label = $1 AND paid_status <> 'paid'`, [month]),
-      query(`SELECT COALESCE(SUM(amount),0)::numeric AS total, COUNT(*)::int AS count FROM expenses WHERE to_char(expense_date,'YYYY-MM') = $1`, [month]),
-      query(`
-        SELECT b.category, b.limit_amount, COALESCE(SUM(e.amount),0)::numeric AS actual
-        FROM budgets b
-        LEFT JOIN expenses e ON e.category = b.category AND to_char(e.expense_date,'YYYY-MM') = b.month_label
-        WHERE b.month_label = $1
-        GROUP BY b.id, b.category, b.limit_amount
-        HAVING COALESCE(SUM(e.amount),0) > b.limit_amount
-        ORDER BY actual DESC
-      `, [month]),
-      query(`
-        SELECT b.name, COALESCE(SUM(d.stories_count + d.posts_count),0)::int AS score
-        FROM branches b
-        LEFT JOIN daily_branch_reports d ON d.branch_id = b.id AND d.report_date >= CURRENT_DATE - INTERVAL '7 day'
-        GROUP BY b.id, b.name
-        ORDER BY score ASC, b.name ASC
-        LIMIT 3
-      `)
-    ]);
-    const context = {
-      today,
-      month,
-      content_deadline_risk: Number(deadlineRes.rows[0]?.count || 0),
-      overdue_tasks: Number(taskRes.rows[0]?.overdue || 0),
-      due_soon_tasks: Number(taskRes.rows[0]?.due_soon || 0),
-      pending_bonus_count: Number(bonusRes.rows[0]?.count || 0),
-      pending_bonus_total: Number(bonusRes.rows[0]?.total || 0),
-      expense_count: Number(expenseRes.rows[0]?.count || 0),
-      expense_total: Number(expenseRes.rows[0]?.total || 0),
-      budget_overruns: budgetRes.rows,
-      weak_branches: branchRes.rows
-    };
-    const todaySummary = [
-      `Bugun (${today}) muhim signallar:`,
-      `- Kontent deadline risk: ${context.content_deadline_risk} ta`,
-      `- Kechikkan vazifa: ${context.overdue_tasks} ta, yaqin muddat: ${context.due_soon_tasks} ta`,
-      `- Payroll pending: ${context.pending_bonus_count} yozuv / ${formatTelegramMoney(context.pending_bonus_total)}`,
-      `- Finance sarf: ${formatTelegramMoney(context.expense_total)} (${context.expense_count} yozuv)`,
-      context.budget_overruns.length
-        ? `- Budget oshgan: ${context.budget_overruns.map((item) => `${item.category} ${formatTelegramMoney(item.actual)} / ${formatTelegramMoney(item.limit_amount)}`).join("; ")}`
-        : "- Budget overrun yo'q",
-      context.weak_branches.length
-        ? `- Sust filiallar: ${context.weak_branches.map((item) => `${item.name} (${item.score})`).join(", ")}`
-        : "- Filial signal yo'q"
-    ].join("\n");
-    const templates = {
-      title: `Bugungi${branch}${type} uchun jalb qiluvchi sarlavha: "${clean || "Yangi kontent"}"`,
-      caption: `${branch || "Brend"} uchun qisqa caption:\n1. E'tiborli kirish\n2. Foydali asosiy gap\n3. Kuchli CTA`,
-      script: `Ssenariy drafti:\n1. Hook\n2. Muammo\n3. Yechim\n4. Natija\n5. CTA\nMavzu: ${clean || "Mahsulot taqdimoti"}`,
-      ideas: `Kontent g'oyalari:\n- Mijoz hikoyasi\n- Filial ichki lavhasi\n- Oldin/keyin format\n- Top 3 maslahat\n- Trendga mos reels`,
-      hook: `Hook variantlari:\n- Birinchi 3 soniyada diqqatni ushlaydigan savol\n- Kutilmagan natija bilan kirish\n- "Buni ko'pchilik bilmaydi" usuli`,
-      cta: `CTA variantlari:\n- Hozir yozib qoldiring\n- Filialga tashrif buyuring\n- Batafsil ma'lumot uchun DM qiling`,
-      plan: todaySummary
-    };
-    const selectedMode = mode || "ideas";
-    const output = clean.toLowerCase().includes("bugun") || selectedMode === "today"
-      ? todaySummary
-      : templates[selectedMode] || templates.ideas;
-    res.json({ mode: selectedMode, output, context });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: `AI yordamchi javob qaytara olmadi: ${err.message}` });
   }
 });
 

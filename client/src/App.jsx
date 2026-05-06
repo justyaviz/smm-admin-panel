@@ -12,10 +12,7 @@ import {
   Copy,
   ContactRound,
   Eye,
-  FileBarChart2,
-  Gift,
   Image,
-  Landmark,
   LayoutDashboard,
   LayoutGrid,
   Link2,
@@ -50,7 +47,7 @@ import { applySeo } from "./seo";
 import ContestExpensesPanel from "./ContestExpensesPanel";
 import DailyReportImageImportPanel from "./DailyReportImageImportPanel";
 import TravelExpensesPanel from "./TravelExpensesPanel";
-import { DESIGN_SYSTEM_VERSION, buttonVariants, statusBadgeTone } from "./design-system";
+import { DESIGN_SYSTEM_VERSION } from "./design-system";
 import { UiHealthStrip, UiOpsTimeline, UiStatusStepper } from "./ui-system";
 
 const MENU = [
@@ -7841,66 +7838,6 @@ function TravelPlansPage({ travelPlans = [], travelExpenses = [], branches = [],
   );
 }
 
-function RecurringPage({ recurringTasks = [], recurringExpenses = [], users = [], onToast, reload }) {
-  const [taskForm, setTaskForm] = useState({ title: "", description: "", frequency: "monthly", day_of_week: 1, day_of_month: 1, priority: "medium", assignee_user_id: "", is_active: true });
-  const [expenseForm, setExpenseForm] = useState({ title: "", vendor_name: "", amount: "", category: "servis", payment_type: "visa", frequency: "monthly", day_of_week: 1, day_of_month: 1, is_active: true });
-
-  return (
-    <div className="page-grid">
-      <div className="two-grid">
-        <div className="card">
-          <SectionTitle title="Recurring tasks" desc="Har hafta yoki oy avtomatik vazifa" />
-          <form className="form-grid" onSubmit={async (e) => {
-            e.preventDefault();
-            try {
-              await api.create("recurring-tasks", taskForm);
-              setTaskForm({ title: "", description: "", frequency: "monthly", day_of_week: 1, day_of_month: 1, priority: "medium", assignee_user_id: "", is_active: true });
-              await reload();
-              onToast("Recurring task saqlandi", "success");
-            } catch (err) {
-              onToast(err.message || "Recurring task saqlanmadi", "error");
-            }
-          }}>
-            <label><span>Nomi</span><input value={taskForm.title} onChange={(e) => setTaskForm((p) => ({ ...p, title: e.target.value }))} required /></label>
-            <label><span>Frequency</span><select value={taskForm.frequency} onChange={(e) => setTaskForm((p) => ({ ...p, frequency: e.target.value }))}><option value="weekly">weekly</option><option value="monthly">monthly</option></select></label>
-            <label><span>Hafta kuni</span><input type="number" min="1" max="7" value={taskForm.day_of_week} onChange={(e) => setTaskForm((p) => ({ ...p, day_of_week: Number(e.target.value) }))} /></label>
-            <label><span>Oy kuni</span><input type="number" min="1" max="28" value={taskForm.day_of_month} onChange={(e) => setTaskForm((p) => ({ ...p, day_of_month: Number(e.target.value) }))} /></label>
-            <label><span>Priority</span><select value={taskForm.priority} onChange={(e) => setTaskForm((p) => ({ ...p, priority: e.target.value }))}><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></label>
-            <span>Mas'ul</span>
-            <label className="full-col"><span>Izoh</span><input value={taskForm.description} onChange={(e) => setTaskForm((p) => ({ ...p, description: e.target.value }))} /></label>
-            <button className="btn primary" type="submit">Saqlash</button>
-          </form>
-                <th>Mas'ul</th>
-        </div>
-
-        <div className="card">
-          <SectionTitle title="Recurring expenses" desc="Canva, Meta, CapCut kabi avtomatik harajat" />
-          <form className="form-grid" onSubmit={async (e) => {
-            e.preventDefault();
-            try {
-              await api.create("recurring-expenses", { ...expenseForm, amount: Number(expenseForm.amount || 0) });
-              setExpenseForm({ title: "", vendor_name: "", amount: "", category: "servis", payment_type: "visa", frequency: "monthly", day_of_week: 1, day_of_month: 1, is_active: true });
-              await reload();
-              onToast("Recurring expense saqlandi", "success");
-            } catch (err) {
-              onToast(err.message || "Recurring expense saqlanmadi", "error");
-            }
-          }}>
-            <label><span>Nomi</span><input value={expenseForm.title} onChange={(e) => setExpenseForm((p) => ({ ...p, title: e.target.value }))} required /></label>
-            <label><span>Xizmat</span><input value={expenseForm.vendor_name} onChange={(e) => setExpenseForm((p) => ({ ...p, vendor_name: e.target.value }))} /></label>
-            <label><span>Amount</span><input type="number" value={expenseForm.amount} onChange={(e) => setExpenseForm((p) => ({ ...p, amount: e.target.value }))} required /></label>
-            <label><span>Frequency</span><select value={expenseForm.frequency} onChange={(e) => setExpenseForm((p) => ({ ...p, frequency: e.target.value }))}><option value="weekly">weekly</option><option value="monthly">monthly</option></select></label>
-            <label><span>Kategoriya</span><select value={expenseForm.category} onChange={(e) => setExpenseForm((p) => ({ ...p, category: e.target.value }))}><option value="servis">servis</option><option value="reklama">reklama</option><option value="safar">safar</option><option value="boshqa">boshqa</option></select></label>
-            <label><span>To'lov</span><select value={expenseForm.payment_type} onChange={(e) => setExpenseForm((p) => ({ ...p, payment_type: e.target.value }))}><option value="visa">visa</option><option value="bank">bank</option><option value="cash">cash</option></select></label>
-            <button className="btn primary" type="submit">Saqlash</button>
-          </form>
-          <div className="table-wrap"><table><thead><tr><th>Nomi</th><th>Frequency</th><th>Summa</th></tr></thead><tbody>{recurringExpenses.length ? recurringExpenses.map((row) => <tr key={row.id}><td>{row.title}</td><td>{row.frequency}</td><td>{formatMoney(row.amount)}</td></tr>) : <tr><td colSpan="3" className="empty-cell">Hozircha yo'q</td></tr>}</tbody></table></div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function AnalyticsPage({ analyticsData }) {
   const [leftBranch, setLeftBranch] = useState("");
   const [rightBranch, setRightBranch] = useState("");
@@ -8000,33 +7937,6 @@ function AnalyticsPage({ analyticsData }) {
   );
 }
 
-function EmployeeKpiPage({ rows = [] }) {
-  return (
-    <div className="page-grid">
-      <div className="card">
-        <SectionTitle title="Employee KPI page" desc="Hodim samaradorligi va yuklamasi" />
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Hodim</th><th>Task</th><th>Done</th><th>Kontent</th><th>Safar</th><th>Bonus</th></tr></thead>
-            <tbody>
-              {rows.length ? rows.map((row) => (
-                <tr key={`employee-kpi-${row.id}`}>
-                  <td>{row.full_name}</td>
-                  <td>{row.total_tasks}</td>
-                  <td>{row.done_tasks}</td>
-                  <td>{row.content_count}</td>
-                  <td>{row.travel_count}</td>
-                  <td>{formatMoney(row.bonus_total)}</td>
-                </tr>
-              )) : <tr><td colSpan="6" className="empty-cell">KPI ma'lumoti yo'q</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function HealthPage({ data = {} }) {
   return (
     <div className="page-grid">
@@ -8035,63 +7945,6 @@ function HealthPage({ data = {} }) {
         <StatCard title="Unread" value={data?.unread_notifications || 0} hint="ochilmagan notification" tone={(data?.unread_notifications || 0) > 0 ? "warning" : "success"} />
         <StatCard title="Snapshots" value={data?.monthly_snapshots || 0} hint="monthly close backup" tone="default" />
         <StatCard title="Telegram" value={data?.telegram_configured ? "On" : "Off"} hint={data?.timestamp ? formatDateTime(data.timestamp) : "holat"} tone={data?.telegram_configured ? "success" : "danger"} />
-      </div>
-    </div>
-  );
-}
-
-function MoodPulsePage({ rows = [], user, onToast, reload }) {
-  const [moodScore, setMoodScore] = useState(3);
-  const [note, setNote] = useState("");
-  const recentRows = rows.slice(0, 20);
-  const avgMood = rows.length ? (rows.reduce((sum, row) => sum + Number(row.mood_score || 0), 0) / rows.length).toFixed(2) : "0.00";
-
-  return (
-    <div className="page-grid">
-      <div className="stats-grid">
-        <StatCard title="Jamoa kayfiyati" value={avgMood} hint="oxirgi yozuvlar bo'yicha" tone={Number(avgMood) >= 4 ? "success" : Number(avgMood) >= 3 ? "warning" : "danger"} />
-        <StatCard title="Mening bugungi holatim" value={moodScore} hint={user?.full_name || "hodim"} tone={moodScore >= 4 ? "success" : moodScore >= 3 ? "warning" : "danger"} />
-      </div>
-      <div className="card">
-        <SectionTitle title="Team mood pulse" desc="Bugungi holatingizni qoldiring" />
-        <div className="mood-picker">
-          {[1, 2, 3, 4, 5].map((score) => (
-            <button key={`mood-${score}`} type="button" className={`mood-pill ${moodScore === score ? "active" : ""}`} onClick={() => setMoodScore(score)}>
-              {score}
-            </button>
-          ))}
-        </div>
-        <div className="form-grid">
-          <label className="full-col"><span>Izoh</span><textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Bugungi holat, blok yoki kayfiyat..." /></label>
-          <button className="btn primary" type="button" onClick={async () => {
-            try {
-              await api.create("team-mood", { mood_score: moodScore, note });
-              setNote("");
-              await reload();
-              onToast("Mood pulse saqlandi", "success");
-            } catch (err) {
-              onToast(err.message || "Mood pulse saqlanmadi", "error");
-            }
-          }}>Saqlash</button>
-        </div>
-      </div>
-      <div className="card">
-        <SectionTitle title="So'nggi mood yozuvlari" />
-        <div className="table-wrap">
-          <table>
-            <thead><tr><th>Hodim</th><th>Sana</th><th>Mood</th><th>Izoh</th></tr></thead>
-            <tbody>
-              {recentRows.length ? recentRows.map((row) => (
-                <tr key={`mood-row-${row.id}`}>
-                  <td>{row.full_name || "-"}</td>
-                  <td>{formatDate(row.entry_date)}</td>
-                  <td><span className={`mood-badge mood-${row.mood_score}`}>{row.mood_score}/5</span></td>
-                  <td>{row.note || "-"}</td>
-                </tr>
-              )) : <tr><td colSpan="4" className="empty-cell">Mood yozuvlari yo'q</td></tr>}
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   );
@@ -8207,117 +8060,6 @@ function AdvancedReportsPage({ advancedReports }) {
           <div className="chart-card"><div className="chart-title">Vazifalar</div><div className="quick-list">{(data?.tasks || []).map((row) => <div key={row.bucket} className="quick-item">{row.bucket}: <strong>{row.done_count}/{row.task_total}</strong></div>)}</div></div>
           <div className="chart-card"><div className="chart-title">Harajatlar</div><div className="quick-list">{(data?.expenses || []).map((row) => <div key={row.bucket} className="quick-item">{row.bucket}: <strong>{formatMoney(row.expense_total)}</strong></div>)}</div></div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function AiAssistantPage({ branches = [], onToast }) {
-  const [mode, setMode] = useState("ideas");
-  const [prompt, setPrompt] = useState("");
-  const [contentType, setContentType] = useState("reels");
-  const [branchName, setBranchName] = useState("");
-  const [output, setOutput] = useState("");
-  const [sendingDigest, setSendingDigest] = useState(false);
-  const aiQuickActions = [
-    { id: "today", label: "Bugun nima muhim?", mode: "plan", prompt: "Bugungi eng muhim signal va ishlar bo'yicha qisqa executive xulosa ber." },
-    { id: "idea", label: "Kontent idea", mode: "ideas", prompt: "Aloo SMM uchun sotuvga yordam beradigan 5 ta zamonaviy kontent g'oya ber." },
-    { id: "caption", label: "Caption", mode: "caption", prompt: "Instagram uchun qisqa, premium va aniq CTA bilan caption yoz." },
-    { id: "deadline", label: "Deadline signal", mode: "plan", prompt: "Kontent deadline xavflarini aniqlash uchun signal matni tuz." },
-    { id: "bonus", label: "Bonus anomaly", mode: "plan", prompt: "Bonus payroll ichida noodatiy o'sish yoki kamayish bo'lsa qanday tekshirish kerakligini yoz." },
-    { id: "finance", label: "Harajat signal", mode: "plan", prompt: "Harajat budget limitdan oshganda Telegramga boradigan qisqa signal yoz." },
-    { id: "branch", label: "Filial sust", mode: "plan", prompt: "Filial KPI sustlashganda managerga yuboriladigan ishchi signal matni yoz." }
-  ];
-
-  async function runAi() {
-    try {
-      const result = await api.create("ai/assist", { mode, prompt, branch_name: branchName, content_type: contentType });
-      setOutput(result?.output || "");
-    } catch (err) {
-      onToast(err.message || "AI yordamchi xatolik berdi", "error");
-    }
-  }
-
-  async function sendWorkflowDigest() {
-    try {
-      setSendingDigest(true);
-      const result = await api.create("telegram/workflow-digest", {});
-      onToast(result?.message || "Workflow digest yuborildi", "success");
-    } catch (err) {
-      onToast(err.message || "Workflow digest yuborilmadi", "error");
-    } finally {
-      setSendingDigest(false);
-    }
-  }
-
-  return (
-    <div className="page-grid ai-workbench-page">
-      <div className="ai-workbench-hero">
-        <div>
-          <span className="small-label">AI Yordamchi 9.0</span>
-          <h1>Ishchi signal va kontent generatori</h1>
-          <p>Oddiy chat emas: bugungi prioritet, kontent idea, caption, deadline, bonus, finance va filial signallarini tez tayyorlaydi.</p>
-        </div>
-        <div className="ai-signal-stack">
-          {aiQuickActions.slice(0, 4).map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => {
-                setMode(item.mode);
-                setPrompt(item.prompt);
-              }}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="card ai-workbench-card">
-        <SectionTitle
-          title="AI command panel"
-          desc="Mode tanlang yoki tezkor signal kartasidan boshlang"
-          right={(
-            <div className="toolbar-actions">
-              <span className={statusBadgeTone.info}>Aloo OS</span>
-              <button type="button" className={buttonVariants.secondary} onClick={sendWorkflowDigest} disabled={sendingDigest}>
-                {sendingDigest ? "Yuborilmoqda..." : "Telegram digest"}
-              </button>
-            </div>
-          )}
-        />
-        <div className="ai-action-grid">
-          {aiQuickActions.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={prompt === item.prompt ? "active" : ""}
-              onClick={() => {
-                setMode(item.mode);
-                setPrompt(item.prompt);
-              }}
-            >
-              <strong>{item.label}</strong>
-              <span>{item.prompt}</span>
-            </button>
-          ))}
-        </div>
-        <div className="form-grid">
-          <label><span>Mode</span><select value={mode} onChange={(e) => setMode(e.target.value)}><option value="ideas">ideas</option><option value="title">title</option><option value="caption">caption</option><option value="script">script</option><option value="hook">hook</option><option value="cta">cta</option><option value="plan">plan</option></select></label>
-          <label>
-            <span>Kontent turi</span>
-            <select value={contentType} onChange={(e) => setContentType(e.target.value)}>
-              {CONTENT_TYPE_OPTIONS.map((item) => (
-                <option key={item.value} value={item.value}>{item.label}</option>
-              ))}
-            </select>
-          </label>
-          <label><span>Filial</span><select value={branchName} onChange={(e) => setBranchName(e.target.value)}><option value="">Tanlang</option>{branches.map((b) => <option key={b.id} value={b.name}>{b.name}</option>)}</select></label>
-          <label className="full-col"><span>Mavzu</span><textarea rows={4} value={prompt} onChange={(e) => setPrompt(e.target.value)} /></label>
-          <button className="btn primary" type="button" onClick={runAi}>Generatsiya qilish</button>
-        </div>
-        <div className="ai-output">{output || "Natija shu yerda chiqadi"}</div>
       </div>
     </div>
   );
@@ -13625,15 +13367,6 @@ tbody tr:hover{
   text-align:center;
   color:var(--muted);
 }
-.ai-output{
-  margin-top:16px;
-  border:1px solid var(--line);
-  background:var(--soft);
-  border-radius:18px;
-  padding:18px;
-  white-space:pre-wrap;
-  line-height:1.6;
-}
 .chart-shell{
   width:100%;
   height:280px;
@@ -15859,65 +15592,6 @@ tbody tr{
 .content-status-stepper span.active i{
   background:#1478F2;
 }
-.ai-workbench-hero{
-  display:grid;
-  grid-template-columns:minmax(0, 1fr) minmax(320px, .75fr);
-  gap:24px;
-  align-items:end;
-  padding:28px;
-  border-radius:28px;
-  background:linear-gradient(135deg, #101828, #1478F2);
-  color:#fff;
-  box-shadow:0 26px 70px rgba(16,24,40,.16);
-}
-.ai-workbench-hero h1{
-  margin:8px 0 10px;
-  font-size:clamp(30px, 4vw, 52px);
-  letter-spacing:0;
-}
-.ai-workbench-hero p{
-  max-width:720px;
-  color:rgba(255,255,255,.76);
-}
-.ai-signal-stack{
-  display:grid;
-  gap:10px;
-}
-.ai-signal-stack button,
-.ai-action-grid button{
-  text-align:left;
-  border:1px solid rgba(16,24,40,.10);
-  border-radius:18px;
-  background:#fff;
-  color:#101828;
-  padding:14px 16px;
-  font-weight:850;
-  cursor:pointer;
-}
-.ai-signal-stack button{
-  background:rgba(255,255,255,.12);
-  color:#fff;
-  border-color:rgba(255,255,255,.20);
-}
-.ai-action-grid{
-  display:grid;
-  grid-template-columns:repeat(3, minmax(0, 1fr));
-  gap:12px;
-  margin-bottom:18px;
-}
-.ai-action-grid button{
-  display:grid;
-  gap:7px;
-}
-.ai-action-grid button span{
-  color:#667085;
-  font-size:12px;
-  line-height:1.45;
-}
-.ai-action-grid button.active{
-  background:#eff8ff;
-  border-color:#b2ddff;
-}
 @media print{
   body *{
     visibility:hidden;
@@ -16518,10 +16192,6 @@ tbody tr{
   }
   .role-workspace-grid{
     grid-template-columns:repeat(2, minmax(0, 1fr));
-  }
-  .ai-workbench-hero,
-  .ai-action-grid{
-    grid-template-columns:1fr;
   }
   .login-card{
     width:min(100%, 560px);
@@ -17632,166 +17302,6 @@ tr:hover td,
 .finance-center-page .expense-bar-card{
   position:relative;
 }
-.ui-status-stepper{
-  display:grid;
-  grid-template-columns:repeat(5,minmax(0,1fr));
-  gap:10px;
-  margin:18px 0;
-}
-.ui-status-step{
-  position:relative;
-  display:grid;
-  grid-template-columns:34px minmax(0,1fr);
-  gap:10px;
-  align-items:flex-start;
-  padding:14px;
-  border:1px solid #E6EAF0;
-  border-radius:18px;
-  background:#FFFFFF;
-  box-shadow:0 10px 26px rgba(15,23,42,.045);
-}
-.ui-status-step:after{
-  content:"";
-  position:absolute;
-  top:31px;
-  right:-10px;
-  width:10px;
-  height:2px;
-  background:#DDE6F2;
-}
-.ui-status-step:last-child:after{
-  display:none;
-}
-.ui-step-marker{
-  width:34px;
-  height:34px;
-  border-radius:12px;
-  display:grid;
-  place-items:center;
-  background:#F2F6FC;
-  color:#8A93A0;
-  font-weight:900;
-}
-.ui-step-body{
-  min-width:0;
-  display:grid;
-  gap:3px;
-}
-.ui-step-body span,
-.ui-health-item span{
-  color:#8A93A0;
-  font-size:12px;
-  font-weight:900;
-}
-.ui-step-body strong,
-.ui-health-item strong{
-  color:#151515;
-  font-family:"Manrope","Inter",sans-serif;
-  font-size:16px;
-  font-weight:900;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.ui-step-body small,
-.ui-health-item small,
-.ui-ops-row small{
-  color:#8A93A0;
-  font-weight:750;
-  line-height:1.45;
-}
-.ui-status-step.done .ui-step-marker,
-.ui-health-item.success:before,
-.ui-ops-row.success .ui-ops-dot{
-  background:#EAF8F1;
-  color:#21B573;
-}
-.ui-status-step.active .ui-step-marker,
-.ui-health-item.info:before,
-.ui-ops-row.info .ui-ops-dot{
-  background:#EAF3FF;
-  color:#1478F2;
-}
-.ui-status-step.warning .ui-step-marker,
-.ui-health-item.warning:before,
-.ui-ops-row.warning .ui-ops-dot{
-  background:#FFF4E8;
-  color:#F47A2A;
-}
-.ui-health-strip{
-  display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
-  gap:12px;
-  margin:16px 0;
-}
-.ui-health-item{
-  position:relative;
-  overflow:hidden;
-  display:grid;
-  gap:5px;
-  padding:16px 16px 16px 48px;
-  border:1px solid #E6EAF0;
-  border-radius:18px;
-  background:#FFFFFF;
-  box-shadow:0 10px 28px rgba(15,23,42,.045);
-}
-.ui-health-item:before{
-  content:"";
-  position:absolute;
-  left:16px;
-  top:18px;
-  width:20px;
-  height:20px;
-  border-radius:9px;
-  background:#F2F6FC;
-}
-.ui-health-item.danger:before,
-.ui-ops-row.danger .ui-ops-dot{
-  background:#FEECEC;
-}
-.ui-health-item.danger strong{
-  color:#EF4444;
-}
-.ui-ops-timeline{
-  display:grid;
-  gap:10px;
-}
-.ui-ops-row{
-  display:grid;
-  grid-template-columns:14px minmax(0,1fr) auto;
-  gap:10px;
-  align-items:center;
-  padding:12px 14px;
-  border:1px solid #E6EAF0;
-  border-radius:16px;
-  background:#F9FBFE;
-}
-.ui-ops-dot{
-  width:10px;
-  height:10px;
-  border-radius:50%;
-  background:#DDE6F2;
-}
-.ui-ops-row strong{
-  display:block;
-  color:#151515;
-  font-weight:900;
-}
-.ui-ops-row em{
-  color:#1478F2;
-  font-style:normal;
-  font-size:12px;
-  font-weight:900;
-  text-transform:uppercase;
-}
-.settings-ops-card{
-  margin-top:18px;
-  padding:18px;
-  border:1px solid #E6EAF0;
-  border-radius:22px;
-  background:#FFFFFF;
-  box-shadow:0 14px 36px rgba(15,23,42,.045);
-}
 @media (max-width: 900px){
   .app-shell{
     display:block !important;
@@ -17841,13 +17351,6 @@ tr:hover td,
   }
   .login-mode-switch{
     grid-template-columns:1fr !important;
-  }
-  .ui-status-stepper,
-  .ui-health-strip{
-    grid-template-columns:1fr !important;
-  }
-  .ui-status-step:after{
-    display:none;
   }
 }
 `;
