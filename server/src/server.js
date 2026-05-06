@@ -3843,7 +3843,8 @@ app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "
       user_id,
       video_editor_user_id,
       video_face_user_id,
-      branch_id
+      branch_id,
+      audit_reason
     } = req.body;
 
     const dateOnly = formatDateOnly(work_date);
