@@ -51,20 +51,20 @@ import { DESIGN_SYSTEM_VERSION } from "./design-system";
 import { UiHealthStrip, UiOpsTimeline, UiStatusStepper } from "./ui-system";
 
 const MENU = [
-  { id: "dashboard", title: "Boshqaruv markazi", icon: LayoutDashboard, tone: "indigo" },
-  { id: "content", title: "Kontent reja", icon: Clapperboard, tone: "cyan" },
-  { id: "bonus", title: "Bonus tizimi", icon: BadgeDollarSign, tone: "emerald" },
-  { id: "expenses", title: "Harajatlar va finance", icon: ReceiptText, tone: "amber" },
-  { id: "travelPlans", title: "Safar rejasi", icon: PlaneTakeoff, tone: "violet" },
-  { id: "analytics", title: "Analytics", icon: BarChart3, tone: "sky" },
-  { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: ClipboardList, tone: "slate" },
-  { id: "campaigns", title: "Reklama kampaniyalari", icon: Target, tone: "fuchsia" },
-  { id: "uploads", title: "Media kutubxona", icon: Image, tone: "purple" },
-  { id: "users", title: "Hodimlar", icon: ContactRound, tone: "blue" },
-  { id: "tasks", title: "Vazifalar", icon: ListTodo, tone: "green" },
-  { id: "audit", title: "Audit log", icon: ShieldCheck, tone: "red" },
-  { id: "profile", title: "Profil", icon: CircleUserRound, tone: "cyan" },
-  { id: "settings", title: "Sozlamalar", icon: SlidersHorizontal, tone: "slate" }
+  { id: "dashboard", title: "Boshqaruv markazi", icon: LayoutDashboard, tone: "indigo", desc: "SMM command center" },
+  { id: "content", title: "Kontent reja", icon: Clapperboard, tone: "cyan", desc: "Postlar va reja" },
+  { id: "bonus", title: "Bonus tizimi", icon: BadgeDollarSign, tone: "emerald", desc: "KPI va mukofot" },
+  { id: "expenses", title: "Harajatlar va finance", icon: ReceiptText, tone: "amber", desc: "Byudjet nazorati" },
+  { id: "travelPlans", title: "Safar rejasi", icon: PlaneTakeoff, tone: "violet", desc: "Filial safarlari" },
+  { id: "analytics", title: "Analytics", icon: BarChart3, tone: "sky", desc: "Tahlil va raqamlar" },
+  { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: ClipboardList, tone: "slate", desc: "Filial nazorati" },
+  { id: "campaigns", title: "Reklama kampaniyalari", icon: Target, tone: "fuchsia", desc: "Target va natija" },
+  { id: "uploads", title: "Media kutubxona", icon: Image, tone: "purple", desc: "Fayl va assetlar" },
+  { id: "users", title: "Hodimlar", icon: ContactRound, tone: "blue", desc: "Jamoa profillari" },
+  { id: "tasks", title: "Vazifalar", icon: ListTodo, tone: "green", desc: "Ish jarayoni" },
+  { id: "audit", title: "Audit log", icon: ShieldCheck, tone: "red", desc: "Tizim tarixi" },
+  { id: "profile", title: "Profil", icon: CircleUserRound, tone: "cyan", desc: "Shaxsiy kabinet" },
+  { id: "settings", title: "Sozlamalar", icon: SlidersHorizontal, tone: "slate", desc: "Tizim boshqaruvi" }
 ];
 
 const MENU_GROUPS = [
@@ -8487,10 +8487,18 @@ function App() {
             <div className="brand-mark">
               <img src={LOGIN_LOGO} alt="logo" className="brand-mark-image" />
             </div>
-            <div>
+            <div className="brand-copy">
               <div className="brand-name">{settings?.company_name || "aloo"}</div>
               <div className="brand-desc">{settings?.platform_name || "SMM jamoasi platformasi"}</div>
             </div>
+          </div>
+
+          <div className="sidebar-workspace-card">
+            <div>
+              <span>Workspace</span>
+              <strong>{settings?.company_name || "aloo"} SMM</strong>
+            </div>
+            <small><i /> Live</small>
           </div>
 
           <div className="sidebar-search">
@@ -8528,7 +8536,11 @@ function App() {
                             <span className={`menu-icon-wrap icon-tone-${item.tone || "indigo"}`}>
                               <Icon size={16} />
                             </span>
-                            <span>{item.title}</span>
+                            <span className="menu-text">
+                              <span>{item.title}</span>
+                              <small>{item.desc}</small>
+                            </span>
+                            {active === item.id ? <span className="menu-active-dot" /> : null}
                           </button>
                         );
                       })}
@@ -8540,10 +8552,10 @@ function App() {
           </div>
 
           <div className="sidebar-help-card">
-            <span>Yordam kerakmi?</span>
-            <strong>Aloo SMM support</strong>
-            <small>Telegram bot, deadline, payroll va finance bo'yicha tezkor yordam.</small>
-            <a href="/login">Demo olish</a>
+            <span>SMM Control Center</span>
+            <strong>Tezkor boshqaruv</strong>
+            <small>Kontent, vazifa, KPI va hisobotlar bitta professional panelda.</small>
+            <a href="/menu">Boshqaruvga o'tish</a>
           </div>
 
           <button className="logout-btn" type="button" onClick={logout}>
@@ -17120,6 +17132,270 @@ tr:hover td,
     grid-template-columns:1fr !important;
   }
 }
+
+/* === Sidebar Refresh v4: old system preserved, menu visual upgraded === */
+.app-shell{
+  grid-template-columns:306px 1fr;
+}
+.sidebar{
+  padding:22px 16px 18px;
+  gap:14px;
+  background:
+    radial-gradient(circle at 18% 8%, rgba(22,144,245,.30), transparent 24%),
+    radial-gradient(circle at 86% 18%, rgba(45,212,191,.16), transparent 20%),
+    linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.015) 38%, rgba(255,255,255,0)),
+    linear-gradient(180deg,#071426 0%, #08111f 46%, #050b14 100%);
+  border-right:1px solid rgba(255,255,255,.09);
+  box-shadow:inset -1px 0 0 rgba(255,255,255,.07), 22px 0 54px rgba(2,8,23,.22);
+}
+.brand-block{
+  padding:8px 8px 10px;
+  border-radius:24px;
+  background:linear-gradient(135deg, rgba(255,255,255,.07), rgba(255,255,255,.025));
+  border:1px solid rgba(255,255,255,.08);
+}
+.brand-copy{min-width:0}
+.brand-mark{
+  width:52px;
+  height:52px;
+  border-radius:18px;
+  background:linear-gradient(135deg,#1690F5 0%, #0B63D1 58%, #071426 100%);
+  box-shadow:0 18px 34px rgba(22,144,245,.28), inset 0 1px 0 rgba(255,255,255,.24);
+}
+.brand-name{
+  font-size:25px;
+  line-height:1;
+  letter-spacing:-.075em;
+}
+.brand-desc{
+  margin-top:5px;
+  font-size:11px;
+  max-width:190px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.sidebar-workspace-card{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  padding:12px 14px;
+  border-radius:20px;
+  color:#fff;
+  background:
+    linear-gradient(135deg, rgba(22,144,245,.18), rgba(45,212,191,.08)),
+    rgba(255,255,255,.055);
+  border:1px solid rgba(96,165,250,.22);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08), 0 18px 34px rgba(2,8,23,.18);
+}
+.sidebar-workspace-card span{
+  display:block;
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:.15em;
+  color:#8fb7df;
+  font-weight:900;
+}
+.sidebar-workspace-card strong{
+  display:block;
+  margin-top:3px;
+  font-size:13px;
+  letter-spacing:-.02em;
+}
+.sidebar-workspace-card small{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 9px;
+  border-radius:999px;
+  background:rgba(34,197,94,.13);
+  border:1px solid rgba(74,222,128,.20);
+  color:#bbf7d0;
+  font-weight:900;
+}
+.sidebar-workspace-card small i{
+  width:7px;
+  height:7px;
+  border-radius:999px;
+  background:#22c55e;
+  box-shadow:0 0 0 4px rgba(34,197,94,.14);
+}
+.sidebar-search{
+  border-radius:18px;
+  padding:12px 14px;
+  background:rgba(255,255,255,.07);
+  border-color:rgba(255,255,255,.09);
+}
+.menu-section-list{
+  gap:12px;
+  overflow:auto;
+  min-height:0;
+  padding:2px 2px 10px;
+  margin-right:-4px;
+  scrollbar-width:thin;
+  scrollbar-color:rgba(96,165,250,.32) transparent;
+}
+.menu-section-list::-webkit-scrollbar{width:6px}
+.menu-section-list::-webkit-scrollbar-thumb{
+  background:rgba(96,165,250,.28);
+  border-radius:999px;
+}
+.menu-group-toggle{
+  padding:0 8px 0 10px;
+  color:#8ea8c8;
+  font-size:10px;
+  letter-spacing:.18em;
+}
+.menu-list{gap:7px}
+.menu-btn{
+  position:relative;
+  min-height:58px;
+  padding:10px 12px;
+  border-radius:18px;
+  gap:11px;
+  background:transparent;
+  box-shadow:none;
+  border:1px solid transparent;
+}
+.menu-btn::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  border-radius:inherit;
+  background:linear-gradient(135deg, rgba(255,255,255,.055), rgba(255,255,255,.018));
+  opacity:.9;
+  transition:opacity .18s ease, background .18s ease;
+}
+.menu-btn > *{position:relative;z-index:1}
+.menu-btn:hover{
+  transform:translateX(3px);
+  background:transparent;
+  border-color:rgba(96,165,250,.18);
+  box-shadow:0 14px 30px rgba(2,8,23,.20);
+}
+.menu-btn:hover::before{
+  opacity:1;
+  background:linear-gradient(135deg, rgba(22,144,245,.14), rgba(255,255,255,.055));
+}
+.menu-btn.active{
+  background:linear-gradient(135deg, rgba(22,144,245,.32), rgba(22,144,245,.18), rgba(45,212,191,.11));
+  border-color:rgba(125,211,252,.36);
+  box-shadow:0 18px 36px rgba(22,144,245,.22), inset 0 1px 0 rgba(255,255,255,.10);
+}
+.menu-btn.active::before{opacity:0}
+.menu-icon-wrap{
+  width:36px;
+  height:36px;
+  border-radius:14px;
+  flex:0 0 36px;
+}
+.menu-text{
+  display:grid;
+  gap:2px;
+  min-width:0;
+  flex:1;
+}
+.menu-text > span{
+  display:block;
+  font-size:13.5px;
+  line-height:1.15;
+  color:#f8fbff;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.menu-text small{
+  display:block;
+  font-size:10.5px;
+  line-height:1.2;
+  color:#8fa3bc;
+  font-weight:800;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.menu-btn.active .menu-text small,
+.menu-btn:hover .menu-text small{color:#cfe6ff}
+.menu-active-dot{
+  width:8px;
+  height:8px;
+  border-radius:999px;
+  background:#2dd4bf;
+  box-shadow:0 0 0 5px rgba(45,212,191,.12), 0 0 20px rgba(45,212,191,.45);
+  margin-left:auto;
+}
+.sidebar-help-card{
+  position:relative;
+  overflow:hidden;
+  padding:16px;
+  border-radius:24px;
+  background:
+    radial-gradient(circle at 15% 12%, rgba(255,255,255,.18), transparent 20%),
+    linear-gradient(135deg, rgba(22,144,245,.95), rgba(11,99,209,.82) 60%, rgba(7,20,38,.92));
+  border:1px solid rgba(255,255,255,.13);
+  box-shadow:0 20px 40px rgba(22,144,245,.22);
+}
+.sidebar-help-card::after{
+  content:"";
+  position:absolute;
+  right:-38px;
+  bottom:-48px;
+  width:120px;
+  height:120px;
+  border-radius:999px;
+  background:rgba(255,255,255,.12);
+}
+.sidebar-help-card span,
+.sidebar-help-card strong,
+.sidebar-help-card small,
+.sidebar-help-card a{position:relative;z-index:1}
+.sidebar-help-card span{
+  display:inline-flex;
+  width:max-content;
+  padding:6px 10px;
+  border-radius:999px;
+  background:rgba(255,255,255,.14);
+  color:#eff6ff;
+  font-size:10px;
+  text-transform:uppercase;
+  letter-spacing:.12em;
+  font-weight:900;
+}
+.sidebar-help-card strong{
+  margin-top:10px;
+  color:#fff;
+  font-size:18px;
+  letter-spacing:-.04em;
+}
+.sidebar-help-card small{
+  color:rgba(255,255,255,.78);
+  line-height:1.45;
+}
+.sidebar-help-card a{
+  margin-top:12px;
+  border-radius:14px;
+  background:#fff;
+  color:#0B63D1;
+  font-weight:900;
+  text-align:center;
+  padding:10px 12px;
+}
+.logout-btn{
+  border-radius:18px;
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:none;
+}
+.logout-btn:hover{
+  background:rgba(239,68,68,.14);
+  border-color:rgba(248,113,113,.28);
+}
+@media (max-width: 1100px){
+  .app-shell{grid-template-columns:1fr}
+  .sidebar{display:none}
+}
+
 `;
 
 export default App;
