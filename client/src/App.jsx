@@ -49,29 +49,29 @@ import DailyReportImageImportPanel from "./DailyReportImageImportPanel";
 import TravelExpensesPanel from "./TravelExpensesPanel";
 import { DESIGN_SYSTEM_VERSION } from "./design-system";
 import { UiHealthStrip, UiOpsTimeline, UiStatusStepper } from "./ui-system";
+import ProPage from "./pro-pages";
 
 const MENU = [
-  { id: "dashboard", title: "Bosh sahifa", icon: LayoutDashboard, tone: "indigo" },
-  { id: "content", title: "Kontent reja", icon: Clapperboard, tone: "cyan" },
-  { id: "bonus", title: "Bonus tizimi", icon: BadgeDollarSign, tone: "emerald" },
-  { id: "expenses", title: "Harajatlar va finance", icon: ReceiptText, tone: "amber" },
-  { id: "travelPlans", title: "Safar rejasi", icon: PlaneTakeoff, tone: "violet" },
-  { id: "analytics", title: "Analytics", icon: BarChart3, tone: "sky" },
-  { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: ClipboardList, tone: "slate" },
-  { id: "campaigns", title: "Reklama kampaniyalari", icon: Target, tone: "fuchsia" },
-  { id: "uploads", title: "Media kutubxona", icon: Image, tone: "purple" },
-  { id: "users", title: "Hodimlar", icon: ContactRound, tone: "blue" },
-  { id: "tasks", title: "Vazifalar", icon: ListTodo, tone: "green" },
+  { id: "dashboard", title: "Boshqaruv markazi", icon: LayoutDashboard, tone: "indigo" },
+  { id: "content", title: "Kontent kalendari", icon: Clapperboard, tone: "cyan" },
+  { id: "campaigns", title: "Kampaniyalar", icon: Target, tone: "fuchsia" },
+  { id: "uploads", title: "Media kutubxonasi", icon: Image, tone: "purple" },
+  { id: "tasks", title: "Vazifalar va workflow", icon: ListTodo, tone: "green" },
+  { id: "bonus", title: "KPI va bonus", icon: BadgeDollarSign, tone: "emerald" },
+  { id: "analytics", title: "Filiallar xaritasi", icon: BarChart3, tone: "sky" },
+  { id: "expenses", title: "Moliya va xarajatlar", icon: ReceiptText, tone: "amber" },
+  { id: "travelPlans", title: "Chat va tasdiqlash", icon: MessageCircle, tone: "violet" },
+  { id: "users", title: "Xodimlar", icon: ContactRound, tone: "blue" },
+  { id: "settings", title: "Sozlamalar va xavfsizlik", icon: SlidersHorizontal, tone: "slate" },
+  { id: "dailyReports", title: "Kunlik hisobotlar", icon: ClipboardList, tone: "slate" },
   { id: "audit", title: "Audit log", icon: ShieldCheck, tone: "red" },
-  { id: "profile", title: "Profil", icon: CircleUserRound, tone: "cyan" },
-  { id: "settings", title: "Sozlamalar", icon: SlidersHorizontal, tone: "slate" }
+  { id: "profile", title: "Profil", icon: CircleUserRound, tone: "cyan" }
 ];
 
 const MENU_GROUPS = [
-  { id: "core", title: "Asosiy", items: ["dashboard", "content", "bonus", "tasks"] },
-  { id: "operations", title: "Jarayonlar", items: ["travelPlans", "campaigns", "expenses", "dailyReports"] },
-  { id: "insights", title: "Tahlil", items: ["analytics", "uploads"] },
-  { id: "system", title: "Boshqaruv", items: ["users", "audit", "profile", "settings"] }
+  { id: "core", title: "Asosiy", items: ["dashboard", "content", "campaigns", "uploads"] },
+  { id: "operations", title: "Jarayonlar", items: ["tasks", "bonus", "analytics", "expenses", "travelPlans"] },
+  { id: "system", title: "Boshqaruv", items: ["users", "settings", "dailyReports", "audit", "profile"] }
 ];
 
 const ROUTES_BY_PAGE = {
@@ -8666,8 +8666,11 @@ function App() {
   }
 
   let page = null;
+  const PRO_UI_PAGES = new Set(["dashboard", "content", "campaigns", "uploads", "tasks", "bonus", "analytics", "expenses", "finance", "travelPlans", "settings", "users"]);
 
-  if (active === "dashboard") {
+  if (PRO_UI_PAGES.has(active)) {
+    page = <ProPage page={active} />;
+  } else if (active === "dashboard") {
     page = (
       <DashboardPage
         summary={summary}

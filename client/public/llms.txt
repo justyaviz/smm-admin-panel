@@ -1,27 +1,27 @@
 # aloo SMM Panel
 > SMM va marketing boshqaruv tizimi
 
-URL: https://www.aloosmm.uz/
+URL: https://smm-admin-panel-fron-production.up.railway.app/
 Summary: SMM va marketing boshqaruv tizimi
 Routes:
-- https://www.aloosmm.uz/
-- https://www.aloosmm.uz/login
-- https://www.aloosmm.uz/menu
-- https://www.aloosmm.uz/kontent
-- https://www.aloosmm.uz/bonus
-- https://www.aloosmm.uz/harajatlar
-- https://www.aloosmm.uz/finance
-- https://www.aloosmm.uz/safar
-- https://www.aloosmm.uz/analytics
-- https://www.aloosmm.uz/mood-pulse
-- https://www.aloosmm.uz/xodim-kpi
-- https://www.aloosmm.uz/recurring
-- https://www.aloosmm.uz/kunlik-hisobotlar
-- https://www.aloosmm.uz/reklama
-- https://www.aloosmm.uz/media
-- https://www.aloosmm.uz/hodimlar
-- https://www.aloosmm.uz/vazifalar
-- https://www.aloosmm.uz/audit
-- https://www.aloosmm.uz/profil
-- https://www.aloosmm.uz/sozlamalar
-- https://www.aloosmm.uz/ai-yordamchi
+- https://smm-admin-panel-fron-production.up.railway.app/
+- https://smm-admin-panel-fron-production.up.railway.app/login
+- https://smm-admin-panel-fron-production.up.railway.app/menu
+- https://smm-admin-panel-fron-production.up.railway.app/kontent
+- https://smm-admin-panel-fron-production.up.railway.app/bonus
+- https://smm-admin-panel-fron-production.up.railway.app/harajatlar
+- https://smm-admin-panel-fron-production.up.railway.app/finance
+- https://smm-admin-panel-fron-production.up.railway.app/safar
+- https://smm-admin-panel-fron-production.up.railway.app/analytics
+- https://smm-admin-panel-fron-production.up.railway.app/mood-pulse
+- https://smm-admin-panel-fron-production.up.railway.app/xodim-kpi
+- https://smm-admin-panel-fron-production.up.railway.app/recurring
+- https://smm-admin-panel-fron-production.up.railway.app/kunlik-hisobotlar
+- https://smm-admin-panel-fron-production.up.railway.app/reklama
+- https://smm-admin-panel-fron-production.up.railway.app/media
+- https://smm-admin-panel-fron-production.up.railway.app/hodimlar
+- https://smm-admin-panel-fron-production.up.railway.app/vazifalar
+- https://smm-admin-panel-fron-production.up.railway.app/audit
+- https://smm-admin-panel-fron-production.up.railway.app/profil
+- https://smm-admin-panel-fron-production.up.railway.app/sozlamalar
+- https://smm-admin-panel-fron-production.up.railway.app/ai-yordamchi
