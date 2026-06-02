@@ -52,26 +52,26 @@ import { UiHealthStrip, UiOpsTimeline, UiStatusStepper } from "./ui-system";
 
 const MENU = [
   { id: "dashboard", title: "Boshqaruv markazi", icon: LayoutDashboard, tone: "indigo" },
-  { id: "content", title: "Kontent kalendari", icon: Clapperboard, tone: "cyan" },
-  { id: "bonus", title: "KPI va bonus", icon: BadgeDollarSign, tone: "emerald" },
-  { id: "expenses", title: "Moliya va xarajatlar", icon: ReceiptText, tone: "amber" },
+  { id: "content", title: "Kontent reja", icon: Clapperboard, tone: "cyan" },
+  { id: "bonus", title: "Bonus tizimi", icon: BadgeDollarSign, tone: "emerald" },
+  { id: "expenses", title: "Harajatlar va finance", icon: ReceiptText, tone: "amber" },
   { id: "travelPlans", title: "Safar rejasi", icon: PlaneTakeoff, tone: "violet" },
-  { id: "analytics", title: "Filiallar xaritasi", icon: BarChart3, tone: "sky" },
+  { id: "analytics", title: "Analytics", icon: BarChart3, tone: "sky" },
   { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: ClipboardList, tone: "slate" },
-  { id: "campaigns", title: "Kampaniyalar markazi", icon: Target, tone: "fuchsia" },
-  { id: "uploads", title: "Media kutubxonasi", icon: Image, tone: "purple" },
+  { id: "campaigns", title: "Reklama kampaniyalari", icon: Target, tone: "fuchsia" },
+  { id: "uploads", title: "Media kutubxona", icon: Image, tone: "purple" },
   { id: "users", title: "Hodimlar", icon: ContactRound, tone: "blue" },
-  { id: "tasks", title: "Vazifalar va workflow", icon: ListTodo, tone: "green" },
+  { id: "tasks", title: "Vazifalar", icon: ListTodo, tone: "green" },
   { id: "audit", title: "Audit log", icon: ShieldCheck, tone: "red" },
   { id: "profile", title: "Profil", icon: CircleUserRound, tone: "cyan" },
-  { id: "settings", title: "Sozlamalar va xavfsizlik", icon: SlidersHorizontal, tone: "slate" }
+  { id: "settings", title: "Sozlamalar", icon: SlidersHorizontal, tone: "slate" }
 ];
 
 const MENU_GROUPS = [
-  { id: "core", title: "Boshqaruv", items: ["dashboard", "content", "bonus", "tasks"] },
-  { id: "operations", title: "Operatsiyalar", items: ["travelPlans", "campaigns", "expenses", "dailyReports"] },
-  { id: "insights", title: "Marketing aktivlari", items: ["analytics", "uploads"] },
-  { id: "system", title: "Tizim", items: ["users", "audit", "profile", "settings"] }
+  { id: "core", title: "Asosiy", items: ["dashboard", "content", "bonus", "tasks"] },
+  { id: "operations", title: "Jarayonlar", items: ["travelPlans", "campaigns", "expenses", "dailyReports"] },
+  { id: "insights", title: "Tahlil", items: ["analytics", "uploads"] },
+  { id: "system", title: "Boshqaruv", items: ["users", "audit", "profile", "settings"] }
 ];
 
 const ROUTES_BY_PAGE = {
@@ -1679,22 +1679,8 @@ function RoleWorkspacePanel({ role = "", summary = {}, contentRows = [], bonusIt
 
 function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], contentRows = [], campaigns = [], travelPlans = [], tasks = [], uploads = [], expenses = [], user = null }) {
   const currentMonth = getMonthLabel();
-  const roleLabelMap = {
-    admin: "Admin boshqaruv paneli",
-    manager: "Manager nazorat paneli",
-    director: "Director command center",
-    mobilograf: "Mobilograf ish maydoni",
-    editor: "Editor ish maydoni",
-    viewer: "Kuzatuv paneli"
-  };
-  const heroTitle = roleLabelMap[user?.role] || "aloo SMM jamoasi platformasi";
-  const heroText =
-    user?.role === "mobilograf"
-      ? "Bugungi vazifalar, safar rejalari va kontent topshiriqlari bir joyda."
-      : user?.role === "editor"
-        ? "Workflow, montaj va kontent jarayonlarini bir ekranda kuzating."
-        : "Kontent reja, bonus, filial hisobotlari va media boshqaruvi bitta joyda.";
   const todayKey = formatDate(new Date());
+  const currentMonthTitle = getMonthTitle(currentMonth);
 
   const thisMonthContent = (contentRows || []).filter((row) => {
     if (!row.publish_date) return false;
@@ -1702,17 +1688,61 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   });
 
   const totalPlan = thisMonthContent.length;
-  const postedCount = thisMonthContent.filter((row) => row.status === "joylangan").length;
+  const postedCount = thisMonthContent.filter((row) => ["joylangan", "yakunlandi", "published"].includes(String(row.status || ""))).length;
+  const reviewCount = thisMonthContent.filter((row) => ["tasdiqlandi", "tasdiqlanishda", "tekshiruvda"].includes(String(row.status || ""))).length;
   const progress = totalPlan ? Math.round((postedCount / totalPlan) * 100) : 0;
   const publishedToday = (contentRows || []).filter((row) => formatDate(row.publish_date) === todayKey).length;
 
-  const thisMonthBonus = (bonusItems || [])
-    .filter((row) => (row.month_label || formatDate(row.work_date).slice(0, 7)) === currentMonth)
-    .reduce((sum, row) => sum + Number(row.total_amount || row.amount || 0), 0);
-  const thisMonthBonusItems = (bonusItems || [])
-    .filter((row) => (row.month_label || formatDate(row.work_date).slice(0, 7)) === currentMonth);
+  const thisMonthBonusItems = (bonusItems || []).filter((row) => (row.month_label || formatDate(row.work_date).slice(0, 7)) === currentMonth);
+  const thisMonthBonus = thisMonthBonusItems.reduce((sum, row) => sum + Number(row.total_amount || row.amount || 0), 0);
   const dashboardBonusBalances = summarizeBonusBalanceEmployees(thisMonthBonusItems, Number(summary?.bonus_rate || 25000));
+
+  const activeCampaignRows = (campaigns || []).filter((item) => {
+    const status = String(item.status || "").toLowerCase();
+    if (["done", "tugagan", "yakunlandi", "cancelled", "canceled"].includes(status)) return false;
+    const endTime = getDateSortValue(item.end_at || item.end_date, Number.POSITIVE_INFINITY);
+    return endTime >= Date.now();
+  });
+  const activeCampaigns = activeCampaignRows.length;
+  const campaignSpend = Number(summary?.monthly_campaign_spend || activeCampaignRows.reduce((sum, item) => sum + Number(item.spend || item.budget_spent || 0), 0));
+  const campaignLeads = activeCampaignRows.reduce((sum, item) => sum + Number(item.leads_count || item.leads || 0), 0);
+  const campaignCpl = campaignLeads ? Math.round(campaignSpend / campaignLeads) : 0;
+
   const reminders = summary?.reminders || [];
+  const dueSoon = Number(summary?.due_soon_task_count || 0);
+  const overdue = Number(summary?.overdue_task_count || 0);
+  const doneTasks = Number(summary?.daily_task_done || 0);
+  const totalTasks = Number(summary?.daily_task_total || summary?.task_count || tasks.length || 0);
+  const taskProgress = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : Number(summary?.daily_task_progress || 0);
+
+  const workflowSlaBreaches = [...(contentRows || []), ...(travelPlans || [])].filter((row) => {
+    const status = String(row.status || "");
+    if (["tasdiqlandi", "yakunlandi", "joylangan", "published", "approved", "archived"].includes(status)) return false;
+    const createdAt = new Date(row.created_at || row.plan_date || row.publish_date || Date.now());
+    if (Number.isNaN(createdAt.getTime())) return false;
+    return (Date.now() - createdAt.getTime()) / 3600000 >= 48;
+  }).length;
+
+  const branchKpis = Object.values((dailyReports || []).reduce((acc, row) => {
+    const key = row.branch_name || "Filialsiz";
+    if (!acc[key]) acc[key] = { name: key, score: 0, posts: 0, stories: 0, subscribers: 0 };
+    acc[key].posts += Number(row.posts_count || 0);
+    acc[key].stories += Number(row.stories_count || 0);
+    acc[key].subscribers += Number(row.subscriber_count || 0);
+    acc[key].score += Number(row.posts_count || 0) * 2 + Number(row.stories_count || 0);
+    return acc;
+  }, {})).sort((a, b) => b.score - a.score).slice(0, 5);
+  const topBranch = branchKpis[0];
+  const maxBranchScore = Math.max(...branchKpis.map((item) => item.score), 1);
+
+  const contentSeries = [
+    { label: "Reja", value: thisMonthContent.filter((r) => r.status === "reja").length },
+    { label: "Jarayonda", value: thisMonthContent.filter((r) => ["tayyorlanmoqda", "jarayonda"].includes(r.status)).length },
+    { label: "Tasdiqda", value: reviewCount },
+    { label: "Joylangan", value: postedCount }
+  ];
+  const maxContentPoint = Math.max(...contentSeries.map((item) => item.value), 1);
+
   const bonusSeries = Array.from({ length: 6 }).map((_, index) => {
     const date = new Date();
     date.setMonth(date.getMonth() - (5 - index));
@@ -1720,12 +1750,8 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
     const amount = index === 5 ? Number(summary?.monthly_bonus_amount || thisMonthBonus) : Math.round((Number(summary?.monthly_bonus_amount || thisMonthBonus) || 0) * ((index + 2) / 8));
     return { label, amount };
   });
-  const contentSeries = [
-    { label: "Reja", value: thisMonthContent.filter((r) => r.status === "reja").length },
-    { label: "Workflow", value: thisMonthContent.filter((r) => r.status === "tasdiqlandi").length },
-    { label: "Jarayonda", value: thisMonthContent.filter((r) => ["tayyorlanmoqda", "jarayonda"].includes(r.status)).length },
-    { label: "Yakunlandi", value: thisMonthContent.filter((r) => ["joylangan", "yakunlandi"].includes(r.status)).length }
-  ];
+  const maxBonusPoint = Math.max(...bonusSeries.map((item) => item.amount), 1);
+
   const spendSeries = Array.from({ length: 6 }).map((_, index) => {
     const date = new Date();
     date.setMonth(date.getMonth() - (5 - index));
@@ -1740,39 +1766,16 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
       .reduce((sum, item) => sum + Number(item.spend || 0), 0);
     return { label, amount };
   });
-  const branchKpis = Object.values((dailyReports || []).reduce((acc, row) => {
-    const key = row.branch_name || "Filialsiz";
-    if (!acc[key]) {
-      acc[key] = { name: key, score: 0, subscribers: 0 };
-    }
-    acc[key].score += Number(row.posts_count || 0) * 2 + Number(row.stories_count || 0);
-    acc[key].subscribers += Number(row.subscriber_count || 0);
-    return acc;
-  }, {})).sort((a, b) => b.score - a.score).slice(0, 5);
+  const maxSpendPoint = Math.max(...spendSeries.map((item) => item.amount), 1);
+
   const travelWorkflow = [
     { label: "Reja", value: (travelPlans || []).filter((item) => item.status === "reja").length },
-    { label: "Workflow", value: (travelPlans || []).filter((item) => item.status === "tasdiqlandi").length },
+    { label: "Tasdiqlandi", value: (travelPlans || []).filter((item) => item.status === "tasdiqlandi").length },
     { label: "Jarayonda", value: (travelPlans || []).filter((item) => ["jarayonda", "tasvirga_olindi"].includes(item.status)).length },
     { label: "Yakunlandi", value: (travelPlans || []).filter((item) => item.status === "yakunlandi").length }
   ];
-  const maxBonusPoint = Math.max(...bonusSeries.map((item) => item.amount), 1);
-  const maxContentPoint = Math.max(...contentSeries.map((item) => item.value), 1);
-  const maxSpendPoint = Math.max(...spendSeries.map((item) => item.amount), 1);
-  const maxBranchScore = Math.max(...branchKpis.map((item) => item.score), 1);
+
   const smartAlerts = summary?.smart_alerts || [];
-  const activeCampaigns = (campaigns || []).filter((item) => {
-    const status = String(item.status || "").toLowerCase();
-    if (["done", "tugagan", "yakunlandi", "cancelled", "canceled"].includes(status)) return false;
-    const endTime = getDateSortValue(item.end_at || item.end_date, Number.POSITIVE_INFINITY);
-    return endTime >= Date.now();
-  }).length;
-  const workflowSlaBreaches = [...(contentRows || []), ...(travelPlans || [])].filter((row) => {
-    const status = String(row.status || "");
-    if (["tasdiqlandi", "yakunlandi", "joylangan", "published", "approved", "archived"].includes(status)) return false;
-    const createdAt = new Date(row.created_at || row.plan_date || row.publish_date || Date.now());
-    if (Number.isNaN(createdAt.getTime())) return false;
-    return (Date.now() - createdAt.getTime()) / 3600000 >= 48;
-  }).length;
   const operationSignals = [
     ...smartAlerts.map((item, index) => ({
       id: `alert-${index}`,
@@ -1787,475 +1790,239 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
       text: `${formatDate(item.due_date)} • ${taskStatusLabel(item.status)}`
     }))
   ].slice(0, 6);
-  const overallPulse = Math.max(
-    12,
-    Math.min(
-      100,
-      Math.round(
-        (
-          progress +
-          Number(summary?.daily_task_progress || 0) +
-          Math.max(0, 100 - (workflowSlaBreaches * 5))
-        ) / 3
-      )
-    )
-  );
-  const topBranch = branchKpis[0] || null;
-  const heroChips = [
-    `${summary?.monthly_content_count || totalPlan} ta kontent`,
-    `${activeCampaigns} ta faol target`,
-    `${summary?.task_count || 0} ta vazifa`,
-    topBranch ? `${topBranch.name} top filial` : "Filial KPI tayyorlanmoqda"
+
+  const overallPulse = Math.max(12, Math.min(100, Math.round((progress + taskProgress + Math.max(0, 100 - (workflowSlaBreaches * 6))) / 3)));
+  const userName = user?.full_name || user?.name || "Jamoa";
+
+  const mainMetrics = [
+    { label: "Kontent bajarilishi", value: `${progress}%`, desc: `${postedCount}/${totalPlan || 0} joylangan`, tone: progress >= 70 ? "success" : progress >= 40 ? "warning" : "danger", icon: Clapperboard },
+    { label: "Joriy oy bonusi", value: formatMoney(summary?.monthly_bonus_amount || thisMonthBonus), desc: currentMonthTitle, tone: "blue", icon: BadgeDollarSign },
+    { label: "Faol kampaniyalar", value: activeCampaigns, desc: campaignCpl ? `CPL ${formatMoney(campaignCpl)}` : "target holati", tone: "violet", icon: Target },
+    { label: "Task progress", value: `${Math.round(taskProgress)}%`, desc: `${doneTasks}/${totalTasks || 0} bajarilgan`, tone: dueSoon || overdue ? "warning" : "success", icon: ListTodo }
   ];
-  const primaryMetrics = [
-    {
-      title: "Kontent bajarilishi",
-      numericValue: progress,
-      format: (next) => `${Math.round(next)}%`,
-      hint: `${postedCount} / ${totalPlan} joylangan`,
-      tone: progress >= 70 ? "success" : progress >= 40 ? "warning" : "danger",
-      spark: contentSeries.map((item) => item.value)
-    },
-    {
-      title: "Joriy oy bonusi",
-      numericValue: thisMonthBonus,
-      format: (next) => formatMoney(Math.round(next)),
-      hint: getMonthTitle(currentMonth),
-      tone: "info",
-      spark: bonusSeries.map((item) => item.amount)
-    },
-    {
-      title: "Operatsion pulse",
-      numericValue: overallPulse,
-      format: (next) => `${Math.round(next)}%`,
-      hint: "kontent, vazifa va workflow tezligi",
-      tone: overallPulse >= 75 ? "success" : overallPulse >= 45 ? "warning" : "danger",
-      spark: [
-        progress,
-        Number(summary?.daily_task_progress || 0),
-        Math.max(10, 100 - (workflowSlaBreaches * 6)),
-        Math.min(100, ((summary?.today_report_count || 0) * 20) || 10),
-        Math.min(100, activeCampaigns * 18 || 10),
-        Math.min(100, travelWorkflow[1].value * 18 || 10)
-      ]
-    },
-    {
-      title: "Faol vazifalar",
-      numericValue: summary?.task_count || 0,
-      format: (next) => Math.round(next),
-      hint: "umumiy vazifalar",
-      tone: "default",
-      spark: [
-        summary?.task_count || 0,
-        summary?.daily_task_total || 0,
-        summary?.daily_task_done || 0,
-        summary?.overdue_task_count || 0,
-        summary?.due_soon_task_count || 0,
-        reminders.length
-      ]
-    }
-  ];
+
   const secondaryMetrics = [
-    {
-      title: "Bugungi hisobotlar",
-      numericValue: summary?.today_report_count || 0,
-      format: (next) => Math.round(next),
-      hint: "filiallardan kelgan ma'lumot",
-      tone: (summary?.today_report_count || 0) > 0 ? "success" : "default",
-      spark: [
-        summary?.today_report_count || 0,
-        dailyReports.length,
-        branchKpis.length,
-        publishedToday,
-        smartAlerts.length,
-        reminders.length
-      ]
-    },
-    {
-      title: "Faol targetlar",
-      numericValue: activeCampaigns,
-      format: (next) => Math.round(next),
-      hint: "reklama kampaniyalari",
-      tone: activeCampaigns > 0 ? "info" : "default",
-      spark: spendSeries.map((item) => item.amount)
-    },
-    {
-      title: "3 kun ichidagi vazifalar",
-      numericValue: summary?.due_soon_task_count || 0,
-      format: (next) => Math.round(next),
-      hint: "eslatma kerak",
-      tone: (summary?.due_soon_task_count || 0) > 0 ? "warning" : "success",
-      spark: [
-        summary?.due_soon_task_count || 0,
-        reminders.length,
-        travelWorkflow[0].value,
-        travelWorkflow[1].value,
-        contentSeries[1].value,
-        contentSeries[2].value
-      ]
-    },
-    {
-      title: "Oy reklama sarfi",
-      numericValue: summary?.monthly_campaign_spend || 0,
-      format: (next) => formatUsd(Math.round(next)),
-      hint: getMonthTitle(currentMonth),
-      tone: "info",
-      spark: spendSeries.map((item) => item.amount)
-    },
-    {
-      title: "Workflow SLA",
-      numericValue: workflowSlaBreaches,
-      format: (next) => Math.round(next),
-      hint: "48 soatdan oshgan jarayonlar",
-      tone: workflowSlaBreaches > 0 ? "danger" : "success",
-      spark: [
-        workflowSlaBreaches,
-        contentSeries[0].value,
-        contentSeries[2].value,
-        travelWorkflow[0].value,
-        travelWorkflow[2].value,
-        reminders.length
-      ]
-    }
+    { label: "Bugungi hisobot", value: summary?.today_report_count || 0, desc: "filiallardan", tone: "blue" },
+    { label: "Media fayllar", value: uploads?.length || 0, desc: "kutubxonada", tone: "violet" },
+    { label: "Xarajatlar", value: formatMoney((expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0)), desc: "umumiy ro‘yxat", tone: "amber" },
+    { label: "SLA signal", value: workflowSlaBreaches, desc: "48 soatdan oshgan", tone: workflowSlaBreaches ? "danger" : "success" }
   ];
-  const dashboardCatalogRows = [
-    ...operationSignals.map((item) => ({
-      id: item.id,
-      name: item.title,
-      type: "Signal",
-      status: item.tone === "danger" ? "Kritik" : item.tone === "warning" ? "Diqqat" : "Info",
-      value: item.text,
-      tone: item.tone
-    })),
-    ...thisMonthContent.slice(0, 4).map((item) => ({
-      id: `content-${item.id}`,
-      name: item.title || "Kontent",
-      type: formatContentType(item.content_type),
-      status: formatApprovalStatus(item.status),
-      value: formatDate(item.publish_date),
-      tone: ["joylangan", "yakunlandi"].includes(item.status) ? "success" : "info"
-    })),
-    ...branchKpis.slice(0, 3).map((item) => ({
-      id: `branch-${item.name}`,
-      name: item.name,
-      type: "Filial",
-      status: "KPI",
-      value: `${item.score} ball`,
-      tone: "success"
-    }))
-  ];
+
+  const latestContent = [...(contentRows || [])]
+    .sort((a, b) => getDateSortValue(b.publish_date || b.created_at, 0) - getDateSortValue(a.publish_date || a.created_at, 0))
+    .slice(0, 5);
+  const latestReports = [...(dailyReports || [])]
+    .sort((a, b) => getDateSortValue(b.report_date || b.created_at, 0) - getDateSortValue(a.report_date || a.created_at, 0))
+    .slice(0, 5);
+  const latestTasks = [...(tasks || [])]
+    .sort((a, b) => getDateSortValue(a.due_date || a.created_at, Number.POSITIVE_INFINITY) - getDateSortValue(b.due_date || b.created_at, Number.POSITIVE_INFINITY))
+    .slice(0, 5);
 
   return (
-    <div className="page-grid dashboard-page">
-      <BillzCatalogPanel
-        title="Boshqaruv katalogi"
-        desc="KPI, signal, kontent va filial holatlari Billz katalog uslubida birinchi ekranda."
-        actionLabel="Yangi vazifa"
-        tabs={["Barchasi", "Kontent", "Bonus", "Finance", "Signal"]}
-        kpis={[
-          { label: "Kontent reja", value: `${totalPlan} ta`, icon: Clapperboard },
-          { label: "Payroll", value: formatMoney(thisMonthBonus), icon: BadgeDollarSign },
-          { label: "Signal", value: operationSignals.length, icon: Bell },
-          { label: "Vazifalar", value: summary?.task_count || 0, icon: ListTodo }
-        ]}
-        rows={dashboardCatalogRows}
-      />
-
-      <div className="dashboard-hero-card">
-        <div className="dashboard-hero-copy">
-          <div className="small-label">Boshqaruv markazi</div>
-          <h1>{heroTitle}</h1>
-          <p>{heroText}</p>
-          <div className="dashboard-hero-summary">
-            {summary?.executive_summary || "Asosiy boshqaruv xulosasi tayyorlanmoqda, operatsion signallar yig‘ilmoqda."}
-          </div>
-          <div className="dashboard-chip-row">
-            {heroChips.map((chip) => (
-              <span key={chip} className="dashboard-chip">{chip}</span>
-            ))}
+    <div className="command-dashboard-page">
+      <section className="command-hero card">
+        <div className="command-hero-copy">
+          <span className="command-kicker"><Sparkles size={16} /> aloo SMM Command Center</span>
+          <h1>Boshqaruv markazi</h1>
+          <p>Salom, <strong>{userName}</strong>. Kontent reja, filial hisobotlari, bonus, target, media va vazifalar bir joyda nazorat qilinadi.</p>
+          <div className="command-hero-actions">
+            <button type="button" className="btn primary" onClick={() => api.exportFile("/api/export/content.xlsx", "content.xlsx")}>Kontent Excel</button>
+            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/campaigns.xlsx", "campaigns.xlsx")}>Kampaniya Excel</button>
+            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/daily-reports.xlsx", "daily-reports.xlsx")}>Hisobot Excel</button>
           </div>
         </div>
-
-        <div className="dashboard-hero-side">
-          <div className="dashboard-hero-glow" />
-          <div className="dashboard-side-focus">
-            <span>Bugungi oqim</span>
-            <strong><AnimatedNumber value={publishedToday} format={(next) => Math.round(next)} /></strong>
-            <small>bugun reja yoki ijroga tushgan kontentlar</small>
+        <div className="command-hero-panel">
+          <div className="command-pulse-ring">
+            <span>{overallPulse}%</span>
+            <small>operatsion pulse</small>
           </div>
-          <div className="dashboard-side-grid">
-            <div className="dashboard-side-card">
-              <span>Top filial</span>
-              <strong>{topBranch?.name || "—"}</strong>
-              <small>{topBranch ? `${topBranch.score} KPI ball` : "hisobot kutilmoqda"}</small>
-            </div>
-            <div className="dashboard-side-card">
-              <span>Signal</span>
-              <strong><AnimatedNumber value={operationSignals.length} format={(next) => Math.round(next)} /></strong>
-              <small>smart alert va reminders</small>
-            </div>
-            <div className="dashboard-side-card">
-              <span>Safar</span>
-              <strong><AnimatedNumber value={travelWorkflow[1].value} format={(next) => Math.round(next)} /></strong>
-              <small>workflowdan o'tgan safar rejasi</small>
-            </div>
-            <div className="dashboard-side-card">
-              <span>Reklama</span>
-              <strong><AnimatedNumber value={activeCampaigns} format={(next) => Math.round(next)} /></strong>
-              <small>faol target kampaniyalari</small>
-            </div>
+          <div className="command-hero-list">
+            <span><i /> {summary?.monthly_content_count || totalPlan} ta kontent</span>
+            <span><i /> {activeCampaigns} ta faol target</span>
+            <span><i /> {topBranch ? `${topBranch.name} top filial` : "Filial KPI tayyorlanmoqda"}</span>
           </div>
         </div>
-      </div>
+      </section>
 
-      <RoleWorkspacePanel
-        role={user?.role}
-        summary={summary}
-        contentRows={contentRows}
-        bonusItems={bonusItems}
-        expenses={expenses}
-        tasks={tasks}
-        uploads={uploads}
-        travelPlans={travelPlans}
-        campaigns={campaigns}
-      />
-
-      <div className="dashboard-metrics-grid">
-        {primaryMetrics.map((item) => (
-          <DashboardMetricCard key={item.title} {...item} />
-        ))}
-      </div>
-
-      <div className="dashboard-metrics-grid dashboard-metrics-grid-secondary">
-        {secondaryMetrics.map((item) => (
-          <DashboardMetricCard key={item.title} {...item} />
-        ))}
-      </div>
-
-      <BonusPlasticCards
-        rows={dashboardBonusBalances}
-        monthLabel={currentMonth}
-        title="Joriy oy bonus kartalari"
-      />
-
-      <div className="dashboard-spotlight-grid">
-        <div className="card dashboard-focus-card">
-          <SectionTitle
-            title="Performance pulse"
-            desc="Bugungi jarayonlar qanchalik barqaror yurayotganini ko‘rsatadi"
-            right={<span className="dashboard-chip small live">Live</span>}
-          />
-          <div className="dashboard-focus-layout">
-            <div className="dashboard-ring-card">
-              <div
-                className="dashboard-ring"
-                style={{
-                  background: `conic-gradient(${overallPulse >= 75 ? "#1478F2" : overallPulse >= 45 ? "#FF7A1A" : "#ef4444"} ${overallPulse}%, rgba(148,163,184,.14) 0)`
-                }}
-              >
-                <div className="dashboard-ring-inner">
-                  <span>Pulse</span>
-                  <strong><AnimatedNumber value={overallPulse} format={(next) => `${Math.round(next)}%`} /></strong>
-                </div>
+      <section className="command-metric-grid">
+        {mainMetrics.map((item) => {
+          const Icon = item.icon;
+          return (
+            <article key={item.label} className={`command-metric-card ${item.tone}`}>
+              <div className="command-metric-top">
+                <span className="command-metric-icon"><Icon size={18} /></span>
+                <span className="command-trend">real data</span>
               </div>
-            </div>
-            <div className="dashboard-focus-list">
-              <div className="dashboard-focus-item">
-                <span>Kontent reja</span>
-                <strong>{postedCount}/{totalPlan}</strong>
-              </div>
-              <div className="dashboard-focus-item">
-                <span>Kunlik vazifa progress</span>
-                <strong>{summary?.daily_task_progress || 0}%</strong>
-              </div>
-              <div className="dashboard-focus-item">
-                <span>Workflow SLA</span>
-                <strong>{workflowSlaBreaches}</strong>
-              </div>
-              <div className="dashboard-focus-item">
-                <span>Bugungi hisobot</span>
-                <strong>{summary?.today_report_count || 0}</strong>
-              </div>
-            </div>
-          </div>
-        </div>
+              <span className="command-metric-label">{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.desc}</small>
+            </article>
+          );
+        })}
+      </section>
 
-        <div className="card dashboard-focus-card">
-          <SectionTitle
-            title="Live signallar"
-            desc="Muhim alert va vazifa signalari bir joyda"
-            right={<span className="dashboard-chip small">{operationSignals.length} ta</span>}
-          />
-          <div className="dashboard-alert-wall">
-            {operationSignals.length ? operationSignals.map((item) => (
-              <div key={item.id} className={`dashboard-alert-card ${item.tone}`}>
-                <strong>{item.title}</strong>
-                <span>{item.text}</span>
-              </div>
-            )) : (
-              <div className="empty-block">Hozircha yangi signal yo‘q</div>
-            )}
+      <section className="command-grid-main">
+        <div className="command-card command-chart-card">
+          <SectionTitle title="Kontent va reklama ritmi" desc={`${currentMonthTitle} bo‘yicha real jarayonlar`} />
+          <div className="command-chart-tabs">
+            <span>Kontent</span>
+            <span>Bonus</span>
+            <span>Sarf</span>
           </div>
-        </div>
-      </div>
-
-      <DashboardDisclosure
-        title="Operatsion markaz"
-        desc="Filial hisobotlari va eslatmalarni tez ko‘rish uchun"
-        badge={`${dailyReports.length} hisobot`}
-      >
-        <div className="two-grid dashboard-fold-grid">
-          <div className="card dashboard-nested-card">
-            <SectionTitle title="So‘nggi filial hisobotlari" desc="Oxirgi yuborilgan kunlik natijalar" />
-            <div className="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Sana</th>
-                    <th>Filial</th>
-                    <th>Stories</th>
-                    <th>Post</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(dailyReports || []).slice(0, 5).map((row) => (
-                    <tr key={row.id}>
-                      <td>{formatDate(row.report_date)}</td>
-                      <td>{row.branch_name}</td>
-                      <td>{row.stories_count}</td>
-                      <td>{row.posts_count}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          <div className="card dashboard-nested-card">
-            <SectionTitle title="Task reminders" desc="Yaqinlashayotgan va kechikkan vazifalar" />
-            <div className="reminder-list">
-              {reminders.length ? reminders.map((item) => (
-                <div key={item.id} className={`reminder-card ${formatDate(item.due_date) < todayKey ? "danger" : "warning"}`}>
-                  <strong>{item.title}</strong>
-                  <span>{formatDate(item.due_date)} - {taskStatusLabel(item.status)}</span>
-                </div>
-              )) : <div className="empty-block">Hozircha eslatma yo‘q</div>}
-            </div>
-          </div>
-        </div>
-      </DashboardDisclosure>
-
-      <DashboardDisclosure
-        title="Analytics studio"
-        desc="Bonus, kontent, sarf va filial KPI bo‘yicha ichki ko‘rsatkichlar"
-        badge={`${summary?.monthly_content_count || totalPlan} kontent`}
-      >
-        <div className="card dashboard-nested-card">
-          <SectionTitle title="Tezkor xulosa" desc="Joriy oy bo‘yicha qisqa snapshot" />
-          <div className="quick-list">
-            <div className="quick-item">Kontentlar soni: <strong>{summary?.monthly_content_count || 0}</strong></div>
-            <div className="quick-item">Bonus stavkasi: <strong>{formatMoney(summary?.bonus_rate || 25000)}</strong></div>
-            <div className="quick-item">Hisoblangan bonus: <strong>{formatMoney(summary?.monthly_bonus_amount || thisMonthBonus)}</strong></div>
-            <div className="quick-item">Bugungi hisobotlar: <strong>{summary?.today_report_count || 0}</strong></div>
-          </div>
-        </div>
-
-        <div className="chart-grid dashboard-chart-grid">
-          <div className="chart-card">
-            <div className="chart-title">Oyma-oy bonus</div>
-            <div className="line-chart">
-              {bonusSeries.map((item) => (
-                <div key={item.label} className="line-point">
-                  <span className="line-dot" style={{ bottom: `${(item.amount / maxBonusPoint) * 100}%` }} />
-                  <label>{item.label}</label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="chart-card">
-            <div className="chart-title">Kontent bajarilish foizi</div>
-            <div className="bar-chart">
+          <div className="command-visual-grid">
+            <div className="command-bars">
               {contentSeries.map((item) => (
-                <div key={item.label} className="bar-item">
+                <div key={item.label} className="command-bar-row">
                   <span>{item.label}</span>
-                  <div className="bar-track"><i style={{ width: `${Math.max((item.value / maxContentPoint) * 100, item.value ? 10 : 0)}%` }} /></div>
+                  <div><i style={{ width: `${Math.max((item.value / maxContentPoint) * 100, item.value ? 12 : 2)}%` }} /></div>
                   <strong>{item.value}</strong>
                 </div>
               ))}
             </div>
-          </div>
-
-          <div className="chart-card">
-            <div className="chart-title">Oyma-oy reklama sarfi</div>
-            <div className="line-chart">
+            <div className="command-mini-line">
+              {bonusSeries.map((item) => (
+                <span key={item.label} style={{ height: `${Math.max((item.amount / maxBonusPoint) * 100, 6)}%` }} title={`${item.label}: ${formatMoney(item.amount)}`} />
+              ))}
+            </div>
+            <div className="command-mini-line spend">
               {spendSeries.map((item) => (
-                <div key={item.label} className="line-point">
-                  <span className="line-dot spend" style={{ bottom: `${(item.amount / maxSpendPoint) * 100}%` }} />
-                  <label>{item.label}</label>
-                </div>
+                <span key={item.label} style={{ height: `${Math.max((item.amount / maxSpendPoint) * 100, 6)}%` }} title={`${item.label}: ${formatUsd(item.amount)}`} />
               ))}
-            </div>
-          </div>
-
-          <div className="chart-card">
-            <div className="chart-title">Filial KPI</div>
-            <div className="bar-chart">
-              {branchKpis.length ? branchKpis.map((item) => (
-                <div key={item.name} className="bar-item">
-                  <span>{item.name}</span>
-                  <div className="bar-track branch"><i style={{ width: `${Math.max((item.score / maxBranchScore) * 100, item.score ? 10 : 0)}%` }} /></div>
-                  <strong>{item.score}</strong>
-                </div>
-              )) : <div className="empty-block">Filial KPI hali yo‘q</div>}
             </div>
           </div>
         </div>
-      </DashboardDisclosure>
 
-      <DashboardDisclosure
-        title="Workflow va eksportlar"
-        desc="Workflow oqimlari va tezkor eksport markazi"
-        badge={`${summary?.task_count || 0} vazifa`}
-        defaultOpen={false}
-      >
-        <div className="dashboard-fold-columns">
-          <div className="card dashboard-nested-card">
-            <SectionTitle title="Kontent studio workflow" desc="Kontent statuslarining joriy holati" />
-            <div className="quick-list">
-              {contentSeries.map((item) => (
-                <div key={item.label} className="quick-item">
-                  {item.label}: <strong>{item.value}</strong>
-                </div>
-              ))}
-              <div className="quick-item">Bekor qilingan: <strong>{thisMonthContent.filter((r) => r.status === "bekor_qilingan").length}</strong></div>
-            </div>
-          </div>
-
-          <div className="card dashboard-nested-card">
-            <SectionTitle title="Safar workflow" desc="Safar rejalari oqimi" />
-            <div className="quick-list">
-              {travelWorkflow.map((item) => (
-                <div key={item.label} className="quick-item">
-                  {item.label}: <strong>{item.value}</strong>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="card dashboard-nested-card">
-            <SectionTitle title="Export center" desc="Barcha tezkor eksportlar bir joyda" />
-            <div className="export-center">
-              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/users.xlsx", "users.xlsx")}>Users Excel</button>
-              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/content.xlsx", "content.xlsx")}>Content Excel</button>
-              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/bonuses.xlsx", "bonuses.xlsx")}>Bonus Excel</button>
-              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/daily-reports.xlsx", "daily-reports.xlsx")}>Daily report Excel</button>
-              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/daily-reports.pdf", "daily-reports.pdf")}>Daily report PDF</button>
-              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/campaigns.xlsx", "campaigns.xlsx")}>Campaign Excel</button>
-            </div>
+        <div className="command-card command-side-card">
+          <SectionTitle title="Tezkor ko‘rsatkichlar" desc="Dashboard snapshot" />
+          <div className="command-mini-metrics">
+            {secondaryMetrics.map((item) => (
+              <div key={item.label} className={`command-mini-metric ${item.tone}`}>
+                <span>{item.label}</span>
+                <strong>{item.value}</strong>
+                <small>{item.desc}</small>
+              </div>
+            ))}
           </div>
         </div>
-      </DashboardDisclosure>
+      </section>
+
+      <section className="command-grid-3">
+        <div className="command-card">
+          <SectionTitle title="Filial KPI" desc="Oxirgi hisobotlar asosida" />
+          <div className="command-branch-list">
+            {branchKpis.length ? branchKpis.map((item, index) => (
+              <div key={item.name} className="command-branch-row">
+                <span className="command-rank">{index + 1}</span>
+                <div>
+                  <strong>{item.name}</strong>
+                  <small>{item.posts} post • {item.stories} story</small>
+                </div>
+                <div className="command-branch-bar"><i style={{ width: `${Math.max((item.score / maxBranchScore) * 100, 8)}%` }} /></div>
+                <b>{item.score}</b>
+              </div>
+            )) : <div className="empty-block">Filial KPI hali yo‘q</div>}
+          </div>
+        </div>
+
+        <div className="command-card">
+          <SectionTitle title="Yaqin vazifalar" desc="Deadline va eslatmalar" />
+          <div className="command-task-list">
+            {latestTasks.length ? latestTasks.map((item) => (
+              <div key={item.id} className="command-task-row">
+                <span className={taskStatusClass(item.status)}>{taskStatusLabel(item.status)}</span>
+                <div>
+                  <strong>{item.title}</strong>
+                  <small>{formatDate(item.due_date || item.created_at)}</small>
+                </div>
+              </div>
+            )) : reminders.length ? reminders.slice(0, 5).map((item) => (
+              <div key={item.id} className="command-task-row">
+                <span className={formatDate(item.due_date) < todayKey ? "status-badge cancelled" : "status-badge doing"}>{taskStatusLabel(item.status)}</span>
+                <div>
+                  <strong>{item.title}</strong>
+                  <small>{formatDate(item.due_date)}</small>
+                </div>
+              </div>
+            )) : <div className="empty-block">Hozircha vazifa yo‘q</div>}
+          </div>
+        </div>
+
+        <div className="command-card">
+          <SectionTitle title="Signal va alertlar" desc="Jamoaga kerakli eslatmalar" />
+          <div className="command-alert-list">
+            {operationSignals.length ? operationSignals.map((item) => (
+              <div key={item.id} className={`command-alert ${item.tone}`}>
+                <strong>{item.title}</strong>
+                <span>{item.text}</span>
+              </div>
+            )) : <div className="empty-block">Hozircha yangi signal yo‘q</div>}
+          </div>
+        </div>
+      </section>
+
+      <section className="command-grid-main compact">
+        <div className="command-card">
+          <SectionTitle title="So‘nggi kontentlar" desc="Kontent reja ichidan real yozuvlar" />
+          <div className="command-table-wrap">
+            <table>
+              <thead>
+                <tr><th>Sana</th><th>Nomi</th><th>Platforma</th><th>Holat</th></tr>
+              </thead>
+              <tbody>
+                {latestContent.length ? latestContent.map((row) => (
+                  <tr key={row.id}>
+                    <td>{formatDate(row.publish_date || row.created_at)}</td>
+                    <td>{row.title}</td>
+                    <td>{row.platform_primary || row.platform || "-"}</td>
+                    <td><span className="command-status-pill">{row.status || "reja"}</span></td>
+                  </tr>
+                )) : <tr><td colSpan="4" className="empty-cell">Kontent yozuvlari hali yo‘q</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div className="command-card">
+          <SectionTitle title="So‘nggi filial hisobotlari" desc="Kunlik hisobotlardan snapshot" />
+          <div className="command-table-wrap">
+            <table>
+              <thead>
+                <tr><th>Sana</th><th>Filial</th><th>Story</th><th>Post</th></tr>
+              </thead>
+              <tbody>
+                {latestReports.length ? latestReports.map((row) => (
+                  <tr key={row.id}>
+                    <td>{formatDate(row.report_date || row.created_at)}</td>
+                    <td>{row.branch_name}</td>
+                    <td>{row.stories_count}</td>
+                    <td>{row.posts_count}</td>
+                  </tr>
+                )) : <tr><td colSpan="4" className="empty-cell">Hisobotlar hali yo‘q</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section className="command-card command-workflow-card">
+        <SectionTitle title="Workflow holati" desc="Kontent, safar va bonus oqimlari" />
+        <div className="command-workflow-grid">
+          <div>
+            <strong>Kontent workflow</strong>
+            {contentSeries.map((item) => <span key={item.label}>{item.label}<b>{item.value}</b></span>)}
+          </div>
+          <div>
+            <strong>Safar workflow</strong>
+            {travelWorkflow.map((item) => <span key={item.label}>{item.label}<b>{item.value}</b></span>)}
+          </div>
+          <div>
+            <strong>Bonus balans</strong>
+            <span>Hisoblangan<b>{formatMoney(summary?.monthly_bonus_amount || thisMonthBonus)}</b></span>
+            <span>Stavka<b>{formatMoney(summary?.bonus_rate || 25000)}</b></span>
+            <span>Xodimlar<b>{dashboardBonusBalances.length}</b></span>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -5186,7 +4953,7 @@ function PublicLandingPage({ settings }) {
             <a href="#resources">Resurslar</a>
             <a href="#company">Kompaniya</a>
           </nav>
-          <a className="public-demo-btn" href="/login">Rejani ko'rish</a>
+          <a className="public-demo-btn" href="/login">Demo olish</a>
         </header>
 
         <section className="public-hero">
@@ -8774,9 +8541,9 @@ function App() {
 
           <div className="sidebar-help-card">
             <span>Yordam kerakmi?</span>
-            <strong>aloo Premium</strong>
-            <small>KPI, kampaniya, kontent va moliya jarayonlarini bitta panelda boshqaring.</small>
-            <a href="/login">Rejani ko'rish</a>
+            <strong>Aloo SMM support</strong>
+            <small>Telegram bot, deadline, payroll va finance bo'yicha tezkor yordam.</small>
+            <a href="/login">Demo olish</a>
           </div>
 
           <button className="logout-btn" type="button" onClick={logout}>
@@ -8793,7 +8560,7 @@ function App() {
                   <ActivePageIcon size={18} />
                 </span>
                 <div className="small-label">{(settings?.company_name || "aloo")} platforma</div>
-                <h1>{activeMenuItem?.title || "Boshqaruv markazi"}</h1>
+                <h1>{activeMenuItem?.title || "Bosh sahifa"}</h1>
               </div>
               <button
                 type="button"
@@ -17353,124 +17120,6 @@ tr:hover td,
     grid-template-columns:1fr !important;
   }
 }
-
-
-/* === Professional visual refresh v2: eski funksiyalar saqlangan, faqat UI ko'rinishi yangilandi === */
-:root{
-  --blue:#0B6BFF;
-  --blue-strong:#0759D6;
-  --accent:#ECF5FF;
-  --accent-soft:rgba(11,107,255,.12);
-  --bg:#F7F9FC;
-  --bg-elevated:#FFFFFF;
-  --panel:#FFFFFF;
-  --panel-strong:#FFFFFF;
-  --panel-soft:#F6F8FB;
-  --soft:#F8FAFC;
-  --soft-strong:#E8EEF7;
-  --text:#071A3A;
-  --text-soft:#1E2A44;
-  --muted:#64748B;
-  --line:#E6ECF5;
-  --line-strong:#D7E0EC;
-  --success:#16A66A;
-  --warning:#F59E0B;
-  --danger:#EF4444;
-  --nav-bg:#061428;
-  --nav-bg-soft:#0A1B35;
-  --nav-text:#F7FBFF;
-  --nav-muted:#AAB8CC;
-  --radius-lg:24px;
-  --radius-md:16px;
-  --shadow-soft:0 10px 28px rgba(15,23,42,.06);
-  --shadow-card:0 18px 46px rgba(15,23,42,.08);
-  --shadow-float:0 26px 60px rgba(4,16,38,.18);
-}
-html,body,#root{font-family:"Inter","Manrope","Segoe UI",Arial,sans-serif!important;background:var(--bg)!important;color:var(--text)!important;}
-body{background:linear-gradient(180deg,#fbfdff 0%, #f4f7fb 100%)!important;}
-h1,h2,h3,h4,.brand-name,.topbar h1,.section-head h2,.section-title-row h2{font-family:"Manrope","Inter","Segoe UI",Arial,sans-serif!important;letter-spacing:-.025em;}
-.app-shell{grid-template-columns:260px minmax(0,1fr)!important;background:var(--bg)!important;}
-.sidebar{
-  background:linear-gradient(180deg,#03112A 0%, #061B37 48%, #031124 100%)!important;
-  color:var(--nav-text)!important;
-  border-right:0!important;
-  padding:24px 18px!important;
-  box-shadow:18px 0 44px rgba(3,12,30,.16)!important;
-  position:relative;
-  overflow:hidden;
-}
-.sidebar::before{content:"";position:absolute;inset:-20% -90% auto auto;width:240px;height:240px;background:radial-gradient(circle,rgba(11,107,255,.28),transparent 70%);pointer-events:none;}
-.brand-block{position:relative;z-index:1;margin-bottom:8px!important;gap:12px!important;}
-.brand-mark{background:transparent!important;width:48px!important;height:48px!important;border-radius:18px!important;box-shadow:none!important;}
-.brand-mark-image{width:48px!important;height:48px!important;object-fit:contain!important;border-radius:14px!important;filter:brightness(0) invert(1)!important;}
-.brand-name{font-size:30px!important;font-weight:900!important;color:#fff!important;line-height:1!important;text-transform:lowercase;}
-.brand-desc{font-size:12px!important;color:rgba(255,255,255,.56)!important;margin-top:4px!important;}
-.sidebar-search{background:rgba(255,255,255,.07)!important;border:1px solid rgba(255,255,255,.10)!important;color:#fff!important;border-radius:14px!important;padding:12px 14px!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)!important;}
-.sidebar-search input{color:#fff!important;background:transparent!important;}
-.sidebar-search input::placeholder{color:rgba(255,255,255,.46)!important;}
-.menu-group-toggle{color:rgba(255,255,255,.48)!important;font-size:11px!important;letter-spacing:.14em!important;text-transform:uppercase!important;font-weight:800!important;padding:12px 8px 8px!important;}
-.menu-list{gap:8px!important;}
-.menu-btn{color:rgba(255,255,255,.82)!important;border-radius:14px!important;padding:12px 14px!important;font-size:14px!important;font-weight:700!important;border:1px solid transparent!important;}
-.menu-btn:hover{background:rgba(255,255,255,.07)!important;color:#fff!important;transform:translateX(2px);}
-.menu-btn.active{background:linear-gradient(135deg,#0B6BFF,#075BDE)!important;color:#fff!important;border-color:rgba(255,255,255,.14)!important;box-shadow:0 12px 28px rgba(11,107,255,.30)!important;}
-.menu-icon-wrap,.mobile-nav-icon{border-radius:11px!important;box-shadow:none!important;background:rgba(255,255,255,.08)!important;color:currentColor!important;}
-.menu-btn.active .menu-icon-wrap{background:rgba(255,255,255,.18)!important;color:#fff!important;}
-.sidebar-help-card{background:linear-gradient(145deg,#0B6BFF,#074EBB)!important;border:1px solid rgba(255,255,255,.14)!important;border-radius:22px!important;color:#fff!important;box-shadow:0 18px 42px rgba(11,107,255,.28)!important;}
-.sidebar-help-card span,.sidebar-help-card small{color:rgba(255,255,255,.76)!important;}
-.sidebar-help-card a{background:#fff!important;color:#0B6BFF!important;border-radius:12px!important;font-weight:900!important;}
-.logout-btn{background:rgba(255,255,255,.08)!important;border:1px solid rgba(255,255,255,.10)!important;color:#fff!important;border-radius:14px!important;}
-.main-area{padding:22px 28px 40px!important;background:linear-gradient(180deg,#FBFCFE 0%,#F6F8FC 100%)!important;}
-.topbar{background:rgba(255,255,255,.92)!important;border:1px solid var(--line)!important;border-radius:0!important;border-top:0!important;border-left:0!important;border-right:0!important;box-shadow:none!important;padding:0 0 20px!important;margin-bottom:22px!important;backdrop-filter:blur(18px)!important;}
-.topbar::after{display:none!important;}
-.page-title-badge{width:42px!important;height:42px!important;border-radius:14px!important;background:#EFF6FF!important;color:#0B6BFF!important;box-shadow:none!important;}
-.small-label{font-size:11px!important;letter-spacing:.12em!important;text-transform:uppercase!important;color:var(--muted)!important;font-weight:800!important;}
-.topbar h1{font-size:30px!important;line-height:1.12!important;margin:4px 0 0!important;color:var(--text)!important;font-weight:900!important;}
-.global-search,.theme-toggle,.notif-pill,.user-chip{background:#fff!important;border:1px solid var(--line)!important;border-radius:14px!important;box-shadow:0 10px 26px rgba(15,23,42,.04)!important;color:var(--text)!important;}
-.global-search input{color:var(--text)!important;}
-.user-chip{font-weight:800!important;}
-.topbar-avatar{border:2px solid #fff!important;box-shadow:0 6px 18px rgba(15,23,42,.16)!important;}
-.card,.stat-card,.hero-shell,.table-wrap,.modal-card,.drawer-panel,.mobile-record-card,.notif-card,.permission-box,.permission-item,.daily-branch-card,.campaign-card,.expense-bar-card,.finance-budget-card{
-  background:#fff!important;
-  border:1px solid var(--line)!important;
-  border-radius:22px!important;
-  box-shadow:0 14px 38px rgba(15,23,42,.055)!important;
-}
-.card:hover,.stat-card:hover,.campaign-card:hover,.daily-branch-card:hover{box-shadow:0 22px 54px rgba(15,23,42,.09)!important;transform:translateY(-1px);}
-.stat-card{padding:20px!important;}
-.stat-icon,.page-title-badge,.menu-icon-wrap{display:inline-grid!important;place-items:center!important;}
-.stat-icon{background:#EEF6FF!important;color:#0B6BFF!important;border:1px solid #DCEBFF!important;}
-.stat-value{color:var(--text)!important;font-size:34px!important;font-weight:900!important;letter-spacing:-.04em!important;}
-.stat-title{color:var(--muted)!important;font-weight:700!important;}
-.stat-note{color:var(--muted)!important;}
-.stat-chip,.status-pill,.badge,.chip,.color-pill{border-radius:999px!important;font-weight:800!important;}
-.btn.primary,.primary-btn,button.primary{background:#0B6BFF!important;color:#fff!important;border:1px solid #0B6BFF!important;box-shadow:0 14px 28px rgba(11,107,255,.22)!important;}
-.btn.primary:hover,.primary-btn:hover,button.primary:hover{background:#0759D6!important;transform:translateY(-1px);}
-.btn.secondary,.secondary-btn{background:#fff!important;border:1px solid var(--line)!important;color:var(--text)!important;}
-input,select,textarea{background:#fff!important;border:1px solid var(--line)!important;border-radius:14px!important;color:var(--text)!important;box-shadow:none!important;}
-input:focus,select:focus,textarea:focus{border-color:#0B6BFF!important;box-shadow:0 0 0 4px rgba(11,107,255,.10)!important;}
-.table-wrap{overflow:hidden!important;}
-th{background:#F8FAFD!important;color:#667085!important;font-size:12px!important;letter-spacing:.02em!important;text-transform:none!important;font-weight:800!important;}
-td{color:#1D2B45!important;}
-tr:hover td{background:#FBFDFF!important;}
-.hero-shell{background:linear-gradient(135deg,#061428 0%,#0B2F66 62%,#0B6BFF 100%)!important;color:#fff!important;overflow:hidden!important;}
-.hero-shell h1,.hero-shell h2,.hero-shell h3,.hero-shell p,.hero-shell .small-label{color:#fff!important;}
-.hero-badge{background:rgba(255,255,255,.14)!important;border-color:rgba(255,255,255,.18)!important;color:#fff!important;}
-.panel-blue{background:#0B6BFF!important;}
-.panel-dark{background:rgba(255,255,255,.10)!important;border:1px solid rgba(255,255,255,.14)!important;backdrop-filter:blur(16px)!important;color:#fff!important;}
-.recharts-wrapper text{font-family:"Inter",sans-serif!important;fill:#64748B!important;}
-.toast{border-radius:18px!important;box-shadow:0 24px 54px rgba(15,23,42,.20)!important;}
-.modal-backdrop{backdrop-filter:blur(12px)!important;}
-.mobile-bottom-nav{background:rgba(255,255,255,.94)!important;border-top:1px solid var(--line)!important;box-shadow:0 -10px 30px rgba(15,23,42,.08)!important;}
-.mobile-nav-item.active{color:#0B6BFF!important;}
-@media (max-width: 900px){
-  .app-shell{display:block!important;}
-  .sidebar{display:none!important;}
-  .main-area{padding:14px 14px 92px!important;}
-  .topbar{border-radius:18px!important;padding:14px!important;border:1px solid var(--line)!important;}
-  .topbar h1{font-size:24px!important;}
-  .topbar-right{width:100%!important;justify-content:space-between!important;}
-}
-
 `;
 
 export default App;
