@@ -2115,6 +2115,22 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     { label: "Yakunlangan", value: workflowCounts.yakunlandi, hint: "joylangan" },
     { label: "Bonusli", value: rows.filter((item) => item.bonus_enabled).length, hint: "bonus oqimi" }
   ];
+  const platformMix = rows.reduce((acc, item) => {
+    splitCellValues(item.platform).forEach((platform) => {
+      acc[platform] = (acc[platform] || 0) + 1;
+    });
+    return acc;
+  }, {});
+  const topPlatform = Object.entries(platformMix).sort((a, b) => b[1] - a[1])[0];
+  const completionPercent = rows.length ? Math.round((workflowCounts.yakunlandi / rows.length) * 100) : 0;
+  const reviewQueueCount = workflowCounts.tasdiqlandi + workflowCounts.qayta_ishlash + workflowCounts.rad_etildi;
+  const todayPlanCount = deadlineRows.filter((item) => Number(item.daysLeft) === 0).length;
+  const contentV5Stats = [
+    { label: "Kontent reja", value: rows.length, hint: `${getMonthTitle(selectedMonth)} oyi`, tone: "blue" },
+    { label: "Bugungi publish", value: todayPlanCount, hint: todayPlanCount ? "bugun nazoratda" : "deadline yo'q", tone: todayPlanCount ? "amber" : "green" },
+    { label: "Yakunlanish", value: `${completionPercent}%`, hint: `${workflowCounts.yakunlandi}/${rows.length || 0} tayyor`, tone: completionPercent >= 70 ? "green" : completionPercent >= 40 ? "amber" : "blue" },
+    { label: "Workflow navbati", value: reviewQueueCount, hint: "tasdiq / qayta ishlash", tone: reviewQueueCount ? "amber" : "green" }
+  ];
   const visibleRows = useMemo(() => {
     return rows.filter((row) => rowMatchesSearch(
       [
@@ -2346,15 +2362,83 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
   }
 
   return (
-    <div className="page-grid content-page-modern">
-      <div className="card content-modern-card content-form-card">
+    <div className="page-grid content-page-modern content-page-v5">
+      <div className="content-v5-hero">
+        <div className="content-v5-hero-copy">
+          <span className="content-v5-eyebrow">SMM Content Command Center</span>
+          <h1>Kontent reja markazi</h1>
+          <p>Eski kontent funksiyalari saqlangan holda, reja, deadline, platforma va workflow nazorati bitta professional oynada jamlandi.</p>
+          <div className="content-v5-hero-actions">
+            <button type="button" className="btn primary" onClick={() => { resetForm(); window.scrollTo({ top: 280, behavior: "smooth" }); }} disabled={!canCreateContent}>+ Kontent qo'shish</button>
+            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/content.xlsx", `content-${selectedMonth}.xlsx`)}>Excel export</button>
+            <div className="content-v5-month-switch">
+              <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>‹</button>
+              <strong>{getMonthTitle(selectedMonth)}</strong>
+              <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>›</button>
+            </div>
+          </div>
+        </div>
+        <div className="content-v5-hero-panel">
+          <div className="content-v5-score-ring" style={{ "--score": `${completionPercent}%` }}>
+            <strong>{completionPercent}%</strong>
+            <span>oylik ritm</span>
+          </div>
+          <div className="content-v5-platform-card">
+            <span>Eng faol kanal</span>
+            <strong>{topPlatform ? topPlatform[0] : "Hali yo'q"}</strong>
+            <small>{topPlatform ? `${topPlatform[1]} ta kontent` : "Kontent qo'shilmagan"}</small>
+          </div>
+          <div className="content-v5-platform-pills">
+            {Object.entries(platformMix).slice(0, 5).map(([platform, count]) => (
+              <span key={platform}><b>{platform}</b>{count}</span>
+            ))}
+            {!Object.keys(platformMix).length ? <span><b>Platforma</b>0</span> : null}
+          </div>
+        </div>
+      </div>
+
+      <div className="content-v5-stats-row">
+        {contentV5Stats.map((item) => (
+          <div key={item.label} className={`content-v5-stat ${item.tone}`}>
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+            <small>{item.hint}</small>
+          </div>
+        ))}
+      </div>
+
+      <div className="content-v5-viewbar">
+        <div className="content-v5-segment">
+          {[
+            ["table", "Jadval"],
+            ["calendar", "Kalendar"],
+            ["kanban", "Workflow"]
+          ].map(([key, label]) => (
+            <button key={key} type="button" className={viewMode === key ? "active" : ""} onClick={() => setViewMode(key)}>{label}</button>
+          ))}
+        </div>
+        <label className="table-search content-modern-search content-v5-search" aria-label="Kontent qidiruvi">
+          <Search size={16} />
+          <input
+            value={tableSearch}
+            onChange={(e) => setTableSearch(e.target.value)}
+            placeholder="Kontent, hodim, platforma yoki statusdan qidiring..."
+          />
+        </label>
+        <div className="content-v5-mini-alerts">
+          <span className={overdueRows.length ? "danger" : "success"}>{overdueRows.length} kechikkan</span>
+          <span className={contentSignals.length ? "warning" : "success"}>{contentSignals.length} signal</span>
+        </div>
+      </div>
+
+      <div className="card content-modern-card content-form-card content-v5-form-card">
         <SectionTitle
-          title={editRow ? "Kontent rejani tahrirlash" : "Kontent reja yaratish"}
-          desc={`${getMonthTitle(selectedMonth)} uchun`}
+          title={editRow ? "Kontent kartasini tahrirlash" : "Yangi kontent kartasi"}
+          desc="Mavjud eski saqlash/tahrirlash logikasi saqlangan"
           right={
             <div className="toolbar-actions content-modern-toolbar">
               <button type="button" className="btn secondary content-modern-btn" onClick={() => setViewMode(viewMode === "table" ? "calendar" : viewMode === "calendar" ? "kanban" : "table")}>
-                {viewMode === "table" ? "Calendar view" : viewMode === "calendar" ? "Kanban view" : "Table view"}
+                {viewMode === "table" ? "Kalendar" : viewMode === "calendar" ? "Workflow" : "Jadval"}
               </button>
               <button type="button" className="btn secondary content-modern-btn" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>
                 {"Oldingi oy"}
@@ -2565,7 +2649,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
 
       <div className="card content-modern-card content-list-card">
         <SectionTitle
-          title={`${getMonthTitle(selectedMonth)} kontent rejasi`}
+          title={`${getMonthTitle(selectedMonth)} operatsion ro'yxati`}
           right={
             <div className="toolbar-actions content-modern-toolbar">
               <label className="table-search content-modern-search" aria-label="Kontent qidiruvi">
@@ -5870,7 +5954,7 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
           right={
             <div className="toolbar-actions">
               <button type="button" className="btn secondary" onClick={() => setViewMode(viewMode === "table" ? "calendar" : viewMode === "calendar" ? "kanban" : "table")}>
-                {viewMode === "table" ? "Calendar view" : viewMode === "calendar" ? "Kanban view" : "Table view"}
+                {viewMode === "table" ? "Kalendar" : viewMode === "calendar" ? "Workflow" : "Jadval"}
               </button>
               {editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null}
             </div>
@@ -17394,6 +17478,326 @@ tr:hover td,
 @media (max-width: 1100px){
   .app-shell{grid-template-columns:1fr}
   .sidebar{display:none}
+}
+
+
+/* V5 Content plan refresh - old system preserved, only UI upgraded */
+.content-page-v5{
+  gap:18px;
+}
+.content-v5-hero{
+  position:relative;
+  overflow:hidden;
+  display:grid;
+  grid-template-columns:minmax(0,1.35fr) minmax(320px,.65fr);
+  gap:22px;
+  padding:28px;
+  border-radius:32px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(22,144,245,.22), transparent 34%),
+    radial-gradient(circle at 96% 8%, rgba(34,197,94,.18), transparent 28%),
+    linear-gradient(135deg,#061329 0%,#09224A 46%,#0D3C7A 100%);
+  color:#fff;
+  box-shadow:0 34px 90px rgba(2,8,23,.24);
+}
+.content-v5-hero::before{
+  content:"";
+  position:absolute;
+  inset:12px;
+  border:1px solid rgba(255,255,255,.11);
+  border-radius:26px;
+  pointer-events:none;
+}
+.content-v5-hero::after{
+  content:"";
+  position:absolute;
+  right:-120px;
+  bottom:-180px;
+  width:390px;
+  height:390px;
+  border-radius:50%;
+  background:rgba(22,144,245,.22);
+  filter:blur(8px);
+}
+.content-v5-hero-copy,
+.content-v5-hero-panel{
+  position:relative;
+  z-index:1;
+}
+.content-v5-eyebrow{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border-radius:999px;
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.14);
+  color:rgba(255,255,255,.78);
+  font-size:11px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.14em;
+}
+.content-v5-hero h1{
+  margin:14px 0 10px;
+  font-size:46px;
+  line-height:1;
+  letter-spacing:-.06em;
+}
+.content-v5-hero p{
+  max-width:760px;
+  margin:0;
+  color:rgba(255,255,255,.76);
+  font-weight:650;
+  line-height:1.55;
+}
+.content-v5-hero-actions{
+  margin-top:22px;
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:12px;
+}
+.content-v5-hero .btn.primary{
+  background:linear-gradient(135deg,#1690F5,#2EC7FF);
+  box-shadow:0 18px 40px rgba(22,144,245,.34);
+}
+.content-v5-hero .btn.secondary{
+  background:rgba(255,255,255,.10);
+  color:#fff;
+  border-color:rgba(255,255,255,.15);
+}
+.content-v5-month-switch{
+  display:inline-flex;
+  align-items:center;
+  gap:9px;
+  min-height:44px;
+  padding:5px;
+  border-radius:16px;
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.14);
+}
+.content-v5-month-switch button{
+  width:34px;
+  height:34px;
+  border:0;
+  border-radius:12px;
+  color:#fff;
+  background:rgba(255,255,255,.12);
+  cursor:pointer;
+  font-size:24px;
+  line-height:1;
+}
+.content-v5-month-switch strong{
+  font-size:13px;
+  min-width:120px;
+  text-align:center;
+}
+.content-v5-hero-panel{
+  align-self:stretch;
+  display:grid;
+  grid-template-columns:150px 1fr;
+  gap:14px;
+  align-items:stretch;
+}
+.content-v5-score-ring{
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:2px;
+  min-height:180px;
+  border-radius:28px;
+  background:
+    radial-gradient(circle closest-side,#0A1F3F 68%,transparent 70%),
+    conic-gradient(#22c55e var(--score),rgba(255,255,255,.14) 0);
+  border:1px solid rgba(255,255,255,.14);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.12);
+}
+.content-v5-score-ring strong{
+  font-size:34px;
+  letter-spacing:-.06em;
+}
+.content-v5-score-ring span{
+  color:rgba(255,255,255,.68);
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.content-v5-platform-card,
+.content-v5-platform-pills{
+  border-radius:24px;
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.13);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10);
+}
+.content-v5-platform-card{
+  padding:18px;
+  display:grid;
+  align-content:center;
+  gap:8px;
+}
+.content-v5-platform-card span,
+.content-v5-platform-card small{
+  color:rgba(255,255,255,.68);
+  font-weight:800;
+}
+.content-v5-platform-card strong{
+  font-size:26px;
+  letter-spacing:-.05em;
+}
+.content-v5-platform-pills{
+  grid-column:1 / -1;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  padding:12px;
+}
+.content-v5-platform-pills span{
+  display:inline-flex;
+  align-items:center;
+  gap:9px;
+  padding:9px 11px;
+  border-radius:999px;
+  background:rgba(255,255,255,.10);
+  color:rgba(255,255,255,.76);
+  font-size:12px;
+  font-weight:900;
+}
+.content-v5-platform-pills b{
+  color:#fff;
+}
+.content-v5-stats-row{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px;
+}
+.content-v5-stat{
+  position:relative;
+  overflow:hidden;
+  padding:18px;
+  border-radius:24px;
+  background:#fff;
+  border:1px solid rgba(148,163,184,.14);
+  box-shadow:0 20px 45px rgba(15,23,42,.07);
+}
+.content-v5-stat::after{
+  content:"";
+  position:absolute;
+  right:-28px;
+  top:-28px;
+  width:96px;
+  height:96px;
+  border-radius:50%;
+  background:rgba(22,144,245,.12);
+}
+.content-v5-stat.green::after{background:rgba(34,197,94,.14)}
+.content-v5-stat.amber::after{background:rgba(245,158,11,.16)}
+.content-v5-stat span{
+  color:var(--muted);
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.09em;
+}
+.content-v5-stat strong{
+  position:relative;
+  z-index:1;
+  display:block;
+  margin:8px 0 3px;
+  font-size:32px;
+  line-height:1;
+  letter-spacing:-.06em;
+}
+.content-v5-stat small{
+  color:var(--muted);
+  font-weight:750;
+}
+.content-v5-viewbar{
+  position:sticky;
+  top:10px;
+  z-index:15;
+  display:grid;
+  grid-template-columns:auto minmax(240px,1fr) auto;
+  gap:12px;
+  align-items:center;
+  padding:12px;
+  border-radius:24px;
+  background:rgba(255,255,255,.82);
+  border:1px solid rgba(148,163,184,.14);
+  box-shadow:0 20px 50px rgba(15,23,42,.08);
+  backdrop-filter:blur(18px);
+}
+.content-v5-segment{
+  display:flex;
+  gap:6px;
+  padding:5px;
+  border-radius:17px;
+  background:rgba(226,232,240,.65);
+}
+.content-v5-segment button{
+  border:0;
+  border-radius:13px;
+  background:transparent;
+  color:var(--muted);
+  min-height:36px;
+  padding:0 14px;
+  font-weight:900;
+  cursor:pointer;
+}
+.content-v5-segment button.active{
+  background:linear-gradient(135deg,#1690F5,#0B63D1);
+  color:#fff;
+  box-shadow:0 12px 24px rgba(22,144,245,.25);
+}
+.content-v5-search{
+  margin:0;
+  min-height:46px;
+  border-radius:16px;
+  background:#fff;
+}
+.content-v5-mini-alerts{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.content-v5-mini-alerts span{
+  padding:9px 12px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:900;
+  border:1px solid transparent;
+}
+.content-v5-mini-alerts .danger{background:rgba(239,68,68,.10);color:#b91c1c;border-color:rgba(239,68,68,.18)}
+.content-v5-mini-alerts .warning{background:rgba(245,158,11,.12);color:#92400e;border-color:rgba(245,158,11,.18)}
+.content-v5-mini-alerts .success{background:rgba(34,197,94,.11);color:#15803d;border-color:rgba(34,197,94,.18)}
+.content-v5-form-card .info-banner:first-of-type{
+  background:linear-gradient(135deg,rgba(22,144,245,.10),rgba(34,197,94,.08));
+  border-color:rgba(22,144,245,.14);
+}
+.content-page-v5 .content-list-card{
+  border-radius:30px;
+}
+.content-page-v5 .content-list-card th:first-child{border-top-left-radius:18px}
+.content-page-v5 .content-list-card th:last-child{border-top-right-radius:18px}
+.content-page-v5 .calendar-pro-shell,
+.content-page-v5 .kanban-board{
+  border-radius:24px;
+  background:linear-gradient(180deg,rgba(248,251,255,.96),rgba(255,255,255,.92));
+  border:1px solid rgba(148,163,184,.13);
+  padding:14px;
+}
+@media (max-width: 1100px){
+  .content-v5-hero,
+  .content-v5-hero-panel,
+  .content-v5-stats-row,
+  .content-v5-viewbar{grid-template-columns:1fr}
+  .content-v5-hero{padding:20px;border-radius:26px}
+  .content-v5-hero h1{font-size:34px}
+  .content-v5-score-ring{min-height:150px}
+  .content-v5-viewbar{position:relative;top:auto}
+  .content-v5-mini-alerts{justify-content:flex-start}
 }
 
 `;
