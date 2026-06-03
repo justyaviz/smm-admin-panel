@@ -17917,6 +17917,136 @@ tr:hover td,
   .sidebar{display:none;width:auto !important;min-width:0 !important;max-width:none !important;}
 }
 
+
+/* === V5.3 CRITICAL SIDEBAR COLOR HOTFIX ===
+   Sidebar foni va yozuv ranglari majburan to'g'rilandi.
+   Old system preserved: only menu visual CSS is patched. */
+.app-shell{
+  grid-template-columns:306px minmax(0,1fr) !important;
+  background:#f4f7fb !important;
+}
+.sidebar{
+  width:306px !important;
+  min-width:306px !important;
+  max-width:306px !important;
+  display:flex !important;
+  flex-direction:column !important;
+  background:
+    radial-gradient(circle at 20% 0%, rgba(22,144,245,.34), transparent 30%),
+    radial-gradient(circle at 92% 18%, rgba(45,212,191,.18), transparent 22%),
+    linear-gradient(180deg,#071426 0%, #08111f 50%, #050b14 100%) !important;
+  color:#f8fbff !important;
+  border-right:1px solid rgba(255,255,255,.10) !important;
+  box-shadow:inset -1px 0 0 rgba(255,255,255,.08), 18px 0 48px rgba(2,8,23,.20) !important;
+}
+.sidebar *{box-sizing:border-box}
+.sidebar .brand-block{
+  background:rgba(255,255,255,.055) !important;
+  border:1px solid rgba(255,255,255,.09) !important;
+  color:#ffffff !important;
+}
+.sidebar .brand-name,
+.sidebar .brand-copy .brand-name{
+  color:#ffffff !important;
+  opacity:1 !important;
+  text-shadow:none !important;
+}
+.sidebar .brand-desc,
+.sidebar .brand-copy .brand-desc{
+  color:#b7c7dc !important;
+  opacity:1 !important;
+}
+.sidebar .sidebar-workspace-card{
+  background:linear-gradient(135deg,rgba(22,144,245,.20),rgba(45,212,191,.09)) !important;
+  border:1px solid rgba(125,211,252,.23) !important;
+  color:#ffffff !important;
+}
+.sidebar .sidebar-workspace-card span{color:#9fc5ea !important;opacity:1 !important}
+.sidebar .sidebar-workspace-card strong{color:#ffffff !important;opacity:1 !important}
+.sidebar .sidebar-workspace-card small{color:#bbf7d0 !important;background:rgba(34,197,94,.16) !important}
+.sidebar .sidebar-search{
+  background:rgba(255,255,255,.075) !important;
+  border:1px solid rgba(255,255,255,.12) !important;
+  color:#dbeafe !important;
+}
+.sidebar .sidebar-search svg{color:#a9bdd5 !important}
+.sidebar .sidebar-search input{
+  color:#ffffff !important;
+  background:transparent !important;
+}
+.sidebar .sidebar-search input::placeholder{color:#9fb2c9 !important;opacity:1 !important}
+.sidebar .menu-group-toggle{
+  color:#91a8c2 !important;
+  opacity:1 !important;
+  background:transparent !important;
+}
+.sidebar .menu-group-toggle span{color:#91a8c2 !important;opacity:1 !important}
+.sidebar .menu-btn{
+  color:#edf6ff !important;
+  background:rgba(255,255,255,.035) !important;
+  border:1px solid transparent !important;
+  opacity:1 !important;
+}
+.sidebar .menu-btn::before{background:transparent !important;opacity:0 !important}
+.sidebar .menu-btn:hover{
+  color:#ffffff !important;
+  background:rgba(22,144,245,.15) !important;
+  border-color:rgba(125,211,252,.24) !important;
+}
+.sidebar .menu-btn.active{
+  background:linear-gradient(135deg,#1690F5 0%,#0B63D1 100%) !important;
+  border-color:rgba(125,211,252,.38) !important;
+  color:#ffffff !important;
+}
+.sidebar .menu-text > span,
+.sidebar .menu-btn .menu-text > span{
+  color:#f8fbff !important;
+  opacity:1 !important;
+  font-weight:900 !important;
+}
+.sidebar .menu-text small,
+.sidebar .menu-btn .menu-text small{
+  color:#9fb2c9 !important;
+  opacity:1 !important;
+}
+.sidebar .menu-btn.active .menu-text > span,
+.sidebar .menu-btn:hover .menu-text > span{color:#ffffff !important}
+.sidebar .menu-btn.active .menu-text small,
+.sidebar .menu-btn:hover .menu-text small{color:#d8ebff !important}
+.sidebar .menu-icon-wrap{
+  background:rgba(255,255,255,.10) !important;
+  color:#dbeafe !important;
+  border:1px solid rgba(255,255,255,.08) !important;
+}
+.sidebar .menu-btn.active .menu-icon-wrap{
+  background:rgba(255,255,255,.18) !important;
+  color:#ffffff !important;
+}
+.sidebar .sidebar-help-card{
+  background:linear-gradient(135deg,#1690F5 0%,#0B63D1 62%,#0b2342 100%) !important;
+  color:#ffffff !important;
+  border:1px solid rgba(255,255,255,.14) !important;
+}
+.sidebar .sidebar-help-card span,
+.sidebar .sidebar-help-card strong,
+.sidebar .sidebar-help-card small{color:#ffffff !important;opacity:1 !important}
+.sidebar .sidebar-help-card small{color:rgba(255,255,255,.78) !important}
+.sidebar .sidebar-help-card a{background:#ffffff !important;color:#0B63D1 !important}
+.sidebar .logout-btn{
+  background:#080d14 !important;
+  color:#ffffff !important;
+  border:1px solid rgba(255,255,255,.12) !important;
+}
+.sidebar .logout-btn:hover{background:rgba(239,68,68,.18) !important;color:#ffffff !important}
+@media (max-width:1280px){
+  .app-shell{grid-template-columns:286px minmax(0,1fr) !important}
+  .sidebar{width:286px !important;min-width:286px !important;max-width:286px !important}
+}
+@media (max-width:1100px){
+  .app-shell{grid-template-columns:1fr !important}
+  .sidebar{display:none !important}
+}
+
 `;
 
 export default App;
