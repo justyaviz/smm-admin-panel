@@ -3425,14 +3425,6 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   const canCreateBonus = canDoAction(user, "bonus", "create");
   const canEditBonus = canDoAction(user, "bonus", "edit");
   const canDeleteBonus = canDoAction(user, "bonus", "delete");
-  const currentUserId = user?.id ? String(user.id) : "";
-  const currentWorkspace = getPreferredWorkspace(user);
-  const isSmmManagerBonusMode = currentWorkspace === "smm" && !["admin", "director"].includes(String(user?.role || "").toLowerCase());
-  const selectableBonusUsers = useMemo(() => {
-    const list = users || [];
-    if (!isSmmManagerBonusMode || !currentUserId) return list;
-    return list.filter((item) => String(item.id) !== currentUserId);
-  }, [users, isSmmManagerBonusMode, currentUserId]);
   const bonusFormLocked = editRow ? !canEditBonus : !canCreateBonus;
 
   useEffect(() => {
@@ -3811,17 +3803,9 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
         onToast("Video uchun 2 ta hodim tanlanishi kerak", "error");
         return;
       }
-      if (isSmmManagerBonusMode && currentUserId && (String(form.editor_user_id) === currentUserId || String(form.face_voice_user_id) === currentUserId)) {
-        onToast("SMM menejer o'zini bonus ijrochisi sifatida qo'sha olmaydi", "error");
-        return;
-      }
     } else {
       if (!form.user_id) {
         onToast("Hodimni tanlang", "error");
-        return;
-      }
-      if (isSmmManagerBonusMode && currentUserId && String(form.user_id) === currentUserId) {
-        onToast("SMM menejer o'zini bonus tizimiga qo'sha olmaydi", "error");
         return;
       }
     }
@@ -3910,39 +3894,8 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
     : [];
 
   return (
-    <div className="page-grid bonus-v58-shell">
-      <div className="bonus-v58-hero">
-        <div className="bonus-v58-hero-copy">
-          <span className="bonus-v58-eyebrow"><BadgeDollarSign size={16} /> v5.8 Bonus Control Center</span>
-          <h2>Bonus tizimi</h2>
-          <p>SMM menejer va mobilograf ishlarini alohida oqimda hisoblash, payrollga tayyorlash va to'lov holatini nazorat qilish.</p>
-          {isSmmManagerBonusMode ? (
-            <div className="bonus-v58-rule">
-              <ShieldCheck size={16} /> SMM menejer o'zini bonus ijrochisi sifatida qo'sha olmaydi. O'zgarishlar boshqa xodimlar uchun yuritiladi.
-            </div>
-          ) : null}
-        </div>
-        <div className="bonus-v58-hero-panel">
-          <span>{getMonthTitle(monthFilter)}</span>
-          <strong>{formatMoney(totalAmount)}</strong>
-          <small>{filteredItems.length} yozuv • {employeeBalanceStats.length} xodim • {paidRowsCount} paid</small>
-        </div>
-      </div>
-
-      <div className="bonus-v58-role-grid">
-        <div className="bonus-v58-role-card smm">
-          <span>SMM menejer oqimi</span>
-          <strong>Boshqa ijrochilar uchun bonus kiritadi</strong>
-          <small>O'zini tanlash bloklangan. Admin/rahbariyat payroll va paid holatini tasdiqlaydi.</small>
-        </div>
-        <div className="bonus-v58-role-card mobile">
-          <span>Mobilograf oqimi</span>
-          <strong>Video, reels, filial materiallari</strong>
-          <small>Mobilograf ishlari bonusga tushadi, yakuniy hisob admin tasdig'idan o'tadi.</small>
-        </div>
-      </div>
-
-      <div className="card bonus-v58-card">
+    <div className="page-grid">
+      <div className="card">
         <SectionTitle
           title="Bonus tizimi"
           desc="Bonus hisobotlari va avtomatik hisob"
@@ -4052,11 +4005,6 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
         {!canCreateBonus && !canEditBonus ? (
           <div className="info-banner">Siz bu bo'limda faqat ko'rish ruxsatiga egasiz.</div>
         ) : null}
-        {isSmmManagerBonusMode ? (
-          <div className="bonus-v58-lock-note">
-            <ShieldCheck size={16} /> SMM menejer rejimida o'zingizni hodim, montajchi yoki face/ovoz ijrochisi sifatida tanlash mumkin emas.
-          </div>
-        ) : null}
         <form className="form-grid" onSubmit={handleSubmit}>
           <label><span>Kontent nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required disabled={bonusFormLocked} /></label>
           <label><span>Joylangan sanasi</span><input type="date" value={form.work_date} onChange={(e) => setField("work_date", e.target.value)} required disabled={bonusFormLocked} /></label>
@@ -4075,7 +4023,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                 <span>Montajni kim qildi</span>
                 <select value={form.editor_user_id} onChange={(e) => setField("editor_user_id", e.target.value)} disabled={bonusFormLocked}>
                   <option value="">Tanlang</option>
-                  {selectableBonusUsers.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                  {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
                 </select>
               </label>
 
@@ -4083,7 +4031,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
                 <span>Face + ovoz kimniki</span>
                 <select value={form.face_voice_user_id} onChange={(e) => setField("face_voice_user_id", e.target.value)} disabled={bonusFormLocked}>
                   <option value="">Tanlang</option>
-                  {selectableBonusUsers.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                  {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
                 </select>
               </label>
             </>
@@ -4092,7 +4040,7 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
               <span>Hodim</span>
               <select value={form.user_id} onChange={(e) => setField("user_id", e.target.value)} disabled={bonusFormLocked}>
                 <option value="">Tanlang</option>
-                {selectableBonusUsers.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
               </select>
             </label>
           )}
@@ -18793,223 +18741,6 @@ tr:hover td,
 @media (max-width:720px){
   .sidebar-role-switcher{grid-template-columns:1fr}
   .mobile-role-switcher{grid-template-columns:1fr 1fr}
-}
-
-
-/* === v5.8 Bonus tizimi redesign: SMM manager self-bonus restricted, old functions preserved. === */
-.bonus-v58-shell{
-  gap:22px !important;
-}
-.bonus-v58-hero{
-  position:relative;
-  overflow:hidden;
-  display:grid;
-  grid-template-columns:minmax(0,1fr) 330px;
-  gap:22px;
-  padding:28px;
-  border-radius:32px;
-  color:#fff;
-  background:
-    radial-gradient(circle at 82% 12%, rgba(56,189,248,.35), transparent 32%),
-    linear-gradient(135deg,#07111f 0%,#0b1e36 48%,#0f3f69 100%);
-  box-shadow:0 24px 70px rgba(15,23,42,.24);
-}
-.bonus-v58-hero:before{
-  content:"";
-  position:absolute;
-  inset:auto -80px -130px auto;
-  width:360px;
-  height:360px;
-  border-radius:999px;
-  background:rgba(22,144,245,.24);
-  filter:blur(10px);
-}
-.bonus-v58-hero-copy,
-.bonus-v58-hero-panel{position:relative;z-index:1}
-.bonus-v58-eyebrow{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:8px 12px;
-  border-radius:999px;
-  color:#dff2ff;
-  background:rgba(255,255,255,.10);
-  border:1px solid rgba(255,255,255,.16);
-  font-size:12px;
-  font-weight:800;
-  letter-spacing:.03em;
-}
-.bonus-v58-hero h2{
-  margin:14px 0 8px;
-  font-size:34px;
-  line-height:1.05;
-  letter-spacing:-.04em;
-  color:#fff;
-}
-.bonus-v58-hero p{
-  max-width:760px;
-  margin:0;
-  color:rgba(226,232,240,.86);
-  line-height:1.7;
-  font-weight:600;
-}
-.bonus-v58-rule,
-.bonus-v58-lock-note{
-  display:flex;
-  align-items:flex-start;
-  gap:10px;
-  margin-top:14px;
-  padding:12px 14px;
-  border-radius:18px;
-  font-size:13px;
-  font-weight:800;
-  line-height:1.5;
-}
-.bonus-v58-rule{
-  max-width:760px;
-  color:#e0f2fe;
-  background:rgba(22,144,245,.16);
-  border:1px solid rgba(125,211,252,.24);
-}
-.bonus-v58-lock-note{
-  color:#0f3f69;
-  background:#eaf6ff;
-  border:1px solid #c8e9ff;
-}
-.bonus-v58-lock-note svg{flex:0 0 auto;margin-top:1px;color:#1690f5}
-.bonus-v58-hero-panel{
-  align-self:stretch;
-  display:flex;
-  flex-direction:column;
-  justify-content:center;
-  gap:8px;
-  padding:22px;
-  border-radius:26px;
-  background:rgba(255,255,255,.12);
-  border:1px solid rgba(255,255,255,.18);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.18);
-  backdrop-filter:blur(18px);
-}
-.bonus-v58-hero-panel span{
-  color:#bae6fd;
-  font-size:12px;
-  font-weight:900;
-  text-transform:uppercase;
-  letter-spacing:.08em;
-}
-.bonus-v58-hero-panel strong{
-  color:#fff;
-  font-size:30px;
-  letter-spacing:-.04em;
-}
-.bonus-v58-hero-panel small{
-  color:rgba(226,232,240,.78);
-  font-weight:700;
-}
-.bonus-v58-role-grid{
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:16px;
-}
-.bonus-v58-role-card{
-  position:relative;
-  overflow:hidden;
-  padding:20px;
-  border-radius:26px;
-  background:#fff;
-  border:1px solid rgba(226,232,240,.92);
-  box-shadow:0 18px 45px rgba(15,23,42,.07);
-}
-.bonus-v58-role-card:after{
-  content:"";
-  position:absolute;
-  top:-36px;
-  right:-36px;
-  width:120px;
-  height:120px;
-  border-radius:999px;
-  opacity:.16;
-}
-.bonus-v58-role-card.smm:after{background:#1690f5}
-.bonus-v58-role-card.mobile:after{background:#10b981}
-.bonus-v58-role-card span{
-  display:inline-flex;
-  padding:7px 10px;
-  border-radius:999px;
-  font-size:11px;
-  font-weight:900;
-  color:#0f3f69;
-  background:#eaf6ff;
-}
-.bonus-v58-role-card.mobile span{color:#065f46;background:#ecfdf5}
-.bonus-v58-role-card strong{
-  display:block;
-  margin:12px 0 6px;
-  font-size:18px;
-  color:#0f172a;
-  letter-spacing:-.03em;
-}
-.bonus-v58-role-card small{
-  display:block;
-  color:#64748b;
-  font-weight:700;
-  line-height:1.55;
-}
-.bonus-v58-card,
-.bonus-v58-shell .bonus-command-card{
-  border-radius:28px !important;
-  border:1px solid rgba(226,232,240,.96) !important;
-  box-shadow:0 18px 50px rgba(15,23,42,.07) !important;
-}
-.bonus-v58-shell .stats-grid .stat-card,
-.bonus-v58-shell .stat-card{
-  border-radius:24px !important;
-  border:1px solid #e6edf5 !important;
-  background:linear-gradient(180deg,#fff 0%,#f8fbff 100%) !important;
-  box-shadow:0 14px 32px rgba(15,23,42,.06) !important;
-}
-.bonus-v58-shell .form-grid label{
-  border:1px solid #e6edf5;
-  background:#f8fbff;
-  border-radius:18px;
-  padding:10px 12px;
-}
-.bonus-v58-shell .form-grid label span{
-  color:#475569;
-  font-size:12px;
-  font-weight:900;
-}
-.bonus-v58-shell .form-grid input,
-.bonus-v58-shell .form-grid select,
-.bonus-v58-shell .form-grid textarea{
-  background:#fff !important;
-  color:#0f172a !important;
-  border:1px solid #d9e4f2 !important;
-  box-shadow:none !important;
-}
-.bonus-v58-shell .table-wrap table{
-  border-collapse:separate;
-  border-spacing:0 8px;
-}
-.bonus-v58-shell .table-wrap thead th{
-  color:#64748b;
-  background:#f8fafc;
-  border-top:1px solid #e2e8f0;
-  border-bottom:1px solid #e2e8f0;
-}
-.bonus-v58-shell .table-wrap tbody tr{
-  background:#fff;
-  box-shadow:0 8px 22px rgba(15,23,42,.05);
-}
-.bonus-v58-shell .table-wrap tbody td{
-  border-top:1px solid #eef2f7;
-  border-bottom:1px solid #eef2f7;
-}
-.bonus-v58-shell .table-wrap tbody td:first-child{border-left:1px solid #eef2f7;border-radius:16px 0 0 16px}
-.bonus-v58-shell .table-wrap tbody td:last-child{border-right:1px solid #eef2f7;border-radius:0 16px 16px 0}
-@media (max-width:980px){
-  .bonus-v58-hero{grid-template-columns:1fr;padding:22px;border-radius:26px}
-  .bonus-v58-role-grid{grid-template-columns:1fr}
 }
 
 `;
