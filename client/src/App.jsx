@@ -4755,6 +4755,9 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
   const [saving, setSaving] = useState(false);
   const [viewRow, setViewRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [platformFilter, setPlatformFilter] = useState("all");
 
   const emptyForm = {
     title: "",
@@ -4773,6 +4776,35 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
     const diff = getDateSortValue(a.start_at || a.start_date, Number.POSITIVE_INFINITY) - getDateSortValue(b.start_at || b.start_date, Number.POSITIVE_INFINITY);
     return diff !== 0 ? diff : Number(a.id || 0) - Number(b.id || 0);
   });
+
+  const filteredCampaigns = sortedCampaigns.filter((row) => {
+    const query = searchTerm.trim().toLowerCase();
+    const matchesSearch = !query || [row.title, row.platform, row.branch_name, row.status, row.lead_chat_id]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query));
+    const matchesStatus = statusFilter === "all" || String(row.status || "active") === statusFilter;
+    const matchesPlatform = platformFilter === "all" || String(row.platform || "") === platformFilter;
+    return matchesSearch && matchesStatus && matchesPlatform;
+  });
+
+  const campaignStats = {
+    total: sortedCampaigns.length,
+    active: sortedCampaigns.filter((item) => !["paused", "done", "yakunlandi"].includes(String(item.status || "active"))).length,
+    paused: sortedCampaigns.filter((item) => String(item.status || "") === "paused").length,
+    done: sortedCampaigns.filter((item) => ["done", "yakunlandi"].includes(String(item.status || ""))).length,
+    leadTotal: sortedCampaigns.reduce((sum, item) => sum + Number(item.lead_count || item.leads_count || item.leads || 0), 0),
+    dailyBudget: sortedCampaigns.reduce((sum, item) => sum + Number(getCampaignDailyBudget(item) || 0), 0),
+    connectedForms: sortedCampaigns.filter((item) => item.lead_chat_id).length
+  };
+  const averageCpl = campaignStats.leadTotal ? Math.round(campaignStats.dailyBudget / campaignStats.leadTotal) : 0;
+  const topPlatforms = CAMPAIGN_PLATFORM_OPTIONS.map((item) => {
+    const items = sortedCampaigns.filter((row) => String(row.platform || "") === item.value);
+    const budget = items.reduce((sum, row) => sum + Number(getCampaignDailyBudget(row) || 0), 0);
+    const leads = items.reduce((sum, row) => sum + Number(row.lead_count || row.leads_count || row.leads || 0), 0);
+    return { ...item, count: items.length, budget, leads };
+  }).filter((item) => item.count || item.budget || item.leads).slice(0, 5);
+  const maxPlatformBudget = Math.max(1, ...topPlatforms.map((item) => item.budget || item.count || 1));
+  const activePercent = campaignStats.total ? Math.round((campaignStats.active / campaignStats.total) * 100) : 0;
 
   function resetForm() {
     setForm(emptyForm);
@@ -4850,198 +4882,254 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
   }
 
   return (
-    <div className="page-grid">
-      <div className="card">
-        <SectionTitle
-          title={editRow ? "Reklama kampaniyasini tahrirlash" : "Reklama kampaniyasi"}
-          right={
-            <div className="toolbar-actions">
-              {editRow ? (
-                <button type="button" className="btn secondary" onClick={resetForm}>
-                  Bekor qilish
-                </button>
-              ) : null}
-              <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/campaigns.xlsx", "campaigns.xlsx")}>
-                Excel export
-              </button>
+    <div className="campaign-page-v6">
+      <section className="campaign-hero-v6">
+        <div className="campaign-hero-copy-v6">
+          <span className="campaign-kicker-v6"><Target size={16} /> Target va natija markazi</span>
+          <h1>Reklama kampaniyalari</h1>
+          <p>
+            SMM menejer uchun target holati, filiallar bo'yicha kampaniya, lid forma va kunlik byudjet nazorati bitta joyda.
+            Eski funksiyalar saqlangan, faqat boshqaruv ko'rinishi professional qilingan.
+          </p>
+          <div className="campaign-hero-actions-v6">
+            <button type="button" className="btn primary" onClick={() => document.getElementById("campaign-form-v6")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+              + Yangi kampaniya
+            </button>
+            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/campaigns.xlsx", "campaigns.xlsx")}>
+              Excel export
+            </button>
+          </div>
+        </div>
+        <div className="campaign-live-panel-v6">
+          <div className="campaign-live-ring-v6" style={{ background: `conic-gradient(#38e89f 0 ${activePercent}%, rgba(255,255,255,.16) ${activePercent}% 100%)` }}>
+            <span>{activePercent}%</span>
+            <small>Faol ritm</small>
+          </div>
+          <div className="campaign-live-list-v6">
+            <span><i /> {campaignStats.active} ta faol kampaniya</span>
+            <span><i /> {campaignStats.connectedForms} ta lead form ulangan</span>
+            <span><i /> CPL: {averageCpl ? formatMoney(averageCpl) : "hisoblanmoqda"}</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="campaign-stat-grid-v6">
+        <div className="campaign-stat-card-v6 blue"><div><span>Jami kampaniya</span><strong>{campaignStats.total}</strong><small>Ro'yxatdagi barcha targetlar</small></div><Megaphone size={22} /></div>
+        <div className="campaign-stat-card-v6 green"><div><span>Faol target</span><strong>{campaignStats.active}</strong><small>Hozir reklamada ishlayapti</small></div><Target size={22} /></div>
+        <div className="campaign-stat-card-v6 amber"><div><span>Kunlik byudjet</span><strong>{formatMoney(campaignStats.dailyBudget)}</strong><small>Barcha kampaniyalar kesimida</small></div><BadgeDollarSign size={22} /></div>
+        <div className="campaign-stat-card-v6 violet"><div><span>Lidlar</span><strong>{campaignStats.leadTotal}</strong><small>Forma orqali kelgan murojaatlar</small></div><MessageCircle size={22} /></div>
+      </section>
+
+      <section className="campaign-layout-v6">
+        <div className="campaign-form-card-v6" id="campaign-form-v6">
+          <div className="campaign-section-head-v6">
+            <div>
+              <span>01</span>
+              <h2>{editRow ? "Kampaniyani tahrirlash" : "Yangi reklama kampaniyasi"}</h2>
+              <p>Platforma, filial, muddat, kunlik byudjet va lead Telegram guruhini kiriting.</p>
             </div>
-          }
-        />
-        <form className="form-grid" onSubmit={handleSubmit}>
-          <label><span>Kampaniya nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} required /></label>
-          <label>
-            <span>Platforma</span>
-            <select value={form.platform} onChange={(e) => setField("platform", e.target.value)} required>
-              {CAMPAIGN_PLATFORM_OPTIONS.map((item) => (
-                <option key={item.value} value={item.value}>{item.label}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Filial</span>
-            <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)} required>
-              <option value="">Tanlang</option>
-              {branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>{branch.name}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            <span>Lidlar boradigan Telegram guruh ID</span>
-            <input
-              value={form.lead_chat_id}
-              onChange={(e) => setField("lead_chat_id", e.target.value)}
-              placeholder="-1003878116355"
-            />
-          </label>
-          <label><span>Boshlanish sana va soat</span><input type="datetime-local" value={form.start_at} onChange={(e) => setField("start_at", e.target.value)} required /></label>
-          <label><span>Tugash sana va soat</span><input type="datetime-local" value={form.end_at} onChange={(e) => setField("end_at", e.target.value)} required /></label>
-          <label><span>Kunlik budget</span><input type="number" min="0" value={form.daily_budget} onChange={(e) => setField("daily_budget", e.target.value)} required /></label>
-          <label>
-            <span>Target holati</span>
-            <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
+            {editRow ? (
+              <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button>
+            ) : null}
+          </div>
+
+          <form className="campaign-form-grid-v6" onSubmit={handleSubmit}>
+            <label className="campaign-full-v6"><span>Kampaniya nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} placeholder="Masalan: Chinoz filiali 99 000 aksiyasi" required /></label>
+            <label>
+              <span>Platforma</span>
+              <select value={form.platform} onChange={(e) => setField("platform", e.target.value)} required>
+                {CAMPAIGN_PLATFORM_OPTIONS.map((item) => (
+                  <option key={item.value} value={item.value}>{item.label}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Filial</span>
+              <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)} required>
+                <option value="">Tanlang</option>
+                {branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>{branch.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Holati</span>
+              <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
+                <option value="active">Faol</option>
+                <option value="paused">Pauza</option>
+                <option value="done">Tugagan</option>
+              </select>
+            </label>
+            <label><span>Boshlanish sana va soat</span><input type="datetime-local" value={form.start_at} onChange={(e) => setField("start_at", e.target.value)} required /></label>
+            <label><span>Tugash sana va soat</span><input type="datetime-local" value={form.end_at} onChange={(e) => setField("end_at", e.target.value)} required /></label>
+            <label><span>Kunlik budget</span><input type="number" min="0" value={form.daily_budget} onChange={(e) => setField("daily_budget", e.target.value)} placeholder="250000" required /></label>
+            <label className="campaign-full-v6">
+              <span>Lidlar boradigan Telegram guruh ID</span>
+              <input
+                value={form.lead_chat_id}
+                onChange={(e) => setField("lead_chat_id", e.target.value)}
+                placeholder="-1003878116355"
+              />
+            </label>
+            <button className="btn primary campaign-submit-v6" type="submit" disabled={saving}>
+              {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Kampaniya qo'shish"}
+            </button>
+          </form>
+        </div>
+
+        <aside className="campaign-side-card-v6">
+          <div className="campaign-section-head-v6 compact">
+            <div>
+              <span>02</span>
+              <h2>Platforma kesimi</h2>
+              <p>Qaysi kanal ko'proq ishlayotganini tez ko'rish.</p>
+            </div>
+          </div>
+          <div className="campaign-platform-list-v6">
+            {topPlatforms.length ? topPlatforms.map((item) => (
+              <div key={item.value} className="campaign-platform-row-v6">
+                <div>
+                  <strong>{item.label}</strong>
+                  <small>{item.count} kampaniya • {item.leads} lid</small>
+                </div>
+                <span>{formatMoney(item.budget)}</span>
+                <i style={{ width: `${Math.max(8, Math.round(((item.budget || item.count || 1) / maxPlatformBudget) * 100))}%` }} />
+              </div>
+            )) : (
+              <div className="campaign-empty-v6">Platforma statistikasi hali yo'q</div>
+            )}
+          </div>
+          <div className="campaign-mini-note-v6">
+            <strong>Maslahat</strong>
+            <span>Lead form linkini filial operatorlariga yuboring va Telegram guruh ID to'g'ri ulanganini tekshiring.</span>
+          </div>
+        </aside>
+      </section>
+
+      <section className="campaign-table-card-v6">
+        <div className="campaign-section-head-v6">
+          <div>
+            <span>03</span>
+            <h2>Kampaniyalar ro'yxati</h2>
+            <p>Qidiruv, status, platforma va lead forma amallari eski tizim bilan ishlaydi.</p>
+          </div>
+          <div className="campaign-filter-row-v6">
+            <div className="campaign-search-v6"><Search size={16} /><input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Kampaniya, filial, platforma..." /></div>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+              <option value="all">Barcha holatlar</option>
               <option value="active">Faol</option>
               <option value="paused">Pauza</option>
               <option value="done">Tugagan</option>
             </select>
-          </label>
-          <button className="btn primary" type="submit" disabled={saving}>
-            {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Kampaniya qo'shish"}
-          </button>
-        </form>
-      </div>
+            <select value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value)}>
+              <option value="all">Barcha platformalar</option>
+              {CAMPAIGN_PLATFORM_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
+            </select>
+          </div>
+        </div>
 
-      <div className="card">
-        <SectionTitle title="Kampaniyalar ro'yxati" />
-        <div className="table-wrap desktop-table">
+        <div className="campaign-desktop-table-v6">
           <table>
             <thead>
               <tr>
                 <th>Kampaniya</th>
                 <th>Platforma</th>
                 <th>Filial</th>
-                <th>Boshlanish</th>
-                <th>Tugash</th>
+                <th>Muddat</th>
                 <th>Kunlik budget</th>
+                <th>Lid</th>
                 <th>Holat</th>
                 <th>Amallar</th>
               </tr>
             </thead>
             <tbody>
-              {sortedCampaigns.length ? (
-                sortedCampaigns.map((row) => (
+              {filteredCampaigns.length ? (
+                filteredCampaigns.map((row) => (
                   <tr key={row.id}>
-                    <td>{row.title}</td>
-                    <td>{row.platform}</td>
+                    <td>
+                      <div className="campaign-name-cell-v6">
+                        <strong>{row.title}</strong>
+                        <small>{row.lead_chat_id ? "Telegram lead ulangan" : "Lead chat ID kiritilmagan"}</small>
+                      </div>
+                    </td>
+                    <td><span className="campaign-platform-pill-v6">{row.platform}</span></td>
                     <td>{row.branch_name || "-"}</td>
-                    <td>{formatDateTime(row.start_at || row.start_date)}</td>
-                    <td>{formatDateTime(row.end_at || row.end_date)}</td>
-                    <td>{formatUsd(getCampaignDailyBudget(row))}</td>
+                    <td>
+                      <div className="campaign-date-cell-v6">
+                        <span>{formatDateTime(row.start_at || row.start_date)}</span>
+                        <small>{formatDateTime(row.end_at || row.end_date)}</small>
+                      </div>
+                    </td>
+                    <td>{formatMoney(getCampaignDailyBudget(row))}</td>
+                    <td>{row.lead_count || row.leads_count || row.leads || 0} ta</td>
                     <td><span className={campaignStatusClass(row.status)}>{formatCampaignStatus(row.status)}</span></td>
                     <td>
-                      <div className="table-actions">
+                      <div className="table-actions campaign-actions-v6">
                         <button type="button" className="btn tiny secondary" onClick={() => openLeadForm(row)}>
-                          <Link2 size={14} />
-                          Forma
+                          <Link2 size={14} /> Forma
                         </button>
                         <button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(row)}>
-                          <Copy size={14} />
-                          Nusxalash
+                          <Copy size={14} /> Nusxalash
                         </button>
-                        <IconActions
-                          onView={() => setViewRow(row)}
-                          onEdit={() => startEdit(row)}
-                          onDelete={() => removeRow(row.id)}
-                        />
+                        <IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} />
                       </div>
                     </td>
                   </tr>
                 ))
               ) : (
-                <tr><td colSpan="8" className="empty-cell">Hozircha ma'lumot yo'q</td></tr>
+                <tr><td colSpan="8" className="empty-cell">Kampaniya topilmadi</td></tr>
               )}
             </tbody>
           </table>
         </div>
-        <div className="mobile-card-list">
-          {sortedCampaigns.length ? (
-            sortedCampaigns.map((row) => (
-              <div key={`campaign-card-${row.id}`} className="mobile-record-card">
-                <div className="mobile-record-head">
-                  <div className="mobile-record-title">
+
+        <div className="campaign-mobile-list-v6">
+          {filteredCampaigns.length ? (
+            filteredCampaigns.map((row) => (
+              <div key={`campaign-card-${row.id}`} className="campaign-mobile-card-v6">
+                <div className="campaign-mobile-head-v6">
+                  <div>
                     <strong>{row.title}</strong>
                     <span>{row.platform} • {row.branch_name || "Filialsiz"}</span>
                   </div>
                   <span className={campaignStatusClass(row.status)}>{formatCampaignStatus(row.status)}</span>
                 </div>
-                <div className="mobile-record-grid">
-                  <div className="mobile-record-field">
-                    <label>Boshlanish</label>
-                    <div>{formatDateTime(row.start_at || row.start_date)}</div>
-                  </div>
-                  <div className="mobile-record-field">
-                    <label>Tugash</label>
-                    <div>{formatDateTime(row.end_at || row.end_date)}</div>
-                  </div>
-                  <div className="mobile-record-field">
-                    <label>Kunlik budget</label>
-                    <div>{formatUsd(getCampaignDailyBudget(row))}</div>
-                  </div>
-                  <div className="mobile-record-field">
-                    <label>Leadlar</label>
-                    <div>{row.lead_count || 0} ta</div>
-                  </div>
-                  <div className="mobile-record-field">
-                    <label>Lead chat ID</label>
-                    <div>{row.lead_chat_id || "-"}</div>
-                  </div>
+                <div className="campaign-mobile-grid-v6">
+                  <div><small>Boshlanish</small><b>{formatDateTime(row.start_at || row.start_date)}</b></div>
+                  <div><small>Tugash</small><b>{formatDateTime(row.end_at || row.end_date)}</b></div>
+                  <div><small>Kunlik budget</small><b>{formatMoney(getCampaignDailyBudget(row))}</b></div>
+                  <div><small>Leadlar</small><b>{row.lead_count || row.leads_count || row.leads || 0} ta</b></div>
                 </div>
                 <div className="mobile-record-actions">
-                  <button type="button" className="btn tiny secondary" onClick={() => openLeadForm(row)}>
-                    <Link2 size={14} />
-                    Forma
-                  </button>
-                  <button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(row)}>
-                    <Copy size={14} />
-                    Nusxalash
-                  </button>
-                  <IconActions
-                    onView={() => setViewRow(row)}
-                    onEdit={() => startEdit(row)}
-                    onDelete={() => removeRow(row.id)}
-                  />
+                  <button type="button" className="btn tiny secondary" onClick={() => openLeadForm(row)}><Link2 size={14} /> Forma</button>
+                  <button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(row)}><Copy size={14} /> Nusxalash</button>
+                  <IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} />
                 </div>
               </div>
             ))
           ) : (
-            <div className="mobile-record-card empty">Hozircha ma'lumot yo'q</div>
+            <div className="campaign-empty-v6">Kampaniya topilmadi</div>
           )}
         </div>
-      </div>
+      </section>
 
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kampaniya tafsiloti">
         {viewRow ? (
-          <div className="detail-grid">
+          <div className="detail-grid campaign-detail-v6">
             <div><strong>Nomi:</strong> {viewRow.title}</div>
             <div><strong>Platforma:</strong> {viewRow.platform}</div>
             <div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div>
             <div><strong>Boshlanish:</strong> {formatDateTime(viewRow.start_at || viewRow.start_date)}</div>
             <div><strong>Tugash:</strong> {formatDateTime(viewRow.end_at || viewRow.end_date)}</div>
-            <div><strong>Kunlik budget:</strong> {formatUsd(getCampaignDailyBudget(viewRow))}</div>
+            <div><strong>Kunlik budget:</strong> {formatMoney(getCampaignDailyBudget(viewRow))}</div>
             <div><strong>Holat:</strong> <span className={campaignStatusClass(viewRow.status)}>{formatCampaignStatus(viewRow.status)}</span></div>
-            <div><strong>Leadlar soni:</strong> {viewRow.lead_count || 0} ta</div>
+            <div><strong>Leadlar soni:</strong> {viewRow.lead_count || viewRow.leads_count || viewRow.leads || 0} ta</div>
             <div><strong>Lead chat ID:</strong> {viewRow.lead_chat_id || "-"}</div>
             <div className="full-col campaign-lead-link-row">
               <strong>Website form URL:</strong>
               <div className="campaign-lead-link-actions">
-                <a href={getCampaignLeadFormUrl(viewRow.id)} target="_blank" rel="noreferrer" className="btn tiny secondary">
-                  <Eye size={14} />
-                  Ochish
-                </a>
-                <button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(viewRow)}>
-                  <Copy size={14} />
-                  Nusxalash
-                </button>
+                <a href={getCampaignLeadFormUrl(viewRow.id)} target="_blank" rel="noreferrer" className="btn tiny secondary"><Eye size={14} /> Ochish</a>
+                <button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(viewRow)}><Copy size={14} /> Nusxalash</button>
               </div>
               <div className="campaign-lead-link-preview">{getCampaignLeadFormUrl(viewRow.id)}</div>
             </div>
@@ -19011,6 +19099,165 @@ tr:hover td,
   .bonus-v58-hero{grid-template-columns:1fr;padding:22px;border-radius:26px}
   .bonus-v58-role-grid{grid-template-columns:1fr}
 }
+
+
+/* === V5.9 BONUS COLOR HOTFIX: bonus sahifasi oq/yozuv ko'rinmay qolish muammosi tuzatildi === */
+.main-area:has(.bonus-v58-shell){
+  background:
+    radial-gradient(circle at 16% 0%, rgba(22,144,245,.10), transparent 28%),
+    radial-gradient(circle at 90% 18%, rgba(16,185,129,.08), transparent 22%),
+    #f4f7fb !important;
+}
+.bonus-v58-shell{
+  position:relative;
+  min-height:calc(100vh - 40px);
+  padding:22px !important;
+  border-radius:34px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.74), rgba(244,247,251,.92)) !important;
+  color:#0f172a !important;
+}
+.bonus-v58-shell::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  border-radius:inherit;
+  background:
+    radial-gradient(circle at 10% 8%, rgba(22,144,245,.10), transparent 24%),
+    radial-gradient(circle at 86% 4%, rgba(45,212,191,.10), transparent 22%);
+  z-index:0;
+}
+.bonus-v58-shell > *{position:relative;z-index:1}
+.bonus-v58-shell .section-title-row h2,
+.bonus-v58-shell .section-title-row p,
+.bonus-v58-shell h1,
+.bonus-v58-shell h2,
+.bonus-v58-shell h3,
+.bonus-v58-shell h4,
+.bonus-v58-shell p,
+.bonus-v58-shell label,
+.bonus-v58-shell label span,
+.bonus-v58-shell strong,
+.bonus-v58-shell small,
+.bonus-v58-shell td,
+.bonus-v58-shell th{
+  color:#0f172a !important;
+}
+.bonus-v58-shell .section-title-row p,
+.bonus-v58-shell small,
+.bonus-v58-shell .muted,
+.bonus-v58-shell .stat-card-hint,
+.bonus-v58-shell .stat-card-title{
+  color:#64748b !important;
+}
+.bonus-v58-card,
+.bonus-v58-shell > .card,
+.bonus-v58-shell .card,
+.bonus-v58-shell .bonus-command-card,
+.bonus-v58-shell .bonus-plastic-section,
+.bonus-v58-shell .bonus-approval-stack,
+.bonus-v58-shell .table-wrap,
+.bonus-v58-shell .mobile-record-card,
+.bonus-v58-shell .stats-grid .stat-card,
+.bonus-v58-shell .stat-card{
+  background:
+    linear-gradient(180deg,#ffffff 0%,#f8fbff 100%) !important;
+  color:#0f172a !important;
+  border:1px solid #e2e8f0 !important;
+  box-shadow:0 18px 46px rgba(15,23,42,.08) !important;
+}
+.bonus-v58-hero{
+  background:
+    radial-gradient(circle at 78% 12%, rgba(56,189,248,.34), transparent 30%),
+    radial-gradient(circle at 8% 10%, rgba(22,144,245,.28), transparent 26%),
+    linear-gradient(135deg,#071426 0%,#0a1b31 48%,#0e4778 100%) !important;
+  color:#fff !important;
+}
+.bonus-v58-hero h1,
+.bonus-v58-hero h2,
+.bonus-v58-hero h3,
+.bonus-v58-hero p,
+.bonus-v58-hero strong,
+.bonus-v58-hero small,
+.bonus-v58-hero span,
+.bonus-v58-hero .bonus-v58-eyebrow,
+.bonus-v58-hero .bonus-v58-rule,
+.bonus-v58-hero .bonus-v58-hero-panel span,
+.bonus-v58-hero .bonus-v58-hero-panel strong,
+.bonus-v58-hero .bonus-v58-hero-panel small{
+  color:#fff !important;
+}
+.bonus-v58-hero p,
+.bonus-v58-hero .bonus-v58-hero-panel small{
+  color:rgba(226,232,240,.86) !important;
+}
+.bonus-v58-eyebrow,
+.bonus-v58-rule,
+.bonus-v58-hero-panel{
+  background:rgba(255,255,255,.12) !important;
+  border-color:rgba(255,255,255,.18) !important;
+}
+.bonus-v58-rule svg{color:#7dd3fc !important;flex:0 0 auto}
+.bonus-v58-role-card{
+  background:linear-gradient(180deg,#fff,#f8fbff) !important;
+  color:#0f172a !important;
+  border:1px solid #e2e8f0 !important;
+}
+.bonus-v58-role-card span{color:#0f3f69 !important;background:#eaf6ff !important}
+.bonus-v58-role-card.mobile span{color:#065f46 !important;background:#ecfdf5 !important}
+.bonus-v58-role-card strong{color:#0f172a !important}
+.bonus-v58-role-card small{color:#64748b !important}
+.bonus-v58-shell input,
+.bonus-v58-shell select,
+.bonus-v58-shell textarea,
+.bonus-v58-shell .form-grid input,
+.bonus-v58-shell .form-grid select,
+.bonus-v58-shell .form-grid textarea,
+.bonus-v58-shell .toolbar-search input{
+  background:#ffffff !important;
+  color:#0f172a !important;
+  border:1px solid #d8e3f1 !important;
+  -webkit-text-fill-color:#0f172a !important;
+}
+.bonus-v58-shell input::placeholder,
+.bonus-v58-shell textarea::placeholder{color:#94a3b8 !important;-webkit-text-fill-color:#94a3b8 !important}
+.bonus-v58-shell .form-grid label{
+  background:#f8fbff !important;
+  color:#0f172a !important;
+  border:1px solid #e2e8f0 !important;
+}
+.bonus-v58-shell .table-wrap thead th{
+  background:#eef5ff !important;
+  color:#334155 !important;
+}
+.bonus-v58-shell .table-wrap tbody tr,
+.bonus-v58-shell .table-wrap tbody td{
+  background:#ffffff !important;
+  color:#0f172a !important;
+}
+.bonus-v58-shell .empty-cell,
+.bonus-v58-shell .empty-block{
+  background:#f8fbff !important;
+  color:#64748b !important;
+  border:1px dashed #cbd5e1 !important;
+}
+.bonus-v58-shell .btn.secondary{
+  background:#ffffff !important;
+  color:#0f172a !important;
+  border-color:#d8e3f1 !important;
+}
+.bonus-v58-shell .btn.primary{
+  background:linear-gradient(135deg,#1690F5,#0B63F6) !important;
+  color:#fff !important;
+}
+.bonus-v58-lock-note{
+  background:#eaf6ff !important;
+  color:#0f3f69 !important;
+  border:1px solid #c8e9ff !important;
+}
+.bonus-v58-lock-note *{color:#0f3f69 !important}
+.bonus-v58-lock-note svg{color:#1690f5 !important}
 
 `;
 
