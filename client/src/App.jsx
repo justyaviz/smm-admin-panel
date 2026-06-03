@@ -17800,6 +17800,57 @@ tr:hover td,
   .content-v5-mini-alerts{justify-content:flex-start}
 }
 
+
+/* === V5.1 Sidebar lock patch: v4 menu preserved, content page cannot break sidebar === */
+.app-shell{
+  grid-template-columns:306px minmax(0,1fr) !important;
+  align-items:stretch;
+}
+.sidebar{
+  width:306px !important;
+  min-width:306px !important;
+  max-width:306px !important;
+  position:sticky;
+  top:0;
+  height:100vh;
+  min-height:100vh;
+  overflow:hidden;
+  z-index:40;
+}
+.menu-section-list{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+.main-area{
+  min-width:0 !important;
+  max-width:100%;
+  overflow-x:hidden;
+}
+.content-page-v5,
+.content-v5-hero,
+.content-v5-viewbar,
+.content-v5-stats-row{
+  min-width:0;
+  max-width:100%;
+}
+.content-v5-hero{
+  grid-template-columns:minmax(0,1fr) minmax(280px,360px);
+}
+.content-v5-viewbar{
+  flex-wrap:wrap;
+}
+@media (max-width: 1280px){
+  .app-shell{grid-template-columns:286px minmax(0,1fr) !important;}
+  .sidebar{width:286px !important;min-width:286px !important;max-width:286px !important;}
+  .content-v5-hero{grid-template-columns:1fr;}
+}
+@media (max-width: 1100px){
+  .app-shell{grid-template-columns:1fr !important;}
+  .sidebar{display:none;width:auto !important;min-width:0 !important;max-width:none !important;}
+}
+
 `;
 
 export default App;
