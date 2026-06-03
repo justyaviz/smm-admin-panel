@@ -91,9 +91,9 @@ const SIDEBAR_WORKSPACES = [
     id: "mobilograf",
     title: "Mobilograf",
     desc: "Foto, video, safar",
-    items: ["dashboard", "travelPlans", "tasks", "content", "uploads", "dailyReports", "profile"],
+    items: ["dashboard", "travelPlans", "tasks", "bonus", "content", "uploads", "dailyReports", "profile"],
     groups: [
-      { id: "mob-main", title: "Mobilograf", items: ["dashboard", "travelPlans", "tasks"] },
+      { id: "mob-main", title: "Mobilograf", items: ["dashboard", "travelPlans", "tasks", "bonus"] },
       { id: "mob-content", title: "Kontent jarayoni", items: ["content", "uploads", "dailyReports"] },
       { id: "mob-account", title: "Shaxsiy", items: ["profile"] }
     ]
