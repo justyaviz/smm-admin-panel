@@ -74,6 +74,40 @@ const MENU_GROUPS = [
   { id: "system", title: "Boshqaruv", items: ["users", "audit", "profile", "settings"] }
 ];
 
+
+const SIDEBAR_WORKSPACES = [
+  {
+    id: "smm",
+    title: "SMM menejer",
+    desc: "Kontent, target, KPI",
+    items: ["dashboard", "content", "bonus", "tasks", "campaigns", "expenses", "dailyReports", "analytics", "users", "settings"],
+    groups: [
+      { id: "smm-main", title: "SMM menejer", items: ["dashboard", "content", "bonus", "tasks"] },
+      { id: "smm-growth", title: "Target va natija", items: ["campaigns", "expenses", "dailyReports", "analytics"] },
+      { id: "smm-admin", title: "Boshqaruv", items: ["users", "settings", "profile"] }
+    ]
+  },
+  {
+    id: "mobilograf",
+    title: "Mobilograf",
+    desc: "Foto, video, safar",
+    items: ["dashboard", "travelPlans", "tasks", "content", "uploads", "dailyReports", "profile"],
+    groups: [
+      { id: "mob-main", title: "Mobilograf", items: ["dashboard", "travelPlans", "tasks"] },
+      { id: "mob-content", title: "Kontent jarayoni", items: ["content", "uploads", "dailyReports"] },
+      { id: "mob-account", title: "Shaxsiy", items: ["profile"] }
+    ]
+  }
+];
+
+const getWorkspaceById = (id) => SIDEBAR_WORKSPACES.find((workspace) => workspace.id === id) || SIDEBAR_WORKSPACES[0];
+
+const getDefaultWorkspaceForUser = (currentUser) => {
+  const role = String(currentUser?.role || "").toLowerCase();
+  if (role.includes("mobilograf") || role.includes("video") || role.includes("media")) return "mobilograf";
+  return "smm";
+};
+
 const ROUTES_BY_PAGE = {
   landing: "/",
   login: "/login",
@@ -7924,9 +7958,14 @@ function App() {
   const [theme, setTheme] = useState("light");
   const [toast, setToast] = useState(null);
   const [search, setSearch] = useState("");
-  const [menuGroupState, setMenuGroupState] = useState(() =>
-    Object.fromEntries(MENU_GROUPS.map((group) => [group.id, true]))
-  );
+  const [menuGroupState, setMenuGroupState] = useState(() => {
+    const groupIds = [
+      ...MENU_GROUPS.map((group) => group.id),
+      ...SIDEBAR_WORKSPACES.flatMap((workspace) => workspace.groups.map((group) => group.id))
+    ];
+    return Object.fromEntries(groupIds.map((id) => [id, true]));
+  });
+  const [sidebarWorkspace, setSidebarWorkspace] = useState(() => getDefaultWorkspaceForUser(getCurrentUser()));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [globalSearch, setGlobalSearch] = useState("");
   const [globalResults, setGlobalResults] = useState(null);
@@ -8363,21 +8402,34 @@ function App() {
     setMobileMenuOpen(false);
   }, [active]);
 
+  useEffect(() => {
+    setSidebarWorkspace((current) => current || getDefaultWorkspaceForUser(user));
+  }, [user]);
+
+  const activeSidebarWorkspace = useMemo(() => getWorkspaceById(sidebarWorkspace), [sidebarWorkspace]);
+
+  const workspaceMenu = useMemo(() => {
+    const allowedIds = new Set(activeSidebarWorkspace.items);
+    return allowedMenu.filter((item) => allowedIds.has(item.id));
+  }, [activeSidebarWorkspace, allowedMenu]);
+
   const filteredMenu = useMemo(() => {
-    if (!search.trim()) return allowedMenu;
-    return allowedMenu.filter((item) =>
-      item.title.toLowerCase().includes(search.toLowerCase())
+    const sourceMenu = workspaceMenu.length ? workspaceMenu : allowedMenu;
+    if (!search.trim()) return sourceMenu;
+    return sourceMenu.filter((item) =>
+      `${item.title} ${item.desc || ""}`.toLowerCase().includes(search.toLowerCase())
     );
-  }, [search, allowedMenu]);
+  }, [search, workspaceMenu, allowedMenu]);
 
   const groupedMenu = useMemo(() => {
-    return MENU_GROUPS.map((group) => {
+    const sourceGroups = activeSidebarWorkspace.groups || MENU_GROUPS;
+    return sourceGroups.map((group) => {
       const items = group.items
         .map((id) => filteredMenu.find((item) => item.id === id))
         .filter(Boolean);
       return { ...group, items };
     }).filter((group) => group.items.length);
-  }, [filteredMenu]);
+  }, [filteredMenu, activeSidebarWorkspace]);
 
   const mobilePrimaryMenu = useMemo(() => {
     const rolePreferred = {
@@ -8440,6 +8492,16 @@ function App() {
       await reloadData();
     } catch (err) {
       showToast(err.message || "Xatolik yuz berdi", "error");
+    }
+  }
+
+  function switchSidebarWorkspace(workspaceId) {
+    const workspace = getWorkspaceById(workspaceId);
+    setSidebarWorkspace(workspace.id);
+    const allowedIds = new Set(allowedMenu.map((item) => item.id));
+    if (!workspace.items.includes(active) || !allowedIds.has(active)) {
+      const nextPage = workspace.items.find((id) => allowedIds.has(id)) || allowedMenu[0]?.id || "dashboard";
+      goToPage(nextPage);
     }
   }
 
@@ -8583,6 +8645,20 @@ function App() {
               <strong>{settings?.company_name || "aloo"} SMM</strong>
             </div>
             <small><i /> Live</small>
+          </div>
+
+          <div className="sidebar-role-switcher" aria-label="Menu yo'nalishi">
+            {SIDEBAR_WORKSPACES.map((workspace) => (
+              <button
+                key={workspace.id}
+                type="button"
+                className={`sidebar-role-pill ${sidebarWorkspace === workspace.id ? "active" : ""}`}
+                onClick={() => switchSidebarWorkspace(workspace.id)}
+              >
+                <strong>{workspace.title}</strong>
+                <span>{workspace.desc}</span>
+              </button>
+            ))}
           </div>
 
           <div className="sidebar-search">
@@ -8801,6 +8877,20 @@ function App() {
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Bo'lim qidiring..."
             />
+          </div>
+
+          <div className="sidebar-role-switcher mobile-role-switcher" aria-label="Menu yo'nalishi">
+            {SIDEBAR_WORKSPACES.map((workspace) => (
+              <button
+                key={`mobile-role-${workspace.id}`}
+                type="button"
+                className={`sidebar-role-pill ${sidebarWorkspace === workspace.id ? "active" : ""}`}
+                onClick={() => switchSidebarWorkspace(workspace.id)}
+              >
+                <strong>{workspace.title}</strong>
+                <span>{workspace.desc}</span>
+              </button>
+            ))}
           </div>
 
           {groupedMenu.map((group) => (
@@ -18581,6 +18671,78 @@ tr:hover td,
   .content-page-v5 .content-v5-viewbar{position:relative;top:auto;}
   .content-page-v5 .content-v5-hero{padding:22px !important;border-radius:26px !important;}
 }
+
+/* === v5.6 Sidebar split: SMM menejer / Mobilograf. Old routes and functions preserved. === */
+.sidebar-role-switcher{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  padding:6px;
+  margin:10px 0 12px;
+  border-radius:22px;
+  background:rgba(15,23,42,.62);
+  border:1px solid rgba(148,163,184,.18);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06);
+}
+.sidebar-role-pill{
+  min-width:0;
+  border:0;
+  border-radius:17px;
+  padding:10px 8px;
+  cursor:pointer;
+  background:transparent;
+  color:rgba(226,232,240,.78);
+  text-align:left;
+  transition:.2s ease;
+}
+.sidebar-role-pill strong{
+  display:block;
+  font-size:11px;
+  line-height:1.1;
+  letter-spacing:.02em;
+  color:rgba(248,250,252,.88);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.sidebar-role-pill span{
+  display:block;
+  margin-top:4px;
+  font-size:9px;
+  line-height:1.1;
+  color:rgba(203,213,225,.64);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.sidebar-role-pill:hover{
+  background:rgba(255,255,255,.08);
+}
+.sidebar-role-pill.active{
+  background:linear-gradient(135deg,#1690F5 0%,#0B63F6 100%);
+  box-shadow:0 12px 26px rgba(22,144,245,.28), inset 0 1px 0 rgba(255,255,255,.26);
+}
+.sidebar-role-pill.active strong,
+.sidebar-role-pill.active span{
+  color:#fff;
+}
+.mobile-role-switcher{
+  margin:10px 0 16px;
+  background:#eef5ff;
+  border-color:#d6e7ff;
+}
+.mobile-role-switcher .sidebar-role-pill{
+  color:#334155;
+}
+.mobile-role-switcher .sidebar-role-pill strong{color:#0f172a}
+.mobile-role-switcher .sidebar-role-pill span{color:#64748b}
+.mobile-role-switcher .sidebar-role-pill.active strong,
+.mobile-role-switcher .sidebar-role-pill.active span{color:#fff}
+@media (max-width:720px){
+  .sidebar-role-switcher{grid-template-columns:1fr}
+  .mobile-role-switcher{grid-template-columns:1fr 1fr}
+}
+
 `;
 
 export default App;
