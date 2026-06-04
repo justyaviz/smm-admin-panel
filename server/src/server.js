@@ -658,14 +658,19 @@ function shouldCampaignStartNow(row) {
 
 async function buildCampaignTelegramLines(row) {
   const branchName = row.branch_name || await getBranchName(row.branch_id);
+  const dailyBudget = Number(row.daily_budget || 0);
+  const totalBudget = calculateCampaignBudget(dailyBudget, row.start_at || row.start_date, row.end_at || row.end_date);
   return [
-    `🎯 Target nomi: ${row.title || "-"}`,
+    "━━━━━━━━━━━━━━━━━━━━",
+    `🎯 Kampaniya: ${row.title || "-"}`,
     `📣 Platforma: ${row.platform || "-"}`,
     `🏢 Filial: ${branchName || "-"}`,
-    `🕒 Boshlanish vaqti: ${formatDateTimeText(row.start_at || row.start_date)}`,
-    `⏳ Tugash vaqti: ${formatDateTimeText(row.end_at || row.end_date)}`,
-    `💸 Kunlik budget: $${Number(row.daily_budget || 0).toLocaleString()}`,
-    `📌 Holat: ${formatCampaignStatusLabel(row.status)}`
+    `🟢 Holat: ${formatCampaignStatusLabel(row.status)}`,
+    `🕒 Boshlanish: ${formatDateTimeText(row.start_at || row.start_date)}`,
+    `⏳ Tugash: ${formatDateTimeText(row.end_at || row.end_date)}`,
+    `💰 Kunlik byudjet: ${formatTelegramMoney(dailyBudget)}`,
+    `🧾 Umumiy byudjet: ${formatTelegramMoney(totalBudget)}`,
+    "━━━━━━━━━━━━━━━━━━━━"
   ].filter(Boolean);
 }
 
@@ -695,7 +700,7 @@ async function notifyCampaignStarted(row) {
 
   try {
     await createTelegramEventNow(
-      "🚀 Target yoqildi",
+      "🚀 TARGET ISHGA TUSHDI",
       await buildCampaignTelegramLines(row),
       TARGET_CAMPAIGN_CHAT_ID
     );
@@ -714,7 +719,7 @@ async function notifyCampaignEnded(row) {
 
   try {
     await createTelegramEventNow(
-      "🛑 Target tugadi",
+      "🛑 TARGET YAKUNLANDI",
       [
         ...(await buildCampaignTelegramLines(row)),
         `✅ Yakun: ${getCampaignEndReason(row)}`
@@ -852,14 +857,20 @@ async function getBranchName(branchId) {
 }
 
 function buildCampaignLeadTelegramLines({ campaignTitle, branchName, platform, fullName, phone }) {
+  const now = new Date().toLocaleString("uz-UZ", { timeZone: "Asia/Tashkent" });
   return [
-    "🆕 Yangi lid qoldirildi",
-    `🎯 Target nomi: ${campaignTitle || "-"}`,
-    `🏢 Filial: ${branchName || "-"}`,
-    `📣 Platforma: ${platform || "-"}`,
+    "━━━━━━━━━━━━━━━━━━━━",
+    "🆕 YANGI LID KELDI",
+    "━━━━━━━━━━━━━━━━━━━━",
     `👤 Mijoz: ${fullName || "-"}`,
     `📞 Telefon: ${phone || "-"}`,
-    "⚡️ Tezroq bog'laning."
+    `🎯 Kampaniya: ${campaignTitle || "-"}`,
+    `🏢 Filial: ${branchName || "-"}`,
+    `📣 Platforma: ${platform || "-"}`,
+    `🕒 Vaqt: ${now}`,
+    "",
+    "⚡ Tezkor aloqa qiling!",
+    "✅ Lid platformaga saqlandi"
   ];
 }
 

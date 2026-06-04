@@ -4755,9 +4755,6 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
   const [saving, setSaving] = useState(false);
   const [viewRow, setViewRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [platformFilter, setPlatformFilter] = useState("all");
 
   const emptyForm = {
     title: "",
@@ -4777,34 +4774,20 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
     return diff !== 0 ? diff : Number(a.id || 0) - Number(b.id || 0);
   });
 
-  const filteredCampaigns = sortedCampaigns.filter((row) => {
-    const query = searchTerm.trim().toLowerCase();
-    const matchesSearch = !query || [row.title, row.platform, row.branch_name, row.status, row.lead_chat_id]
-      .filter(Boolean)
-      .some((value) => String(value).toLowerCase().includes(query));
-    const matchesStatus = statusFilter === "all" || String(row.status || "active") === statusFilter;
-    const matchesPlatform = platformFilter === "all" || String(row.platform || "") === platformFilter;
-    return matchesSearch && matchesStatus && matchesPlatform;
-  });
-
-  const campaignStats = {
-    total: sortedCampaigns.length,
-    active: sortedCampaigns.filter((item) => !["paused", "done", "yakunlandi"].includes(String(item.status || "active"))).length,
-    paused: sortedCampaigns.filter((item) => String(item.status || "") === "paused").length,
-    done: sortedCampaigns.filter((item) => ["done", "yakunlandi"].includes(String(item.status || ""))).length,
-    leadTotal: sortedCampaigns.reduce((sum, item) => sum + Number(item.lead_count || item.leads_count || item.leads || 0), 0),
-    dailyBudget: sortedCampaigns.reduce((sum, item) => sum + Number(getCampaignDailyBudget(item) || 0), 0),
-    connectedForms: sortedCampaigns.filter((item) => item.lead_chat_id).length
-  };
-  const averageCpl = campaignStats.leadTotal ? Math.round(campaignStats.dailyBudget / campaignStats.leadTotal) : 0;
-  const topPlatforms = CAMPAIGN_PLATFORM_OPTIONS.map((item) => {
-    const items = sortedCampaigns.filter((row) => String(row.platform || "") === item.value);
-    const budget = items.reduce((sum, row) => sum + Number(getCampaignDailyBudget(row) || 0), 0);
-    const leads = items.reduce((sum, row) => sum + Number(row.lead_count || row.leads_count || row.leads || 0), 0);
-    return { ...item, count: items.length, budget, leads };
-  }).filter((item) => item.count || item.budget || item.leads).slice(0, 5);
-  const maxPlatformBudget = Math.max(1, ...topPlatforms.map((item) => item.budget || item.count || 1));
-  const activePercent = campaignStats.total ? Math.round((campaignStats.active / campaignStats.total) * 100) : 0;
+  const activeRows = sortedCampaigns.filter((row) => normalizeCampaignStatus(row.status) === "active");
+  const pausedRows = sortedCampaigns.filter((row) => normalizeCampaignStatus(row.status) === "paused");
+  const doneRows = sortedCampaigns.filter((row) => normalizeCampaignStatus(row.status) === "done");
+  const totalDailyBudget = sortedCampaigns.reduce((sum, row) => sum + Number(getCampaignDailyBudget(row) || 0), 0);
+  const totalLeads = sortedCampaigns.reduce((sum, row) => sum + Number(row.lead_count || row.leads || 0), 0);
+  const withLeadForm = sortedCampaigns.filter((row) => row.lead_chat_id).length;
+  const topPlatforms = Object.values(sortedCampaigns.reduce((acc, row) => {
+    const key = row.platform || "Boshqa";
+    if (!acc[key]) acc[key] = { platform: key, count: 0, budget: 0, leads: 0 };
+    acc[key].count += 1;
+    acc[key].budget += Number(getCampaignDailyBudget(row) || 0);
+    acc[key].leads += Number(row.lead_count || row.leads || 0);
+    return acc;
+  }, {})).sort((a, b) => b.count - a.count).slice(0, 4);
 
   function resetForm() {
     setForm(emptyForm);
@@ -4882,78 +4865,50 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
   }
 
   return (
-    <div className="campaign-page-v6">
-      <section className="campaign-hero-v6">
-        <div className="campaign-hero-copy-v6">
-          <span className="campaign-kicker-v6"><Target size={16} /> Target va natija markazi</span>
-          <h1>Reklama kampaniyalari</h1>
-          <p>
-            SMM menejer uchun target holati, filiallar bo'yicha kampaniya, lid forma va kunlik byudjet nazorati bitta joyda.
-            Eski funksiyalar saqlangan, faqat boshqaruv ko'rinishi professional qilingan.
-          </p>
-          <div className="campaign-hero-actions-v6">
-            <button type="button" className="btn primary" onClick={() => document.getElementById("campaign-form-v6")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
-              + Yangi kampaniya
-            </button>
-            <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/campaigns.xlsx", "campaigns.xlsx")}>
-              Excel export
-            </button>
-          </div>
+    <div className="page-grid campaigns-safe-page">
+      <section className="campaign-safe-hero">
+        <div>
+          <span className="campaign-safe-eyebrow"><Target size={16} /> Target va natija markazi</span>
+          <h2>Reklama kampaniyalari</h2>
+          <p>Eski funksiyalar saqlangan: kampaniya qo‘shish, tahrirlash, lead forma, Telegram guruh ID va Excel export ishlaydi.</p>
         </div>
-        <div className="campaign-live-panel-v6">
-          <div className="campaign-live-ring-v6" style={{ background: `conic-gradient(#38e89f 0 ${activePercent}%, rgba(255,255,255,.16) ${activePercent}% 100%)` }}>
-            <span>{activePercent}%</span>
-            <small>Faol ritm</small>
-          </div>
-          <div className="campaign-live-list-v6">
-            <span><i /> {campaignStats.active} ta faol kampaniya</span>
-            <span><i /> {campaignStats.connectedForms} ta lead form ulangan</span>
-            <span><i /> CPL: {averageCpl ? formatMoney(averageCpl) : "hisoblanmoqda"}</span>
-          </div>
+        <div className="campaign-safe-hero-actions">
+          <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/campaigns.xlsx", "campaigns.xlsx")}>Excel export</button>
+          <button type="button" className="btn primary" onClick={() => window.scrollTo({ top: 280, behavior: "smooth" })}>+ Yangi kampaniya</button>
         </div>
       </section>
 
-      <section className="campaign-stat-grid-v6">
-        <div className="campaign-stat-card-v6 blue"><div><span>Jami kampaniya</span><strong>{campaignStats.total}</strong><small>Ro'yxatdagi barcha targetlar</small></div><Megaphone size={22} /></div>
-        <div className="campaign-stat-card-v6 green"><div><span>Faol target</span><strong>{campaignStats.active}</strong><small>Hozir reklamada ishlayapti</small></div><Target size={22} /></div>
-        <div className="campaign-stat-card-v6 amber"><div><span>Kunlik byudjet</span><strong>{formatMoney(campaignStats.dailyBudget)}</strong><small>Barcha kampaniyalar kesimida</small></div><BadgeDollarSign size={22} /></div>
-        <div className="campaign-stat-card-v6 violet"><div><span>Lidlar</span><strong>{campaignStats.leadTotal}</strong><small>Forma orqali kelgan murojaatlar</small></div><MessageCircle size={22} /></div>
-      </section>
+      <div className="campaign-safe-stats">
+        <div className="campaign-safe-stat"><span>Jami kampaniya</span><strong>{sortedCampaigns.length}</strong><small>{activeRows.length} ta faol</small></div>
+        <div className="campaign-safe-stat"><span>Faol target</span><strong>{activeRows.length}</strong><small>{pausedRows.length} ta pauzada</small></div>
+        <div className="campaign-safe-stat"><span>Kunlik byudjet</span><strong>{formatMoney(totalDailyBudget)}</strong><small>barcha targetlar</small></div>
+        <div className="campaign-safe-stat"><span>Lidlar</span><strong>{totalLeads}</strong><small>{withLeadForm} ta forma ulangan</small></div>
+      </div>
 
-      <section className="campaign-layout-v6">
-        <div className="campaign-form-card-v6" id="campaign-form-v6">
-          <div className="campaign-section-head-v6">
-            <div>
-              <span>01</span>
-              <h2>{editRow ? "Kampaniyani tahrirlash" : "Yangi reklama kampaniyasi"}</h2>
-              <p>Platforma, filial, muddat, kunlik byudjet va lead Telegram guruhini kiriting.</p>
-            </div>
-            {editRow ? (
-              <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button>
-            ) : null}
-          </div>
-
-          <form className="campaign-form-grid-v6" onSubmit={handleSubmit}>
-            <label className="campaign-full-v6"><span>Kampaniya nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} placeholder="Masalan: Chinoz filiali 99 000 aksiyasi" required /></label>
+      <div className="campaign-safe-layout">
+        <div className="card campaign-safe-card">
+          <SectionTitle
+            title={editRow ? "Kampaniyani tahrirlash" : "Yangi reklama kampaniyasi"}
+            subtitle="Platforma, filial, muddat, kunlik byudjet va Telegram guruh ID kiriting."
+            right={editRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null}
+          />
+          <form className="form-grid campaign-safe-form" onSubmit={handleSubmit}>
+            <label><span>Kampaniya nomi</span><input value={form.title} onChange={(e) => setField("title", e.target.value)} placeholder="Masalan: Chinoz filiali 99 000" required /></label>
             <label>
               <span>Platforma</span>
               <select value={form.platform} onChange={(e) => setField("platform", e.target.value)} required>
-                {CAMPAIGN_PLATFORM_OPTIONS.map((item) => (
-                  <option key={item.value} value={item.value}>{item.label}</option>
-                ))}
+                {CAMPAIGN_PLATFORM_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
               </select>
             </label>
             <label>
               <span>Filial</span>
               <select value={form.branch_id} onChange={(e) => setField("branch_id", e.target.value)} required>
                 <option value="">Tanlang</option>
-                {branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>{branch.name}</option>
-                ))}
+                {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
               </select>
             </label>
             <label>
-              <span>Holati</span>
+              <span>Target holati</span>
               <select value={form.status} onChange={(e) => setField("status", e.target.value)}>
                 <option value="active">Faol</option>
                 <option value="paused">Pauza</option>
@@ -4962,177 +4917,80 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
             </label>
             <label><span>Boshlanish sana va soat</span><input type="datetime-local" value={form.start_at} onChange={(e) => setField("start_at", e.target.value)} required /></label>
             <label><span>Tugash sana va soat</span><input type="datetime-local" value={form.end_at} onChange={(e) => setField("end_at", e.target.value)} required /></label>
-            <label><span>Kunlik budget</span><input type="number" min="0" value={form.daily_budget} onChange={(e) => setField("daily_budget", e.target.value)} placeholder="250000" required /></label>
-            <label className="campaign-full-v6">
-              <span>Lidlar boradigan Telegram guruh ID</span>
-              <input
-                value={form.lead_chat_id}
-                onChange={(e) => setField("lead_chat_id", e.target.value)}
-                placeholder="-1003878116355"
-              />
-            </label>
-            <button className="btn primary campaign-submit-v6" type="submit" disabled={saving}>
-              {saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Kampaniya qo'shish"}
-            </button>
+            <label><span>Kunlik byudjet</span><input type="number" min="0" value={form.daily_budget} onChange={(e) => setField("daily_budget", e.target.value)} placeholder="250000" required /></label>
+            <label className="campaign-safe-full"><span>Lidlar boradigan Telegram guruh ID</span><input value={form.lead_chat_id} onChange={(e) => setField("lead_chat_id", e.target.value)} placeholder="-1003878116355" /></label>
+            <div className="campaign-safe-submit-row">
+              <button className="btn primary" type="submit" disabled={saving}>{saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Kampaniya qo‘shish"}</button>
+              <button type="button" className="btn secondary" onClick={resetForm}>Formani tozalash</button>
+            </div>
           </form>
         </div>
 
-        <aside className="campaign-side-card-v6">
-          <div className="campaign-section-head-v6 compact">
-            <div>
-              <span>02</span>
-              <h2>Platforma kesimi</h2>
-              <p>Qaysi kanal ko'proq ishlayotganini tez ko'rish.</p>
-            </div>
-          </div>
-          <div className="campaign-platform-list-v6">
+        <aside className="campaign-safe-side">
+          <div className="campaign-safe-side-card">
+            <h3>Platforma kesimi</h3>
+            <p>Qaysi kanal ko‘proq ishlayotganini tez ko‘rish.</p>
             {topPlatforms.length ? topPlatforms.map((item) => (
-              <div key={item.value} className="campaign-platform-row-v6">
-                <div>
-                  <strong>{item.label}</strong>
-                  <small>{item.count} kampaniya • {item.leads} lid</small>
-                </div>
+              <div className="campaign-safe-platform" key={item.platform}>
+                <div><strong>{item.platform}</strong><small>{item.count} kampaniya • {item.leads} lid</small></div>
                 <span>{formatMoney(item.budget)}</span>
-                <i style={{ width: `${Math.max(8, Math.round(((item.budget || item.count || 1) / maxPlatformBudget) * 100))}%` }} />
               </div>
-            )) : (
-              <div className="campaign-empty-v6">Platforma statistikasi hali yo'q</div>
-            )}
+            )) : <div className="empty-block">Hali kampaniya yo‘q</div>}
           </div>
-          <div className="campaign-mini-note-v6">
-            <strong>Maslahat</strong>
-            <span>Lead form linkini filial operatorlariga yuboring va Telegram guruh ID to'g'ri ulanganini tekshiring.</span>
+          <div className="campaign-safe-side-card note">
+            <h3>Telegram xabar</h3>
+            <p>Lead forma to‘ldirilsa, guruhga emoji bilan tartibli xabar boradi: mijoz, telefon, filial, platforma va kampaniya nomi.</p>
           </div>
         </aside>
-      </section>
+      </div>
 
-      <section className="campaign-table-card-v6">
-        <div className="campaign-section-head-v6">
-          <div>
-            <span>03</span>
-            <h2>Kampaniyalar ro'yxati</h2>
-            <p>Qidiruv, status, platforma va lead forma amallari eski tizim bilan ishlaydi.</p>
-          </div>
-          <div className="campaign-filter-row-v6">
-            <div className="campaign-search-v6"><Search size={16} /><input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Kampaniya, filial, platforma..." /></div>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              <option value="all">Barcha holatlar</option>
-              <option value="active">Faol</option>
-              <option value="paused">Pauza</option>
-              <option value="done">Tugagan</option>
-            </select>
-            <select value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value)}>
-              <option value="all">Barcha platformalar</option>
-              {CAMPAIGN_PLATFORM_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div className="campaign-desktop-table-v6">
+      <div className="card campaign-safe-card">
+        <SectionTitle title="Kampaniyalar ro‘yxati" subtitle={`${activeRows.length} faol • ${pausedRows.length} pauza • ${doneRows.length} tugagan`} />
+        <div className="table-wrap desktop-table campaign-safe-table">
           <table>
-            <thead>
-              <tr>
-                <th>Kampaniya</th>
-                <th>Platforma</th>
-                <th>Filial</th>
-                <th>Muddat</th>
-                <th>Kunlik budget</th>
-                <th>Lid</th>
-                <th>Holat</th>
-                <th>Amallar</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Kampaniya</th><th>Platforma</th><th>Filial</th><th>Boshlanish</th><th>Tugash</th><th>Kunlik byudjet</th><th>Lid</th><th>Holat</th><th>Amallar</th></tr></thead>
             <tbody>
-              {filteredCampaigns.length ? (
-                filteredCampaigns.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <div className="campaign-name-cell-v6">
-                        <strong>{row.title}</strong>
-                        <small>{row.lead_chat_id ? "Telegram lead ulangan" : "Lead chat ID kiritilmagan"}</small>
-                      </div>
-                    </td>
-                    <td><span className="campaign-platform-pill-v6">{row.platform}</span></td>
-                    <td>{row.branch_name || "-"}</td>
-                    <td>
-                      <div className="campaign-date-cell-v6">
-                        <span>{formatDateTime(row.start_at || row.start_date)}</span>
-                        <small>{formatDateTime(row.end_at || row.end_date)}</small>
-                      </div>
-                    </td>
-                    <td>{formatMoney(getCampaignDailyBudget(row))}</td>
-                    <td>{row.lead_count || row.leads_count || row.leads || 0} ta</td>
-                    <td><span className={campaignStatusClass(row.status)}>{formatCampaignStatus(row.status)}</span></td>
-                    <td>
-                      <div className="table-actions campaign-actions-v6">
-                        <button type="button" className="btn tiny secondary" onClick={() => openLeadForm(row)}>
-                          <Link2 size={14} /> Forma
-                        </button>
-                        <button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(row)}>
-                          <Copy size={14} /> Nusxalash
-                        </button>
-                        <IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} />
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr><td colSpan="8" className="empty-cell">Kampaniya topilmadi</td></tr>
-              )}
+              {sortedCampaigns.length ? sortedCampaigns.map((row) => (
+                <tr key={row.id}>
+                  <td><strong>{row.title}</strong><small className="campaign-safe-table-sub">ID: {row.id}</small></td>
+                  <td>{row.platform}</td>
+                  <td>{row.branch_name || "-"}</td>
+                  <td>{formatDateTime(row.start_at || row.start_date)}</td>
+                  <td>{formatDateTime(row.end_at || row.end_date)}</td>
+                  <td>{formatMoney(getCampaignDailyBudget(row))}</td>
+                  <td>{row.lead_count || row.leads || 0}</td>
+                  <td><span className={campaignStatusClass(row.status)}>{formatCampaignStatus(row.status)}</span></td>
+                  <td><div className="table-actions">
+                    <button type="button" className="btn tiny secondary" onClick={() => openLeadForm(row)}><Link2 size={14} /> Forma</button>
+                    <button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(row)}><Copy size={14} /> Link</button>
+                    <IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} />
+                  </div></td>
+                </tr>
+              )) : <tr><td colSpan="9" className="empty-cell">Hozircha ma'lumot yo‘q</td></tr>}
             </tbody>
           </table>
         </div>
-
-        <div className="campaign-mobile-list-v6">
-          {filteredCampaigns.length ? (
-            filteredCampaigns.map((row) => (
-              <div key={`campaign-card-${row.id}`} className="campaign-mobile-card-v6">
-                <div className="campaign-mobile-head-v6">
-                  <div>
-                    <strong>{row.title}</strong>
-                    <span>{row.platform} • {row.branch_name || "Filialsiz"}</span>
-                  </div>
-                  <span className={campaignStatusClass(row.status)}>{formatCampaignStatus(row.status)}</span>
-                </div>
-                <div className="campaign-mobile-grid-v6">
-                  <div><small>Boshlanish</small><b>{formatDateTime(row.start_at || row.start_date)}</b></div>
-                  <div><small>Tugash</small><b>{formatDateTime(row.end_at || row.end_date)}</b></div>
-                  <div><small>Kunlik budget</small><b>{formatMoney(getCampaignDailyBudget(row))}</b></div>
-                  <div><small>Leadlar</small><b>{row.lead_count || row.leads_count || row.leads || 0} ta</b></div>
-                </div>
-                <div className="mobile-record-actions">
-                  <button type="button" className="btn tiny secondary" onClick={() => openLeadForm(row)}><Link2 size={14} /> Forma</button>
-                  <button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(row)}><Copy size={14} /> Nusxalash</button>
-                  <IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} />
-                </div>
+        <div className="mobile-card-list">
+          {sortedCampaigns.length ? sortedCampaigns.map((row) => (
+            <div key={`campaign-card-${row.id}`} className="mobile-record-card">
+              <div className="mobile-record-head"><div className="mobile-record-title"><strong>{row.title}</strong><span>{row.platform} • {row.branch_name || "Filialsiz"}</span></div><span className={campaignStatusClass(row.status)}>{formatCampaignStatus(row.status)}</span></div>
+              <div className="mobile-record-grid">
+                <div className="mobile-record-field"><label>Boshlanish</label><div>{formatDateTime(row.start_at || row.start_date)}</div></div>
+                <div className="mobile-record-field"><label>Tugash</label><div>{formatDateTime(row.end_at || row.end_date)}</div></div>
+                <div className="mobile-record-field"><label>Kunlik byudjet</label><div>{formatMoney(getCampaignDailyBudget(row))}</div></div>
+                <div className="mobile-record-field"><label>Leadlar</label><div>{row.lead_count || row.leads || 0} ta</div></div>
               </div>
-            ))
-          ) : (
-            <div className="campaign-empty-v6">Kampaniya topilmadi</div>
-          )}
+              <div className="mobile-record-actions"><button type="button" className="btn tiny secondary" onClick={() => openLeadForm(row)}><Link2 size={14} /> Forma</button><button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(row)}><Copy size={14} /> Nusxalash</button><IconActions onView={() => setViewRow(row)} onEdit={() => startEdit(row)} onDelete={() => removeRow(row.id)} /></div>
+            </div>
+          )) : <div className="mobile-record-card empty">Hozircha ma'lumot yo‘q</div>}
         </div>
-      </section>
+      </div>
 
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kampaniya tafsiloti">
         {viewRow ? (
-          <div className="detail-grid campaign-detail-v6">
-            <div><strong>Nomi:</strong> {viewRow.title}</div>
-            <div><strong>Platforma:</strong> {viewRow.platform}</div>
-            <div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div>
-            <div><strong>Boshlanish:</strong> {formatDateTime(viewRow.start_at || viewRow.start_date)}</div>
-            <div><strong>Tugash:</strong> {formatDateTime(viewRow.end_at || viewRow.end_date)}</div>
-            <div><strong>Kunlik budget:</strong> {formatMoney(getCampaignDailyBudget(viewRow))}</div>
-            <div><strong>Holat:</strong> <span className={campaignStatusClass(viewRow.status)}>{formatCampaignStatus(viewRow.status)}</span></div>
-            <div><strong>Leadlar soni:</strong> {viewRow.lead_count || viewRow.leads_count || viewRow.leads || 0} ta</div>
-            <div><strong>Lead chat ID:</strong> {viewRow.lead_chat_id || "-"}</div>
-            <div className="full-col campaign-lead-link-row">
-              <strong>Website form URL:</strong>
-              <div className="campaign-lead-link-actions">
-                <a href={getCampaignLeadFormUrl(viewRow.id)} target="_blank" rel="noreferrer" className="btn tiny secondary"><Eye size={14} /> Ochish</a>
-                <button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(viewRow)}><Copy size={14} /> Nusxalash</button>
-              </div>
-              <div className="campaign-lead-link-preview">{getCampaignLeadFormUrl(viewRow.id)}</div>
-            </div>
+          <div className="detail-grid">
+            <div><strong>Nomi:</strong> {viewRow.title}</div><div><strong>Platforma:</strong> {viewRow.platform}</div><div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div><div><strong>Boshlanish:</strong> {formatDateTime(viewRow.start_at || viewRow.start_date)}</div><div><strong>Tugash:</strong> {formatDateTime(viewRow.end_at || viewRow.end_date)}</div><div><strong>Kunlik byudjet:</strong> {formatMoney(getCampaignDailyBudget(viewRow))}</div><div><strong>Holat:</strong> <span className={campaignStatusClass(viewRow.status)}>{formatCampaignStatus(viewRow.status)}</span></div><div><strong>Leadlar soni:</strong> {viewRow.lead_count || 0} ta</div><div><strong>Lead chat ID:</strong> {viewRow.lead_chat_id || "-"}</div>
+            <div className="full-col campaign-lead-link-row"><strong>Website form URL:</strong><div className="campaign-lead-link-actions"><a href={getCampaignLeadFormUrl(viewRow.id)} target="_blank" rel="noreferrer" className="btn tiny secondary"><Eye size={14} /> Ochish</a><button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(viewRow)}><Copy size={14} /> Nusxalash</button></div><div className="campaign-lead-link-preview">{getCampaignLeadFormUrl(viewRow.id)}</div></div>
           </div>
         ) : null}
       </Modal>
@@ -19258,6 +19116,62 @@ tr:hover td,
 }
 .bonus-v58-lock-note *{color:#0f3f69 !important}
 .bonus-v58-lock-note svg{color:#1690f5 !important}
+
+
+/* === Campaigns Safe Redesign v6.1: does not break old functions === */
+.campaigns-safe-page{
+  gap:22px !important;
+}
+.campaign-safe-hero{
+  display:flex;align-items:flex-end;justify-content:space-between;gap:22px;
+  padding:28px;border-radius:30px;
+  background:
+    radial-gradient(circle at 88% 12%, rgba(22,144,245,.18), transparent 30%),
+    radial-gradient(circle at 12% 18%, rgba(48,213,200,.15), transparent 28%),
+    linear-gradient(135deg,#ffffff 0%,#f5f9ff 100%);
+  border:1px solid #dce7f5;box-shadow:0 26px 60px rgba(15,23,42,.10);
+  color:#0f172a !important;
+}
+.campaign-safe-hero *{color:inherit}
+.campaign-safe-eyebrow{display:inline-flex;align-items:center;gap:8px;font-weight:900;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:#0b63f6!important;background:#eaf4ff;border:1px solid #cfe7ff;border-radius:999px;padding:8px 12px;margin-bottom:12px}
+.campaign-safe-hero h2{font-size:36px;line-height:1;margin:0 0 10px;color:#0f172a!important;letter-spacing:-.03em}
+.campaign-safe-hero p{margin:0;color:#64748b!important;max-width:760px;font-weight:600}
+.campaign-safe-hero-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+.campaign-safe-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.campaign-safe-stat{padding:22px;border-radius:26px;background:linear-gradient(180deg,#fff,#f8fbff);border:1px solid #e1eaf6;box-shadow:0 18px 46px rgba(15,23,42,.08);position:relative;overflow:hidden;color:#0f172a!important}
+.campaign-safe-stat:after{content:"";position:absolute;right:-24px;top:-24px;width:94px;height:94px;border-radius:50%;background:rgba(22,144,245,.10)}
+.campaign-safe-stat span{display:block;color:#64748b!important;font-size:13px;font-weight:900;margin-bottom:8px}
+.campaign-safe-stat strong{display:block;color:#0f172a!important;font-size:30px;letter-spacing:-.03em}
+.campaign-safe-stat small{display:block;color:#64748b!important;font-weight:700;margin-top:4px}
+.campaign-safe-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(320px,.75fr);gap:18px;align-items:start}
+.campaign-safe-card,.campaign-safe-side-card{background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%)!important;border:1px solid #e1eaf6!important;border-radius:28px!important;box-shadow:0 18px 46px rgba(15,23,42,.08)!important;color:#0f172a!important}
+.campaign-safe-card .section-title-row h2,.campaign-safe-card h2,.campaign-safe-card h3,.campaign-safe-side-card h3{color:#0f172a!important}
+.campaign-safe-card .section-title-row p,.campaign-safe-side-card p{color:#64748b!important}
+.campaign-safe-form{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:14px!important}
+.campaign-safe-form label{background:#f8fbff!important;border:1px solid #e2e8f0!important;border-radius:18px!important;padding:12px!important;color:#0f172a!important;display:grid!important;gap:8px!important}
+.campaign-safe-form label span{color:#475569!important;font-weight:800!important;font-size:12px!important;letter-spacing:.02em}
+.campaign-safe-form input,.campaign-safe-form select,.campaign-safe-form textarea{width:100%!important;background:#fff!important;border:1px solid #d8e3f1!important;border-radius:14px!important;padding:12px 13px!important;color:#0f172a!important;-webkit-text-fill-color:#0f172a!important;min-height:44px!important}
+.campaign-safe-form input::placeholder{color:#94a3b8!important;-webkit-text-fill-color:#94a3b8!important}
+.campaign-safe-full{grid-column:span 2}
+.campaign-safe-submit-row{grid-column:1 / -1;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:flex-end;padding-top:4px}
+.campaign-safe-side{display:grid;gap:16px}
+.campaign-safe-side-card{padding:22px}
+.campaign-safe-side-card.note{background:linear-gradient(135deg,#06182c,#0e4778)!important;color:#fff!important;border-color:rgba(255,255,255,.12)!important}
+.campaign-safe-side-card.note h3{color:#fff!important}.campaign-safe-side-card.note p{color:rgba(226,232,240,.88)!important}
+.campaign-safe-platform{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid #e2e8f0;color:#0f172a!important}
+.campaign-safe-platform:last-child{border-bottom:0}.campaign-safe-platform strong{display:block;color:#0f172a!important}.campaign-safe-platform small{display:block;color:#64748b!important;margin-top:2px}.campaign-safe-platform span{font-weight:900;color:#0b63f6!important}
+.campaign-safe-table table{width:100%;border-collapse:separate!important;border-spacing:0 8px!important}
+.campaign-safe-table thead th{background:#eef5ff!important;color:#334155!important;font-weight:900!important;padding:13px 14px!important;border:0!important}
+.campaign-safe-table tbody tr{background:#fff!important;box-shadow:0 10px 24px rgba(15,23,42,.05)}
+.campaign-safe-table tbody td{background:#fff!important;color:#0f172a!important;padding:14px!important;border-top:1px solid #e9eef6!important;border-bottom:1px solid #e9eef6!important;vertical-align:middle!important}
+.campaign-safe-table tbody td:first-child{border-left:1px solid #e9eef6!important;border-radius:16px 0 0 16px}.campaign-safe-table tbody td:last-child{border-right:1px solid #e9eef6!important;border-radius:0 16px 16px 0}
+.campaign-safe-table-sub{display:block;color:#94a3b8!important;font-weight:700;margin-top:3px}
+.campaigns-safe-page .btn.primary{background:linear-gradient(135deg,#1690F5,#0B63F6)!important;color:#fff!important;border:0!important;box-shadow:0 14px 30px rgba(22,144,245,.24)!important}
+.campaigns-safe-page .btn.secondary{background:#fff!important;color:#0f172a!important;border:1px solid #d8e3f1!important}
+.campaigns-safe-page .btn.tiny{min-height:32px!important;padding:8px 10px!important;border-radius:12px!important;font-size:12px!important;font-weight:800!important}
+.campaigns-safe-page .empty-cell,.campaigns-safe-page .empty-block{background:#f8fbff!important;color:#64748b!important;border:1px dashed #cbd5e1!important;border-radius:16px!important;padding:18px!important;text-align:center!important}
+@media (max-width:1180px){.campaign-safe-layout,.campaign-safe-stats{grid-template-columns:1fr}.campaign-safe-form{grid-template-columns:1fr!important}.campaign-safe-full{grid-column:auto}.campaign-safe-hero{align-items:flex-start;flex-direction:column}.campaign-safe-hero-actions{justify-content:flex-start}}
+
 
 `;
 
