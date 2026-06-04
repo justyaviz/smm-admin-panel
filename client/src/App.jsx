@@ -384,6 +384,13 @@ function getDateSortValue(value, fallback = Number.POSITIVE_INFINITY) {
   return Number.isNaN(time) ? fallback : time;
 }
 
+function normalizeCampaignStatus(value) {
+  const clean = String(value || "active").trim().toLowerCase();
+  if (["pause", "pauza", "paused", "toxtatilgan", "to‘xtatilgan"].includes(clean)) return "paused";
+  if (["done", "finished", "ended", "completed", "tugagan", "yakunlangan"].includes(clean)) return "done";
+  return "active";
+}
+
 function sortRowsByDate(rows = [], dateKey = "publish_date", direction = "asc") {
   const fallback = direction === "desc" ? Number.NEGATIVE_INFINITY : Number.POSITIVE_INFINITY;
   return [...(rows || [])].sort((a, b) => {
