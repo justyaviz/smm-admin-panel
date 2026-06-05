@@ -36,32 +36,46 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-const allowedOrigins = [];
-if (process.env.CLIENT_URL) allowedOrigins.push(process.env.CLIENT_URL);
-allowedOrigins.push("http://localhost:5173");
+// CORS allowlist: keep production safe, but allow all known frontend domains.
+// Add extra domains in Railway with ALLOWED_ORIGINS=https://domain1.uz,https://domain2.uz
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  process.env.FRONTEND_URL,
+  process.env.VITE_CLIENT_URL,
+  "https://www.aloosmm.uz",
+  "https://aloosmm.uz",
+  "http://localhost:5173",
+  "http://localhost:3000"
+]
+  .concat(String(process.env.ALLOWED_ORIGINS || "").split(","))
+  .map((origin) => String(origin || "").trim())
+  .filter(Boolean);
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-      if (process.env.NODE_ENV !== "production" && origin?.startsWith("http://localhost:")) {
-        return callback(null, true);
-      }
-      return callback(new Error(`CORS blocked origin: ${origin}`));
-    },
-    credentials: true
-  })
-);
+const corsOptions = {
+  origin(origin, callback) {
+    // allow server-to-server / curl / same-origin requests without an Origin header
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (process.env.NODE_ENV !== "production" && origin.startsWith("http://localhost:")) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS blocked origin: ${origin}`));
+  },
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  optionsSuccessStatus: 204
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 app.use(express.json({ limit: "25mb" }));
 app.use("/uploads", express.static(uploadsDir));
 
 const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
-  cors: {
-    origin: allowedOrigins,
-    credentials: true
-  }
+  cors: corsOptions
 });
 
 const userSockets = new Map();
