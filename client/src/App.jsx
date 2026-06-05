@@ -53,25 +53,21 @@ import { UiHealthStrip, UiOpsTimeline, UiStatusStepper } from "./ui-system";
 const MENU = [
   { id: "dashboard", title: "Boshqaruv markazi", icon: LayoutDashboard, tone: "indigo", desc: "SMM command center" },
   { id: "content", title: "Kontent reja", icon: Clapperboard, tone: "cyan", desc: "Postlar va reja" },
-  { id: "bonus", title: "Bonus tizimi", icon: BadgeDollarSign, tone: "emerald", desc: "KPI va mukofot" },
-  { id: "expenses", title: "Harajatlar va finance", icon: ReceiptText, tone: "amber", desc: "Byudjet nazorati" },
-  { id: "travelPlans", title: "Safar rejasi", icon: PlaneTakeoff, tone: "violet", desc: "Filial safarlari" },
-  { id: "analytics", title: "Analytics", icon: BarChart3, tone: "sky", desc: "Tahlil va raqamlar" },
-  { id: "dailyReports", title: "Kunlik filial hisobotlari", icon: ClipboardList, tone: "slate", desc: "Filial nazorati" },
-  { id: "campaigns", title: "Reklama kampaniyalari", icon: Target, tone: "fuchsia", desc: "Target va natija" },
+  { id: "tasks", title: "Ish taqsimoti", icon: ListTodo, tone: "green", desc: "SMM va mobilograf workflow" },
+  { id: "campaigns", title: "Reklama va aksiyalar", icon: Target, tone: "fuchsia", desc: "Target, bloger va hamkorlar" },
   { id: "uploads", title: "Media kutubxona", icon: Image, tone: "purple", desc: "Fayl va assetlar" },
-  { id: "users", title: "Hodimlar", icon: ContactRound, tone: "blue", desc: "Jamoa profillari" },
-  { id: "tasks", title: "Vazifalar", icon: ListTodo, tone: "green", desc: "Ish jarayoni" },
-  { id: "audit", title: "Audit log", icon: ShieldCheck, tone: "red", desc: "Tizim tarixi" },
+  { id: "analytics", title: "Analitika va hisobot", icon: BarChart3, tone: "sky", desc: "Natija va auditoriya" },
+  { id: "dailyReports", title: "Platforma monitoringi", icon: ClipboardList, tone: "slate", desc: "Post, story va faollik" },
+  { id: "users", title: "Jamoa", icon: ContactRound, tone: "blue", desc: "SMM va mobilograf rollari" },
   { id: "profile", title: "Profil", icon: CircleUserRound, tone: "cyan", desc: "Shaxsiy kabinet" },
   { id: "settings", title: "Sozlamalar", icon: SlidersHorizontal, tone: "slate", desc: "Tizim boshqaruvi" }
 ];
 
 const MENU_GROUPS = [
-  { id: "core", title: "Asosiy", items: ["dashboard", "content", "bonus", "tasks"] },
-  { id: "operations", title: "Jarayonlar", items: ["travelPlans", "campaigns", "expenses", "dailyReports"] },
-  { id: "insights", title: "Tahlil", items: ["analytics", "uploads"] },
-  { id: "system", title: "Boshqaruv", items: ["users", "audit", "profile", "settings"] }
+  { id: "core", title: "SMM jarayoni", items: ["dashboard", "content", "tasks"] },
+  { id: "growth", title: "Marketing", items: ["campaigns", "analytics", "dailyReports"] },
+  { id: "assets", title: "Media", items: ["uploads"] },
+  { id: "system", title: "Boshqaruv", items: ["users", "profile", "settings"] }
 ];
 
 
@@ -79,22 +75,22 @@ const SIDEBAR_WORKSPACES = [
   {
     id: "smm",
     title: "SMM menejer",
-    desc: "Kontent, target, KPI",
-    items: ["dashboard", "content", "bonus", "tasks", "campaigns", "expenses", "dailyReports", "analytics", "users", "settings"],
+    desc: "Strategiya, kontent, reklama",
+    items: ["dashboard", "content", "tasks", "campaigns", "analytics", "dailyReports", "uploads", "users", "settings"],
     groups: [
-      { id: "smm-main", title: "SMM menejer", items: ["dashboard", "content", "bonus", "tasks"] },
-      { id: "smm-growth", title: "Target va natija", items: ["campaigns", "expenses", "dailyReports", "analytics"] },
-      { id: "smm-admin", title: "Boshqaruv", items: ["users", "settings", "profile"] }
+      { id: "smm-main", title: "Reja va ssenariy", items: ["dashboard", "content", "tasks"] },
+      { id: "smm-growth", title: "Reklama va natija", items: ["campaigns", "analytics", "dailyReports"] },
+      { id: "smm-admin", title: "Jamoa", items: ["uploads", "users", "settings", "profile"] }
     ]
   },
   {
     id: "mobilograf",
     title: "Mobilograf",
-    desc: "Foto, video, safar",
-    items: ["dashboard", "travelPlans", "tasks", "bonus", "content", "uploads", "dailyReports", "profile"],
+    desc: "Foto, video, montaj",
+    items: ["dashboard", "tasks", "content", "uploads", "dailyReports", "profile"],
     groups: [
-      { id: "mob-main", title: "Mobilograf", items: ["dashboard", "travelPlans", "tasks", "bonus"] },
-      { id: "mob-content", title: "Kontent jarayoni", items: ["content", "uploads", "dailyReports"] },
+      { id: "mob-main", title: "Ish jarayoni", items: ["dashboard", "tasks"] },
+      { id: "mob-content", title: "Kontent ishlab chiqarish", items: ["content", "uploads", "dailyReports"] },
       { id: "mob-account", title: "Shaxsiy", items: ["profile"] }
     ]
   }
@@ -114,10 +110,6 @@ const ROUTES_BY_PAGE = {
   campaignLeadForm: "/reklama-forma",
   dashboard: "/menu",
   content: "/kontent",
-  bonus: "/bonus",
-  expenses: "/harajatlar",
-  finance: "/harajatlar",
-  travelPlans: "/safar",
   analytics: "/analytics",
   dailyReports: "/kunlik-hisobotlar",
   campaigns: "/reklama",
@@ -136,10 +128,10 @@ const PAGE_BY_ROUTE = {
   "/menu": "dashboard",
   "/dashboard": "dashboard",
   "/kontent": "content",
-  "/bonus": "bonus",
-  "/harajatlar": "expenses",
-  "/finance": "expenses",
-  "/safar": "travelPlans",
+  "/bonus": "dashboard",
+  "/harajatlar": "dashboard",
+  "/finance": "dashboard",
+  "/safar": "tasks",
   "/analytics": "analytics",
   "/kunlik-hisobotlar": "dailyReports",
   "/reklama": "campaigns",
@@ -157,23 +149,11 @@ const PERMISSION_OPTIONS = [
   { id: "content_create", label: "Kontent qo'shish" },
   { id: "content_edit", label: "Kontent tahrirlash" },
   { id: "content_delete", label: "Kontent o'chirish" },
-  { id: "bonus", label: "Bonus tizimi" },
-  { id: "bonus_create", label: "Bonus qo'shish" },
-  { id: "bonus_edit", label: "Bonus tahrirlash" },
-  { id: "bonus_delete", label: "Bonus o'chirish" },
-  { id: "expenses", label: "Harajatlar" },
-  { id: "finance", label: "Finance dashboard" },
-  { id: "expenses_edit", label: "Harajat tahrirlash" },
-  { id: "expenses_delete", label: "Harajat o'chirish" },
-  { id: "travelPlans", label: "Safar rejasi" },
-  { id: "analytics", label: "Analytics" },
-  { id: "travelPlans_create", label: "Safar reja qo'shish" },
-  { id: "travelPlans_edit", label: "Safar reja tahrirlash" },
-  { id: "travelPlans_delete", label: "Safar reja o'chirish" },
-  { id: "dailyReports", label: "Kunlik filial hisobotlari" },
+  { id: "analytics", label: "Analitika va hisobot" },
+  { id: "dailyReports", label: "Platforma monitoringi" },
   { id: "dailyReports_edit", label: "Hisobot tahrirlash" },
   { id: "dailyReports_delete", label: "Hisobot o'chirish" },
-  { id: "campaigns", label: "Reklama kampaniyalari" },
+  { id: "campaigns", label: "Reklama va aksiyalar" },
   { id: "campaigns_edit", label: "Kampaniya tahrirlash" },
   { id: "campaigns_delete", label: "Kampaniya o'chirish" },
   { id: "uploads", label: "Media kutubxona" },
@@ -185,7 +165,6 @@ const PERMISSION_OPTIONS = [
   { id: "tasks", label: "Vazifalar" },
   { id: "tasks_edit", label: "Vazifa tahrirlash" },
   { id: "tasks_delete", label: "Vazifa o'chirish" },
-  { id: "audit", label: "Audit log" },
   { id: "profile", label: "Profil" },
   { id: "settings", label: "Sozlamalar" }
 ];
@@ -193,11 +172,11 @@ const PERMISSION_OPTIONS = [
 const DIRECTOR_PERMISSION_PRESET = PERMISSION_OPTIONS.map((item) => item.id);
 
 const ROLE_WORKSPACE_PRESETS = {
-  director: ["dashboard", "expenses", "analytics", "dailyReports", "profile"],
-  manager: ["dashboard", "content", "tasks", "campaigns", "dailyReports", "profile"],
+  director: ["dashboard", "analytics", "dailyReports", "campaigns", "profile"],
+  manager: ["dashboard", "content", "tasks", "campaigns", "analytics", "dailyReports", "profile"],
   editor: ["dashboard", "tasks", "uploads", "content", "profile"],
-  mobilograf: ["dashboard", "travelPlans", "tasks", "content", "uploads", "profile"],
-  viewer: ["dashboard", "content", "bonus", "expenses", "travelPlans", "dailyReports", "profile"]
+  mobilograf: ["dashboard", "tasks", "content", "uploads", "dailyReports", "profile"],
+  viewer: ["dashboard", "content", "campaigns", "analytics", "dailyReports", "profile"]
 };
 
 const UZBEKISTAN_REGIONS = [
@@ -1718,7 +1697,7 @@ function RoleWorkspacePanel({ role = "", summary = {}, contentRows = [], bonusIt
   );
 }
 
-function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], contentRows = [], campaigns = [], travelPlans = [], tasks = [], uploads = [], expenses = [], user = null }) {
+function DashboardPage({ summary = {}, dailyReports = [], contentRows = [], campaigns = [], tasks = [], uploads = [], user = null }) {
   const currentMonth = getMonthLabel();
   const todayKey = formatDate(new Date());
   const currentMonthTitle = getMonthTitle(currentMonth);
@@ -1733,10 +1712,6 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   const reviewCount = thisMonthContent.filter((row) => ["tasdiqlandi", "tasdiqlanishda", "tekshiruvda"].includes(String(row.status || ""))).length;
   const progress = totalPlan ? Math.round((postedCount / totalPlan) * 100) : 0;
   const publishedToday = (contentRows || []).filter((row) => formatDate(row.publish_date) === todayKey).length;
-
-  const thisMonthBonusItems = (bonusItems || []).filter((row) => (row.month_label || formatDate(row.work_date).slice(0, 7)) === currentMonth);
-  const thisMonthBonus = thisMonthBonusItems.reduce((sum, row) => sum + Number(row.total_amount || row.amount || 0), 0);
-  const dashboardBonusBalances = summarizeBonusBalanceEmployees(thisMonthBonusItems, Number(summary?.bonus_rate || 25000));
 
   const activeCampaignRows = (campaigns || []).filter((item) => {
     const status = String(item.status || "").toLowerCase();
@@ -1756,7 +1731,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   const totalTasks = Number(summary?.daily_task_total || summary?.task_count || tasks.length || 0);
   const taskProgress = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : Number(summary?.daily_task_progress || 0);
 
-  const workflowSlaBreaches = [...(contentRows || []), ...(travelPlans || [])].filter((row) => {
+  const workflowSlaBreaches = [...(contentRows || []), ...(tasks || [])].filter((row) => {
     const status = String(row.status || "");
     if (["tasdiqlandi", "yakunlandi", "joylangan", "published", "approved", "archived"].includes(status)) return false;
     const createdAt = new Date(row.created_at || row.plan_date || row.publish_date || Date.now());
@@ -1784,15 +1759,6 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   ];
   const maxContentPoint = Math.max(...contentSeries.map((item) => item.value), 1);
 
-  const bonusSeries = Array.from({ length: 6 }).map((_, index) => {
-    const date = new Date();
-    date.setMonth(date.getMonth() - (5 - index));
-    const label = getMonthTitle(getMonthLabel(date)).split(" ")[0];
-    const amount = index === 5 ? Number(summary?.monthly_bonus_amount || thisMonthBonus) : Math.round((Number(summary?.monthly_bonus_amount || thisMonthBonus) || 0) * ((index + 2) / 8));
-    return { label, amount };
-  });
-  const maxBonusPoint = Math.max(...bonusSeries.map((item) => item.amount), 1);
-
   const spendSeries = Array.from({ length: 6 }).map((_, index) => {
     const date = new Date();
     date.setMonth(date.getMonth() - (5 - index));
@@ -1809,11 +1775,11 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
   });
   const maxSpendPoint = Math.max(...spendSeries.map((item) => item.amount), 1);
 
-  const travelWorkflow = [
-    { label: "Reja", value: (travelPlans || []).filter((item) => item.status === "reja").length },
-    { label: "Tasdiqlandi", value: (travelPlans || []).filter((item) => item.status === "tasdiqlandi").length },
-    { label: "Jarayonda", value: (travelPlans || []).filter((item) => ["jarayonda", "tasvirga_olindi"].includes(item.status)).length },
-    { label: "Yakunlandi", value: (travelPlans || []).filter((item) => item.status === "yakunlandi").length }
+  const productionWorkflow = [
+    { label: "Ssenariy", value: thisMonthContent.filter((item) => String(item.content_type || item.type || "").toLowerCase().includes("video") || item.script || item.scenario).length },
+    { label: "Suratga olish", value: (tasks || []).filter((item) => /surat|video|reels|shorts|olish/i.test(`${item.title || ""} ${item.description || ""}`)).length },
+    { label: "Montaj", value: (tasks || []).filter((item) => /montaj|edit|titr|musiqa/i.test(`${item.title || ""} ${item.description || ""}`)).length },
+    { label: "Joylash", value: postedCount }
   ];
 
   const smartAlerts = summary?.smart_alerts || [];
@@ -1837,15 +1803,15 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
 
   const mainMetrics = [
     { label: "Kontent bajarilishi", value: `${progress}%`, desc: `${postedCount}/${totalPlan || 0} joylangan`, tone: progress >= 70 ? "success" : progress >= 40 ? "warning" : "danger", icon: Clapperboard },
-    { label: "Joriy oy bonusi", value: formatMoney(summary?.monthly_bonus_amount || thisMonthBonus), desc: currentMonthTitle, tone: "blue", icon: BadgeDollarSign },
-    { label: "Faol kampaniyalar", value: activeCampaigns, desc: campaignCpl ? `CPL ${formatMoney(campaignCpl)}` : "target holati", tone: "violet", icon: Target },
-    { label: "Task progress", value: `${Math.round(taskProgress)}%`, desc: `${doneTasks}/${totalTasks || 0} bajarilgan`, tone: dueSoon || overdue ? "warning" : "success", icon: ListTodo }
+    { label: "Faol reklama va aksiyalar", value: activeCampaigns, desc: campaignCpl ? `CPL ${formatMoney(campaignCpl)}` : "target holati", tone: "violet", icon: Target },
+    { label: "Ish taqsimoti", value: `${Math.round(taskProgress)}%`, desc: `${doneTasks}/${totalTasks || 0} bajarilgan`, tone: dueSoon || overdue ? "warning" : "success", icon: ListTodo },
+    { label: "Media arxiv", value: uploads?.length || 0, desc: "foto, video va dizaynlar", tone: "blue", icon: Image }
   ];
 
   const secondaryMetrics = [
-    { label: "Bugungi hisobot", value: summary?.today_report_count || 0, desc: "filiallardan", tone: "blue" },
-    { label: "Media fayllar", value: uploads?.length || 0, desc: "kutubxonada", tone: "violet" },
-    { label: "Xarajatlar", value: formatMoney((expenses || []).reduce((sum, item) => sum + Number(item.amount || 0), 0)), desc: "umumiy ro‘yxat", tone: "amber" },
+    { label: "Bugungi monitoring", value: summary?.today_report_count || 0, desc: "platforma hisobotlari", tone: "blue" },
+    { label: "Reklama sarfi", value: formatMoney(campaignSpend), desc: currentMonthTitle, tone: "violet" },
+    { label: "Bugun chiqadigan kontent", value: publishedToday, desc: "kalendar bo'yicha", tone: "amber" },
     { label: "SLA signal", value: workflowSlaBreaches, desc: "48 soatdan oshgan", tone: workflowSlaBreaches ? "danger" : "success" }
   ];
 
@@ -1865,7 +1831,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
         <div className="command-hero-copy">
           <span className="command-kicker"><Sparkles size={16} /> aloo SMM Command Center</span>
           <h1>Boshqaruv markazi</h1>
-          <p>Salom, <strong>{userName}</strong>. Kontent reja, filial hisobotlari, bonus, target, media va vazifalar bir joyda nazorat qilinadi.</p>
+          <p>Salom, <strong>{userName}</strong>. Kontent strategiyasi, ssenariylar, reklama kampaniyalari, media ishlab chiqarish va hisobotlar bir joyda nazorat qilinadi.</p>
           <div className="command-hero-actions">
             <button type="button" className="btn primary" onClick={() => api.exportFile("/api/export/content.xlsx", "content.xlsx")}>Kontent Excel</button>
             <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/campaigns.xlsx", "campaigns.xlsx")}>Kampaniya Excel</button>
@@ -1880,7 +1846,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
           <div className="command-hero-list">
             <span><i /> {summary?.monthly_content_count || totalPlan} ta kontent</span>
             <span><i /> {activeCampaigns} ta faol target</span>
-            <span><i /> {topBranch ? `${topBranch.name} top filial` : "Filial KPI tayyorlanmoqda"}</span>
+            <span><i /> {topBranch ? `${topBranch.name} top monitoring` : "Platforma monitoringi tayyorlanmoqda"}</span>
           </div>
         </div>
       </section>
@@ -1907,8 +1873,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
           <SectionTitle title="Kontent va reklama ritmi" desc={`${currentMonthTitle} bo‘yicha real jarayonlar`} />
           <div className="command-chart-tabs">
             <span>Kontent</span>
-            <span>Bonus</span>
-            <span>Sarf</span>
+            <span>Reklama sarfi</span>
           </div>
           <div className="command-visual-grid">
             <div className="command-bars">
@@ -1918,11 +1883,6 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
                   <div><i style={{ width: `${Math.max((item.value / maxContentPoint) * 100, item.value ? 12 : 2)}%` }} /></div>
                   <strong>{item.value}</strong>
                 </div>
-              ))}
-            </div>
-            <div className="command-mini-line">
-              {bonusSeries.map((item) => (
-                <span key={item.label} style={{ height: `${Math.max((item.amount / maxBonusPoint) * 100, 6)}%` }} title={`${item.label}: ${formatMoney(item.amount)}`} />
               ))}
             </div>
             <div className="command-mini-line spend">
@@ -1949,7 +1909,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
 
       <section className="command-grid-3">
         <div className="command-card">
-          <SectionTitle title="Filial KPI" desc="Oxirgi hisobotlar asosida" />
+          <SectionTitle title="Platforma monitoringi" desc="Post, story va auditoriya faolligi asosida" />
           <div className="command-branch-list">
             {branchKpis.length ? branchKpis.map((item, index) => (
               <div key={item.name} className="command-branch-row">
@@ -1961,7 +1921,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
                 <div className="command-branch-bar"><i style={{ width: `${Math.max((item.score / maxBranchScore) * 100, 8)}%` }} /></div>
                 <b>{item.score}</b>
               </div>
-            )) : <div className="empty-block">Filial KPI hali yo‘q</div>}
+            )) : <div className="empty-block">Monitoring yozuvlari hali yo'q</div>}
           </div>
         </div>
 
@@ -2024,7 +1984,7 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
         </div>
 
         <div className="command-card">
-          <SectionTitle title="So‘nggi filial hisobotlari" desc="Kunlik hisobotlardan snapshot" />
+          <SectionTitle title="So'nggi platforma monitoringlari" desc="Kunlik hisobotlardan snapshot" />
           <div className="command-table-wrap">
             <table>
               <thead>
@@ -2046,21 +2006,21 @@ function DashboardPage({ summary = {}, dailyReports = [], bonusItems = [], conte
       </section>
 
       <section className="command-card command-workflow-card">
-        <SectionTitle title="Workflow holati" desc="Kontent, safar va bonus oqimlari" />
+        <SectionTitle title="Workflow holati" desc="SMM menejer va mobilograf ish oqimi" />
         <div className="command-workflow-grid">
           <div>
             <strong>Kontent workflow</strong>
             {contentSeries.map((item) => <span key={item.label}>{item.label}<b>{item.value}</b></span>)}
           </div>
           <div>
-            <strong>Safar workflow</strong>
-            {travelWorkflow.map((item) => <span key={item.label}>{item.label}<b>{item.value}</b></span>)}
+            <strong>Ishlab chiqarish workflow</strong>
+            {productionWorkflow.map((item) => <span key={item.label}>{item.label}<b>{item.value}</b></span>)}
           </div>
           <div>
-            <strong>Bonus balans</strong>
-            <span>Hisoblangan<b>{formatMoney(summary?.monthly_bonus_amount || thisMonthBonus)}</b></span>
-            <span>Stavka<b>{formatMoney(summary?.bonus_rate || 25000)}</b></span>
-            <span>Xodimlar<b>{dashboardBonusBalances.length}</b></span>
+            <strong>Haftalik fokus</strong>
+            <span>Reja va ssenariy<b>25%</b></span>
+            <span>Kampaniya va reklama<b>40%</b></span>
+            <span>Dizayn, analitika, hamkorlar<b>35%</b></span>
           </div>
         </div>
       </section>
@@ -2074,7 +2034,6 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
   const [tableSearch, setTableSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [bonusMode, setBonusMode] = useState(false);
   const [viewRow, setViewRow] = useState(null);
   const [editRow, setEditRow] = useState(null);
   const [viewMode, setViewMode] = useState("table");
@@ -2154,7 +2113,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     { label: "Jami reja", value: rows.length, hint: getMonthTitle(selectedMonth) },
     { label: "Jarayonda", value: workflowCounts.jarayonda, hint: "tayyorlanmoqda" },
     { label: "Yakunlangan", value: workflowCounts.yakunlandi, hint: "joylangan" },
-    { label: "Bonusli", value: rows.filter((item) => item.bonus_enabled).length, hint: "bonus oqimi" }
+    { label: "Video/ssenariy", value: rows.filter((item) => item.content_type === "video" || item.scenario || item.script).length, hint: "Hook, asosiy qism, CTA" }
   ];
   const platformMix = rows.reduce((acc, item) => {
     splitCellValues(item.platform).forEach((platform) => {
@@ -2239,11 +2198,9 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
 
   function resetForm() {
     setForm(emptyForm);
-    setBonusMode(false);
     setEditRow(null);
   }
 
-  const bonusRate = Number(settings?.bonus_rate || 25000);
 
   function startEdit(row) {
     if (!canEditContent) {
@@ -2277,7 +2234,6 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
       reach_value: row.reach_value || 0
     });
 
-    setBonusMode(!!row.bonus_enabled);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -2306,11 +2262,6 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
       }
     }
 
-    if (bonusMode && !form.proposal_count) {
-      onToast("Taklif soni majburiy", "error");
-      return;
-    }
-
     try {
       setSaving(true);
       const payload = {
@@ -2323,10 +2274,10 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         assigned_user_id: isVideo ? null : form.assigned_user_id || null,
         video_editor_user_id: isVideo ? form.editor_user_id || null : null,
         video_face_user_id: isVideo ? form.face_voice_user_id || null : null,
-        bonus_enabled: bonusMode,
-        proposal_count: bonusMode ? Number(form.proposal_count || 0) : 0,
-        approved_count: bonusMode ? Number(form.approved_count || 0) : 0,
-        difficulty_level: bonusMode ? normalizeDifficultyLevel(form.difficulty_level || "sodda") : "bonussiz",
+        bonus_enabled: false,
+        proposal_count: 0,
+        approved_count: 0,
+        difficulty_level: "bonussiz",
         final_url: normalizeExternalUrl(form.work_url),
         notes: "",
         approval_comment: form.approval_comment || "",
@@ -2500,7 +2451,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         />
 
         <div className="info-banner">
-          Bonus formulasi: <strong>Sodda 25,000 UZS</strong>, <strong>O'rta 50,000 UZS</strong>, <strong>Murakkab 75,000 UZS</strong>, <strong>Juda murakkab 100,000 UZS</strong>, <strong>Bonussiz 0 UZS</strong>.
+          Video kontent uchun ssenariy to'liq bo'lishi kerak: <strong>Hook</strong>, <strong>asosiy qism</strong> va <strong>CTA</strong>. Mobilograf tasdiqlangan reja asosida suratga olish, montaj va joylashni bajaradi.
         </div>
         <div className="content-modern-stats">
           {contentModernStats.map((item) => (
@@ -2647,26 +2598,6 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
             </label>
           )}
 
-          <label className="checkbox-row">
-            <input type="checkbox" checked={bonusMode} onChange={(e) => setBonusMode(e.target.checked)} disabled={formLocked} />
-            <span>Bonusga o'tkazish</span>
-          </label>
-
-          {bonusMode ? (
-            <>
-              <label><span>Taklif soni</span><input type="number" min="0" value={form.proposal_count} onChange={(e) => setField("proposal_count", e.target.value)} required disabled={formLocked} /></label>
-              <label>
-                <span>Murakkablik darajasi</span>
-                <select value={form.difficulty_level} onChange={(e) => setField("difficulty_level", e.target.value)} disabled={formLocked}>
-                  {BONUS_DIFFICULTY_OPTIONS.map((item) => (
-                    <option key={item.value} value={item.value}>{item.label}</option>
-                  ))}
-                </select>
-              </label>
-              <label><span>Qabul birlik</span><input type="number" min="0" value={form.approved_count} onChange={(e) => setField("approved_count", e.target.value)} disabled={formLocked} /></label>
-            </>
-          ) : null}
-
           <label className="full-col">
             <span>Qilingan ish linki</span>
             <input
@@ -2734,13 +2665,12 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                   <th>Kontent turi</th>
                   <th>Rubrika</th>
                   <th>Mas'ul / Video</th>
-                  <th>Bonus</th>
                   <th>Amallar</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
-                  <tr><td colSpan="9" className="empty-cell">Yuklanmoqda...</td></tr>
+                  <tr><td colSpan="8" className="empty-cell">Yuklanmoqda...</td></tr>
                 ) : visibleRows.length ? (
                   visibleRows.map((row) => (
                     <tr key={row.id}>
@@ -2796,11 +2726,6 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                         </div>
                       </td>
                       <td>
-                        <span className={`table-chip bonus ${row.bonus_enabled ? "success" : "default"}`}>
-                          {row.bonus_enabled ? "Bonus yoqilgan" : "Bonus yo'q"}
-                        </span>
-                      </td>
-                      <td>
                         <div className="table-actions-shell">
                           <IconActions
                             onView={() => setViewRow(row)}
@@ -2812,7 +2737,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan="9" className="empty-cell">{tableSearch.trim() ? "Qidiruv bo'yicha kontent topilmadi" : "Bu oy uchun reja yo'q"}</td></tr>
+                  <tr><td colSpan="8" className="empty-cell">{tableSearch.trim() ? "Qidiruv bo'yicha kontent topilmadi" : "Bu oy uchun reja yo'q"}</td></tr>
                 )}
               </tbody>
             </table>
@@ -2822,7 +2747,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               <div className="mobile-record-card empty">Yuklanmoqda...</div>
             ) : visibleRows.length ? (
               visibleRows.map((row) => (
-                <div key={`content-card-${row.id}`} className={`mobile-record-card ${row.bonus_enabled ? "bonus" : ""}`}>
+                <div key={`content-card-${row.id}`} className="mobile-record-card">
                   <div className="mobile-record-head">
                     <div className="mobile-record-title">
                       <strong>{row.title}</strong>
@@ -2846,10 +2771,6 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                           ? `${row.video_editor_name || "-"} / ${row.video_face_name || "-"}`
                           : row.assignee_name || "-"}
                       </div>
-                    </div>
-                    <div className="mobile-record-field">
-                      <label>Bonus</label>
-                      <div>{row.bonus_enabled ? "Ha" : "Yo'q"}</div>
                     </div>
                   </div>
                   <div className="mobile-record-actions">
@@ -2927,7 +2848,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                 const branchIds = Array.isArray(item.branch_ids_json) ? item.branch_ids_json.map(Number) : [];
                 const branchIndex = branchIds.length ? Math.abs(branchIds[0]) % 6 : 0;
                 return (
-                  <button key={item.id} type="button" className={`calendar-pill content-calendar-pill branch-tone-${branchIndex} ${item.bonus_enabled ? "bonus" : ""}`} onClick={() => setViewRow(item)}>
+                  <button key={item.id} type="button" className={`calendar-pill content-calendar-pill branch-tone-${branchIndex}`} onClick={() => setViewRow(item)}>
                     <span>{item.platform || "-"}</span>
                     {item.title}
                   </button>
@@ -2992,10 +2913,6 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                 <div><strong>Platforma</strong><span className="table-chip-row">{splitCellValues(viewRow.platform).length ? splitCellValues(viewRow.platform).map((platform, idx) => <PlatformBadge key={`${viewRow.id}-detail-platform-${idx}`} platform={platform} />) : "-"}</span></div>
                 <div><strong>Turi</strong><span>{formatContentType(viewRow.content_type)}</span></div>
                 <div><strong>Rubrika</strong><span>{formatRubric(viewRow.rubric)}</span></div>
-                <div><strong>Bonus</strong><span>{viewRow.bonus_enabled ? "Ha" : "Yo'q"}</span></div>
-                <div><strong>Taklif soni</strong><span>{viewRow.proposal_count || 0}</span></div>
-                {viewRow.bonus_enabled ? <div><strong>Murakkablik</strong><span>{formatDifficultyHelp(viewRow.difficulty_level)}</span></div> : null}
-                <div><strong>Qabul birlik</strong><span>{viewRow.approved_count || 0}</span></div>
                 <div className="full-col">
                   <strong>Qilingan ish linki</strong>
                   <span>
@@ -5026,13 +4943,13 @@ function PublicLandingPage({ settings }) {
       metric: "24/7"
     },
     {
-      title: "Bonus payroll",
-      text: "MySeOne sync, pending, payroll ready, paid va oylik yopish jarayoni aniq ko'rinadi.",
+      title: "Reklama va aksiyalar",
+      text: "Instagram, Facebook, Telegram, YouTube, Google Ads, bloger va media hamkorliklar natijasi nazorat qilinadi.",
       metric: "1 joy"
     },
     {
-      title: "Finance center",
-      text: "Harajat qo'shish, fiskal chek, budget limit, cashflow, kategoriya tahlili va export.",
+      title: "Media arxiv",
+      text: "Foto, video, dizayn, banner, Reels va Shorts materiallari tartibli saqlanadi va tez topiladi.",
       metric: "100%"
     },
     {
@@ -5047,9 +4964,9 @@ function PublicLandingPage({ settings }) {
     }
   ];
   const testimonials = [
-    ["Dilshod Karimov", "SMM agentlik rahbari", "Kontent, bonus va harajatlar bir joyga tushgach jamoa ishini nazorat qilish ancha tezlashdi."],
+    ["Dilshod Karimov", "SMM agentlik rahbari", "Kontent, reklama, media va hisobotlar bir joyga tushgach jamoa ishini nazorat qilish ancha tezlashdi."],
     ["Malika Sodiqova", "Marketing manager", "Deadline va Telegram eslatmalari sabab kontent kechikishi kamaydi, jarayon ko'z oldimizda turadi."],
-    ["Azizbek Tursunov", "Mobilograf", "Safar, topshiriq va fayllar bitta joyda. Telefon orqali ham ishlash qulay."]
+    ["Azizbek Tursunov", "Mobilograf", "Suratga olish, montaj, joylash va fayllar bitta joyda. Telefon orqali ham ishlash qulay."]
   ];
 
   return (
@@ -5085,7 +5002,7 @@ function PublicLandingPage({ settings }) {
           </div>
           <div className="public-hero-center">
             <h1><span>Aloo SMM</span> jamoalari uchun superkuch</h1>
-            <p>Kontent, vazifa, bonus, moliya, Telegram xabarlari va AI signallar - barchasi bitta oddiy va qulay operatsion tizimda.</p>
+            <p>Kontent reja, ssenariy, reklama, blogerlar, media arxiv, Telegram xabarlari va AI signallar - barchasi bitta oddiy operatsion tizimda.</p>
             <div className="public-hero-actions">
               <a className="public-primary" href="/login">Sinab ko'rish</a>
               <a className="public-secondary" href="#solutions"><span /> Videoni tomosha qilish</a>
@@ -5101,7 +5018,7 @@ function PublicLandingPage({ settings }) {
             <div className="public-preview-window">
               <div className="public-preview-sidebar">
                 <img src={logoSrc} alt="" />
-                {["Dashboard", "Content Studio", "Bonus Payroll", "Finance", "Telegram"].map((item, index) => (
+                {["Dashboard", "Content Studio", "Reklama", "Media arxiv", "Telegram"].map((item, index) => (
                   <span key={item} className={index === 1 ? "active" : ""}>{item}</span>
                 ))}
               </div>
@@ -5113,7 +5030,7 @@ function PublicLandingPage({ settings }) {
                 <div className="public-preview-stats">
                   <div><span>Postlar</span><strong>128</strong></div>
                   <div><span>Deadline risk</span><strong>6</strong></div>
-                  <div><span>Paid bonus</span><strong>42 mln</strong></div>
+                  <div><span>Faol aksiya</span><strong>7</strong></div>
                 </div>
                 <div className="public-preview-table">
                   {["Instagram reels", "Telegram post", "Story pack"].map((item, index) => (
@@ -5197,8 +5114,8 @@ function PublicLandingPage({ settings }) {
           <div>
             <strong>Yechimlar</strong>
             <a href="#solutions">Content Studio</a>
-            <a href="#solutions">Bonus Payroll</a>
-            <a href="#solutions">Finance Center</a>
+            <a href="#solutions">Reklama va aksiyalar</a>
+            <a href="#solutions">Media arxiv</a>
           </div>
           <div>
             <strong>Kompaniya</strong>
@@ -6684,15 +6601,15 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme, onToast, relo
     {
       label: "Workflow",
       value: telegramConfigured ? "Real-time" : "Offline",
-      hint: "login, deadline, bonus, finance",
+      hint: "login, deadline, kampaniya, media",
       tone: telegramConfigured ? "info" : "default"
     }
   ];
   const telegramOps = [
     { title: "Login kod", text: "Telefon raqam orqali bir martalik kod yuboriladi", meta: telegramConfigured ? "ready" : "setup", tone: telegramConfigured ? "success" : "warning" },
     { title: "Deadline signal", text: "Kontent deadline yaqinlashganda guruhga xabar ketadi", meta: "auto", tone: "info" },
-    { title: "Bonus paid", text: "Payroll paid bo'lganda hodim va guruhga notification", meta: "payroll", tone: "success" },
-    { title: "Finance risk", text: "Budget limit oshsa signal markaziga chiqadi", meta: "monitor", tone: "warning" }
+    { title: "Kampaniya signal", text: "Reklama yoki aksiya natijasi bo'yicha muhim signal chiqadi", meta: "campaign", tone: "success" },
+    { title: "Media monitoring", text: "Yangi fayl, montaj yoki publish holati jamoaga ko'rinadi", meta: "monitor", tone: "warning" }
   ];
 
   async function testTelegramConnection() {
@@ -6715,7 +6632,6 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme, onToast, relo
           <label><span>Kompaniya nomi</span><input value={form.company_name || ""} onChange={(e) => setField("company_name", e.target.value)} /></label>
           <label><span>Platforma nomi</span><input value={form.platform_name || ""} onChange={(e) => setField("platform_name", e.target.value)} /></label>
           <label><span>Bo'lim</span><input value={form.department_name || ""} onChange={(e) => setField("department_name", e.target.value)} /></label>
-          <label><span>Bonus stavkasi</span><input type="number" min="0" value={form.bonus_rate || 25000} onChange={(e) => setField("bonus_rate", e.target.value)} /></label>
           <label><span>Telegram bot token</span><input value={form.telegram_bot_token || ""} onChange={(e) => setField("telegram_bot_token", e.target.value)} /></label>
           <label><span>Telegram chat ID</span><input value={form.telegram_chat_id || ""} onChange={(e) => setField("telegram_chat_id", e.target.value)} /></label>
           <label><span>Websayt</span><input value={form.website_url || ""} onChange={(e) => setField("website_url", e.target.value)} /></label>
@@ -6734,7 +6650,7 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme, onToast, relo
             <img src={LOGIN_LOGO} alt="Logo preview" className="settings-logo-image" />
             <div>
               <strong>{form.company_name || "aloo"}</strong>
-              <span>{form.platform_name || "SMM jamoasi platformasi"} - {formatMoney(form.bonus_rate || 25000)}</span>
+              <span>{form.platform_name || "SMM jamoasi platformasi"} - kontent, reklama va media nazorati</span>
             </div>
           </div>
         </div>
@@ -8098,10 +8014,9 @@ function App() {
   const pageNeedsReferences = useCallback((pageId) => {
     return [
       "content",
-      "bonus",
-      "travelPlans",
       "dailyReports",
       "campaigns",
+      "uploads",
       "users",
       "tasks"
     ].includes(pageId);
@@ -8141,24 +8056,18 @@ function App() {
   const loadPageData = useCallback(async (pageId) => {
     switch (pageId) {
       case "dashboard": {
-        const [bonusItemsRes, contentRes, dailyReportsRes, campaignsRes, travelPlansRes, tasksRes, uploadsRes, expensesRes] = await Promise.all([
-          api.list("bonus-items").catch(() => []),
+        const [contentRes, dailyReportsRes, campaignsRes, tasksRes, uploadsRes] = await Promise.all([
           api.list("content").catch(() => []),
           api.list("daily-reports").catch(() => []),
           api.list("campaigns").catch(() => []),
-          api.list("travel-plans").catch(() => []),
           api.list("tasks").catch(() => []),
-          api.list("uploads").catch(() => []),
-          api.list("expenses").catch(() => [])
+          api.list("uploads").catch(() => [])
         ]);
-        setBonusItems(bonusItemsRes || []);
         setContentRows(contentRes || []);
         setDailyReports(dailyReportsRes || []);
         setCampaigns(campaignsRes || []);
-        setTravelPlans(travelPlansRes || []);
         setTasks(tasksRes || []);
         setUploads(uploadsRes || []);
-        setExpenses(expensesRes || []);
         break;
       }
       case "content":
@@ -8438,13 +8347,13 @@ function App() {
 
   const mobilePrimaryMenu = useMemo(() => {
     const rolePreferred = {
-      director: ["dashboard", "expenses", "analytics", "profile"],
-      manager: ["dashboard", "content", "tasks", "dailyReports", "profile"],
+      director: ["dashboard", "analytics", "campaigns", "profile"],
+      manager: ["dashboard", "content", "tasks", "campaigns", "profile"],
       editor: ["dashboard", "tasks", "uploads", "content", "profile"],
-      mobilograf: ["dashboard", "travelPlans", "tasks", "uploads", "profile"],
-      viewer: ["dashboard", "content", "expenses", "profile"]
+      mobilograf: ["dashboard", "tasks", "uploads", "content", "profile"],
+      viewer: ["dashboard", "content", "analytics", "profile"]
     };
-    const preferred = rolePreferred[user?.role] || ["dashboard", "content", "bonus", "tasks", "profile"];
+    const preferred = rolePreferred[user?.role] || ["dashboard", "content", "tasks", "campaigns", "profile"];
     const pinned = preferred
       .map((id) => allowedMenu.find((item) => item.id === id))
       .filter(Boolean);
@@ -8590,13 +8499,10 @@ function App() {
       <DashboardPage
         summary={summary}
         dailyReports={dailyReports}
-        bonusItems={bonusItems}
         contentRows={contentRows}
         campaigns={campaigns}
-        travelPlans={travelPlans}
         tasks={tasks}
         uploads={uploads}
-        expenses={expenses}
         user={user}
       />
     );
@@ -8763,9 +8669,8 @@ function App() {
                     {[
                       { key: "users", label: "Hodimlar", items: globalResults?.users || [] },
                       { key: "content", label: "Kontent", items: globalResults?.content || [] },
-                      { key: "tasks", label: "Vazifalar", items: globalResults?.tasks || [] },
-                      { key: "bonuses", label: "Bonus", items: globalResults?.bonuses || [] },
-                      { key: "travel_plans", label: "Safar rejasi", items: globalResults?.travel_plans || [] }
+                      { key: "tasks", label: "Ish taqsimoti", items: globalResults?.tasks || [] },
+                      { key: "campaigns", label: "Reklama va aksiyalar", items: globalResults?.campaigns || [] }
                     ].map((group) => (
                       <div key={group.key} className="global-search-group">
                         <strong>{group.label}</strong>
@@ -8780,8 +8685,7 @@ function App() {
                               if (group.key === "users") goToPage("users");
                               else if (group.key === "content") goToPage("content");
                               else if (group.key === "tasks") goToPage("tasks");
-                              else if (group.key === "bonuses") goToPage("bonus");
-                              else if (group.key === "travel_plans") goToPage("travelPlans");
+                              else if (group.key === "campaigns") goToPage("campaigns");
                             }}
                           >
                             <span>{item.full_name || item.title || item.content_title || item.video_title || item.body}</span>
