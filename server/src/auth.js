@@ -2,7 +2,14 @@ import "dotenv/config";
 import jwt from "jsonwebtoken";
 import { query } from "./db.js";
 
-const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
+const JWT_SECRET = process.env.JWT_SECRET || "dev-only-change-me";
+if (!process.env.JWT_SECRET) {
+  const message = "JWT_SECRET environment variable is not set.";
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(message + " Set JWT_SECRET in production variables.");
+  }
+  console.warn(message + " Using a development-only fallback.");
+}
 
 function safePermissions(raw) {
   return Array.isArray(raw) ? raw : [];

@@ -19,7 +19,14 @@ import { importDailyReportsFromImages } from "./dailyReportImport.js";
 
 const app = express();
 const PORT = process.env.PORT || 8080;
-const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
+const JWT_SECRET = process.env.JWT_SECRET || "dev-only-change-me";
+if (!process.env.JWT_SECRET) {
+  const message = "JWT_SECRET environment variable is not set.";
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(message + " Set JWT_SECRET in production variables.");
+  }
+  console.warn(message + " Using a development-only fallback.");
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,7 +44,10 @@ app.use(
   cors({
     origin(origin, callback) {
       if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
-      return callback(null, true);
+      if (process.env.NODE_ENV !== "production" && origin?.startsWith("http://localhost:")) {
+        return callback(null, true);
+      }
+      return callback(new Error(`CORS blocked origin: ${origin}`));
     },
     credentials: true
   })
@@ -1293,6 +1303,55 @@ async function pullBonusUpdatesFromMySeOne(force = false) {
 
 async function ensureRuntimeSchema() {
   const statements = [
+    // Keep existing data and make later ALTER TABLE statements safe on fresh databases.
+    `CREATE TABLE IF NOT EXISTS expenses (
+      id SERIAL PRIMARY KEY,
+      expense_date DATE,
+      title TEXT NOT NULL,
+      vendor_name TEXT,
+      card_holder TEXT,
+      amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'UZS',
+      category TEXT,
+      payment_type TEXT NOT NULL DEFAULT 'visa',
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      recurrence_key TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS travel_expenses (
+      id SERIAL PRIMARY KEY,
+      expense_date DATE NOT NULL,
+      category TEXT NOT NULL DEFAULT 'kategoriya_yoq',
+      title TEXT NOT NULL,
+      amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      currency TEXT NOT NULL DEFAULT 'UZS',
+      entry_type TEXT NOT NULL DEFAULT 'chiqim',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS travel_plans (
+      id SERIAL PRIMARY KEY,
+      plan_date DATE,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      video_title TEXT NOT NULL,
+      participants_text TEXT,
+      videodek_url TEXT,
+      scenario_text TEXT,
+      checklist_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      budget_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      transport_text TEXT,
+      hotel_text TEXT,
+      deadline_date DATE,
+      status TEXT NOT NULL DEFAULT 'reja',
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS company_name TEXT NOT NULL DEFAULT 'aloo'`,
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS platform_name TEXT NOT NULL DEFAULT 'SMM jamoasi platformasi'`,
     `ALTER TABLE app_settings ADD COLUMN IF NOT EXISTS department_name TEXT NOT NULL DEFAULT 'SMM department'`,
@@ -1359,7 +1418,15 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS myseone_sync_error TEXT`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS myseone_synced_at TIMESTAMP`,
     `ALTER TABLE bonus_items ADD COLUMN IF NOT EXISTS work_url TEXT`,
-    `ALTER TABLE bonus_items ALTER COLUMN bonus_id DROP NOT NULL`,
+    `DO $$
+      BEGIN
+        IF EXISTS (
+          SELECT 1 FROM information_schema.columns
+          WHERE table_name = 'bonus_items' AND column_name = 'bonus_id'
+        ) THEN
+          ALTER TABLE bonus_items ALTER COLUMN bonus_id DROP NOT NULL;
+        END IF;
+      END $$;`,
     `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS subscriber_count INTEGER NOT NULL DEFAULT 0`,
     `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS condition_text TEXT`,
     `ALTER TABLE daily_branch_reports ADD COLUMN IF NOT EXISTS notes TEXT`,
@@ -1933,9 +2000,6 @@ app.post("/api/auth/login", async (req, res) => {
       ok = false;
     }
 
-    if (!ok && ((phone === "998939000" || login === "admin") && password === "12345678")) {
-      ok = true;
-    }
 
     if (!ok) {
       return res.status(401).json({ message: "Login yoki parol notoвЂgвЂri" });
