@@ -54,6 +54,8 @@ const MENU = [
   { id: "dashboard", title: "Boshqaruv markazi", icon: LayoutDashboard, tone: "indigo", desc: "SMM command center" },
   { id: "content", title: "Kontent reja", icon: Clapperboard, tone: "cyan", desc: "Postlar va reja" },
   { id: "tasks", title: "Ish taqsimoti", icon: ListTodo, tone: "green", desc: "SMM va mobilograf workflow" },
+  { id: "travelPlans", title: "Safar rejasi", icon: PlaneTakeoff, tone: "violet", desc: "SMM va mobilograf rejalari" },
+  { id: "bonus", title: "Bonus tizimi", icon: BadgeDollarSign, tone: "emerald", desc: "Faqat mobilograf uchun" },
   { id: "campaigns", title: "Reklama va aksiyalar", icon: Target, tone: "fuchsia", desc: "Target, bloger va hamkorlar" },
   { id: "uploads", title: "Media kutubxona", icon: Image, tone: "purple", desc: "Fayl va assetlar" },
   { id: "analytics", title: "Analitika va hisobot", icon: BarChart3, tone: "sky", desc: "Natija va auditoriya" },
@@ -76,9 +78,9 @@ const SIDEBAR_WORKSPACES = [
     id: "smm",
     title: "SMM menejer",
     desc: "Strategiya, kontent, reklama",
-    items: ["dashboard", "content", "tasks", "campaigns", "analytics", "dailyReports", "uploads", "users", "settings"],
+    items: ["dashboard", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "uploads", "users", "settings"],
     groups: [
-      { id: "smm-main", title: "Reja va ssenariy", items: ["dashboard", "content", "tasks"] },
+      { id: "smm-main", title: "Reja va ssenariy", items: ["dashboard", "content", "tasks", "travelPlans"] },
       { id: "smm-growth", title: "Reklama va natija", items: ["campaigns", "analytics", "dailyReports"] },
       { id: "smm-admin", title: "Jamoa", items: ["uploads", "users", "settings", "profile"] }
     ]
@@ -87,9 +89,9 @@ const SIDEBAR_WORKSPACES = [
     id: "mobilograf",
     title: "Mobilograf",
     desc: "Foto, video, montaj",
-    items: ["dashboard", "tasks", "content", "uploads", "dailyReports", "profile"],
+    items: ["dashboard", "travelPlans", "bonus", "tasks", "content", "uploads", "dailyReports", "profile"],
     groups: [
-      { id: "mob-main", title: "Ish jarayoni", items: ["dashboard", "tasks"] },
+      { id: "mob-main", title: "Ish jarayoni", items: ["dashboard", "travelPlans", "bonus", "tasks"] },
       { id: "mob-content", title: "Kontent ishlab chiqarish", items: ["content", "uploads", "dailyReports"] },
       { id: "mob-account", title: "Shaxsiy", items: ["profile"] }
     ]
@@ -104,12 +106,49 @@ const getDefaultWorkspaceForUser = (currentUser) => {
   return "smm";
 };
 
+const isMobilografUser = (currentUser) => {
+  const role = String(currentUser?.role || "").toLowerCase();
+  const departmentRole = String(currentUser?.department_role || "").toLowerCase();
+  return role.includes("mobilograf") || departmentRole.includes("mobilograf") || role.includes("video") || departmentRole.includes("video");
+};
+
+const scopedDataQuery = (currentUser) => (
+  currentUser?.role === "admin" ? null : { scope: "mine" }
+);
+
+const rolePresetPermissions = (currentUser) => {
+  if (isMobilografUser(currentUser)) {
+    return [
+      "dashboard",
+      "content",
+      "uploads",
+      "dailyReports",
+      "tasks",
+      "travelPlans",
+      "travelPlans_create",
+      "travelPlans_edit",
+      "travelPlans_delete",
+      "bonus",
+      "bonus_create",
+      "bonus_edit",
+      "bonus_delete",
+      "profile"
+    ];
+  }
+  if (["manager", "director"].includes(String(currentUser?.role || "").toLowerCase())) {
+    return ["travelPlans", "travelPlans_create", "travelPlans_edit", "travelPlans_delete"];
+  }
+  return [];
+};
+
 const ROUTES_BY_PAGE = {
   landing: "/",
   login: "/login",
   campaignLeadForm: "/reklama-forma",
   dashboard: "/menu",
   content: "/kontent",
+  bonus: "/bonus",
+  travelPlans: "/safar",
   analytics: "/analytics",
   dailyReports: "/kunlik-hisobotlar",
   campaigns: "/reklama",
@@ -128,10 +167,10 @@ const PAGE_BY_ROUTE = {
   "/menu": "dashboard",
   "/dashboard": "dashboard",
   "/kontent": "content",
-  "/bonus": "dashboard",
+  "/bonus": "bonus",
   "/harajatlar": "dashboard",
   "/finance": "dashboard",
-  "/safar": "tasks",
+  "/safar": "travelPlans",
   "/analytics": "analytics",
   "/kunlik-hisobotlar": "dailyReports",
   "/reklama": "campaigns",
@@ -149,6 +188,14 @@ const PERMISSION_OPTIONS = [
   { id: "content_create", label: "Kontent qo'shish" },
   { id: "content_edit", label: "Kontent tahrirlash" },
   { id: "content_delete", label: "Kontent o'chirish" },
+  { id: "bonus", label: "Bonus tizimi" },
+  { id: "bonus_create", label: "Bonus qo'shish" },
+  { id: "bonus_edit", label: "Bonus tahrirlash" },
+  { id: "bonus_delete", label: "Bonus o'chirish" },
+  { id: "travelPlans", label: "Safar rejasi" },
+  { id: "travelPlans_create", label: "Safar reja qo'shish" },
+  { id: "travelPlans_edit", label: "Safar reja tahrirlash" },
+  { id: "travelPlans_delete", label: "Safar reja o'chirish" },
   { id: "analytics", label: "Analitika va hisobot" },
   { id: "dailyReports", label: "Platforma monitoringi" },
   { id: "dailyReports_edit", label: "Hisobot tahrirlash" },
@@ -173,9 +220,9 @@ const DIRECTOR_PERMISSION_PRESET = PERMISSION_OPTIONS.map((item) => item.id);
 
 const ROLE_WORKSPACE_PRESETS = {
   director: ["dashboard", "analytics", "dailyReports", "campaigns", "profile"],
-  manager: ["dashboard", "content", "tasks", "campaigns", "analytics", "dailyReports", "profile"],
+  manager: ["dashboard", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "profile"],
   editor: ["dashboard", "tasks", "uploads", "content", "profile"],
-  mobilograf: ["dashboard", "tasks", "content", "uploads", "dailyReports", "profile"],
+  mobilograf: ["dashboard", "travelPlans", "bonus", "tasks", "content", "uploads", "dailyReports", "profile"],
   viewer: ["dashboard", "content", "campaigns", "analytics", "dailyReports", "profile"]
 };
 
@@ -1697,7 +1744,7 @@ function RoleWorkspacePanel({ role = "", summary = {}, contentRows = [], bonusIt
   );
 }
 
-function DashboardPage({ summary = {}, dailyReports = [], contentRows = [], campaigns = [], tasks = [], uploads = [], user = null }) {
+function DashboardPage({ summary = {}, dailyReports = [], contentRows = [], campaigns = [], travelPlans = [], tasks = [], uploads = [], user = null }) {
   const currentMonth = getMonthLabel();
   const todayKey = formatDate(new Date());
   const currentMonthTitle = getMonthTitle(currentMonth);
@@ -1731,7 +1778,7 @@ function DashboardPage({ summary = {}, dailyReports = [], contentRows = [], camp
   const totalTasks = Number(summary?.daily_task_total || summary?.task_count || tasks.length || 0);
   const taskProgress = totalTasks ? Math.round((doneTasks / totalTasks) * 100) : Number(summary?.daily_task_progress || 0);
 
-  const workflowSlaBreaches = [...(contentRows || []), ...(tasks || [])].filter((row) => {
+  const workflowSlaBreaches = [...(contentRows || []), ...(travelPlans || []), ...(tasks || [])].filter((row) => {
     const status = String(row.status || "");
     if (["tasdiqlandi", "yakunlandi", "joylangan", "published", "approved", "archived"].includes(status)) return false;
     const createdAt = new Date(row.created_at || row.plan_date || row.publish_date || Date.now());
@@ -1779,7 +1826,7 @@ function DashboardPage({ summary = {}, dailyReports = [], contentRows = [], camp
     { label: "Ssenariy", value: thisMonthContent.filter((item) => String(item.content_type || item.type || "").toLowerCase().includes("video") || item.script || item.scenario).length },
     { label: "Suratga olish", value: (tasks || []).filter((item) => /surat|video|reels|shorts|olish/i.test(`${item.title || ""} ${item.description || ""}`)).length },
     { label: "Montaj", value: (tasks || []).filter((item) => /montaj|edit|titr|musiqa/i.test(`${item.title || ""} ${item.description || ""}`)).length },
-    { label: "Joylash", value: postedCount }
+    { label: "Safar", value: travelPlans?.length || 0 }
   ];
 
   const smartAlerts = summary?.smart_alerts || [];
@@ -1805,13 +1852,13 @@ function DashboardPage({ summary = {}, dailyReports = [], contentRows = [], camp
     { label: "Kontent bajarilishi", value: `${progress}%`, desc: `${postedCount}/${totalPlan || 0} joylangan`, tone: progress >= 70 ? "success" : progress >= 40 ? "warning" : "danger", icon: Clapperboard },
     { label: "Faol reklama va aksiyalar", value: activeCampaigns, desc: campaignCpl ? `CPL ${formatMoney(campaignCpl)}` : "target holati", tone: "violet", icon: Target },
     { label: "Ish taqsimoti", value: `${Math.round(taskProgress)}%`, desc: `${doneTasks}/${totalTasks || 0} bajarilgan`, tone: dueSoon || overdue ? "warning" : "success", icon: ListTodo },
-    { label: "Media arxiv", value: uploads?.length || 0, desc: "foto, video va dizaynlar", tone: "blue", icon: Image }
+    { label: "Safar rejalari", value: travelPlans?.length || 0, desc: "o'z scope bo'yicha", tone: "blue", icon: PlaneTakeoff }
   ];
 
   const secondaryMetrics = [
     { label: "Bugungi monitoring", value: summary?.today_report_count || 0, desc: "platforma hisobotlari", tone: "blue" },
     { label: "Reklama sarfi", value: formatMoney(campaignSpend), desc: currentMonthTitle, tone: "violet" },
-    { label: "Bugun chiqadigan kontent", value: publishedToday, desc: "kalendar bo'yicha", tone: "amber" },
+    { label: "Media arxiv", value: uploads?.length || 0, desc: "foto, video va dizaynlar", tone: "amber" },
     { label: "SLA signal", value: workflowSlaBreaches, desc: "48 soatdan oshgan", tone: workflowSlaBreaches ? "danger" : "success" }
   ];
 
@@ -3350,13 +3397,13 @@ function BonusPage({ bonusItems = [], users = [], branches = [], settings, user,
   const canEditBonus = canDoAction(user, "bonus", "edit");
   const canDeleteBonus = canDoAction(user, "bonus", "delete");
   const currentUserId = user?.id ? String(user.id) : "";
-  const currentWorkspace = getPreferredWorkspace(user);
-  const isSmmManagerBonusMode = currentWorkspace === "smm" && !["admin", "director"].includes(String(user?.role || "").toLowerCase());
+  const isMobilografBonusMode = isMobilografUser(user);
+  const isSmmManagerBonusMode = false;
   const selectableBonusUsers = useMemo(() => {
     const list = users || [];
-    if (!isSmmManagerBonusMode || !currentUserId) return list;
-    return list.filter((item) => String(item.id) !== currentUserId);
-  }, [users, isSmmManagerBonusMode, currentUserId]);
+    if (!isMobilografBonusMode || !currentUserId) return list;
+    return list.filter((item) => String(item.id) === currentUserId);
+  }, [users, isMobilografBonusMode, currentUserId]);
   const bonusFormLocked = editRow ? !canEditBonus : !canCreateBonus;
 
   useEffect(() => {
@@ -8014,6 +8061,8 @@ function App() {
   const pageNeedsReferences = useCallback((pageId) => {
     return [
       "content",
+      "bonus",
+      "travelPlans",
       "dailyReports",
       "campaigns",
       "uploads",
@@ -8054,18 +8103,21 @@ function App() {
   }, []);
 
   const loadPageData = useCallback(async (pageId) => {
+    const queryScope = scopedDataQuery(user);
     switch (pageId) {
       case "dashboard": {
-        const [contentRes, dailyReportsRes, campaignsRes, tasksRes, uploadsRes] = await Promise.all([
+        const [contentRes, dailyReportsRes, campaignsRes, travelPlansRes, tasksRes, uploadsRes] = await Promise.all([
           api.list("content").catch(() => []),
           api.list("daily-reports").catch(() => []),
           api.list("campaigns").catch(() => []),
+          api.list("travel-plans", queryScope).catch(() => []),
           api.list("tasks").catch(() => []),
           api.list("uploads").catch(() => [])
         ]);
         setContentRows(contentRes || []);
         setDailyReports(dailyReportsRes || []);
         setCampaigns(campaignsRes || []);
+        setTravelPlans(travelPlansRes || []);
         setTasks(tasksRes || []);
         setUploads(uploadsRes || []);
         break;
@@ -8074,7 +8126,7 @@ function App() {
         setContentRows(await api.list("content").catch(() => []));
         break;
       case "bonus":
-        setBonusItems(await api.list("bonus-items").catch(() => []));
+        setBonusItems(await api.list("bonus-items", queryScope).catch(() => []));
         break;
       case "expenses": {
         const [expensesRes, contestExpensesRes, campaignsRes, bonusItemsRes, travelPlansRes, budgetsRes, financeLocksRes] = await Promise.all([
@@ -8112,8 +8164,8 @@ function App() {
       }
       case "travelPlans": {
         const [travelPlansRes, travelExpensesRes] = await Promise.all([
-          api.list("travel-plans").catch(() => []),
-          api.list("travel-expenses").catch(() => [])
+          api.list("travel-plans", queryScope).catch(() => []),
+          api.list("travel-expenses", queryScope).catch(() => [])
         ]);
         setTravelPlans(travelPlansRes || []);
         setTravelExpenses(travelExpensesRes || []);
@@ -8149,7 +8201,7 @@ function App() {
       default:
         break;
     }
-  }, []);
+  }, [user]);
 
   const reloadData = useCallback(async (pageId = activeRef.current || "dashboard", options = {}) => {
     try {
@@ -8276,16 +8328,20 @@ function App() {
   }, [globalSearch, user?.id]);
 
   const allowedMenu = useMemo(() => {
-    if (user?.role === "admin") return MENU;
-    const permissions = safePermissions(user?.permissions_json);
+    const scopeItems = getDefaultWorkspaceForUser(user) === "mobilograf"
+      ? SIDEBAR_WORKSPACES.find((workspace) => workspace.id === "mobilograf")?.items || []
+      : SIDEBAR_WORKSPACES.find((workspace) => workspace.id === "smm")?.items || [];
+    const scopedMenu = MENU.filter((item) => scopeItems.includes(item.id));
+    if (user?.role === "admin") return scopedMenu;
+    const permissions = [...new Set([...safePermissions(user?.permissions_json), ...rolePresetPermissions(user)])];
     const rolePreset = ROLE_WORKSPACE_PRESETS[user?.role] || null;
     if (!permissions.length) {
-      return MENU.filter((item) => (rolePreset || ["dashboard", "profile"]).includes(item.id));
+      return scopedMenu.filter((item) => (rolePreset || ["dashboard", "profile"]).includes(item.id));
     }
     if (rolePreset) {
-      return MENU.filter((item) => permissions.includes(item.id) && rolePreset.includes(item.id));
+      return scopedMenu.filter((item) => permissions.includes(item.id) && rolePreset.includes(item.id));
     }
-    return MENU.filter((item) => permissions.includes(item.id));
+    return scopedMenu.filter((item) => permissions.includes(item.id));
   }, [user]);
 
   useEffect(() => {
@@ -8348,12 +8404,12 @@ function App() {
   const mobilePrimaryMenu = useMemo(() => {
     const rolePreferred = {
       director: ["dashboard", "analytics", "campaigns", "profile"],
-      manager: ["dashboard", "content", "tasks", "campaigns", "profile"],
+      manager: ["dashboard", "content", "travelPlans", "campaigns", "profile"],
       editor: ["dashboard", "tasks", "uploads", "content", "profile"],
-      mobilograf: ["dashboard", "tasks", "uploads", "content", "profile"],
+      mobilograf: ["dashboard", "travelPlans", "bonus", "uploads", "profile"],
       viewer: ["dashboard", "content", "analytics", "profile"]
     };
-    const preferred = rolePreferred[user?.role] || ["dashboard", "content", "tasks", "campaigns", "profile"];
+    const preferred = rolePreferred[user?.role] || ["dashboard", "content", "travelPlans", "campaigns", "profile"];
     const pinned = preferred
       .map((id) => allowedMenu.find((item) => item.id === id))
       .filter(Boolean);
@@ -8501,6 +8557,7 @@ function App() {
         dailyReports={dailyReports}
         contentRows={contentRows}
         campaigns={campaigns}
+        travelPlans={travelPlans}
         tasks={tasks}
         uploads={uploads}
         user={user}

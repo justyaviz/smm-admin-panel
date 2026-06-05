@@ -3694,13 +3694,38 @@ function isBonusRowLocked(row = {}) {
   return !!row?.monthly_closed_at || String(row?.paid_status || "").toLowerCase() === "paid";
 }
 
+function isMobilografActor(user = {}) {
+  const role = String(user?.role || "").toLowerCase();
+  const departmentRole = String(user?.department_role || "").toLowerCase();
+  return role.includes("mobilograf") || departmentRole.includes("mobilograf") || role.includes("video") || departmentRole.includes("video");
+}
+
+function bonusRowBelongsToUser(row = {}, userId) {
+  const normalizedUserId = String(userId || "");
+  return [
+    row.user_id,
+    row.video_editor_user_id,
+    row.video_face_user_id,
+    row.created_by
+  ].some((value) => String(value || "") === normalizedUserId);
+}
+
+function requestedBonusBelongsToUser(payload = {}, userId) {
+  const normalizedUserId = String(userId || "");
+  const contentType = String(payload.content_type || "").toLowerCase();
+  const candidateIds = contentType === "video"
+    ? [payload.video_editor_user_id, payload.video_face_user_id, payload.user_id]
+    : [payload.user_id];
+  return candidateIds.some((value) => String(value || "") === normalizedUserId);
+}
+
 function normalizePaidStatus(value) {
   const normalized = String(value || "pending").trim().toLowerCase();
   if (["approved", "paid"].includes(normalized)) return normalized;
   return "pending";
 }
 
-app.get("/api/bonus-items", authRequired, pagePermissionAllowed("bonus"), async (_, res) => {
+app.get("/api/bonus-items", authRequired, pagePermissionAllowed("bonus"), async (req, res) => {
   try {
     try {
       await pullBonusUpdatesFromMySeOne();
@@ -3709,6 +3734,23 @@ app.get("/api/bonus-items", authRequired, pagePermissionAllowed("bonus"), async 
     }
 
     await recomputeBonusFromItems();
+
+    const params = [];
+    const role = String(req.user?.role || "").toLowerCase();
+    const departmentRole = String(req.user?.department_role || "").toLowerCase();
+    const shouldScopeToUser =
+      String(req.query?.scope || "").toLowerCase() === "mine" ||
+      role.includes("mobilograf") ||
+      departmentRole.includes("mobilograf");
+    const scopeWhere = shouldScopeToUser
+      ? `WHERE (
+          bi.user_id = $1 OR
+          bi.video_editor_user_id = $1 OR
+          bi.video_face_user_id = $1 OR
+          bi.created_by = $1
+        )`
+      : "";
+    if (shouldScopeToUser) params.push(req.user.id);
 
     const result = await query(
       `
@@ -3725,8 +3767,10 @@ app.get("/api/bonus-items", authRequired, pagePermissionAllowed("bonus"), async 
       LEFT JOIN users vf ON vf.id = bi.video_face_user_id
       LEFT JOIN branches br ON br.id = bi.branch_id
       LEFT JOIN users approver ON approver.id = bi.approved_by
+      ${scopeWhere}
       ORDER BY bi.work_date DESC NULLS LAST, bi.id DESC
-      `
+      `,
+      params
     );
 
     res.json(result.rows);
@@ -3768,6 +3812,10 @@ app.post("/api/bonus-items", authRequired, actionPermissionAllowed("bonus", "cre
     const dateOnly = formatDateOnly(work_date);
     const month = month_label || getMonthLabel(dateOnly || new Date());
     const difficultyLevel = normalizeDifficultyLevel(difficulty_level || "sodda");
+
+    if (isMobilografActor(req.user) && !requestedBonusBelongsToUser(req.body, req.user.id)) {
+      return res.status(403).json({ message: "Mobilograf faqat o'z bonus yozuvini yaratishi mumkin" });
+    }
 
     const proposalAmount = 0;
     const approvedAmount = await calcMoney(approved_count, difficultyLevel);
@@ -3869,6 +3917,13 @@ app.put("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus", "
 
     if (!current) {
       return res.status(404).json({ message: "Bonus yozuvi topilmadi" });
+    }
+
+    if (
+      isMobilografActor(req.user) &&
+      (!bonusRowBelongsToUser(current, req.user.id) || !requestedBonusBelongsToUser(req.body, req.user.id))
+    ) {
+      return res.status(403).json({ message: "Mobilograf faqat o'z bonus yozuvini tahrirlashi mumkin" });
     }
 
     if (isBonusRowLocked(current) && !String(audit_reason || "").trim()) {
@@ -4290,6 +4345,12 @@ app.post("/api/bonus-items/:id/delete-with-audit", authRequired, actionPermissio
     const syncRow = await getBonusSyncRowById(query, req.params.id);
     const telegramRow = await getBonusDetailRow(query, req.params.id);
     const auditReason = String(req.body?.audit_reason || "").trim();
+    if (!telegramRow) {
+      return res.status(404).json({ message: "Bonus yozuvi topilmadi" });
+    }
+    if (isMobilografActor(req.user) && !bonusRowBelongsToUser(telegramRow, req.user.id)) {
+      return res.status(403).json({ message: "Mobilograf faqat o'z bonus yozuvini o'chirishi mumkin" });
+    }
     if (isBonusRowLocked(telegramRow) && !auditReason) {
       return res.status(423).json({ message: "Bu oy yopilgan. O'chirish uchun audit sababi majburiy." });
     }
@@ -4319,6 +4380,12 @@ app.delete("/api/bonus-items/:id", authRequired, actionPermissionAllowed("bonus"
   try {
     const syncRow = await getBonusSyncRowById(query, req.params.id);
     const telegramRow = await getBonusDetailRow(query, req.params.id);
+    if (!telegramRow) {
+      return res.status(404).json({ message: "Bonus yozuvi topilmadi" });
+    }
+    if (isMobilografActor(req.user) && !bonusRowBelongsToUser(telegramRow, req.user.id)) {
+      return res.status(403).json({ message: "Mobilograf faqat o'z bonus yozuvini o'chirishi mumkin" });
+    }
     if (isBonusRowLocked(telegramRow) && !String(req.query?.audit_reason || req.body?.audit_reason || "").trim()) {
       return res.status(423).json({ message: "Bu oy yopilgan. O'chirish uchun audit sababi majburiy." });
     }
@@ -5904,14 +5971,21 @@ app.delete("/api/contest-expenses/:id", authRequired, async (req, res) => {
   }
 });
 
-app.get("/api/travel-expenses", authRequired, async (_, res) => {
+app.get("/api/travel-expenses", authRequired, async (req, res) => {
   try {
+    const params = [];
+    const scopeWhere = String(req.query?.scope || "").toLowerCase() === "mine"
+      ? "WHERE created_by = $1"
+      : "";
+    if (scopeWhere) params.push(req.user.id);
     const result = await query(
       `
       SELECT *
       FROM travel_expenses
+      ${scopeWhere}
       ORDER BY sort_order ASC NULLS LAST, expense_date ASC NULLS LAST, id ASC
-      `
+      `,
+      params
     );
     res.json(result.rows);
   } catch (err) {
@@ -5964,6 +6038,13 @@ app.post("/api/travel-expenses", authRequired, async (req, res) => {
 app.put("/api/travel-expenses/:id", authRequired, async (req, res) => {
   try {
     const { expense_date, category, title, amount, currency, entry_type, sort_order } = req.body;
+    const current = await query(`SELECT created_by FROM travel_expenses WHERE id = $1 LIMIT 1`, [req.params.id]);
+    if (!current.rows.length) {
+      return res.status(404).json({ message: "Safar harajati topilmadi" });
+    }
+    if (req.user?.role !== "admin" && String(current.rows[0].created_by || "") !== String(req.user.id)) {
+      return res.status(403).json({ message: "Faqat o'zingiz yaratgan safar harajatini tahrirlashingiz mumkin" });
+    }
 
     const updated = await query(
       `
@@ -6017,11 +6098,11 @@ app.post("/api/travel-expenses/:id/move", authRequired, async (req, res) => {
     await client.query("BEGIN");
 
     const currentResult = await client.query(
-      `SELECT id, sort_order FROM travel_expenses WHERE id = $1 FOR UPDATE`,
+      `SELECT id, sort_order, created_by FROM travel_expenses WHERE id = $1 FOR UPDATE`,
       [currentId]
     );
     const targetResult = await client.query(
-      `SELECT id, sort_order FROM travel_expenses WHERE id = $1 FOR UPDATE`,
+      `SELECT id, sort_order, created_by FROM travel_expenses WHERE id = $1 FOR UPDATE`,
       [targetId]
     );
 
@@ -6031,6 +6112,14 @@ app.post("/api/travel-expenses/:id/move", authRequired, async (req, res) => {
     if (!currentRow || !targetRow) {
       await client.query("ROLLBACK");
       return res.status(404).json({ message: "Safar harajati topilmadi" });
+    }
+
+    if (
+      req.user?.role !== "admin" &&
+      (String(currentRow.created_by || "") !== String(req.user.id) || String(targetRow.created_by || "") !== String(req.user.id))
+    ) {
+      await client.query("ROLLBACK");
+      return res.status(403).json({ message: "Faqat o'zingiz yaratgan safar harajatlari tartibini o'zgartirishingiz mumkin" });
     }
 
     await client.query(
@@ -6062,6 +6151,13 @@ app.post("/api/travel-expenses/:id/move", authRequired, async (req, res) => {
 
 app.delete("/api/travel-expenses/:id", authRequired, async (req, res) => {
   try {
+    const current = await query(`SELECT created_by FROM travel_expenses WHERE id = $1 LIMIT 1`, [req.params.id]);
+    if (!current.rows.length) {
+      return res.status(404).json({ message: "Safar harajati topilmadi" });
+    }
+    if (req.user?.role !== "admin" && String(current.rows[0].created_by || "") !== String(req.user.id)) {
+      return res.status(403).json({ message: "Faqat o'zingiz yaratgan safar harajatini o'chirishingiz mumkin" });
+    }
     const deleted = await query(`DELETE FROM travel_expenses WHERE id = $1 RETURNING id`, [req.params.id]);
     if (!deleted.rows.length) {
       return res.status(404).json({ message: "Safar harajati topilmadi" });
@@ -6076,8 +6172,16 @@ app.delete("/api/travel-expenses/:id", authRequired, async (req, res) => {
 
 /* TRAVEL PLANS */
 
-app.get("/api/travel-plans", authRequired, async (_, res) => {
+app.get("/api/travel-plans", authRequired, async (req, res) => {
   try {
+    const params = [];
+    const shouldScopeToUser = String(req.query?.scope || "").toLowerCase() === "mine";
+    let scopeWhere = "";
+    if (shouldScopeToUser) {
+      params.push(req.user.id);
+      scopeWhere = "WHERE tp.created_by = $1";
+    }
+
     const result = await query(
       `
       SELECT
@@ -6085,8 +6189,10 @@ app.get("/api/travel-plans", authRequired, async (_, res) => {
         b.name AS branch_name
       FROM travel_plans tp
       LEFT JOIN branches b ON b.id = tp.branch_id
+      ${scopeWhere}
       ORDER BY tp.plan_date DESC NULLS LAST, tp.id DESC
-      `
+      `,
+      params
     );
     res.json(result.rows);
   } catch (err) {
@@ -6197,7 +6303,13 @@ app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
       approval_comment
     } = req.body;
 
-    const previous = await query(`SELECT status FROM travel_plans WHERE id = $1 LIMIT 1`, [req.params.id]);
+    const previous = await query(`SELECT status, created_by FROM travel_plans WHERE id = $1 LIMIT 1`, [req.params.id]);
+    if (!previous.rows.length) {
+      return res.status(404).json({ message: "Safar rejasi topilmadi" });
+    }
+    if (req.user?.role !== "admin" && String(previous.rows[0].created_by || "") !== String(req.user.id)) {
+      return res.status(403).json({ message: "Faqat o'zingiz yaratgan safar rejasini tahrirlashingiz mumkin" });
+    }
 
     const updated = await query(
       `
@@ -6270,6 +6382,13 @@ app.put("/api/travel-plans/:id", authRequired, async (req, res) => {
 
 app.delete("/api/travel-plans/:id", authRequired, async (req, res) => {
   try {
+    const current = await query(`SELECT created_by FROM travel_plans WHERE id = $1 LIMIT 1`, [req.params.id]);
+    if (!current.rows.length) {
+      return res.status(404).json({ message: "Safar rejasi topilmadi" });
+    }
+    if (req.user?.role !== "admin" && String(current.rows[0].created_by || "") !== String(req.user.id)) {
+      return res.status(403).json({ message: "Faqat o'zingiz yaratgan safar rejasini o'chirishingiz mumkin" });
+    }
     await query(`DELETE FROM travel_plans WHERE id = $1`, [req.params.id]);
     await logAction(req.user.id, "delete", "travel_plans", Number(req.params.id), {});
     res.json({ message: "Safar rejasi oвЂchirildi" });

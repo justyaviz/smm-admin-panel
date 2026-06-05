@@ -14,9 +14,42 @@ function roleAllowed(userRole, roles = []) {
   return false;
 }
 
+function rolePresetPermissions(user) {
+  const role = String(user?.role || "").toLowerCase();
+  const departmentRole = String(user?.department_role || "").toLowerCase();
+  if (role.includes("mobilograf") || departmentRole.includes("mobilograf") || role.includes("video") || departmentRole.includes("video")) {
+    return [
+      "dashboard",
+      "content",
+      "uploads",
+      "dailyReports",
+      "tasks",
+      "travelPlans",
+      "travelPlans_create",
+      "travelPlans_edit",
+      "travelPlans_delete",
+      "bonus",
+      "bonus_create",
+      "bonus_edit",
+      "bonus_delete",
+      "profile"
+    ];
+  }
+  if (["manager", "director"].includes(role)) {
+    return ["travelPlans", "travelPlans_create", "travelPlans_edit", "travelPlans_delete"];
+  }
+  return [];
+}
+
 export function hasPermission(user, permission) {
   if (user?.role === "admin") return true;
-  return safePermissions(user?.permissions_json).includes(permission);
+  if (String(permission || "").startsWith("bonus")) {
+    const role = String(user?.role || "").toLowerCase();
+    const departmentRole = String(user?.department_role || "").toLowerCase();
+    const isMobilograf = role.includes("mobilograf") || departmentRole.includes("mobilograf") || role.includes("video") || departmentRole.includes("video");
+    if (!isMobilograf) return false;
+  }
+  return [...safePermissions(user?.permissions_json), ...rolePresetPermissions(user)].includes(permission);
 }
 
 export function signToken(user) {
