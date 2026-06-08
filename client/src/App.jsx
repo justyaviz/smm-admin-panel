@@ -2079,7 +2079,7 @@ function DashboardPage({ summary = {}, dailyReports = [], contentRows = [], camp
   );
 }
 
-function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [], campaigns = [], travelPlans = [], tasks = [], uploads = [], managerOSData = {}, user = null }) {
+function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [], campaigns = [], travelPlans = [], tasks = [], uploads = [], managerOSData = {}, user = null, onNavigate = null }) {
   const currentMonth = getMonthLabel();
   const currentMonthTitle = getMonthTitle(currentMonth);
   const todayKey = formatDate(new Date());
@@ -2164,6 +2164,33 @@ function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [],
     ["Approval", resourceCount("approval_flows")],
     ["Brand KPI", resourceCount("brand_kpi_scores")]
   ];
+  const setupItems = [
+    {
+      title: "Strategiyani boshlash",
+      body: "Oylik maqsad, platforma yo'nalishi va trend signalini kiriting.",
+      done: resourceCount("strategies") > 0,
+      page: "managerLab"
+    },
+    {
+      title: "Brand KPI oyini ochish",
+      body: "Brand sifati, kontent sifati va deadline intizomi uchun birinchi score.",
+      done: resourceCount("brand_kpi_scores") > 0,
+      page: "managerLab"
+    },
+    {
+      title: "Birinchi kontent kartasi",
+      body: "Hook, ssenariy, CTA va platforma bilan kontent reja yarating.",
+      done: monthContent.length > 0,
+      page: "content"
+    },
+    {
+      title: "Birinchi kampaniya briefi",
+      body: "Maqsad, auditoriya, kanal, byudjet va natija mezonini belgilang.",
+      done: activeCampaigns.length > 0 || resourceCount("campaign_briefs") > 0,
+      page: "campaigns"
+    }
+  ];
+  const setupDone = setupItems.filter((item) => item.done).length;
 
   return (
     <div className="manager-os-page">
@@ -2199,6 +2226,25 @@ function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [],
             <strong>{count}</strong>
           </div>
         ))}
+      </section>
+
+      <section className="manager-os-onboarding">
+        <div className="manager-os-onboarding-head">
+          <div>
+            <span>Start setup</span>
+            <h2>Toza tizimni ishga tayyorlash</h2>
+          </div>
+          <strong>{setupDone}/{setupItems.length}</strong>
+        </div>
+        <div className="manager-os-onboarding-grid">
+          {setupItems.map((item) => (
+            <button key={item.title} type="button" className={item.done ? "done" : ""} onClick={() => onNavigate?.(item.page)}>
+              <i>{item.done ? "OK" : "Start"}</i>
+              <strong>{item.title}</strong>
+              <span>{item.body}</span>
+            </button>
+          ))}
+        </div>
       </section>
 
       <section className="manager-os-layout">
@@ -2594,6 +2640,14 @@ function ManagerOsLabPage({ onToast }) {
 
         <article className="manager-lab-card manager-lab-list">
           <SectionTitle title={`${activeConfig.title} ro'yxati`} desc={loading ? "Yuklanmoqda..." : `${rows.length} ta yozuv`} />
+          {!loading && !rows.length ? (
+            <div className="manager-lab-empty">
+              <Sparkles size={20} />
+              <strong>Birinchi {activeConfig.title.toLowerCase()} yozuvini kiriting</strong>
+              <span>{activeConfig.subtitle}</span>
+              <button type="button" className="btn secondary" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>Formaga o'tish</button>
+            </div>
+          ) : null}
           <div className="table-wrap desktop-table">
             <table>
               <thead>
@@ -2613,7 +2667,7 @@ function ManagerOsLabPage({ onToast }) {
                       </div>
                     </td>
                   </tr>
-                )) : <tr><td colSpan={visibleFields.length + 1} className="empty-cell">{loading ? "Yuklanmoqda..." : "Hozircha yozuv yo'q"}</td></tr>}
+                )) : loading ? <tr><td colSpan={visibleFields.length + 1} className="empty-cell">Yuklanmoqda...</td></tr> : null}
               </tbody>
             </table>
           </div>
@@ -2636,7 +2690,7 @@ function ManagerOsLabPage({ onToast }) {
                   <button type="button" className="btn tiny danger" onClick={() => removeRow(row)}><Trash2 size={14} /> Delete</button>
                 </div>
               </div>
-            )) : <div className="mobile-record-card empty">Hozircha yozuv yo'q</div>}
+            )) : loading ? <div className="mobile-record-card empty">Yuklanmoqda...</div> : null}
           </div>
         </article>
       </section>
@@ -3442,7 +3496,15 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan="8" className="empty-cell">{tableSearch.trim() ? "Qidiruv bo'yicha kontent topilmadi" : "Bu oy uchun reja yo'q"}</td></tr>
+                  <tr><td colSpan="8" className="empty-cell">
+                    {tableSearch.trim() ? "Qidiruv bo'yicha kontent topilmadi" : (
+                      <div className="content-empty-start">
+                        <strong>Birinchi kontent kartasini yarating</strong>
+                        <span>Hook, asosiy qism, CTA, mahsulot va platformani bir joyda kiriting.</span>
+                        <button type="button" className="btn tiny secondary" onClick={() => window.scrollTo({ top: 280, behavior: "smooth" })}>Formaga o'tish</button>
+                      </div>
+                    )}
+                  </td></tr>
                 )}
               </tbody>
             </table>
@@ -9294,6 +9356,7 @@ function App() {
         uploads={uploads}
         managerOSData={managerOSData}
         user={user}
+        onNavigate={goToPage}
       />
     );
   } else if (active === "managerLab") {
@@ -19502,6 +19565,28 @@ tr:hover td,
 .content-page-v5 .kanban-card strong{color:#101827 !important;}
 .content-page-v5 .empty-block,
 .content-page-v5 .empty-cell{color:#64748b !important;}
+.content-empty-start{
+  min-height:190px;
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:10px;
+  padding:24px;
+  text-align:center;
+  border-radius:18px;
+  background:linear-gradient(135deg,#f8fbff,#eef6ff);
+  border:1px dashed rgba(22,144,245,.24);
+}
+.content-empty-start strong{
+  color:#101827;
+  font-size:18px;
+}
+.content-empty-start span{
+  max-width:520px;
+  color:#64748b;
+  font-weight:750;
+  line-height:1.55;
+}
 @media (max-width:1280px){
   .content-page-v5 .content-v5-hero{grid-template-columns:1fr !important;}
   .content-page-v5 .content-v5-hero-panel{grid-template-columns:150px 1fr !important;}
@@ -20077,6 +20162,30 @@ tr:hover td,
   max-height:620px;
   overflow:auto;
 }
+.manager-lab-empty{
+  min-height:260px;
+  margin-top:14px;
+  border-radius:8px;
+  border:1px dashed #b9d7d2;
+  background:linear-gradient(135deg,#f8fbff,#ecfeff);
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:10px;
+  padding:28px;
+  text-align:center;
+}
+.manager-lab-empty svg{color:#0d9488}
+.manager-lab-empty strong{
+  color:#0f172a;
+  font-size:18px;
+}
+.manager-lab-empty span{
+  max-width:520px;
+  color:#667085;
+  font-weight:750;
+  line-height:1.55;
+}
 @media (max-width:1180px){
   .manager-lab-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
   .manager-lab-layout{grid-template-columns:1fr}
@@ -20263,6 +20372,101 @@ tr:hover td,
   font-size:22px;
   line-height:1;
 }
+.manager-os-onboarding{
+  border-radius:8px;
+  padding:18px;
+  background:linear-gradient(135deg,#ffffff 0%,#f6fffd 64%,#eef7ff 100%);
+  border:1px solid #cfe9e6;
+  box-shadow:0 18px 45px rgba(15,23,42,.07);
+}
+.manager-os-onboarding-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:14px;
+}
+.manager-os-onboarding-head span{
+  color:#0d9488;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-os-onboarding-head h2{
+  margin:4px 0 0;
+  color:#0f172a;
+  font-size:20px;
+  line-height:1.14;
+}
+.manager-os-onboarding-head strong{
+  flex:0 0 auto;
+  min-width:58px;
+  height:40px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  color:#064e3b;
+  background:#ccfbf1;
+  border:1px solid #99f6e4;
+  font-size:14px;
+}
+.manager-os-onboarding-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+}
+.manager-os-onboarding-grid button{
+  min-height:142px;
+  border-radius:8px;
+  border:1px solid #dbe8ef;
+  background:#fff;
+  color:#0f172a;
+  display:grid;
+  align-content:start;
+  gap:9px;
+  padding:14px;
+  text-align:left;
+  box-shadow:0 12px 30px rgba(15,23,42,.055);
+}
+.manager-os-onboarding-grid button:hover{
+  transform:translateY(-1px);
+  border-color:#2dd4bf;
+  box-shadow:0 16px 34px rgba(13,148,136,.12);
+}
+.manager-os-onboarding-grid button.done{
+  border-color:#a7f3d0;
+  background:#f0fdf4;
+}
+.manager-os-onboarding-grid i{
+  width:max-content;
+  min-width:48px;
+  height:26px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  padding:0 9px;
+  background:#eff6ff;
+  color:#1478f2;
+  font-size:11px;
+  font-style:normal;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-os-onboarding-grid .done i{
+  background:#dcfce7;
+  color:#15803d;
+}
+.manager-os-onboarding-grid strong{
+  color:#0f172a;
+  font-size:15px;
+  line-height:1.2;
+}
+.manager-os-onboarding-grid span{
+  color:#667085;
+  font-size:12px;
+  font-weight:750;
+  line-height:1.45;
+}
 .manager-os-layout{
   display:grid;
   grid-template-columns:minmax(0,1.55fr) minmax(340px,.75fr);
@@ -20427,6 +20631,7 @@ tr:hover td,
   .manager-os-hero,.manager-os-layout,.manager-os-grid,.manager-os-bottom{grid-template-columns:1fr}
   .manager-os-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
   .manager-os-snapshot{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .manager-os-onboarding-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .manager-os-module-grid,.manager-os-platforms{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:680px){
@@ -20434,6 +20639,8 @@ tr:hover td,
   .manager-os-hero h1{font-size:30px}
   .manager-os-strip,.manager-os-module-grid,.manager-os-platforms{grid-template-columns:1fr}
   .manager-os-snapshot{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-os-onboarding-grid{grid-template-columns:1fr}
+  .manager-os-onboarding-head{display:grid}
   .manager-os-focus-list div{grid-template-columns:1fr 72px 38px}
 }
 
