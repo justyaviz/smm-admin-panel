@@ -2105,6 +2105,75 @@ function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [],
     const due = formatDate(row.due_date);
     return due !== "-" && due < todayKey;
   });
+  const todayContent = monthContent.filter((row) => formatDate(row.publish_date || row.created_at) === todayKey);
+  const overdueContent = monthContent.filter((row) => {
+    const publishDate = formatDate(row.publish_date || row.created_at);
+    const status = String(row.status || "").toLowerCase();
+    return publishDate !== "-" && publishDate < todayKey && !["joylangan", "yakunlandi", "published", "archived"].includes(status);
+  });
+  const reviewContent = monthContent.filter((row) => {
+    const status = String(row.status || "").toLowerCase();
+    return ["tasdiqlandi", "tasdiqlanishda", "tekshiruvda", "review", "pending", "approved"].includes(status);
+  });
+  const dueTodayTasks = openTasks.filter((row) => formatDate(row.due_date) === todayKey);
+  const todayReports = (dailyReports || []).filter((row) => formatDate(row.report_date || row.created_at) === todayKey);
+  const todayPulseTotals = todayReports.reduce((acc, row) => ({
+    posts: acc.posts + Number(row.posts_count || 0),
+    stories: acc.stories + Number(row.stories_count || 0),
+    reels: acc.reels + Number(row.reels_count || 0)
+  }), { posts: 0, stories: 0, reels: 0 });
+  const approvalRows = managerOSData?.approval_flows?.rows || [];
+  const pendingApprovals = approvalRows.filter((row) => !["approved", "done", "rejected"].includes(String(row.status || "").toLowerCase()));
+  const todayCommandItems = [
+    {
+      label: "Bugungi kontent",
+      value: todayContent.length,
+      detail: `${reviewContent.length} ta review/navbat`,
+      tone: todayContent.length ? "good" : "idle",
+      page: "content"
+    },
+    {
+      label: "Kechikkan kontent",
+      value: overdueContent.length,
+      detail: overdueContent.length ? "deadline nazorat kerak" : "deadline toza",
+      tone: overdueContent.length ? "danger" : "good",
+      page: "content"
+    },
+    {
+      label: "Bugungi task",
+      value: dueTodayTasks.length,
+      detail: `${overdueTasks.length} ta task riskda`,
+      tone: overdueTasks.length ? "warning" : "good",
+      page: "tasks"
+    },
+    {
+      label: "Approval navbati",
+      value: pendingApprovals.length,
+      detail: "manager -> rahbar -> posting",
+      tone: pendingApprovals.length ? "warning" : "idle",
+      page: "managerLab"
+    }
+  ];
+  const commandFeed = [
+    ...todayContent.slice(0, 3).map((row) => ({
+      title: row.title || "Kontent",
+      meta: `${row.platform_primary || row.platform || "platforma"} / ${formatApprovalStatus(row.status || "reja")}`,
+      page: "content"
+    })),
+    ...dueTodayTasks.slice(0, 2).map((row) => ({
+      title: row.title || "Task",
+      meta: `${row.priority || "normal"} / ${taskStatusLabel(row.status)}`,
+      page: "tasks"
+    })),
+    ...[...activeCampaigns]
+      .sort((a, b) => getDateSortValue(a.end_at || a.end_date, Number.POSITIVE_INFINITY) - getDateSortValue(b.end_at || b.end_date, Number.POSITIVE_INFINITY))
+      .slice(0, 2)
+      .map((row) => ({
+      title: row.title || "Kampaniya",
+      meta: `${row.platform || "ads"} / ${formatCampaignStatus(row.status || "active")}`,
+      page: "campaigns"
+    }))
+  ].slice(0, 5);
   const platformPulse = Object.values((dailyReports || []).reduce((acc, row) => {
     const key = row.branch_name || "Platforma";
     if (!acc[key]) acc[key] = { name: key, posts: 0, stories: 0, reels: 0, subscribers: 0 };
@@ -2223,6 +2292,39 @@ function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [],
         <div><span>Faol target</span><strong>{activeCampaigns.length}</strong><small>{formatMoney(campaignSpend)} sarf</small></div>
         <div><span>Leadlar</span><strong>{campaignLeads}</strong><small>kampaniya natijasi</small></div>
         <div><span>Mobilograf queue</span><strong>{productionTasks.length}</strong><small>{overdueTasks.length} deadline risk</small></div>
+      </section>
+
+      <section className="manager-os-today">
+        <div className="manager-os-today-head">
+          <div>
+            <span>Bugungi nazorat</span>
+            <h2>{formatDate(new Date())} uchun manager command</h2>
+          </div>
+          <button type="button" onClick={() => onNavigate?.("content")}>Kontentga o'tish</button>
+        </div>
+        <div className="manager-os-today-grid">
+          {todayCommandItems.map((item) => (
+            <button key={item.label} type="button" className={`manager-os-today-stat ${item.tone}`} onClick={() => onNavigate?.(item.page)}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.detail}</small>
+            </button>
+          ))}
+          <div className="manager-os-today-pulse">
+            <span>Platforma pulse</span>
+            <strong>{todayPulseTotals.posts + todayPulseTotals.stories + todayPulseTotals.reels}</strong>
+            <small>{todayPulseTotals.posts} post / {todayPulseTotals.stories} story / {todayPulseTotals.reels} reels</small>
+          </div>
+          <div className="manager-os-today-feed">
+            <span>Tezkor ishlar</span>
+            {commandFeed.length ? commandFeed.map((item, index) => (
+              <button key={`${item.title}-${index}`} type="button" onClick={() => onNavigate?.(item.page)}>
+                <strong>{item.title}</strong>
+                <small>{item.meta}</small>
+              </button>
+            )) : <p>Bugun uchun ochiq signal yo'q.</p>}
+          </div>
+        </div>
       </section>
 
       <section className="manager-os-snapshot">
@@ -20357,6 +20459,140 @@ tr:hover td,
   line-height:1;
 }
 .manager-os-strip small{color:#008f7d;font-weight:900}
+.manager-os-today{
+  border-radius:8px;
+  padding:18px;
+  background:
+    linear-gradient(135deg,#ffffff 0%,#f8fbff 58%,#eefdf9 100%);
+  border:1px solid #d7e7ef;
+  box-shadow:0 18px 45px rgba(15,23,42,.07);
+}
+.manager-os-today-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+  margin-bottom:14px;
+}
+.manager-os-today-head span,
+.manager-os-today-feed > span,
+.manager-os-today-pulse > span{
+  color:#0d9488;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-os-today-head h2{
+  margin:5px 0 0;
+  color:#0f172a;
+  font-size:22px;
+  line-height:1.12;
+}
+.manager-os-today-head button{
+  flex:0 0 auto;
+  min-height:38px;
+  border:1px solid #b9eee7;
+  border-radius:999px;
+  background:#ecfeff;
+  color:#0f766e;
+  padding:0 14px;
+  font-weight:950;
+}
+.manager-os-today-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr)) minmax(240px,.9fr);
+  gap:10px;
+  align-items:stretch;
+}
+.manager-os-today-stat,
+.manager-os-today-pulse,
+.manager-os-today-feed{
+  min-height:126px;
+  border-radius:8px;
+  border:1px solid #dde8f2;
+  background:#fff;
+  padding:14px;
+  box-shadow:0 12px 30px rgba(15,23,42,.045);
+}
+.manager-os-today-stat{
+  display:grid;
+  align-content:start;
+  gap:7px;
+  text-align:left;
+  color:#0f172a;
+}
+.manager-os-today-stat span{
+  color:#667085;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-os-today-stat strong,
+.manager-os-today-pulse strong{
+  color:#0f172a;
+  font-size:32px;
+  line-height:1;
+}
+.manager-os-today-stat small,
+.manager-os-today-pulse small{
+  color:#667085;
+  font-weight:800;
+  line-height:1.45;
+}
+.manager-os-today-stat.good{border-color:#bbf7d0;background:#f0fdf4}
+.manager-os-today-stat.warning{border-color:#fde68a;background:#fffbeb}
+.manager-os-today-stat.danger{border-color:#fecaca;background:#fff1f2}
+.manager-os-today-stat.idle{border-color:#dbeafe;background:#f8fbff}
+.manager-os-today-stat:hover{
+  transform:translateY(-1px);
+  box-shadow:0 16px 34px rgba(13,148,136,.10);
+}
+.manager-os-today-pulse{
+  display:grid;
+  align-content:start;
+  gap:8px;
+  background:#0f172a;
+  border-color:rgba(45,212,191,.24);
+}
+.manager-os-today-pulse strong{color:#5eead4}
+.manager-os-today-pulse small{color:#cbd5e1}
+.manager-os-today-feed{
+  grid-column:1 / -1;
+  min-height:auto;
+  display:grid;
+  grid-template-columns:auto repeat(5,minmax(0,1fr));
+  align-items:stretch;
+  gap:10px;
+}
+.manager-os-today-feed > span{
+  align-self:center;
+  min-width:112px;
+}
+.manager-os-today-feed button{
+  min-height:58px;
+  border-radius:8px;
+  border:1px solid #e0e8f2;
+  background:#f8fbff;
+  display:grid;
+  align-content:center;
+  gap:3px;
+  text-align:left;
+  padding:10px;
+}
+.manager-os-today-feed button strong{
+  color:#101828;
+  font-size:13px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.manager-os-today-feed button small,
+.manager-os-today-feed p{
+  margin:0;
+  color:#667085;
+  font-size:12px;
+  font-weight:800;
+}
 .manager-os-snapshot{
   display:grid;
   grid-template-columns:repeat(10,minmax(0,1fr));
@@ -20641,6 +20877,8 @@ tr:hover td,
 @media (max-width:1180px){
   .manager-os-hero,.manager-os-layout,.manager-os-grid,.manager-os-bottom{grid-template-columns:1fr}
   .manager-os-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-os-today-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-os-today-feed{grid-column:1 / -1;grid-template-columns:1fr}
   .manager-os-snapshot{grid-template-columns:repeat(5,minmax(0,1fr))}
   .manager-os-onboarding-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
   .manager-os-module-grid,.manager-os-platforms{grid-template-columns:repeat(2,minmax(0,1fr))}
@@ -20649,6 +20887,8 @@ tr:hover td,
   .manager-os-hero{padding:20px}
   .manager-os-hero h1{font-size:30px}
   .manager-os-strip,.manager-os-module-grid,.manager-os-platforms{grid-template-columns:1fr}
+  .manager-os-today-head{display:grid}
+  .manager-os-today-grid{grid-template-columns:1fr}
   .manager-os-snapshot{grid-template-columns:repeat(2,minmax(0,1fr))}
   .manager-os-onboarding-grid{grid-template-columns:1fr}
   .manager-os-onboarding-head{display:grid}
