@@ -2075,7 +2075,7 @@ function DashboardPage({ summary = {}, dailyReports = [], contentRows = [], camp
   );
 }
 
-function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [], campaigns = [], travelPlans = [], tasks = [], uploads = [], user = null }) {
+function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [], campaigns = [], travelPlans = [], tasks = [], uploads = [], managerOSData = {}, user = null }) {
   const currentMonth = getMonthLabel();
   const currentMonthTitle = getMonthTitle(currentMonth);
   const todayKey = formatDate(new Date());
@@ -2147,6 +2147,19 @@ function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [],
     .sort((a, b) => getDateSortValue(a.end_at || a.end_date, Number.POSITIVE_INFINITY) - getDateSortValue(b.end_at || b.end_date, Number.POSITIVE_INFINITY))
     .slice(0, 4);
   const productionQueue = [...productionTasks, ...openTasks].slice(0, 5);
+  const resourceCount = (key) => Number(managerOSData?.[key]?.count || managerOSData?.[key]?.rows?.length || 0);
+  const managerOsSnapshot = [
+    ["Strategiya", resourceCount("strategies")],
+    ["Ssenariy", resourceCount("content_scripts")],
+    ["Campaign brief", resourceCount("campaign_briefs")],
+    ["Ads budget", resourceCount("ad_budgets")],
+    ["Bloger CRM", resourceCount("blogger_partners")],
+    ["Raqobatchi", resourceCount("competitor_reports")],
+    ["Auditoriya", resourceCount("audience_metrics")],
+    ["Kreativ brief", resourceCount("creative_briefs")],
+    ["Approval", resourceCount("approval_flows")],
+    ["Brand KPI", resourceCount("brand_kpi_scores")]
+  ];
 
   return (
     <div className="manager-os-page">
@@ -2173,6 +2186,15 @@ function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [],
         <div><span>Faol target</span><strong>{activeCampaigns.length}</strong><small>{formatMoney(campaignSpend)} sarf</small></div>
         <div><span>Leadlar</span><strong>{campaignLeads}</strong><small>kampaniya natijasi</small></div>
         <div><span>Mobilograf queue</span><strong>{productionTasks.length}</strong><small>{overdueTasks.length} deadline risk</small></div>
+      </section>
+
+      <section className="manager-os-snapshot">
+        {managerOsSnapshot.map(([label, count]) => (
+          <div key={label}>
+            <span>{label}</span>
+            <strong>{count}</strong>
+          </div>
+        ))}
       </section>
 
       <section className="manager-os-layout">
@@ -2315,6 +2337,11 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     difficulty_level: "sodda",
     work_url: "",
     approval_comment: "",
+    product_name: "",
+    video_type: "",
+    hook_text: "",
+    main_body_text: "",
+    cta_text: "",
     content_template: "custom",
     idea_score: 0,
     visual_score: 0,
@@ -2484,6 +2511,11 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
       difficulty_level: normalizeDifficultyLevel(row.difficulty_level || "sodda"),
       work_url: row.final_url || "",
       approval_comment: row.approval_comment || "",
+      product_name: row.product_name || "",
+      video_type: row.video_type || "",
+      hook_text: row.hook_text || "",
+      main_body_text: row.main_body_text || row.scenario_text || "",
+      cta_text: row.cta_text || "",
       content_template: row.content_template || "custom",
       idea_score: row.idea_score || 0,
       visual_score: row.visual_score || 0,
@@ -2539,6 +2571,12 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         final_url: normalizeExternalUrl(form.work_url),
         notes: "",
         approval_comment: form.approval_comment || "",
+        product_name: form.product_name || "",
+        video_type: form.video_type || "",
+        hook_text: form.hook_text || "",
+        main_body_text: form.main_body_text || "",
+        cta_text: form.cta_text || "",
+        scenario_text: form.main_body_text || "",
         content_template: form.content_template || "custom",
         idea_score: Number(form.idea_score || 0),
         visual_score: Number(form.visual_score || 0),
@@ -2828,6 +2866,24 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
             </select>
           </label>
 
+          <label>
+            <span>Mahsulot / xizmat</span>
+            <input value={form.product_name} onChange={(e) => setField("product_name", e.target.value)} placeholder="Masalan: iPhone 15 Pro" disabled={formLocked} />
+          </label>
+
+          <label>
+            <span>Video formati</span>
+            <select value={form.video_type} onChange={(e) => setField("video_type", e.target.value)} disabled={formLocked}>
+              <option value="">Tanlanmagan</option>
+              <option value="review">Review</option>
+              <option value="comparison">Taqqoslash</option>
+              <option value="test">Test</option>
+              <option value="expert">Expert</option>
+              <option value="brand">Brand</option>
+              <option value="trend">Trend</option>
+            </select>
+          </label>
+
           {isVideo ? (
             <>
               <label>
@@ -2865,6 +2921,10 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               disabled={formLocked}
             />
           </label>
+
+          <label className="full-col"><span>Hook</span><textarea value={form.hook_text} onChange={(e) => setField("hook_text", e.target.value)} rows={2} placeholder="Videoning birinchi 3 soniyasida e'tibor tortadigan gap" disabled={formLocked} /></label>
+          <label className="full-col"><span>Asosiy qism / ssenariy</span><textarea value={form.main_body_text} onChange={(e) => setField("main_body_text", e.target.value)} rows={3} placeholder="Kadrlar ketma-ketligi, mahsulot argumentlari, gapiriladigan matn" disabled={formLocked} /></label>
+          <label className="full-col"><span>CTA</span><textarea value={form.cta_text} onChange={(e) => setField("cta_text", e.target.value)} rows={2} placeholder="Oxirida mijoz nima qilsin: yozsin, buyurtma bersin, kanalga o'tsin" disabled={formLocked} /></label>
 
           <label className="full-col"><span>Workflow izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} placeholder="Qayta ishlash, fayl yoki publish bo'yicha izoh" disabled={formLocked} /></label>
 
@@ -4946,6 +5006,13 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
     start_at: "",
     end_at: "",
     daily_budget: "",
+    campaign_type: "target",
+    campaign_goal: "",
+    target_audience: "",
+    channel_name: "",
+    expected_result: "",
+    cpl_amount: "",
+    roi_amount: "",
     status: "active"
   };
 
@@ -4986,6 +5053,13 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
       start_at: formatDateTimeInput(row.start_at || row.start_date),
       end_at: formatDateTimeInput(row.end_at || row.end_date),
       daily_budget: String(getCampaignDailyBudget(row) || ""),
+      campaign_type: row.campaign_type || "target",
+      campaign_goal: row.campaign_goal || "",
+      target_audience: row.target_audience || "",
+      channel_name: row.channel_name || row.platform || "",
+      expected_result: row.expected_result || "",
+      cpl_amount: String(row.cpl_amount || row.cpa || ""),
+      roi_amount: String(row.roi_amount || row.roi || ""),
       status: row.status || "active"
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -5003,6 +5077,13 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
         start_at: form.start_at,
         end_at: form.end_at,
         daily_budget: Number(form.daily_budget || 0),
+        campaign_type: form.campaign_type || "target",
+        campaign_goal: form.campaign_goal || "",
+        target_audience: form.target_audience || "",
+        channel_name: form.channel_name || form.platform,
+        expected_result: form.expected_result || "",
+        cpl_amount: Number(form.cpl_amount || 0),
+        roi_amount: Number(form.roi_amount || 0),
         status: form.status || "active"
       };
       if (editRow?.id) {
@@ -5097,9 +5178,26 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
                 <option value="done">Tugagan</option>
               </select>
             </label>
+            <label>
+              <span>Kampaniya turi</span>
+              <select value={form.campaign_type} onChange={(e) => setField("campaign_type", e.target.value)}>
+                <option value="target">Target reklama</option>
+                <option value="cashback">Cashback</option>
+                <option value="contest">Konkurs</option>
+                <option value="challenge">Challenge</option>
+                <option value="seasonal">Mavsumiy aksiya</option>
+                <option value="blogger">Bloger hamkorlik</option>
+              </select>
+            </label>
+            <label><span>Kanal nomi</span><input value={form.channel_name} onChange={(e) => setField("channel_name", e.target.value)} placeholder="Instagram Ads, Telegram Ads, YouTube Ads..." /></label>
             <label><span>Boshlanish sana va soat</span><input type="datetime-local" value={form.start_at} onChange={(e) => setField("start_at", e.target.value)} required /></label>
             <label><span>Tugash sana va soat</span><input type="datetime-local" value={form.end_at} onChange={(e) => setField("end_at", e.target.value)} required /></label>
             <label><span>Kunlik byudjet</span><input type="number" min="0" value={form.daily_budget} onChange={(e) => setField("daily_budget", e.target.value)} placeholder="250000" required /></label>
+            <label><span>CPL</span><input type="number" min="0" value={form.cpl_amount} onChange={(e) => setField("cpl_amount", e.target.value)} placeholder="45000" /></label>
+            <label><span>ROI</span><input type="number" value={form.roi_amount} onChange={(e) => setField("roi_amount", e.target.value)} placeholder="120" /></label>
+            <label className="campaign-safe-full"><span>Maqsad</span><textarea value={form.campaign_goal} onChange={(e) => setField("campaign_goal", e.target.value)} rows={2} placeholder="Masalan: Telegram kanalga 1000 ta sifatli lead olib kelish" /></label>
+            <label className="campaign-safe-full"><span>Auditoriya</span><textarea value={form.target_audience} onChange={(e) => setField("target_audience", e.target.value)} rows={2} placeholder="Yosh, hudud, qiziqish, xarid ehtiyoji" /></label>
+            <label className="campaign-safe-full"><span>Kutilgan natija</span><textarea value={form.expected_result} onChange={(e) => setField("expected_result", e.target.value)} rows={2} placeholder="Lead, savdo, reach, obuna yoki brand awareness natijasi" /></label>
             <label className="campaign-safe-full"><span>Lidlar boradigan Telegram guruh ID</span><input value={form.lead_chat_id} onChange={(e) => setField("lead_chat_id", e.target.value)} placeholder="-1003878116355" /></label>
             <div className="campaign-safe-submit-row">
               <button className="btn primary" type="submit" disabled={saving}>{saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Kampaniya qo‘shish"}</button>
@@ -5171,7 +5269,7 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kampaniya tafsiloti">
         {viewRow ? (
           <div className="detail-grid">
-            <div><strong>Nomi:</strong> {viewRow.title}</div><div><strong>Platforma:</strong> {viewRow.platform}</div><div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div><div><strong>Boshlanish:</strong> {formatDateTime(viewRow.start_at || viewRow.start_date)}</div><div><strong>Tugash:</strong> {formatDateTime(viewRow.end_at || viewRow.end_date)}</div><div><strong>Kunlik byudjet:</strong> {formatMoney(getCampaignDailyBudget(viewRow))}</div><div><strong>Holat:</strong> <span className={campaignStatusClass(viewRow.status)}>{formatCampaignStatus(viewRow.status)}</span></div><div><strong>Leadlar soni:</strong> {viewRow.lead_count || 0} ta</div><div><strong>Lead chat ID:</strong> {viewRow.lead_chat_id || "-"}</div>
+            <div><strong>Nomi:</strong> {viewRow.title}</div><div><strong>Platforma:</strong> {viewRow.platform}</div><div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div><div><strong>Boshlanish:</strong> {formatDateTime(viewRow.start_at || viewRow.start_date)}</div><div><strong>Tugash:</strong> {formatDateTime(viewRow.end_at || viewRow.end_date)}</div><div><strong>Kunlik byudjet:</strong> {formatMoney(getCampaignDailyBudget(viewRow))}</div><div><strong>Holat:</strong> <span className={campaignStatusClass(viewRow.status)}>{formatCampaignStatus(viewRow.status)}</span></div><div><strong>Leadlar soni:</strong> {viewRow.lead_count || 0} ta</div><div><strong>Lead chat ID:</strong> {viewRow.lead_chat_id || "-"}</div><div><strong>Turi:</strong> {viewRow.campaign_type || "-"}</div><div><strong>Kanal:</strong> {viewRow.channel_name || "-"}</div><div><strong>CPL:</strong> {formatMoney(viewRow.cpl_amount || viewRow.cpa)}</div><div><strong>ROI:</strong> {viewRow.roi_amount || viewRow.roi || 0}</div><div className="full-col"><strong>Maqsad:</strong> {viewRow.campaign_goal || "-"}</div><div className="full-col"><strong>Auditoriya:</strong> {viewRow.target_audience || "-"}</div><div className="full-col"><strong>Kutilgan natija:</strong> {viewRow.expected_result || "-"}</div>
             <div className="full-col campaign-lead-link-row"><strong>Website form URL:</strong><div className="campaign-lead-link-actions"><a href={getCampaignLeadFormUrl(viewRow.id)} target="_blank" rel="noreferrer" className="btn tiny secondary"><Eye size={14} /> Ochish</a><button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(viewRow)}><Copy size={14} /> Nusxalash</button></div><div className="campaign-lead-link-preview">{getCampaignLeadFormUrl(viewRow.id)}</div></div>
           </div>
         ) : null}
@@ -8172,6 +8270,7 @@ function App() {
   const [contentRows, setContentRows] = useState([]);
   const [dailyReports, setDailyReports] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
+  const [managerOSData, setManagerOSData] = useState({});
   const [tasks, setTasks] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [budgets, setBudgets] = useState([]);
@@ -8317,13 +8416,14 @@ function App() {
     const queryScope = scopedDataQuery(user);
     switch (pageId) {
       case "dashboard": {
-        const [contentRes, dailyReportsRes, campaignsRes, travelPlansRes, tasksRes, uploadsRes] = await Promise.all([
+        const [contentRes, dailyReportsRes, campaignsRes, travelPlansRes, tasksRes, uploadsRes, managerOsRes] = await Promise.all([
           api.list("content").catch(() => []),
           api.list("daily-reports").catch(() => []),
           api.list("campaigns").catch(() => []),
           api.list("travel-plans", queryScope).catch(() => []),
           api.list("tasks").catch(() => []),
-          api.list("uploads").catch(() => [])
+          api.list("uploads").catch(() => []),
+          api.list("/api/manager-os").catch(() => ({}))
         ]);
         setContentRows(contentRes || []);
         setDailyReports(dailyReportsRes || []);
@@ -8331,6 +8431,7 @@ function App() {
         setTravelPlans(travelPlansRes || []);
         setTasks(tasksRes || []);
         setUploads(uploadsRes || []);
+        setManagerOSData(managerOsRes || {});
         break;
       }
       case "content":
@@ -8771,6 +8872,7 @@ function App() {
         travelPlans={travelPlans}
         tasks={tasks}
         uploads={uploads}
+        managerOSData={managerOSData}
         user={user}
       />
     );
@@ -19446,6 +19548,32 @@ tr:hover td,
   line-height:1;
 }
 .manager-os-strip small{color:#008f7d;font-weight:900}
+.manager-os-snapshot{
+  display:grid;
+  grid-template-columns:repeat(10,minmax(0,1fr));
+  gap:8px;
+}
+.manager-os-snapshot div{
+  min-height:72px;
+  border-radius:8px;
+  background:#0f172a;
+  border:1px solid rgba(45,212,191,.24);
+  padding:12px;
+  display:grid;
+  align-content:center;
+}
+.manager-os-snapshot span{
+  color:#a7b6c8;
+  font-size:11px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.manager-os-snapshot strong{
+  margin-top:4px;
+  color:#5eead4;
+  font-size:22px;
+  line-height:1;
+}
 .manager-os-layout{
   display:grid;
   grid-template-columns:minmax(0,1.55fr) minmax(340px,.75fr);
@@ -19609,12 +19737,14 @@ tr:hover td,
 @media (max-width:1180px){
   .manager-os-hero,.manager-os-layout,.manager-os-grid,.manager-os-bottom{grid-template-columns:1fr}
   .manager-os-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-os-snapshot{grid-template-columns:repeat(5,minmax(0,1fr))}
   .manager-os-module-grid,.manager-os-platforms{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
 @media (max-width:680px){
   .manager-os-hero{padding:20px}
   .manager-os-hero h1{font-size:30px}
   .manager-os-strip,.manager-os-module-grid,.manager-os-platforms{grid-template-columns:1fr}
+  .manager-os-snapshot{grid-template-columns:repeat(2,minmax(0,1fr))}
   .manager-os-focus-list div{grid-template-columns:1fr 72px 38px}
 }
 
