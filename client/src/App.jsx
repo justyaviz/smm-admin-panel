@@ -1345,7 +1345,7 @@ function normalizeAlooText(value = "") {
 }
 
 function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpenInstallGuide }) {
-  const [loginMode, setLoginMode] = useState("telegram");
+  const [loginMode, setLoginMode] = useState("password");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
@@ -1469,7 +1469,7 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
           </div>
           <div className="brand-kicker">Aloo SMM Operating System {DESIGN_SYSTEM_VERSION}</div>
           <h1>Command center kirish oynasi</h1>
-          <p>Kontent studio, payroll, finance va AI signallar bitta professional ish muhitida.</p>
+          <p>Telefon raqam va parol orqali alooSMM Manager OS ish muhitiga kiring.</p>
           <div className="login-public-nav">
             <a href="/platforma/">Platforma</a>
             <a href="/filiallar/">Filiallar</a>
@@ -1477,8 +1477,8 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
           </div>
           <div className="login-status-row compact">
             <span className="login-status-pill">Light UI</span>
-            <span className="login-status-pill">Telegram secure</span>
-            <span className="login-status-pill">Role workspace</span>
+            <span className="login-status-pill">Phone secure</span>
+            <span className="login-status-pill">Admin workspace</span>
           </div>
           <div className="login-command-preview">
             <div className="login-command-top">
@@ -1512,9 +1512,9 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
             </div>
           </div>
           <div className="login-title">Tizimga kirish</div>
-          <div className="login-subtitle">Kirish turini tanlang va ishchi workspace oching.</div>
+          <div className="login-subtitle">Telefon raqam va parolni kiriting.</div>
 
-          <div className="login-mode-switch">
+          {false ? <div className="login-mode-switch">
             {loginModes.map((mode) => {
               const Icon = mode.icon;
               return (
@@ -1532,7 +1532,7 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
                 </button>
               );
             })}
-          </div>
+          </div> : null}
 
           {loginMode === "telegram" ? (
             <div className="login-progress-steps">
@@ -1582,11 +1582,11 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
           {loginMode === "password" ? (
             <div className="login-mode-panel">
               <label>
-                <span>Telefon yoki login</span>
+                <span>Telefon raqam</span>
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="99890... yoki admin"
+                  placeholder="+998931949200"
                 />
               </label>
               <label>

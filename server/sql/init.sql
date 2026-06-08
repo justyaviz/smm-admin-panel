@@ -292,9 +292,9 @@ INSERT INTO users (
   is_active
 ) VALUES (
   'Asosiy administrator',
-  '998939000',
+  '998931949200',
   'admin',
-  '$2b$10$1w2I1nA5P0nXkHfA4fRrU.6s7n2lTnV5h2g7xqN1pJt4m4Xw5D8sG',
+  '$2a$10$Bbs6WRa5vjwtEJc.qVitJOSHLVVgftlXgzuJuywMJJy0IlNlhF2Wi',
   'admin',
   'Administrator',
   '["dashboard","content","bonus","dailyReports","campaigns","uploads","users","tasks","audit","profile","settings","chat","content_create","content_edit","content_delete","bonus_create","bonus_edit","bonus_delete","dailyReports_create","dailyReports_edit","dailyReports_delete","campaigns_create","campaigns_edit","campaigns_delete","uploads_create","uploads_delete","users_create","users_edit","users_delete","tasks_create","tasks_edit","tasks_delete"]'::jsonb,

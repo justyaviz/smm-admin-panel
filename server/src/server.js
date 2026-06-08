@@ -139,6 +139,7 @@ const upload = multer({ storage });
 
 const DIRECTOR_PERMISSION_PRESET = [
   "dashboard",
+  "managerLab",
   "content",
   "content_create",
   "content_edit",
@@ -183,6 +184,13 @@ const DIRECTOR_PERMISSION_PRESET = [
   "settings",
   "aiAssistant"
 ];
+
+const ADMIN_ONLY_RESET_VERSION = "2026-06-08-admin-only-998931949200";
+const ADMIN_ONLY_RESET_FLAG_KEY = "admin_only_reset_version";
+const DEFAULT_ADMIN_PHONE = "998931949200";
+const DEFAULT_ADMIN_PASSWORD = "2000";
+const DEFAULT_ADMIN_LOGIN = "admin";
+const DEFAULT_ADMIN_NAME = "Asosiy administrator";
 
 function isLeadershipRole(role) {
   return ["admin", "manager", "director"].includes(role);
@@ -1126,6 +1134,78 @@ async function insertBackupRows(client, tableName, rows = []) {
   }
 }
 
+async function resetToAdminOnlyOnce() {
+  const client = await getClient();
+  try {
+    const flag = await client.query(
+      `SELECT flag_value FROM system_flags WHERE flag_key = $1 LIMIT 1`,
+      [ADMIN_ONLY_RESET_FLAG_KEY]
+    );
+    if (flag.rows[0]?.flag_value === ADMIN_ONLY_RESET_VERSION) {
+      return false;
+    }
+
+    const tablesRes = await client.query(
+      `
+      SELECT tablename
+      FROM pg_tables
+      WHERE schemaname = 'public'
+        AND tablename <> ALL($1)
+      ORDER BY tablename ASC
+      `,
+      [["app_settings", "system_flags"]]
+    );
+    const tableNames = tablesRes.rows.map((row) => row.tablename).filter(Boolean);
+    const adminPasswordHash = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
+
+    await client.query("BEGIN");
+    if (tableNames.length) {
+      await client.query(
+        `TRUNCATE TABLE ${tableNames.map((tableName) => `"${tableName}"`).join(", ")} RESTART IDENTITY CASCADE`
+      );
+    }
+    await client.query(
+      `
+      INSERT INTO users (
+        full_name,
+        phone,
+        login,
+        password_hash,
+        role,
+        department_role,
+        permissions_json,
+        is_active
+      )
+      VALUES ($1,$2,$3,$4,'admin','Administrator',$5::jsonb,TRUE)
+      `,
+      [
+        DEFAULT_ADMIN_NAME,
+        DEFAULT_ADMIN_PHONE,
+        DEFAULT_ADMIN_LOGIN,
+        adminPasswordHash,
+        JSON.stringify(DIRECTOR_PERMISSION_PRESET)
+      ]
+    );
+    await client.query(
+      `
+      INSERT INTO system_flags (flag_key, flag_value)
+      VALUES ($1, $2)
+      ON CONFLICT (flag_key)
+      DO UPDATE SET flag_value = EXCLUDED.flag_value, updated_at = CURRENT_TIMESTAMP
+      `,
+      [ADMIN_ONLY_RESET_FLAG_KEY, ADMIN_ONLY_RESET_VERSION]
+    );
+    await client.query("COMMIT");
+    console.log(`Admin-only reset applied: ${DEFAULT_ADMIN_PHONE}`);
+    return true;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
 async function resetSequence(client, tableName) {
   try {
     await client.query(
@@ -1525,6 +1605,12 @@ async function ensureRuntimeSchema() {
       youtube_url TEXT,
       facebook_url TEXT,
       tiktok_url TEXT,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS system_flags (
+      flag_key TEXT PRIMARY KEY,
+      flag_value TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )`,
     `CREATE TABLE IF NOT EXISTS users (
@@ -2212,6 +2298,8 @@ async function ensureRuntimeSchema() {
       WHERE NOT EXISTS (SELECT 1 FROM app_settings)
     `);
 
+    const defaultAdminPasswordHash = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
+
     await query(
       `
       INSERT INTO users (
@@ -2225,21 +2313,26 @@ async function ensureRuntimeSchema() {
         is_active
       )
       SELECT
-        'Asosiy administrator',
-        '998939000',
-        'admin',
         $1,
+        $2,
+        $3,
+        $4,
         'admin',
         'Administrator',
-        $2::jsonb,
+        $5::jsonb,
         TRUE
       WHERE NOT EXISTS (SELECT 1 FROM users)
       `,
       [
-        "$2b$10$1w2I1nA5P0nXkHfA4fRrU.6s7n2lTnV5h2g7xqN1pJt4m4Xw5D8sG",
+        DEFAULT_ADMIN_NAME,
+        DEFAULT_ADMIN_PHONE,
+        DEFAULT_ADMIN_LOGIN,
+        defaultAdminPasswordHash,
         JSON.stringify(DIRECTOR_PERMISSION_PRESET)
       ]
     );
+
+    await resetToAdminOnlyOnce();
 
     await query(`
       INSERT INTO branches (name, city)
@@ -2264,6 +2357,11 @@ async function ensureRuntimeSchema() {
       WHERE NOT EXISTS (
         SELECT 1 FROM branches WHERE branches.name = seed.name
       )
+      AND NOT EXISTS (
+        SELECT 1 FROM system_flags
+        WHERE flag_key = '${ADMIN_ONLY_RESET_FLAG_KEY}'
+          AND flag_value = '${ADMIN_ONLY_RESET_VERSION}'
+      )
     `);
 
     await query(`
@@ -2278,6 +2376,11 @@ async function ensureRuntimeSchema() {
       ) AS seed(platform, status)
       WHERE NOT EXISTS (
         SELECT 1 FROM social_accounts WHERE social_accounts.platform = seed.platform
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM system_flags
+        WHERE flag_key = '${ADMIN_ONLY_RESET_FLAG_KEY}'
+          AND flag_value = '${ADMIN_ONLY_RESET_VERSION}'
       )
     `);
   } catch (err) {
@@ -2587,10 +2690,11 @@ async function findUserForAuth({ phone = "", login = "", role = "", userId = nul
 
 app.post("/api/auth/login", async (req, res) => {
   try {
-    const { phone, login, password } = req.body;
+    const { phone, password } = req.body;
+    const normalizedPhone = normalizePhoneForAuth(phone);
 
-    if ((!phone && !login) || !password) {
-      return res.status(400).json({ message: "Login va parol kiriting" });
+    if (!normalizedPhone || !password) {
+      return res.status(400).json({ message: "Telefon raqam va parol kiriting" });
     }
 
     const result = await query(
@@ -2607,14 +2711,14 @@ app.post("/api/auth/login", async (req, res) => {
         is_active,
         password_hash
       FROM users
-      WHERE phone = $1 OR login = $2
+      WHERE REGEXP_REPLACE(COALESCE(phone, ''), '\\D', '', 'g') = $1
       LIMIT 1
       `,
-      [phone || "", login || ""]
+      [normalizedPhone]
     );
 
     if (!result.rows.length) {
-      return res.status(401).json({ message: "Login yoki parol notoвЂgвЂri" });
+      return res.status(401).json({ message: "Telefon yoki parol noto'g'ri" });
     }
 
     const user = result.rows[0];
@@ -2632,7 +2736,7 @@ app.post("/api/auth/login", async (req, res) => {
 
 
     if (!ok) {
-      return res.status(401).json({ message: "Login yoki parol notoвЂgвЂri" });
+      return res.status(401).json({ message: "Telefon yoki parol noto'g'ri" });
     }
 
     const token = signToken({
@@ -2649,7 +2753,8 @@ app.post("/api/auth/login", async (req, res) => {
 
     await logAction(user.id, "login", "auth", user.id, {
       login: user.login,
-      phone: user.phone
+      phone: user.phone,
+      method: "phone_password"
     });
 
     res.json({
