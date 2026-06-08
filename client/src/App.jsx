@@ -52,6 +52,7 @@ import { UiHealthStrip, UiOpsTimeline, UiStatusStepper } from "./ui-system";
 
 const MENU = [
   { id: "dashboard", title: "Manager OS", icon: LayoutDashboard, tone: "indigo", desc: "Lavozim boshqaruv markazi" },
+  { id: "managerLab", title: "Manager OS Lab", icon: Sparkles, tone: "violet", desc: "Strategiya, CRM, KPI" },
   { id: "content", title: "Strategiya va kontent", icon: Clapperboard, tone: "cyan", desc: "Reja, kalendar, ssenariy" },
   { id: "tasks", title: "Mobilograf workflow", icon: ListTodo, tone: "green", desc: "Topshiriq va nazorat" },
   { id: "travelPlans", title: "Production safarlar", icon: PlaneTakeoff, tone: "violet", desc: "Filial, suratga olish, montaj" },
@@ -66,7 +67,7 @@ const MENU = [
 ];
 
 const MENU_GROUPS = [
-  { id: "core", title: "Manager OS", items: ["dashboard", "content", "tasks"] },
+  { id: "core", title: "Manager OS", items: ["dashboard", "managerLab", "content", "tasks"] },
   { id: "growth", title: "Growth va reklama", items: ["campaigns", "analytics", "dailyReports"] },
   { id: "assets", title: "Brand aktivlar", items: ["uploads"] },
   { id: "system", title: "Jamoa va tizim", items: ["users", "profile", "settings"] }
@@ -78,9 +79,9 @@ const SIDEBAR_WORKSPACES = [
     id: "smm",
     title: "alooSMM Manager OS",
     desc: "Strategiya, kontent, reklama, natija",
-    items: ["dashboard", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "uploads", "users", "settings"],
+    items: ["dashboard", "managerLab", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "uploads", "users", "settings"],
     groups: [
-      { id: "smm-main", title: "Strategiya va production", items: ["dashboard", "content", "tasks", "travelPlans"] },
+      { id: "smm-main", title: "Strategiya va production", items: ["dashboard", "managerLab", "content", "tasks", "travelPlans"] },
       { id: "smm-growth", title: "Growth tizimi", items: ["campaigns", "analytics", "dailyReports"] },
       { id: "smm-admin", title: "Brand va jamoa", items: ["uploads", "users", "settings", "profile"] }
     ]
@@ -136,7 +137,7 @@ const rolePresetPermissions = (currentUser) => {
     ];
   }
   if (["manager", "director"].includes(String(currentUser?.role || "").toLowerCase())) {
-    return ["travelPlans", "travelPlans_create", "travelPlans_edit", "travelPlans_delete"];
+    return ["managerLab", "travelPlans", "travelPlans_create", "travelPlans_edit", "travelPlans_delete"];
   }
   return [];
 };
@@ -146,6 +147,7 @@ const ROUTES_BY_PAGE = {
   login: "/login",
   campaignLeadForm: "/reklama-forma",
   dashboard: "/menu",
+  managerLab: "/manager-os-lab",
   content: "/kontent",
   bonus: "/bonus",
   travelPlans: "/safar",
@@ -166,6 +168,7 @@ const PAGE_BY_ROUTE = {
   "/reklama-forma": "campaignLeadForm",
   "/menu": "dashboard",
   "/dashboard": "dashboard",
+  "/manager-os-lab": "managerLab",
   "/kontent": "content",
   "/bonus": "bonus",
   "/harajatlar": "dashboard",
@@ -184,6 +187,7 @@ const PAGE_BY_ROUTE = {
 
 const PERMISSION_OPTIONS = [
   { id: "dashboard", label: "Bosh sahifa" },
+  { id: "managerLab", label: "Manager OS Lab" },
   { id: "content", label: "Kontent reja" },
   { id: "content_create", label: "Kontent qo'shish" },
   { id: "content_edit", label: "Kontent tahrirlash" },
@@ -219,8 +223,8 @@ const PERMISSION_OPTIONS = [
 const DIRECTOR_PERMISSION_PRESET = PERMISSION_OPTIONS.map((item) => item.id);
 
 const ROLE_WORKSPACE_PRESETS = {
-  director: ["dashboard", "analytics", "dailyReports", "campaigns", "profile"],
-  manager: ["dashboard", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "profile"],
+  director: ["dashboard", "managerLab", "analytics", "dailyReports", "campaigns", "profile"],
+  manager: ["dashboard", "managerLab", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "profile"],
   editor: ["dashboard", "tasks", "uploads", "content", "profile"],
   mobilograf: ["dashboard", "travelPlans", "bonus", "tasks", "content", "uploads", "dailyReports", "profile"],
   viewer: ["dashboard", "content", "campaigns", "analytics", "dailyReports", "profile"]
@@ -2302,6 +2306,338 @@ function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [],
           <span>Yakuniy tamoyil</span>
           <h2>SMM menejer natija uchun javob beradi.</h2>
           <p>Mobilograf bajarilish uchun javob beradi. Har bir kontent, reklama va marketing faoliyati aloo brendbooki, qadriyatlari va uzoq muddatli strategiyasiga mos bo'lishi shart.</p>
+        </article>
+      </section>
+    </div>
+  );
+}
+
+const MANAGER_OS_LAB_MODULES = [
+  {
+    resource: "strategies",
+    title: "Strategiya",
+    subtitle: "Oylik maqsad, platforma strategiyasi, trend va bozor signal.",
+    icon: Sparkles,
+    tone: "violet",
+    fields: [
+      { key: "month_label", label: "Oy", type: "month", defaultValue: () => getMonthLabel(), required: true },
+      { key: "platform", label: "Platforma", type: "select", options: ["all", "Instagram", "Telegram", "YouTube", "TikTok"], defaultValue: "all" },
+      { key: "objective", label: "Oylik maqsad", type: "text", required: true },
+      { key: "strategy_text", label: "Strategiya", type: "textarea" },
+      { key: "trend_notes", label: "Trendlar", type: "textarea" },
+      { key: "market_notes", label: "Bozor yangiliklari", type: "textarea" },
+      { key: "status", label: "Status", type: "select", options: ["draft", "active", "done"], defaultValue: "draft" }
+    ]
+  },
+  {
+    resource: "blogger_partners",
+    title: "Bloger CRM",
+    subtitle: "Bloger, Telegram kanal va media hamkorlar narx/natija nazorati.",
+    icon: ContactRound,
+    tone: "cyan",
+    fields: [
+      { key: "partner_name", label: "Hamkor nomi", type: "text", required: true },
+      { key: "platform", label: "Platforma", type: "select", options: ["Instagram", "Telegram", "YouTube", "TikTok", "Media"], defaultValue: "Instagram" },
+      { key: "contact_url", label: "Kontakt / link", type: "text" },
+      { key: "price_amount", label: "Narx", type: "number", defaultValue: 0 },
+      { key: "status", label: "Status", type: "select", options: ["negotiation", "approved", "in_progress", "done", "rejected"], defaultValue: "negotiation" },
+      { key: "expected_result", label: "Kutilgan natija", type: "textarea" },
+      { key: "actual_result", label: "Real natija", type: "textarea" },
+      { key: "notes", label: "Izoh", type: "textarea" }
+    ]
+  },
+  {
+    resource: "competitor_reports",
+    title: "Raqobatchi tahlili",
+    subtitle: "Postlar, aksiya, format, kuchli va kuchsiz tomonlar.",
+    icon: Eye,
+    tone: "amber",
+    fields: [
+      { key: "competitor_name", label: "Raqobatchi", type: "text", required: true },
+      { key: "platform", label: "Platforma", type: "select", options: ["Instagram", "Telegram", "YouTube", "TikTok"], defaultValue: "Instagram" },
+      { key: "report_date", label: "Sana", type: "date", defaultValue: () => formatDate(new Date()) },
+      { key: "content_format", label: "Kontent formati", type: "text" },
+      { key: "campaign_notes", label: "Aksiya / kampaniya", type: "textarea" },
+      { key: "strengths_text", label: "Kuchli tomon", type: "textarea" },
+      { key: "weaknesses_text", label: "Kuchsiz tomon", type: "textarea" },
+      { key: "action_idea", label: "Biz uchun idea", type: "textarea" }
+    ]
+  },
+  {
+    resource: "audience_metrics",
+    title: "Auditoriya tahlili",
+    subtitle: "Reach, engagement, follower growth va platforma signali.",
+    icon: BarChart3,
+    tone: "sky",
+    fields: [
+      { key: "metric_date", label: "Sana", type: "date", defaultValue: () => formatDate(new Date()) },
+      { key: "platform", label: "Platforma", type: "select", options: ["Instagram", "Telegram", "YouTube", "TikTok"], defaultValue: "Instagram" },
+      { key: "reach_count", label: "Reach", type: "number", defaultValue: 0 },
+      { key: "engagement_count", label: "Engagement", type: "number", defaultValue: 0 },
+      { key: "follower_growth", label: "Follower growth", type: "number", defaultValue: 0 },
+      { key: "signal_text", label: "Signal / xulosa", type: "textarea" }
+    ]
+  },
+  {
+    resource: "creative_briefs",
+    title: "Kreativ brief",
+    subtitle: "Banner, post, story va reklama kreativi uchun topshiriq.",
+    icon: Image,
+    tone: "purple",
+    fields: [
+      { key: "title", label: "Brief nomi", type: "text", required: true },
+      { key: "creative_type", label: "Kreativ turi", type: "select", options: ["banner", "post", "story", "reklama", "cover"], defaultValue: "banner" },
+      { key: "platform", label: "Platforma", type: "select", options: ["Instagram", "Telegram", "YouTube", "TikTok", "All"], defaultValue: "Instagram" },
+      { key: "brief_text", label: "Topshiriq", type: "textarea" },
+      { key: "deadline_date", label: "Deadline", type: "date" },
+      { key: "status", label: "Status", type: "select", options: ["brief", "in_progress", "review", "done"], defaultValue: "brief" }
+    ]
+  },
+  {
+    resource: "brand_kpi_scores",
+    title: "Brand KPI",
+    subtitle: "Brand sifati, kontent sifati, reklama natijasi va deadline intizomi.",
+    icon: ShieldCheck,
+    tone: "green",
+    fields: [
+      { key: "month_label", label: "Oy", type: "month", defaultValue: () => getMonthLabel(), required: true },
+      { key: "brand_quality_score", label: "Brand sifati", type: "number", defaultValue: 0 },
+      { key: "content_quality_score", label: "Kontent sifati", type: "number", defaultValue: 0 },
+      { key: "ads_result_score", label: "Reklama natijasi", type: "number", defaultValue: 0 },
+      { key: "deadline_score", label: "Deadline intizomi", type: "number", defaultValue: 0 },
+      { key: "notes", label: "Xulosa", type: "textarea" }
+    ]
+  },
+  {
+    resource: "approval_flows",
+    title: "Tasdiqlash oqimi",
+    subtitle: "Menejer, marketing rahbari va ijrochi bosqichlari.",
+    icon: ClipboardList,
+    tone: "slate",
+    fields: [
+      { key: "entity_type", label: "Entity turi", type: "select", options: ["content", "campaign", "creative", "task"], defaultValue: "content" },
+      { key: "entity_id", label: "Entity ID", type: "number" },
+      { key: "current_step", label: "Bosqich", type: "select", options: ["manager", "marketing_head", "mobilograf", "posting"], defaultValue: "manager" },
+      { key: "status", label: "Status", type: "select", options: ["pending", "approved", "rejected", "done"], defaultValue: "pending" },
+      { key: "notes", label: "Izoh", type: "textarea" }
+    ]
+  }
+];
+
+function buildManagerLabForm(config) {
+  return Object.fromEntries(config.fields.map((field) => [
+    field.key,
+    typeof field.defaultValue === "function" ? field.defaultValue() : field.defaultValue ?? ""
+  ]));
+}
+
+function renderManagerLabValue(value) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "number") return Number(value).toLocaleString();
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) return formatDateTime(value);
+  return String(value);
+}
+
+function ManagerOsLabPage({ onToast }) {
+  const [activeResource, setActiveResource] = useState(MANAGER_OS_LAB_MODULES[0].resource);
+  const activeConfig = MANAGER_OS_LAB_MODULES.find((item) => item.resource === activeResource) || MANAGER_OS_LAB_MODULES[0];
+  const [rows, setRows] = useState([]);
+  const [snapshot, setSnapshot] = useState({});
+  const [form, setForm] = useState(() => buildManagerLabForm(activeConfig));
+  const [editingRow, setEditingRow] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const visibleFields = activeConfig.fields.slice(0, 5);
+  const activeCount = Number(snapshot?.[activeResource]?.count || rows.length || 0);
+
+  const loadRows = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [listRes, snapshotRes] = await Promise.all([
+        api.list(`/api/manager-os/${activeResource}`, { limit: 120 }).catch(() => []),
+        api.list("/api/manager-os").catch(() => ({}))
+      ]);
+      setRows(listRes || []);
+      setSnapshot(snapshotRes || {});
+    } catch (err) {
+      onToast(err.message || "Manager OS Lab ma'lumotlari olinmadi", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [activeResource, onToast]);
+
+  useEffect(() => {
+    setForm(buildManagerLabForm(activeConfig));
+    setEditingRow(null);
+    loadRows();
+  }, [activeResource, loadRows]);
+
+  function setField(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function resetForm() {
+    setForm(buildManagerLabForm(activeConfig));
+    setEditingRow(null);
+  }
+
+  function startEdit(row) {
+    setEditingRow(row);
+    setForm(Object.fromEntries(activeConfig.fields.map((field) => [
+      field.key,
+      row[field.key] ?? (typeof field.defaultValue === "function" ? field.defaultValue() : field.defaultValue ?? "")
+    ])));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function buildPayload() {
+    return Object.fromEntries(activeConfig.fields.map((field) => {
+      const raw = form[field.key];
+      if (field.type === "number") return [field.key, Number(raw || 0)];
+      return [field.key, raw ?? ""];
+    }));
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const missing = activeConfig.fields.find((field) => field.required && !String(form[field.key] || "").trim());
+    if (missing) {
+      onToast(`${missing.label} majburiy`, "error");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const payload = buildPayload();
+      if (editingRow?.id) {
+        await api.update(`manager-os/${activeResource}`, editingRow.id, payload);
+        onToast("Manager OS yozuvi yangilandi", "success");
+      } else {
+        await api.post(`/api/manager-os/${activeResource}`, payload);
+        onToast("Manager OS yozuvi saqlandi", "success");
+      }
+      await loadRows();
+      resetForm();
+    } catch (err) {
+      onToast(err.message || "Saqlashda xatolik", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeRow(row) {
+    const ok = window.confirm("Rostdan ham o'chirilsinmi?");
+    if (!ok) return;
+    try {
+      await api.remove(`manager-os/${activeResource}`, row.id);
+      await loadRows();
+      onToast("Manager OS yozuvi o'chirildi", "success", { deleteCenter: true });
+    } catch (err) {
+      onToast(err.message || "O'chirishda xatolik", "error");
+    }
+  }
+
+  return (
+    <div className="manager-lab-page">
+      <section className="manager-lab-hero">
+        <div>
+          <span><Sparkles size={16} /> Manager OS Lab</span>
+          <h1>Strategiya, CRM, tahlil va KPI modullari</h1>
+          <p>Bu sahifa yangi Manager OS jadvallarini real ish oynasiga aylantiradi: reja tuzish, tahlil kiritish, hamkorlarni nazorat qilish va brand KPI baholash.</p>
+        </div>
+        <strong>{activeCount}</strong>
+      </section>
+
+      <div className="manager-lab-tabs">
+        {MANAGER_OS_LAB_MODULES.map((module) => {
+          const Icon = module.icon;
+          const count = Number(snapshot?.[module.resource]?.count || 0);
+          return (
+            <button key={module.resource} type="button" className={activeResource === module.resource ? "active" : ""} onClick={() => setActiveResource(module.resource)}>
+              <Icon size={16} />
+              <span>{module.title}</span>
+              <b>{count}</b>
+            </button>
+          );
+        })}
+      </div>
+
+      <section className="manager-lab-layout">
+        <article className="manager-lab-card">
+          <SectionTitle
+            title={editingRow ? `${activeConfig.title} tahrirlash` : `${activeConfig.title} qo'shish`}
+            desc={activeConfig.subtitle}
+            right={editingRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null}
+          />
+          <form className="form-grid manager-lab-form" onSubmit={handleSubmit}>
+            {activeConfig.fields.map((field) => (
+              <label key={field.key} className={field.type === "textarea" ? "full-col" : ""}>
+                <span>{field.label}</span>
+                {field.type === "textarea" ? (
+                  <textarea value={form[field.key] || ""} onChange={(e) => setField(field.key, e.target.value)} rows={3} />
+                ) : field.type === "select" ? (
+                  <select value={form[field.key] || ""} onChange={(e) => setField(field.key, e.target.value)}>
+                    {(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                ) : (
+                  <input type={field.type || "text"} value={form[field.key] || ""} onChange={(e) => setField(field.key, e.target.value)} required={!!field.required} />
+                )}
+              </label>
+            ))}
+            <div className="manager-lab-submit">
+              <button type="submit" className="btn primary" disabled={saving}>{saving ? "Saqlanmoqda..." : editingRow ? "Yangilash" : "Saqlash"}</button>
+              <button type="button" className="btn secondary" onClick={resetForm}>Tozalash</button>
+            </div>
+          </form>
+        </article>
+
+        <article className="manager-lab-card manager-lab-list">
+          <SectionTitle title={`${activeConfig.title} ro'yxati`} desc={loading ? "Yuklanmoqda..." : `${rows.length} ta yozuv`} />
+          <div className="table-wrap desktop-table">
+            <table>
+              <thead>
+                <tr>
+                  {visibleFields.map((field) => <th key={field.key}>{field.label}</th>)}
+                  <th>Amallar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length ? rows.map((row) => (
+                  <tr key={row.id}>
+                    {visibleFields.map((field) => <td key={field.key}>{renderManagerLabValue(row[field.key])}</td>)}
+                    <td>
+                      <div className="table-actions">
+                        <button type="button" className="btn tiny secondary" onClick={() => startEdit(row)}><Pencil size={14} /> Edit</button>
+                        <button type="button" className="btn tiny danger" onClick={() => removeRow(row)}><Trash2 size={14} /> Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                )) : <tr><td colSpan={visibleFields.length + 1} className="empty-cell">{loading ? "Yuklanmoqda..." : "Hozircha yozuv yo'q"}</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <div className="mobile-card-list">
+            {rows.length ? rows.map((row) => (
+              <div key={`manager-lab-${row.id}`} className="mobile-record-card">
+                <div className="mobile-record-head">
+                  <div className="mobile-record-title">
+                    <strong>{renderManagerLabValue(row[visibleFields[0]?.key])}</strong>
+                    <span>{activeConfig.title}</span>
+                  </div>
+                </div>
+                <div className="mobile-record-grid">
+                  {visibleFields.slice(1).map((field) => (
+                    <div key={field.key} className="mobile-record-field"><label>{field.label}</label><div>{renderManagerLabValue(row[field.key])}</div></div>
+                  ))}
+                </div>
+                <div className="mobile-record-actions">
+                  <button type="button" className="btn tiny secondary" onClick={() => startEdit(row)}><Pencil size={14} /> Edit</button>
+                  <button type="button" className="btn tiny danger" onClick={() => removeRow(row)}><Trash2 size={14} /> Delete</button>
+                </div>
+              </div>
+            )) : <div className="mobile-record-card empty">Hozircha yozuv yo'q</div>}
+          </div>
         </article>
       </section>
     </div>
@@ -8371,6 +8707,7 @@ function App() {
   const pageNeedsReferences = useCallback((pageId) => {
     return [
       "content",
+      "managerLab",
       "bonus",
       "travelPlans",
       "dailyReports",
@@ -8715,13 +9052,13 @@ function App() {
 
   const mobilePrimaryMenu = useMemo(() => {
     const rolePreferred = {
-      director: ["dashboard", "analytics", "campaigns", "profile"],
-      manager: ["dashboard", "content", "travelPlans", "campaigns", "profile"],
+      director: ["dashboard", "managerLab", "analytics", "campaigns", "profile"],
+      manager: ["dashboard", "managerLab", "content", "travelPlans", "campaigns", "profile"],
       editor: ["dashboard", "tasks", "uploads", "content", "profile"],
       mobilograf: ["dashboard", "travelPlans", "bonus", "uploads", "profile"],
       viewer: ["dashboard", "content", "analytics", "profile"]
     };
-    const preferred = rolePreferred[user?.role] || ["dashboard", "content", "travelPlans", "campaigns", "profile"];
+    const preferred = rolePreferred[user?.role] || ["dashboard", "managerLab", "content", "travelPlans", "campaigns", "profile"];
     const pinned = preferred
       .map((id) => allowedMenu.find((item) => item.id === id))
       .filter(Boolean);
@@ -8876,6 +9213,8 @@ function App() {
         user={user}
       />
     );
+  } else if (active === "managerLab") {
+    page = <ManagerOsLabPage onToast={showToast} />;
   } else if (active === "content") {
     page = <ContentPage users={users} branches={branches} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "bonus") {
@@ -19398,6 +19737,131 @@ tr:hover td,
 .bonus-v58-lock-note *{color:#0f3f69 !important}
 .bonus-v58-lock-note svg{color:#1690f5 !important}
 
+
+/* === Manager OS Lab: strategy, CRM, analytics, KPI modules === */
+.manager-lab-page{
+  display:grid;
+  gap:18px;
+}
+.manager-lab-hero{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  gap:18px;
+  border-radius:8px;
+  padding:24px;
+  color:#fff;
+  background:
+    linear-gradient(135deg,rgba(15,23,42,.96),rgba(8,47,73,.94)),
+    radial-gradient(circle at 88% 12%,rgba(45,212,191,.28),transparent 32%);
+  border:1px solid rgba(148,163,184,.2);
+  box-shadow:0 22px 58px rgba(15,23,42,.18);
+}
+.manager-lab-hero span{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  color:#5eead4;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-lab-hero h1{
+  margin:10px 0 8px;
+  font-size:34px;
+  line-height:1.08;
+  color:#fff;
+}
+.manager-lab-hero p{
+  max-width:820px;
+  margin:0;
+  color:#cbd5e1;
+  font-weight:750;
+  line-height:1.6;
+}
+.manager-lab-hero > strong{
+  flex:0 0 auto;
+  width:96px;
+  height:96px;
+  border-radius:8px;
+  display:grid;
+  place-items:center;
+  color:#0f172a;
+  background:#5eead4;
+  font-size:34px;
+  box-shadow:0 18px 44px rgba(45,212,191,.24);
+}
+.manager-lab-tabs{
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:10px;
+}
+.manager-lab-tabs button{
+  min-height:78px;
+  border-radius:8px;
+  border:1px solid #dce7f2;
+  background:#fff;
+  color:#475467;
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:8px;
+  padding:12px;
+  text-align:left;
+  font-weight:900;
+  box-shadow:0 12px 32px rgba(15,23,42,.06);
+}
+.manager-lab-tabs button.active{
+  border-color:#2dd4bf;
+  background:#ecfeff;
+  color:#0f766e;
+}
+.manager-lab-tabs b{
+  min-width:28px;
+  height:28px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:#0f172a;
+  color:#5eead4;
+  font-size:12px;
+}
+.manager-lab-layout{
+  display:grid;
+  grid-template-columns:minmax(320px,.72fr) minmax(0,1.28fr);
+  gap:18px;
+  align-items:start;
+}
+.manager-lab-card{
+  border-radius:8px;
+  background:#fff;
+  border:1px solid #dce7f2;
+  box-shadow:0 18px 45px rgba(15,23,42,.07);
+  padding:18px;
+}
+.manager-lab-form textarea{
+  min-height:96px;
+}
+.manager-lab-submit{
+  grid-column:1/-1;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.manager-lab-list .table-wrap{
+  max-height:620px;
+  overflow:auto;
+}
+@media (max-width:1180px){
+  .manager-lab-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .manager-lab-layout{grid-template-columns:1fr}
+}
+@media (max-width:680px){
+  .manager-lab-hero{display:grid;padding:20px}
+  .manager-lab-hero h1{font-size:28px}
+  .manager-lab-hero > strong{width:72px;height:72px;font-size:28px}
+  .manager-lab-tabs{grid-template-columns:1fr}
+}
 
 /* === alooSMM Manager OS redesign: dashboard and shell identity === */
 .brand-mark{
