@@ -910,6 +910,165 @@ function resolveCampaignLeadChatId(branchName) {
   return map[normalizeBranchKey(branchName)] || null;
 }
 
+function getCampaignMonthLabel(startAt, fallback = null) {
+  const safeDate = formatDateOnly(startAt || fallback || new Date());
+  return safeDate && safeDate !== "-" ? safeDate.slice(0, 7) : new Date().toISOString().slice(0, 7);
+}
+
+async function syncCampaignManagerOsRows(row, userId) {
+  if (!row?.id) return;
+  const briefUpdate = await query(
+    `
+    UPDATE campaign_briefs
+    SET
+      title = $2,
+      campaign_goal = $3,
+      target_audience = $4,
+      channel_name = $5,
+      expected_result = $6,
+      status = $7,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE campaign_id = $1
+    RETURNING id
+    `,
+    [
+      row.id,
+      row.title || "Kampaniya",
+      row.campaign_goal || "",
+      row.target_audience || "",
+      row.channel_name || row.platform || "",
+      row.expected_result || "",
+      row.status || "brief"
+    ]
+  );
+  if (!briefUpdate.rows.length) {
+    await query(
+    `
+    INSERT INTO campaign_briefs
+      (campaign_id, title, campaign_goal, target_audience, channel_name, expected_result, status, created_by)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    `,
+      [
+        row.id,
+        row.title || "Kampaniya",
+        row.campaign_goal || "",
+        row.target_audience || "",
+        row.channel_name || row.platform || "",
+        row.expected_result || "",
+        row.status || "brief",
+        userId || null
+      ]
+    );
+  }
+
+  const budgetUpdate = await query(
+    `
+    UPDATE ad_budgets
+    SET
+      platform = $2,
+      month_label = $3,
+      budget_amount = $4,
+      spent_amount = $5,
+      leads_count = $6,
+      cpl_amount = $7,
+      roi_amount = $8,
+      status = $9,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE campaign_id = $1
+    RETURNING id
+    `,
+    [
+      row.id,
+      row.platform || row.channel_name || "Ads",
+      getCampaignMonthLabel(row.start_at, row.start_date),
+      Number(row.budget || row.daily_budget || 0),
+      Number(row.spend || 0),
+      Number(row.leads || 0),
+      Number(row.cpl_amount || row.cpa || 0),
+      Number(row.roi_amount || row.roi || 0),
+      row.status || "planned"
+    ]
+  );
+  if (!budgetUpdate.rows.length) {
+    await query(
+    `
+    INSERT INTO ad_budgets
+      (campaign_id, platform, month_label, budget_amount, spent_amount, leads_count, cpl_amount, roi_amount, status, created_by)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `,
+      [
+        row.id,
+        row.platform || row.channel_name || "Ads",
+        getCampaignMonthLabel(row.start_at, row.start_date),
+        Number(row.budget || row.daily_budget || 0),
+        Number(row.spend || 0),
+        Number(row.leads || 0),
+        Number(row.cpl_amount || row.cpa || 0),
+        Number(row.roi_amount || row.roi || 0),
+        row.status || "planned",
+        userId || null
+      ]
+    );
+  }
+}
+
+const MANAGER_OS_RESOURCES = {
+  strategies: {
+    table: "strategies",
+    columns: ["month_label", "platform", "objective", "strategy_text", "trend_notes", "market_notes", "status", "owner_user_id"],
+    orderBy: "updated_at DESC, id DESC"
+  },
+  content_scripts: {
+    table: "content_scripts",
+    columns: ["content_id", "title", "hook_text", "main_body_text", "cta_text", "product_name", "platform", "video_type", "status"],
+    orderBy: "updated_at DESC, id DESC"
+  },
+  campaign_briefs: {
+    table: "campaign_briefs",
+    columns: ["campaign_id", "title", "campaign_goal", "target_audience", "channel_name", "expected_result", "status"],
+    orderBy: "updated_at DESC, id DESC"
+  },
+  ad_budgets: {
+    table: "ad_budgets",
+    columns: ["campaign_id", "platform", "month_label", "budget_amount", "spent_amount", "leads_count", "cpl_amount", "roi_amount", "status"],
+    orderBy: "updated_at DESC, id DESC"
+  },
+  blogger_partners: {
+    table: "blogger_partners",
+    columns: ["partner_name", "platform", "contact_url", "price_amount", "status", "expected_result", "actual_result", "notes"],
+    orderBy: "updated_at DESC, id DESC"
+  },
+  competitor_reports: {
+    table: "competitor_reports",
+    columns: ["competitor_name", "platform", "report_date", "content_format", "campaign_notes", "strengths_text", "weaknesses_text", "action_idea"],
+    orderBy: "report_date DESC, id DESC"
+  },
+  audience_metrics: {
+    table: "audience_metrics",
+    columns: ["metric_date", "platform", "reach_count", "engagement_count", "follower_growth", "signal_text"],
+    orderBy: "metric_date DESC, id DESC"
+  },
+  creative_briefs: {
+    table: "creative_briefs",
+    columns: ["title", "creative_type", "platform", "brief_text", "deadline_date", "status", "assigned_user_id"],
+    orderBy: "deadline_date ASC NULLS LAST, updated_at DESC, id DESC"
+  },
+  approval_flows: {
+    table: "approval_flows",
+    columns: ["entity_type", "entity_id", "current_step", "status", "manager_user_id", "approver_user_id", "executor_user_id", "notes"],
+    orderBy: "updated_at DESC, id DESC"
+  },
+  brand_kpi_scores: {
+    table: "brand_kpi_scores",
+    columns: ["month_label", "brand_quality_score", "content_quality_score", "ads_result_score", "deadline_score", "notes"],
+    orderBy: "month_label DESC, id DESC"
+  }
+};
+
+function getManagerOsResource(resource) {
+  return MANAGER_OS_RESOURCES[String(resource || "").trim()];
+}
+
 async function getBranchName(branchId) {
   const numericId = Number(branchId || 0);
   if (!numericId) return "";
@@ -1619,6 +1778,11 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS approval_comment TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS scenario_text TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS shot_list_text TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS hook_text TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS main_body_text TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS cta_text TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS product_name TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_type TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS preview_url TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS final_url TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS edit_file_url TEXT`,
@@ -1698,10 +1862,153 @@ async function ensureRuntimeSchema() {
       `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS daily_budget NUMERIC(14,2) NOT NULL DEFAULT 0`,
       `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS start_at TIMESTAMP`,
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS end_at TIMESTAMP`,
-    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_started_at TIMESTAMP`,
-    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_ended_at TIMESTAMP`,
-    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
-    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_started_at TIMESTAMP`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_ended_at TIMESTAMP`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS campaign_goal TEXT`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS target_audience TEXT`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS channel_name TEXT`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS expected_result TEXT`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS cpl_amount NUMERIC(14,2) NOT NULL DEFAULT 0`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS roi_amount NUMERIC(14,2) NOT NULL DEFAULT 0`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS campaign_type TEXT NOT NULL DEFAULT 'target'`,
+      `CREATE TABLE IF NOT EXISTS strategies (
+        id SERIAL PRIMARY KEY,
+        month_label TEXT NOT NULL,
+        platform TEXT NOT NULL DEFAULT 'all',
+        objective TEXT NOT NULL,
+        strategy_text TEXT,
+        trend_notes TEXT,
+        market_notes TEXT,
+        status TEXT NOT NULL DEFAULT 'draft',
+        owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS content_scripts (
+        id SERIAL PRIMARY KEY,
+        content_id INTEGER REFERENCES content_items(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        hook_text TEXT,
+        main_body_text TEXT,
+        cta_text TEXT,
+        product_name TEXT,
+        platform TEXT,
+        video_type TEXT,
+        status TEXT NOT NULL DEFAULT 'draft',
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS campaign_briefs (
+        id SERIAL PRIMARY KEY,
+        campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        campaign_goal TEXT,
+        target_audience TEXT,
+        channel_name TEXT,
+        expected_result TEXT,
+        status TEXT NOT NULL DEFAULT 'brief',
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS ad_budgets (
+        id SERIAL PRIMARY KEY,
+        campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL,
+        platform TEXT NOT NULL,
+        month_label TEXT NOT NULL,
+        budget_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+        spent_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+        leads_count INTEGER NOT NULL DEFAULT 0,
+        cpl_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+        roi_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'planned',
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS blogger_partners (
+        id SERIAL PRIMARY KEY,
+        partner_name TEXT NOT NULL,
+        platform TEXT NOT NULL DEFAULT 'Instagram',
+        contact_url TEXT,
+        price_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'negotiation',
+        expected_result TEXT,
+        actual_result TEXT,
+        notes TEXT,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS competitor_reports (
+        id SERIAL PRIMARY KEY,
+        competitor_name TEXT NOT NULL,
+        platform TEXT NOT NULL DEFAULT 'Instagram',
+        report_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        content_format TEXT,
+        campaign_notes TEXT,
+        strengths_text TEXT,
+        weaknesses_text TEXT,
+        action_idea TEXT,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS audience_metrics (
+        id SERIAL PRIMARY KEY,
+        metric_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        platform TEXT NOT NULL,
+        reach_count INTEGER NOT NULL DEFAULT 0,
+        engagement_count INTEGER NOT NULL DEFAULT 0,
+        follower_growth INTEGER NOT NULL DEFAULT 0,
+        signal_text TEXT,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS creative_briefs (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        creative_type TEXT NOT NULL DEFAULT 'banner',
+        platform TEXT,
+        brief_text TEXT,
+        deadline_date DATE,
+        status TEXT NOT NULL DEFAULT 'brief',
+        assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS approval_flows (
+        id SERIAL PRIMARY KEY,
+        entity_type TEXT NOT NULL,
+        entity_id INTEGER,
+        current_step TEXT NOT NULL DEFAULT 'manager',
+        status TEXT NOT NULL DEFAULT 'pending',
+        manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        approver_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        executor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        notes TEXT,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS brand_kpi_scores (
+        id SERIAL PRIMARY KEY,
+        month_label TEXT NOT NULL,
+        brand_quality_score INTEGER NOT NULL DEFAULT 0,
+        content_quality_score INTEGER NOT NULL DEFAULT 0,
+        ads_result_score INTEGER NOT NULL DEFAULT 0,
+        deadline_score INTEGER NOT NULL DEFAULT 0,
+        notes TEXT,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
     `CREATE TABLE IF NOT EXISTS campaign_leads (
       id SERIAL PRIMARY KEY,
       campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
@@ -3517,6 +3824,11 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
       branch_ids_json,
       scenario_text,
       shot_list_text,
+      hook_text,
+      main_body_text,
+      cta_text,
+      product_name,
+      video_type,
       preview_url,
       final_url,
       edit_file_url,
@@ -3557,6 +3869,11 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
         branch_ids_json,
         scenario_text,
         shot_list_text,
+        hook_text,
+        main_body_text,
+        cta_text,
+        product_name,
+        video_type,
         preview_url,
         final_url,
         edit_file_url,
@@ -3570,7 +3887,7 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
         plan_month,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34)
       RETURNING *
       `,
       [
@@ -3591,6 +3908,11 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
         JSON.stringify(Array.isArray(branch_ids_json) ? branch_ids_json : []),
         scenario_text || "",
         shot_list_text || "",
+        hook_text || "",
+        main_body_text || "",
+        cta_text || "",
+        product_name || "",
+        video_type || "",
         preview_url || "",
         final_url || "",
         edit_file_url || "",
@@ -3607,6 +3929,28 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
     );
 
     const row = inserted.rows[0];
+
+    if (hook_text || main_body_text || cta_text || product_name || video_type || scenario_text) {
+      await client.query(
+        `
+        INSERT INTO content_scripts
+        (content_id, title, hook_text, main_body_text, cta_text, product_name, platform, video_type, status, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        `,
+        [
+          row.id,
+          row.title,
+          hook_text || "",
+          main_body_text || scenario_text || "",
+          cta_text || "",
+          product_name || "",
+          platform || "",
+          video_type || content_type || "",
+          status || "draft",
+          req.user.id
+        ]
+      );
+    }
 
     const bonusSyncMeta = await upsertBonusFromContentRow(client, row, req.user.id);
     await client.query("COMMIT");
@@ -3681,6 +4025,11 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
       branch_ids_json,
       scenario_text,
       shot_list_text,
+      hook_text,
+      main_body_text,
+      cta_text,
+      product_name,
+      video_type,
       preview_url,
       final_url,
       edit_file_url,
@@ -3722,19 +4071,24 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
         branch_ids_json = $15,
         scenario_text = $16,
         shot_list_text = $17,
-        preview_url = $18,
-        final_url = $19,
-        edit_file_url = $20,
-        approval_comment = $21,
-        content_template = $22,
-        idea_score = $23,
-        visual_score = $24,
-        editing_score = $25,
-        result_score = $26,
-        reach_value = $27,
-        plan_month = $28,
+        hook_text = $18,
+        main_body_text = $19,
+        cta_text = $20,
+        product_name = $21,
+        video_type = $22,
+        preview_url = $23,
+        final_url = $24,
+        edit_file_url = $25,
+        approval_comment = $26,
+        content_template = $27,
+        idea_score = $28,
+        visual_score = $29,
+        editing_score = $30,
+        result_score = $31,
+        reach_value = $32,
+        plan_month = $33,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $29
+      WHERE id = $34
       RETURNING *
       `,
       [
@@ -3755,6 +4109,11 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
         JSON.stringify(Array.isArray(branch_ids_json) ? branch_ids_json : []),
         scenario_text || "",
         shot_list_text || "",
+        hook_text || "",
+        main_body_text || "",
+        cta_text || "",
+        product_name || "",
+        video_type || "",
         preview_url || "",
         final_url || "",
         edit_file_url || "",
@@ -3776,6 +4135,58 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
     }
 
     const row = updated.rows[0];
+
+    if (hook_text || main_body_text || cta_text || product_name || video_type || scenario_text) {
+      const scriptUpdate = await client.query(
+        `
+        UPDATE content_scripts
+        SET
+          title = $2,
+          hook_text = $3,
+          main_body_text = $4,
+          cta_text = $5,
+          product_name = $6,
+          platform = $7,
+          video_type = $8,
+          status = $9,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE content_id = $1
+        RETURNING id
+        `,
+        [
+          row.id,
+          row.title,
+          hook_text || "",
+          main_body_text || scenario_text || "",
+          cta_text || "",
+          product_name || "",
+          platform || "",
+          video_type || content_type || "",
+          status || "draft"
+        ]
+      );
+      if (!scriptUpdate.rows.length) {
+        await client.query(
+        `
+        INSERT INTO content_scripts
+        (content_id, title, hook_text, main_body_text, cta_text, product_name, platform, video_type, status, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        `,
+          [
+            row.id,
+            row.title,
+            hook_text || "",
+            main_body_text || scenario_text || "",
+            cta_text || "",
+            product_name || "",
+            platform || "",
+            video_type || content_type || "",
+            status || "draft",
+            req.user.id
+          ]
+        );
+      }
+    }
 
     const bonusSyncMeta = await upsertBonusFromContentRow(client, row, req.user.id);
     await client.query("COMMIT");
@@ -5268,6 +5679,13 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
       sales,
       ctr,
       revenue_amount,
+      campaign_goal,
+      target_audience,
+      channel_name,
+      expected_result,
+      cpl_amount,
+      roi_amount,
+      campaign_type,
       status,
       notes
     } = req.body;
@@ -5310,10 +5728,17 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
         revenue_amount,
         cpa,
         roi,
+        campaign_goal,
+        target_audience,
+        channel_name,
+        expected_result,
+        cpl_amount,
+        roi_amount,
+        campaign_type,
         status,
         notes
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
       RETURNING *
       `,
       [
@@ -5334,11 +5759,19 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
         safeRevenueAmount,
         cpa,
         roi,
+        campaign_goal || "",
+        target_audience || "",
+        channel_name || platform || "",
+        expected_result || "",
+        Number(cpl_amount || cpa || 0),
+        Number(roi_amount || roi || 0),
+        campaign_type || "target",
         safeStatus,
         notes || ""
       ]
     );
 
+    await syncCampaignManagerOsRows(inserted.rows[0], req.user.id);
     await logAction(req.user.id, "create", "campaigns", inserted.rows[0].id, {});
     const rowWithBranchName = {
       ...inserted.rows[0],
@@ -5373,6 +5806,13 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
       sales,
       ctr,
       revenue_amount,
+      campaign_goal,
+      target_audience,
+      channel_name,
+      expected_result,
+      cpl_amount,
+      roi_amount,
+      campaign_type,
       status,
       notes
     } = req.body;
@@ -5426,10 +5866,17 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
         revenue_amount = $15,
         cpa = $16,
         roi = $17,
-        status = $18,
-        notes = $19,
+        campaign_goal = $18,
+        target_audience = $19,
+        channel_name = $20,
+        expected_result = $21,
+        cpl_amount = $22,
+        roi_amount = $23,
+        campaign_type = $24,
+        status = $25,
+        notes = $26,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $20
+      WHERE id = $27
       RETURNING *
       `,
       [
@@ -5450,12 +5897,20 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
         safeRevenueAmount,
         cpa,
         roi,
+        campaign_goal ?? previousRow.campaign_goal ?? "",
+        target_audience ?? previousRow.target_audience ?? "",
+        channel_name ?? previousRow.channel_name ?? platform ?? previousRow.platform ?? "",
+        expected_result ?? previousRow.expected_result ?? "",
+        Number(cpl_amount ?? previousRow.cpl_amount ?? cpa ?? 0),
+        Number(roi_amount ?? previousRow.roi_amount ?? roi ?? 0),
+        campaign_type ?? previousRow.campaign_type ?? "target",
         safeStatus,
         safeNotes,
         req.params.id
       ]
     );
 
+    await syncCampaignManagerOsRows(updated.rows[0], req.user.id);
     await logAction(req.user.id, "update", "campaigns", Number(req.params.id), {});
     const rowWithBranchName = {
       ...updated.rows[0],
@@ -5480,6 +5935,106 @@ app.delete("/api/campaigns/:id", authRequired, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Kampaniyani oвЂchirib boвЂlmadi" });
+  }
+});
+
+/* MANAGER OS */
+
+app.get("/api/manager-os", authRequired, async (_req, res) => {
+  try {
+    const entries = await Promise.all(Object.entries(MANAGER_OS_RESOURCES).map(async ([resource, config]) => {
+      const [rowsResult, countResult] = await Promise.all([
+        query(`SELECT * FROM ${config.table} ORDER BY ${config.orderBy} LIMIT 8`),
+        query(`SELECT COUNT(*)::int AS count FROM ${config.table}`)
+      ]);
+      return [resource, {
+        count: countResult.rows[0]?.count || 0,
+        rows: rowsResult.rows || []
+      }];
+    }));
+
+    res.json(Object.fromEntries(entries));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Manager OS ma'lumotlarini olib bo'lmadi" });
+  }
+});
+
+app.get("/api/manager-os/:resource", authRequired, async (req, res) => {
+  try {
+    const config = getManagerOsResource(req.params.resource);
+    if (!config) return res.status(404).json({ message: "Manager OS resurs topilmadi" });
+
+    const limit = Math.min(Math.max(Number(req.query.limit || 100), 1), 300);
+    const result = await query(`SELECT * FROM ${config.table} ORDER BY ${config.orderBy} LIMIT $1`, [limit]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Manager OS ro'yxatini olib bo'lmadi" });
+  }
+});
+
+app.post("/api/manager-os/:resource", authRequired, async (req, res) => {
+  try {
+    const config = getManagerOsResource(req.params.resource);
+    if (!config) return res.status(404).json({ message: "Manager OS resurs topilmadi" });
+
+    const columns = config.columns.filter((column) => Object.prototype.hasOwnProperty.call(req.body || {}, column));
+    if (!columns.length) return res.status(400).json({ message: "Saqlash uchun maydon kiriting" });
+
+    const finalColumns = [...columns, "created_by"];
+    const values = [...columns.map((column) => req.body[column]), req.user.id];
+    const placeholders = finalColumns.map((_, index) => `$${index + 1}`).join(",");
+    const result = await query(
+      `INSERT INTO ${config.table} (${finalColumns.join(",")}) VALUES (${placeholders}) RETURNING *`,
+      values
+    );
+    await logAction(req.user.id, "create", config.table, result.rows[0].id, {});
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Manager OS yozuvini saqlab bo'lmadi" });
+  }
+});
+
+app.put("/api/manager-os/:resource/:id", authRequired, async (req, res) => {
+  try {
+    const config = getManagerOsResource(req.params.resource);
+    if (!config) return res.status(404).json({ message: "Manager OS resurs topilmadi" });
+
+    const columns = config.columns.filter((column) => Object.prototype.hasOwnProperty.call(req.body || {}, column));
+    if (!columns.length) return res.status(400).json({ message: "Yangilash uchun maydon kiriting" });
+
+    const assignments = columns.map((column, index) => `${column} = $${index + 1}`).join(", ");
+    const values = columns.map((column) => req.body[column]);
+    values.push(req.params.id);
+    const result = await query(
+      `UPDATE ${config.table} SET ${assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length} RETURNING *`,
+      values
+    );
+    if (!result.rows.length) return res.status(404).json({ message: "Manager OS yozuvi topilmadi" });
+
+    await logAction(req.user.id, "update", config.table, Number(req.params.id), {});
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Manager OS yozuvini yangilab bo'lmadi" });
+  }
+});
+
+app.delete("/api/manager-os/:resource/:id", authRequired, async (req, res) => {
+  try {
+    const config = getManagerOsResource(req.params.resource);
+    if (!config) return res.status(404).json({ message: "Manager OS resurs topilmadi" });
+
+    const result = await query(`DELETE FROM ${config.table} WHERE id = $1 RETURNING id`, [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ message: "Manager OS yozuvi topilmadi" });
+
+    await logAction(req.user.id, "delete", config.table, Number(req.params.id), {});
+    res.json({ message: "Manager OS yozuvi o'chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Manager OS yozuvini o'chirib bo'lmadi" });
   }
 });
 

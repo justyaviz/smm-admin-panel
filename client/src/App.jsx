@@ -51,38 +51,39 @@ import { DESIGN_SYSTEM_VERSION } from "./design-system";
 import { UiHealthStrip, UiOpsTimeline, UiStatusStepper } from "./ui-system";
 
 const MENU = [
-  { id: "dashboard", title: "Boshqaruv markazi", icon: LayoutDashboard, tone: "indigo", desc: "SMM command center" },
-  { id: "content", title: "Kontent reja", icon: Clapperboard, tone: "cyan", desc: "Postlar va reja" },
-  { id: "tasks", title: "Ish taqsimoti", icon: ListTodo, tone: "green", desc: "SMM va mobilograf workflow" },
-  { id: "travelPlans", title: "Safar rejasi", icon: PlaneTakeoff, tone: "violet", desc: "SMM va mobilograf rejalari" },
-  { id: "bonus", title: "Bonus tizimi", icon: BadgeDollarSign, tone: "emerald", desc: "Faqat mobilograf uchun" },
-  { id: "campaigns", title: "Reklama va aksiyalar", icon: Target, tone: "fuchsia", desc: "Target, bloger va hamkorlar" },
-  { id: "uploads", title: "Media kutubxona", icon: Image, tone: "purple", desc: "Fayl va assetlar" },
-  { id: "analytics", title: "Analitika va hisobot", icon: BarChart3, tone: "sky", desc: "Natija va auditoriya" },
-  { id: "dailyReports", title: "Platforma monitoringi", icon: ClipboardList, tone: "slate", desc: "Post, story va faollik" },
-  { id: "users", title: "Jamoa", icon: ContactRound, tone: "blue", desc: "SMM va mobilograf rollari" },
-  { id: "profile", title: "Profil", icon: CircleUserRound, tone: "cyan", desc: "Shaxsiy kabinet" },
-  { id: "settings", title: "Sozlamalar", icon: SlidersHorizontal, tone: "slate", desc: "Tizim boshqaruvi" }
+  { id: "dashboard", title: "Manager OS", icon: LayoutDashboard, tone: "indigo", desc: "Lavozim boshqaruv markazi" },
+  { id: "managerLab", title: "Manager OS Lab", icon: Sparkles, tone: "violet", desc: "Strategiya, CRM, KPI" },
+  { id: "content", title: "Strategiya va kontent", icon: Clapperboard, tone: "cyan", desc: "Reja, kalendar, ssenariy" },
+  { id: "tasks", title: "Mobilograf workflow", icon: ListTodo, tone: "green", desc: "Topshiriq va nazorat" },
+  { id: "travelPlans", title: "Production safarlar", icon: PlaneTakeoff, tone: "violet", desc: "Filial, suratga olish, montaj" },
+  { id: "bonus", title: "Mobilograf bonus", icon: BadgeDollarSign, tone: "emerald", desc: "Bajarilish motivatsiyasi" },
+  { id: "campaigns", title: "Kampaniya va Ads Lab", icon: Target, tone: "fuchsia", desc: "Target, aksiya, blogerlar" },
+  { id: "uploads", title: "Brand media arxiv", icon: Image, tone: "purple", desc: "Dizayn, video, kreativlar" },
+  { id: "analytics", title: "Growth analytics", icon: BarChart3, tone: "sky", desc: "Auditoriya va natija" },
+  { id: "dailyReports", title: "Platforma pulse", icon: ClipboardList, tone: "slate", desc: "Instagram, Telegram, YouTube" },
+  { id: "users", title: "Jamoa rollari", icon: ContactRound, tone: "blue", desc: "SMM, mobilograf, rahbar" },
+  { id: "profile", title: "Menejer profili", icon: CircleUserRound, tone: "cyan", desc: "Shaxsiy kabinet" },
+  { id: "settings", title: "Brand sozlamalar", icon: SlidersHorizontal, tone: "slate", desc: "Logo, brandbook, tizim" }
 ];
 
 const MENU_GROUPS = [
-  { id: "core", title: "SMM jarayoni", items: ["dashboard", "content", "tasks"] },
-  { id: "growth", title: "Marketing", items: ["campaigns", "analytics", "dailyReports"] },
-  { id: "assets", title: "Media", items: ["uploads"] },
-  { id: "system", title: "Boshqaruv", items: ["users", "profile", "settings"] }
+  { id: "core", title: "Manager OS", items: ["dashboard", "managerLab", "content", "tasks"] },
+  { id: "growth", title: "Growth va reklama", items: ["campaigns", "analytics", "dailyReports"] },
+  { id: "assets", title: "Brand aktivlar", items: ["uploads"] },
+  { id: "system", title: "Jamoa va tizim", items: ["users", "profile", "settings"] }
 ];
 
 
 const SIDEBAR_WORKSPACES = [
   {
     id: "smm",
-    title: "SMM menejer",
-    desc: "Strategiya, kontent, reklama",
-    items: ["dashboard", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "uploads", "users", "settings"],
+    title: "alooSMM Manager OS",
+    desc: "Strategiya, kontent, reklama, natija",
+    items: ["dashboard", "managerLab", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "uploads", "users", "settings"],
     groups: [
-      { id: "smm-main", title: "Reja va ssenariy", items: ["dashboard", "content", "tasks", "travelPlans"] },
-      { id: "smm-growth", title: "Reklama va natija", items: ["campaigns", "analytics", "dailyReports"] },
-      { id: "smm-admin", title: "Jamoa", items: ["uploads", "users", "settings", "profile"] }
+      { id: "smm-main", title: "Strategiya va production", items: ["dashboard", "managerLab", "content", "tasks", "travelPlans"] },
+      { id: "smm-growth", title: "Growth tizimi", items: ["campaigns", "analytics", "dailyReports"] },
+      { id: "smm-admin", title: "Brand va jamoa", items: ["uploads", "users", "settings", "profile"] }
     ]
   },
   {
@@ -136,7 +137,7 @@ const rolePresetPermissions = (currentUser) => {
     ];
   }
   if (["manager", "director"].includes(String(currentUser?.role || "").toLowerCase())) {
-    return ["travelPlans", "travelPlans_create", "travelPlans_edit", "travelPlans_delete"];
+    return ["managerLab", "travelPlans", "travelPlans_create", "travelPlans_edit", "travelPlans_delete"];
   }
   return [];
 };
@@ -146,6 +147,7 @@ const ROUTES_BY_PAGE = {
   login: "/login",
   campaignLeadForm: "/reklama-forma",
   dashboard: "/menu",
+  managerLab: "/manager-os-lab",
   content: "/kontent",
   bonus: "/bonus",
   travelPlans: "/safar",
@@ -166,6 +168,7 @@ const PAGE_BY_ROUTE = {
   "/reklama-forma": "campaignLeadForm",
   "/menu": "dashboard",
   "/dashboard": "dashboard",
+  "/manager-os-lab": "managerLab",
   "/kontent": "content",
   "/bonus": "bonus",
   "/harajatlar": "dashboard",
@@ -184,6 +187,7 @@ const PAGE_BY_ROUTE = {
 
 const PERMISSION_OPTIONS = [
   { id: "dashboard", label: "Bosh sahifa" },
+  { id: "managerLab", label: "Manager OS Lab" },
   { id: "content", label: "Kontent reja" },
   { id: "content_create", label: "Kontent qo'shish" },
   { id: "content_edit", label: "Kontent tahrirlash" },
@@ -219,8 +223,8 @@ const PERMISSION_OPTIONS = [
 const DIRECTOR_PERMISSION_PRESET = PERMISSION_OPTIONS.map((item) => item.id);
 
 const ROLE_WORKSPACE_PRESETS = {
-  director: ["dashboard", "analytics", "dailyReports", "campaigns", "profile"],
-  manager: ["dashboard", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "profile"],
+  director: ["dashboard", "managerLab", "analytics", "dailyReports", "campaigns", "profile"],
+  manager: ["dashboard", "managerLab", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "profile"],
   editor: ["dashboard", "tasks", "uploads", "content", "profile"],
   mobilograf: ["dashboard", "travelPlans", "bonus", "tasks", "content", "uploads", "dailyReports", "profile"],
   viewer: ["dashboard", "content", "campaigns", "analytics", "dailyReports", "profile"]
@@ -2075,6 +2079,571 @@ function DashboardPage({ summary = {}, dailyReports = [], contentRows = [], camp
   );
 }
 
+function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [], campaigns = [], travelPlans = [], tasks = [], uploads = [], managerOSData = {}, user = null }) {
+  const currentMonth = getMonthLabel();
+  const currentMonthTitle = getMonthTitle(currentMonth);
+  const todayKey = formatDate(new Date());
+  const monthContent = (contentRows || []).filter((row) => formatDate(row.publish_date || row.created_at).slice(0, 7) === currentMonth);
+  const publishedContent = monthContent.filter((row) => ["joylangan", "yakunlandi", "published"].includes(String(row.status || "").toLowerCase()));
+  const videoContent = monthContent.filter((row) => /video|reels|shorts|youtube/i.test(`${row.content_type || ""} ${row.platform || ""} ${row.title || ""}`));
+  const scriptReady = monthContent.filter((row) => row.scenario_text || row.script || row.approval_comment || /hook|cta|ssenariy/i.test(`${row.notes || ""} ${row.title || ""}`));
+  const activeCampaigns = (campaigns || []).filter((row) => {
+    const status = String(row.status || "").toLowerCase();
+    return !["done", "yakunlandi", "cancelled", "canceled"].includes(status);
+  });
+  const campaignSpend = activeCampaigns.reduce((sum, row) => sum + Number(row.spend || row.budget_spent || 0), 0);
+  const campaignLeads = activeCampaigns.reduce((sum, row) => sum + Number(row.leads || row.leads_count || 0), 0);
+  const openTasks = (tasks || []).filter((row) => !["done", "yakunlandi", "closed"].includes(String(row.status || "").toLowerCase()));
+  const productionTasks = openTasks.filter((row) => /video|foto|surat|montaj|reels|shorts|filial/i.test(`${row.title || ""} ${row.description || ""}`));
+  const overdueTasks = openTasks.filter((row) => {
+    const due = formatDate(row.due_date);
+    return due !== "-" && due < todayKey;
+  });
+  const platformPulse = Object.values((dailyReports || []).reduce((acc, row) => {
+    const key = row.branch_name || "Platforma";
+    if (!acc[key]) acc[key] = { name: key, posts: 0, stories: 0, reels: 0, subscribers: 0 };
+    acc[key].posts += Number(row.posts_count || 0);
+    acc[key].stories += Number(row.stories_count || 0);
+    acc[key].reels += Number(row.reels_count || 0);
+    acc[key].subscribers += Number(row.subscriber_count || 0);
+    return acc;
+  }, {})).sort((a, b) => (b.posts + b.stories + b.reels) - (a.posts + a.stories + a.reels)).slice(0, 6);
+  const brandScore = Math.max(8, Math.min(100, Math.round(
+    ((publishedContent.length / Math.max(monthContent.length, 1)) * 38) +
+    ((scriptReady.length / Math.max(monthContent.length, 1)) * 22) +
+    (activeCampaigns.length ? 18 : 4) +
+    (productionTasks.length ? 12 : 4) +
+    (platformPulse.length ? 10 : 2)
+  )));
+  const modules = [
+    ["Strategiya", Sparkles],
+    ["Oylik reja", ClipboardList],
+    ["Haftalik reja", Clock3],
+    ["Ssenariy", Pencil],
+    ["Hook / CTA", MessageCircle],
+    ["Kontent kalendar", LayoutGrid],
+    ["Instagram / TG / YouTube", Globe2],
+    ["Kampaniyalar", Megaphone],
+    ["Aksiyalar", BadgeDollarSign],
+    ["Reklama byudjeti", ReceiptText],
+    ["Target nazorati", Target],
+    ["Bloger va media", ContactRound],
+    ["Raqobatchi tahlili", Eye],
+    ["Auditoriya tahlili", BarChart3],
+    ["Mobilograf tasklari", Mic],
+    ["Dizayn va kreativ", Image],
+    ["Hisobotlar", ClipboardList],
+    ["Brand KPI", ShieldCheck]
+  ];
+  const focusRows = [
+    ["Kontent reja + ssenariy", 25],
+    ["Kampaniya + aksiya", 20],
+    ["Reklama va target", 20],
+    ["Dizayn va kreativ", 15],
+    ["Platforma rivoji", 10],
+    ["Analitika", 5],
+    ["Blogerlar", 5]
+  ];
+  const latestContent = [...monthContent]
+    .sort((a, b) => getDateSortValue(a.publish_date || a.created_at, Number.POSITIVE_INFINITY) - getDateSortValue(b.publish_date || b.created_at, Number.POSITIVE_INFINITY))
+    .slice(0, 5);
+  const latestCampaigns = [...activeCampaigns]
+    .sort((a, b) => getDateSortValue(a.end_at || a.end_date, Number.POSITIVE_INFINITY) - getDateSortValue(b.end_at || b.end_date, Number.POSITIVE_INFINITY))
+    .slice(0, 4);
+  const productionQueue = [...productionTasks, ...openTasks].slice(0, 5);
+  const resourceCount = (key) => Number(managerOSData?.[key]?.count || managerOSData?.[key]?.rows?.length || 0);
+  const managerOsSnapshot = [
+    ["Strategiya", resourceCount("strategies")],
+    ["Ssenariy", resourceCount("content_scripts")],
+    ["Campaign brief", resourceCount("campaign_briefs")],
+    ["Ads budget", resourceCount("ad_budgets")],
+    ["Bloger CRM", resourceCount("blogger_partners")],
+    ["Raqobatchi", resourceCount("competitor_reports")],
+    ["Auditoriya", resourceCount("audience_metrics")],
+    ["Kreativ brief", resourceCount("creative_briefs")],
+    ["Approval", resourceCount("approval_flows")],
+    ["Brand KPI", resourceCount("brand_kpi_scores")]
+  ];
+
+  return (
+    <div className="manager-os-page">
+      <section className="manager-os-hero">
+        <div className="manager-os-hero-copy">
+          <span className="manager-os-eyebrow"><Sparkles size={16} /> alooSMM manager operating system</span>
+          <h1>SMM menejer uchun yangi boshqaruv tizimi</h1>
+          <p>
+            Strategiya, kontent reja, ssenariy, reklama, blogerlar, mobilograf workflow va brand KPI bir ekranda.
+            Bu panel ko'proq kontent chiqarish emas, brendni kuchaytiradigan marketing tizimini boshqarish uchun.
+          </p>
+        </div>
+        <div className="manager-os-pulse">
+          <span>{brandScore}</span>
+          <strong>Brand KPI</strong>
+          <small>{currentMonthTitle} bo'yicha real pulse</small>
+        </div>
+      </section>
+
+      <section className="manager-os-strip">
+        <div><span>Kontent reja</span><strong>{monthContent.length}</strong><small>{publishedContent.length} joylangan</small></div>
+        <div><span>Ssenariy tayyor</span><strong>{scriptReady.length}</strong><small>Hook / CTA nazorat</small></div>
+        <div><span>Video format</span><strong>{videoContent.length}</strong><small>Reels, Shorts, YouTube</small></div>
+        <div><span>Faol target</span><strong>{activeCampaigns.length}</strong><small>{formatMoney(campaignSpend)} sarf</small></div>
+        <div><span>Leadlar</span><strong>{campaignLeads}</strong><small>kampaniya natijasi</small></div>
+        <div><span>Mobilograf queue</span><strong>{productionTasks.length}</strong><small>{overdueTasks.length} deadline risk</small></div>
+      </section>
+
+      <section className="manager-os-snapshot">
+        {managerOsSnapshot.map(([label, count]) => (
+          <div key={label}>
+            <span>{label}</span>
+            <strong>{count}</strong>
+          </div>
+        ))}
+      </section>
+
+      <section className="manager-os-layout">
+        <article className="manager-os-card manager-os-modules">
+          <div className="manager-os-card-head">
+            <div><span>Lavozim modullari</span><h2>18 qismli manager tizimi</h2></div>
+            <b>role scope</b>
+          </div>
+          <div className="manager-os-module-grid">
+            {modules.map(([label, Icon], index) => (
+              <button key={label} type="button" className="manager-os-module">
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <Icon size={17} />
+                <strong>{label}</strong>
+              </button>
+            ))}
+          </div>
+        </article>
+
+        <article className="manager-os-card manager-os-focus">
+          <div className="manager-os-card-head">
+            <div><span>Haftalik fokus</span><h2>Ish ulushi</h2></div>
+            <b>job map</b>
+          </div>
+          <div className="manager-os-focus-list">
+            {focusRows.map(([label, value]) => (
+              <div key={label}>
+                <span>{label}</span>
+                <i><em style={{ width: `${value * 3.2}%` }} /></i>
+                <strong>{value}%</strong>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <section className="manager-os-grid">
+        <article className="manager-os-card">
+          <div className="manager-os-card-head">
+            <div><span>Kontent strategiyasi</span><h2>Reja, ssenariy, nashr</h2></div>
+            <b>{currentMonthTitle}</b>
+          </div>
+          <div className="manager-os-table">
+            {latestContent.length ? latestContent.map((row) => (
+              <div key={row.id}>
+                <strong>{row.title}</strong>
+                <span>{formatDate(row.publish_date || row.created_at)} / {row.platform_primary || row.platform || "platforma"}</span>
+                <b>{row.status || "reja"}</b>
+              </div>
+            )) : <p className="manager-os-empty">Kontent reja hali to'ldirilmagan.</p>}
+          </div>
+        </article>
+
+        <article className="manager-os-card">
+          <div className="manager-os-card-head">
+            <div><span>Ads Lab</span><h2>Kampaniya va aksiya</h2></div>
+            <b>growth</b>
+          </div>
+          <div className="manager-os-table">
+            {latestCampaigns.length ? latestCampaigns.map((row) => (
+              <div key={row.id}>
+                <strong>{row.title}</strong>
+                <span>{row.platform || "ads"} / {formatMoney(row.daily_budget || row.budget || 0)}</span>
+                <b>{row.status || "active"}</b>
+              </div>
+            )) : <p className="manager-os-empty">Faol kampaniya yo'q. Aksiya yoki target reja kiriting.</p>}
+          </div>
+        </article>
+
+        <article className="manager-os-card">
+          <div className="manager-os-card-head">
+            <div><span>Mobilograf nazorati</span><h2>Production queue</h2></div>
+            <b>{productionQueue.length} task</b>
+          </div>
+          <div className="manager-os-table">
+            {productionQueue.length ? productionQueue.map((row) => (
+              <div key={row.id}>
+                <strong>{row.title}</strong>
+                <span>{formatDate(row.due_date || row.created_at)} / {row.priority || "normal"}</span>
+                <b>{taskStatusLabel(row.status)}</b>
+              </div>
+            )) : <p className="manager-os-empty">Mobilografga ochiq production topshiriq yo'q.</p>}
+          </div>
+        </article>
+      </section>
+
+      <section className="manager-os-bottom">
+        <article className="manager-os-card">
+          <div className="manager-os-card-head">
+            <div><span>Platforma pulse</span><h2>Instagram, Telegram, YouTube monitoring</h2></div>
+            <b>{platformPulse.length || 0} signal</b>
+          </div>
+          <div className="manager-os-platforms">
+            {platformPulse.length ? platformPulse.map((row) => (
+              <div key={row.name}>
+                <strong>{row.name}</strong>
+                <span>{row.posts} post / {row.stories} story / {row.reels} reels</span>
+                <i><em style={{ width: `${Math.min(100, Math.max(12, row.posts * 8 + row.stories * 2 + row.reels * 10))}%` }} /></i>
+              </div>
+            )) : <p className="manager-os-empty">Kunlik monitoring yozuvlari hali yo'q.</p>}
+          </div>
+        </article>
+
+        <article className="manager-os-card manager-os-principle">
+          <span>Yakuniy tamoyil</span>
+          <h2>SMM menejer natija uchun javob beradi.</h2>
+          <p>Mobilograf bajarilish uchun javob beradi. Har bir kontent, reklama va marketing faoliyati aloo brendbooki, qadriyatlari va uzoq muddatli strategiyasiga mos bo'lishi shart.</p>
+        </article>
+      </section>
+    </div>
+  );
+}
+
+const MANAGER_OS_LAB_MODULES = [
+  {
+    resource: "strategies",
+    title: "Strategiya",
+    subtitle: "Oylik maqsad, platforma strategiyasi, trend va bozor signal.",
+    icon: Sparkles,
+    tone: "violet",
+    fields: [
+      { key: "month_label", label: "Oy", type: "month", defaultValue: () => getMonthLabel(), required: true },
+      { key: "platform", label: "Platforma", type: "select", options: ["all", "Instagram", "Telegram", "YouTube", "TikTok"], defaultValue: "all" },
+      { key: "objective", label: "Oylik maqsad", type: "text", required: true },
+      { key: "strategy_text", label: "Strategiya", type: "textarea" },
+      { key: "trend_notes", label: "Trendlar", type: "textarea" },
+      { key: "market_notes", label: "Bozor yangiliklari", type: "textarea" },
+      { key: "status", label: "Status", type: "select", options: ["draft", "active", "done"], defaultValue: "draft" }
+    ]
+  },
+  {
+    resource: "blogger_partners",
+    title: "Bloger CRM",
+    subtitle: "Bloger, Telegram kanal va media hamkorlar narx/natija nazorati.",
+    icon: ContactRound,
+    tone: "cyan",
+    fields: [
+      { key: "partner_name", label: "Hamkor nomi", type: "text", required: true },
+      { key: "platform", label: "Platforma", type: "select", options: ["Instagram", "Telegram", "YouTube", "TikTok", "Media"], defaultValue: "Instagram" },
+      { key: "contact_url", label: "Kontakt / link", type: "text" },
+      { key: "price_amount", label: "Narx", type: "number", defaultValue: 0 },
+      { key: "status", label: "Status", type: "select", options: ["negotiation", "approved", "in_progress", "done", "rejected"], defaultValue: "negotiation" },
+      { key: "expected_result", label: "Kutilgan natija", type: "textarea" },
+      { key: "actual_result", label: "Real natija", type: "textarea" },
+      { key: "notes", label: "Izoh", type: "textarea" }
+    ]
+  },
+  {
+    resource: "competitor_reports",
+    title: "Raqobatchi tahlili",
+    subtitle: "Postlar, aksiya, format, kuchli va kuchsiz tomonlar.",
+    icon: Eye,
+    tone: "amber",
+    fields: [
+      { key: "competitor_name", label: "Raqobatchi", type: "text", required: true },
+      { key: "platform", label: "Platforma", type: "select", options: ["Instagram", "Telegram", "YouTube", "TikTok"], defaultValue: "Instagram" },
+      { key: "report_date", label: "Sana", type: "date", defaultValue: () => formatDate(new Date()) },
+      { key: "content_format", label: "Kontent formati", type: "text" },
+      { key: "campaign_notes", label: "Aksiya / kampaniya", type: "textarea" },
+      { key: "strengths_text", label: "Kuchli tomon", type: "textarea" },
+      { key: "weaknesses_text", label: "Kuchsiz tomon", type: "textarea" },
+      { key: "action_idea", label: "Biz uchun idea", type: "textarea" }
+    ]
+  },
+  {
+    resource: "audience_metrics",
+    title: "Auditoriya tahlili",
+    subtitle: "Reach, engagement, follower growth va platforma signali.",
+    icon: BarChart3,
+    tone: "sky",
+    fields: [
+      { key: "metric_date", label: "Sana", type: "date", defaultValue: () => formatDate(new Date()) },
+      { key: "platform", label: "Platforma", type: "select", options: ["Instagram", "Telegram", "YouTube", "TikTok"], defaultValue: "Instagram" },
+      { key: "reach_count", label: "Reach", type: "number", defaultValue: 0 },
+      { key: "engagement_count", label: "Engagement", type: "number", defaultValue: 0 },
+      { key: "follower_growth", label: "Follower growth", type: "number", defaultValue: 0 },
+      { key: "signal_text", label: "Signal / xulosa", type: "textarea" }
+    ]
+  },
+  {
+    resource: "creative_briefs",
+    title: "Kreativ brief",
+    subtitle: "Banner, post, story va reklama kreativi uchun topshiriq.",
+    icon: Image,
+    tone: "purple",
+    fields: [
+      { key: "title", label: "Brief nomi", type: "text", required: true },
+      { key: "creative_type", label: "Kreativ turi", type: "select", options: ["banner", "post", "story", "reklama", "cover"], defaultValue: "banner" },
+      { key: "platform", label: "Platforma", type: "select", options: ["Instagram", "Telegram", "YouTube", "TikTok", "All"], defaultValue: "Instagram" },
+      { key: "brief_text", label: "Topshiriq", type: "textarea" },
+      { key: "deadline_date", label: "Deadline", type: "date" },
+      { key: "status", label: "Status", type: "select", options: ["brief", "in_progress", "review", "done"], defaultValue: "brief" }
+    ]
+  },
+  {
+    resource: "brand_kpi_scores",
+    title: "Brand KPI",
+    subtitle: "Brand sifati, kontent sifati, reklama natijasi va deadline intizomi.",
+    icon: ShieldCheck,
+    tone: "green",
+    fields: [
+      { key: "month_label", label: "Oy", type: "month", defaultValue: () => getMonthLabel(), required: true },
+      { key: "brand_quality_score", label: "Brand sifati", type: "number", defaultValue: 0 },
+      { key: "content_quality_score", label: "Kontent sifati", type: "number", defaultValue: 0 },
+      { key: "ads_result_score", label: "Reklama natijasi", type: "number", defaultValue: 0 },
+      { key: "deadline_score", label: "Deadline intizomi", type: "number", defaultValue: 0 },
+      { key: "notes", label: "Xulosa", type: "textarea" }
+    ]
+  },
+  {
+    resource: "approval_flows",
+    title: "Tasdiqlash oqimi",
+    subtitle: "Menejer, marketing rahbari va ijrochi bosqichlari.",
+    icon: ClipboardList,
+    tone: "slate",
+    fields: [
+      { key: "entity_type", label: "Entity turi", type: "select", options: ["content", "campaign", "creative", "task"], defaultValue: "content" },
+      { key: "entity_id", label: "Entity ID", type: "number" },
+      { key: "current_step", label: "Bosqich", type: "select", options: ["manager", "marketing_head", "mobilograf", "posting"], defaultValue: "manager" },
+      { key: "status", label: "Status", type: "select", options: ["pending", "approved", "rejected", "done"], defaultValue: "pending" },
+      { key: "notes", label: "Izoh", type: "textarea" }
+    ]
+  }
+];
+
+function buildManagerLabForm(config) {
+  return Object.fromEntries(config.fields.map((field) => [
+    field.key,
+    typeof field.defaultValue === "function" ? field.defaultValue() : field.defaultValue ?? ""
+  ]));
+}
+
+function renderManagerLabValue(value) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "number") return Number(value).toLocaleString();
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) return formatDateTime(value);
+  return String(value);
+}
+
+function ManagerOsLabPage({ onToast }) {
+  const [activeResource, setActiveResource] = useState(MANAGER_OS_LAB_MODULES[0].resource);
+  const activeConfig = MANAGER_OS_LAB_MODULES.find((item) => item.resource === activeResource) || MANAGER_OS_LAB_MODULES[0];
+  const [rows, setRows] = useState([]);
+  const [snapshot, setSnapshot] = useState({});
+  const [form, setForm] = useState(() => buildManagerLabForm(activeConfig));
+  const [editingRow, setEditingRow] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const visibleFields = activeConfig.fields.slice(0, 5);
+  const activeCount = Number(snapshot?.[activeResource]?.count || rows.length || 0);
+
+  const loadRows = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [listRes, snapshotRes] = await Promise.all([
+        api.list(`/api/manager-os/${activeResource}`, { limit: 120 }).catch(() => []),
+        api.list("/api/manager-os").catch(() => ({}))
+      ]);
+      setRows(listRes || []);
+      setSnapshot(snapshotRes || {});
+    } catch (err) {
+      onToast(err.message || "Manager OS Lab ma'lumotlari olinmadi", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [activeResource, onToast]);
+
+  useEffect(() => {
+    setForm(buildManagerLabForm(activeConfig));
+    setEditingRow(null);
+    loadRows();
+  }, [activeResource, loadRows]);
+
+  function setField(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function resetForm() {
+    setForm(buildManagerLabForm(activeConfig));
+    setEditingRow(null);
+  }
+
+  function startEdit(row) {
+    setEditingRow(row);
+    setForm(Object.fromEntries(activeConfig.fields.map((field) => [
+      field.key,
+      row[field.key] ?? (typeof field.defaultValue === "function" ? field.defaultValue() : field.defaultValue ?? "")
+    ])));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function buildPayload() {
+    return Object.fromEntries(activeConfig.fields.map((field) => {
+      const raw = form[field.key];
+      if (field.type === "number") return [field.key, Number(raw || 0)];
+      return [field.key, raw ?? ""];
+    }));
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const missing = activeConfig.fields.find((field) => field.required && !String(form[field.key] || "").trim());
+    if (missing) {
+      onToast(`${missing.label} majburiy`, "error");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const payload = buildPayload();
+      if (editingRow?.id) {
+        await api.update(`manager-os/${activeResource}`, editingRow.id, payload);
+        onToast("Manager OS yozuvi yangilandi", "success");
+      } else {
+        await api.post(`/api/manager-os/${activeResource}`, payload);
+        onToast("Manager OS yozuvi saqlandi", "success");
+      }
+      await loadRows();
+      resetForm();
+    } catch (err) {
+      onToast(err.message || "Saqlashda xatolik", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeRow(row) {
+    const ok = window.confirm("Rostdan ham o'chirilsinmi?");
+    if (!ok) return;
+    try {
+      await api.remove(`manager-os/${activeResource}`, row.id);
+      await loadRows();
+      onToast("Manager OS yozuvi o'chirildi", "success", { deleteCenter: true });
+    } catch (err) {
+      onToast(err.message || "O'chirishda xatolik", "error");
+    }
+  }
+
+  return (
+    <div className="manager-lab-page">
+      <section className="manager-lab-hero">
+        <div>
+          <span><Sparkles size={16} /> Manager OS Lab</span>
+          <h1>Strategiya, CRM, tahlil va KPI modullari</h1>
+          <p>Bu sahifa yangi Manager OS jadvallarini real ish oynasiga aylantiradi: reja tuzish, tahlil kiritish, hamkorlarni nazorat qilish va brand KPI baholash.</p>
+        </div>
+        <strong>{activeCount}</strong>
+      </section>
+
+      <div className="manager-lab-tabs">
+        {MANAGER_OS_LAB_MODULES.map((module) => {
+          const Icon = module.icon;
+          const count = Number(snapshot?.[module.resource]?.count || 0);
+          return (
+            <button key={module.resource} type="button" className={activeResource === module.resource ? "active" : ""} onClick={() => setActiveResource(module.resource)}>
+              <Icon size={16} />
+              <span>{module.title}</span>
+              <b>{count}</b>
+            </button>
+          );
+        })}
+      </div>
+
+      <section className="manager-lab-layout">
+        <article className="manager-lab-card">
+          <SectionTitle
+            title={editingRow ? `${activeConfig.title} tahrirlash` : `${activeConfig.title} qo'shish`}
+            desc={activeConfig.subtitle}
+            right={editingRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null}
+          />
+          <form className="form-grid manager-lab-form" onSubmit={handleSubmit}>
+            {activeConfig.fields.map((field) => (
+              <label key={field.key} className={field.type === "textarea" ? "full-col" : ""}>
+                <span>{field.label}</span>
+                {field.type === "textarea" ? (
+                  <textarea value={form[field.key] || ""} onChange={(e) => setField(field.key, e.target.value)} rows={3} />
+                ) : field.type === "select" ? (
+                  <select value={form[field.key] || ""} onChange={(e) => setField(field.key, e.target.value)}>
+                    {(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                ) : (
+                  <input type={field.type || "text"} value={form[field.key] || ""} onChange={(e) => setField(field.key, e.target.value)} required={!!field.required} />
+                )}
+              </label>
+            ))}
+            <div className="manager-lab-submit">
+              <button type="submit" className="btn primary" disabled={saving}>{saving ? "Saqlanmoqda..." : editingRow ? "Yangilash" : "Saqlash"}</button>
+              <button type="button" className="btn secondary" onClick={resetForm}>Tozalash</button>
+            </div>
+          </form>
+        </article>
+
+        <article className="manager-lab-card manager-lab-list">
+          <SectionTitle title={`${activeConfig.title} ro'yxati`} desc={loading ? "Yuklanmoqda..." : `${rows.length} ta yozuv`} />
+          <div className="table-wrap desktop-table">
+            <table>
+              <thead>
+                <tr>
+                  {visibleFields.map((field) => <th key={field.key}>{field.label}</th>)}
+                  <th>Amallar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length ? rows.map((row) => (
+                  <tr key={row.id}>
+                    {visibleFields.map((field) => <td key={field.key}>{renderManagerLabValue(row[field.key])}</td>)}
+                    <td>
+                      <div className="table-actions">
+                        <button type="button" className="btn tiny secondary" onClick={() => startEdit(row)}><Pencil size={14} /> Edit</button>
+                        <button type="button" className="btn tiny danger" onClick={() => removeRow(row)}><Trash2 size={14} /> Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                )) : <tr><td colSpan={visibleFields.length + 1} className="empty-cell">{loading ? "Yuklanmoqda..." : "Hozircha yozuv yo'q"}</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <div className="mobile-card-list">
+            {rows.length ? rows.map((row) => (
+              <div key={`manager-lab-${row.id}`} className="mobile-record-card">
+                <div className="mobile-record-head">
+                  <div className="mobile-record-title">
+                    <strong>{renderManagerLabValue(row[visibleFields[0]?.key])}</strong>
+                    <span>{activeConfig.title}</span>
+                  </div>
+                </div>
+                <div className="mobile-record-grid">
+                  {visibleFields.slice(1).map((field) => (
+                    <div key={field.key} className="mobile-record-field"><label>{field.label}</label><div>{renderManagerLabValue(row[field.key])}</div></div>
+                  ))}
+                </div>
+                <div className="mobile-record-actions">
+                  <button type="button" className="btn tiny secondary" onClick={() => startEdit(row)}><Pencil size={14} /> Edit</button>
+                  <button type="button" className="btn tiny danger" onClick={() => removeRow(row)}><Trash2 size={14} /> Delete</button>
+                </div>
+              </div>
+            )) : <div className="mobile-record-card empty">Hozircha yozuv yo'q</div>}
+          </div>
+        </article>
+      </section>
+    </div>
+  );
+}
+
 function ContentPage({ users = [], branches = [], settings, user, onToast, reload }) {
   const [selectedMonth, setSelectedMonth] = useState(getMonthLabel());
   const [rows, setRows] = useState([]);
@@ -2104,6 +2673,11 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     difficulty_level: "sodda",
     work_url: "",
     approval_comment: "",
+    product_name: "",
+    video_type: "",
+    hook_text: "",
+    main_body_text: "",
+    cta_text: "",
     content_template: "custom",
     idea_score: 0,
     visual_score: 0,
@@ -2273,6 +2847,11 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
       difficulty_level: normalizeDifficultyLevel(row.difficulty_level || "sodda"),
       work_url: row.final_url || "",
       approval_comment: row.approval_comment || "",
+      product_name: row.product_name || "",
+      video_type: row.video_type || "",
+      hook_text: row.hook_text || "",
+      main_body_text: row.main_body_text || row.scenario_text || "",
+      cta_text: row.cta_text || "",
       content_template: row.content_template || "custom",
       idea_score: row.idea_score || 0,
       visual_score: row.visual_score || 0,
@@ -2328,6 +2907,12 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         final_url: normalizeExternalUrl(form.work_url),
         notes: "",
         approval_comment: form.approval_comment || "",
+        product_name: form.product_name || "",
+        video_type: form.video_type || "",
+        hook_text: form.hook_text || "",
+        main_body_text: form.main_body_text || "",
+        cta_text: form.cta_text || "",
+        scenario_text: form.main_body_text || "",
         content_template: form.content_template || "custom",
         idea_score: Number(form.idea_score || 0),
         visual_score: Number(form.visual_score || 0),
@@ -2617,6 +3202,24 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
             </select>
           </label>
 
+          <label>
+            <span>Mahsulot / xizmat</span>
+            <input value={form.product_name} onChange={(e) => setField("product_name", e.target.value)} placeholder="Masalan: iPhone 15 Pro" disabled={formLocked} />
+          </label>
+
+          <label>
+            <span>Video formati</span>
+            <select value={form.video_type} onChange={(e) => setField("video_type", e.target.value)} disabled={formLocked}>
+              <option value="">Tanlanmagan</option>
+              <option value="review">Review</option>
+              <option value="comparison">Taqqoslash</option>
+              <option value="test">Test</option>
+              <option value="expert">Expert</option>
+              <option value="brand">Brand</option>
+              <option value="trend">Trend</option>
+            </select>
+          </label>
+
           {isVideo ? (
             <>
               <label>
@@ -2654,6 +3257,10 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               disabled={formLocked}
             />
           </label>
+
+          <label className="full-col"><span>Hook</span><textarea value={form.hook_text} onChange={(e) => setField("hook_text", e.target.value)} rows={2} placeholder="Videoning birinchi 3 soniyasida e'tibor tortadigan gap" disabled={formLocked} /></label>
+          <label className="full-col"><span>Asosiy qism / ssenariy</span><textarea value={form.main_body_text} onChange={(e) => setField("main_body_text", e.target.value)} rows={3} placeholder="Kadrlar ketma-ketligi, mahsulot argumentlari, gapiriladigan matn" disabled={formLocked} /></label>
+          <label className="full-col"><span>CTA</span><textarea value={form.cta_text} onChange={(e) => setField("cta_text", e.target.value)} rows={2} placeholder="Oxirida mijoz nima qilsin: yozsin, buyurtma bersin, kanalga o'tsin" disabled={formLocked} /></label>
 
           <label className="full-col"><span>Workflow izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} placeholder="Qayta ishlash, fayl yoki publish bo'yicha izoh" disabled={formLocked} /></label>
 
@@ -4735,6 +5342,13 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
     start_at: "",
     end_at: "",
     daily_budget: "",
+    campaign_type: "target",
+    campaign_goal: "",
+    target_audience: "",
+    channel_name: "",
+    expected_result: "",
+    cpl_amount: "",
+    roi_amount: "",
     status: "active"
   };
 
@@ -4775,6 +5389,13 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
       start_at: formatDateTimeInput(row.start_at || row.start_date),
       end_at: formatDateTimeInput(row.end_at || row.end_date),
       daily_budget: String(getCampaignDailyBudget(row) || ""),
+      campaign_type: row.campaign_type || "target",
+      campaign_goal: row.campaign_goal || "",
+      target_audience: row.target_audience || "",
+      channel_name: row.channel_name || row.platform || "",
+      expected_result: row.expected_result || "",
+      cpl_amount: String(row.cpl_amount || row.cpa || ""),
+      roi_amount: String(row.roi_amount || row.roi || ""),
       status: row.status || "active"
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -4792,6 +5413,13 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
         start_at: form.start_at,
         end_at: form.end_at,
         daily_budget: Number(form.daily_budget || 0),
+        campaign_type: form.campaign_type || "target",
+        campaign_goal: form.campaign_goal || "",
+        target_audience: form.target_audience || "",
+        channel_name: form.channel_name || form.platform,
+        expected_result: form.expected_result || "",
+        cpl_amount: Number(form.cpl_amount || 0),
+        roi_amount: Number(form.roi_amount || 0),
         status: form.status || "active"
       };
       if (editRow?.id) {
@@ -4886,9 +5514,26 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
                 <option value="done">Tugagan</option>
               </select>
             </label>
+            <label>
+              <span>Kampaniya turi</span>
+              <select value={form.campaign_type} onChange={(e) => setField("campaign_type", e.target.value)}>
+                <option value="target">Target reklama</option>
+                <option value="cashback">Cashback</option>
+                <option value="contest">Konkurs</option>
+                <option value="challenge">Challenge</option>
+                <option value="seasonal">Mavsumiy aksiya</option>
+                <option value="blogger">Bloger hamkorlik</option>
+              </select>
+            </label>
+            <label><span>Kanal nomi</span><input value={form.channel_name} onChange={(e) => setField("channel_name", e.target.value)} placeholder="Instagram Ads, Telegram Ads, YouTube Ads..." /></label>
             <label><span>Boshlanish sana va soat</span><input type="datetime-local" value={form.start_at} onChange={(e) => setField("start_at", e.target.value)} required /></label>
             <label><span>Tugash sana va soat</span><input type="datetime-local" value={form.end_at} onChange={(e) => setField("end_at", e.target.value)} required /></label>
             <label><span>Kunlik byudjet</span><input type="number" min="0" value={form.daily_budget} onChange={(e) => setField("daily_budget", e.target.value)} placeholder="250000" required /></label>
+            <label><span>CPL</span><input type="number" min="0" value={form.cpl_amount} onChange={(e) => setField("cpl_amount", e.target.value)} placeholder="45000" /></label>
+            <label><span>ROI</span><input type="number" value={form.roi_amount} onChange={(e) => setField("roi_amount", e.target.value)} placeholder="120" /></label>
+            <label className="campaign-safe-full"><span>Maqsad</span><textarea value={form.campaign_goal} onChange={(e) => setField("campaign_goal", e.target.value)} rows={2} placeholder="Masalan: Telegram kanalga 1000 ta sifatli lead olib kelish" /></label>
+            <label className="campaign-safe-full"><span>Auditoriya</span><textarea value={form.target_audience} onChange={(e) => setField("target_audience", e.target.value)} rows={2} placeholder="Yosh, hudud, qiziqish, xarid ehtiyoji" /></label>
+            <label className="campaign-safe-full"><span>Kutilgan natija</span><textarea value={form.expected_result} onChange={(e) => setField("expected_result", e.target.value)} rows={2} placeholder="Lead, savdo, reach, obuna yoki brand awareness natijasi" /></label>
             <label className="campaign-safe-full"><span>Lidlar boradigan Telegram guruh ID</span><input value={form.lead_chat_id} onChange={(e) => setField("lead_chat_id", e.target.value)} placeholder="-1003878116355" /></label>
             <div className="campaign-safe-submit-row">
               <button className="btn primary" type="submit" disabled={saving}>{saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Kampaniya qo‘shish"}</button>
@@ -4960,7 +5605,7 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kampaniya tafsiloti">
         {viewRow ? (
           <div className="detail-grid">
-            <div><strong>Nomi:</strong> {viewRow.title}</div><div><strong>Platforma:</strong> {viewRow.platform}</div><div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div><div><strong>Boshlanish:</strong> {formatDateTime(viewRow.start_at || viewRow.start_date)}</div><div><strong>Tugash:</strong> {formatDateTime(viewRow.end_at || viewRow.end_date)}</div><div><strong>Kunlik byudjet:</strong> {formatMoney(getCampaignDailyBudget(viewRow))}</div><div><strong>Holat:</strong> <span className={campaignStatusClass(viewRow.status)}>{formatCampaignStatus(viewRow.status)}</span></div><div><strong>Leadlar soni:</strong> {viewRow.lead_count || 0} ta</div><div><strong>Lead chat ID:</strong> {viewRow.lead_chat_id || "-"}</div>
+            <div><strong>Nomi:</strong> {viewRow.title}</div><div><strong>Platforma:</strong> {viewRow.platform}</div><div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div><div><strong>Boshlanish:</strong> {formatDateTime(viewRow.start_at || viewRow.start_date)}</div><div><strong>Tugash:</strong> {formatDateTime(viewRow.end_at || viewRow.end_date)}</div><div><strong>Kunlik byudjet:</strong> {formatMoney(getCampaignDailyBudget(viewRow))}</div><div><strong>Holat:</strong> <span className={campaignStatusClass(viewRow.status)}>{formatCampaignStatus(viewRow.status)}</span></div><div><strong>Leadlar soni:</strong> {viewRow.lead_count || 0} ta</div><div><strong>Lead chat ID:</strong> {viewRow.lead_chat_id || "-"}</div><div><strong>Turi:</strong> {viewRow.campaign_type || "-"}</div><div><strong>Kanal:</strong> {viewRow.channel_name || "-"}</div><div><strong>CPL:</strong> {formatMoney(viewRow.cpl_amount || viewRow.cpa)}</div><div><strong>ROI:</strong> {viewRow.roi_amount || viewRow.roi || 0}</div><div className="full-col"><strong>Maqsad:</strong> {viewRow.campaign_goal || "-"}</div><div className="full-col"><strong>Auditoriya:</strong> {viewRow.target_audience || "-"}</div><div className="full-col"><strong>Kutilgan natija:</strong> {viewRow.expected_result || "-"}</div>
             <div className="full-col campaign-lead-link-row"><strong>Website form URL:</strong><div className="campaign-lead-link-actions"><a href={getCampaignLeadFormUrl(viewRow.id)} target="_blank" rel="noreferrer" className="btn tiny secondary"><Eye size={14} /> Ochish</a><button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(viewRow)}><Copy size={14} /> Nusxalash</button></div><div className="campaign-lead-link-preview">{getCampaignLeadFormUrl(viewRow.id)}</div></div>
           </div>
         ) : null}
@@ -7961,6 +8606,7 @@ function App() {
   const [contentRows, setContentRows] = useState([]);
   const [dailyReports, setDailyReports] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
+  const [managerOSData, setManagerOSData] = useState({});
   const [tasks, setTasks] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [budgets, setBudgets] = useState([]);
@@ -8061,6 +8707,7 @@ function App() {
   const pageNeedsReferences = useCallback((pageId) => {
     return [
       "content",
+      "managerLab",
       "bonus",
       "travelPlans",
       "dailyReports",
@@ -8106,13 +8753,14 @@ function App() {
     const queryScope = scopedDataQuery(user);
     switch (pageId) {
       case "dashboard": {
-        const [contentRes, dailyReportsRes, campaignsRes, travelPlansRes, tasksRes, uploadsRes] = await Promise.all([
+        const [contentRes, dailyReportsRes, campaignsRes, travelPlansRes, tasksRes, uploadsRes, managerOsRes] = await Promise.all([
           api.list("content").catch(() => []),
           api.list("daily-reports").catch(() => []),
           api.list("campaigns").catch(() => []),
           api.list("travel-plans", queryScope).catch(() => []),
           api.list("tasks").catch(() => []),
-          api.list("uploads").catch(() => [])
+          api.list("uploads").catch(() => []),
+          api.list("/api/manager-os").catch(() => ({}))
         ]);
         setContentRows(contentRes || []);
         setDailyReports(dailyReportsRes || []);
@@ -8120,6 +8768,7 @@ function App() {
         setTravelPlans(travelPlansRes || []);
         setTasks(tasksRes || []);
         setUploads(uploadsRes || []);
+        setManagerOSData(managerOsRes || {});
         break;
       }
       case "content":
@@ -8403,13 +9052,13 @@ function App() {
 
   const mobilePrimaryMenu = useMemo(() => {
     const rolePreferred = {
-      director: ["dashboard", "analytics", "campaigns", "profile"],
-      manager: ["dashboard", "content", "travelPlans", "campaigns", "profile"],
+      director: ["dashboard", "managerLab", "analytics", "campaigns", "profile"],
+      manager: ["dashboard", "managerLab", "content", "travelPlans", "campaigns", "profile"],
       editor: ["dashboard", "tasks", "uploads", "content", "profile"],
       mobilograf: ["dashboard", "travelPlans", "bonus", "uploads", "profile"],
       viewer: ["dashboard", "content", "analytics", "profile"]
     };
-    const preferred = rolePreferred[user?.role] || ["dashboard", "content", "travelPlans", "campaigns", "profile"];
+    const preferred = rolePreferred[user?.role] || ["dashboard", "managerLab", "content", "travelPlans", "campaigns", "profile"];
     const pinned = preferred
       .map((id) => allowedMenu.find((item) => item.id === id))
       .filter(Boolean);
@@ -8552,7 +9201,7 @@ function App() {
 
   if (active === "dashboard") {
     page = (
-      <DashboardPage
+      <ManagerOSDashboard
         summary={summary}
         dailyReports={dailyReports}
         contentRows={contentRows}
@@ -8560,9 +9209,12 @@ function App() {
         travelPlans={travelPlans}
         tasks={tasks}
         uploads={uploads}
+        managerOSData={managerOSData}
         user={user}
       />
     );
+  } else if (active === "managerLab") {
+    page = <ManagerOsLabPage onToast={showToast} />;
   } else if (active === "content") {
     page = <ContentPage users={users} branches={branches} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "bonus") {
@@ -8602,15 +9254,15 @@ function App() {
               <img src={LOGIN_LOGO} alt="logo" className="brand-mark-image" />
             </div>
             <div className="brand-copy">
-              <div className="brand-name">{settings?.company_name || "aloo"}</div>
-              <div className="brand-desc">{settings?.platform_name || "SMM jamoasi platformasi"}</div>
+              <div className="brand-name">alooSMM OS</div>
+              <div className="brand-desc">SMM menejer boshqaruvi</div>
             </div>
           </div>
 
           <div className="sidebar-workspace-card">
             <div>
               <span>Workspace</span>
-              <strong>{settings?.company_name || "aloo"} SMM</strong>
+              <strong>Manager Command</strong>
             </div>
             <small><i /> Live</small>
           </div>
@@ -8680,9 +9332,9 @@ function App() {
           </div>
 
           <div className="sidebar-help-card">
-            <span>SMM Control Center</span>
-            <strong>Tezkor boshqaruv</strong>
-            <small>Kontent, vazifa, KPI va hisobotlar bitta professional panelda.</small>
+            <span>alooSMM Manager OS</span>
+            <strong>Lavozimga mos tizim</strong>
+            <small>Strategiya, reklama, ssenariy va mobilograf nazorati bitta panelda.</small>
             <a href="/menu">Boshqaruvga o'tish</a>
           </div>
 
@@ -8699,7 +9351,7 @@ function App() {
                 <span className={`page-title-badge icon-tone-${activeMenuItem?.tone || "indigo"}`}>
                   <ActivePageIcon size={18} />
                 </span>
-                <div className="small-label">{(settings?.company_name || "aloo")} platforma</div>
+                <div className="small-label">alooSMM manager platforma</div>
                 <h1>{activeMenuItem?.title || "Bosh sahifa"}</h1>
               </div>
               <button
@@ -19085,6 +19737,480 @@ tr:hover td,
 .bonus-v58-lock-note *{color:#0f3f69 !important}
 .bonus-v58-lock-note svg{color:#1690f5 !important}
 
+
+/* === Manager OS Lab: strategy, CRM, analytics, KPI modules === */
+.manager-lab-page{
+  display:grid;
+  gap:18px;
+}
+.manager-lab-hero{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  gap:18px;
+  border-radius:8px;
+  padding:24px;
+  color:#fff;
+  background:
+    linear-gradient(135deg,rgba(15,23,42,.96),rgba(8,47,73,.94)),
+    radial-gradient(circle at 88% 12%,rgba(45,212,191,.28),transparent 32%);
+  border:1px solid rgba(148,163,184,.2);
+  box-shadow:0 22px 58px rgba(15,23,42,.18);
+}
+.manager-lab-hero span{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  color:#5eead4;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-lab-hero h1{
+  margin:10px 0 8px;
+  font-size:34px;
+  line-height:1.08;
+  color:#fff;
+}
+.manager-lab-hero p{
+  max-width:820px;
+  margin:0;
+  color:#cbd5e1;
+  font-weight:750;
+  line-height:1.6;
+}
+.manager-lab-hero > strong{
+  flex:0 0 auto;
+  width:96px;
+  height:96px;
+  border-radius:8px;
+  display:grid;
+  place-items:center;
+  color:#0f172a;
+  background:#5eead4;
+  font-size:34px;
+  box-shadow:0 18px 44px rgba(45,212,191,.24);
+}
+.manager-lab-tabs{
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:10px;
+}
+.manager-lab-tabs button{
+  min-height:78px;
+  border-radius:8px;
+  border:1px solid #dce7f2;
+  background:#fff;
+  color:#475467;
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:8px;
+  padding:12px;
+  text-align:left;
+  font-weight:900;
+  box-shadow:0 12px 32px rgba(15,23,42,.06);
+}
+.manager-lab-tabs button.active{
+  border-color:#2dd4bf;
+  background:#ecfeff;
+  color:#0f766e;
+}
+.manager-lab-tabs b{
+  min-width:28px;
+  height:28px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:#0f172a;
+  color:#5eead4;
+  font-size:12px;
+}
+.manager-lab-layout{
+  display:grid;
+  grid-template-columns:minmax(320px,.72fr) minmax(0,1.28fr);
+  gap:18px;
+  align-items:start;
+}
+.manager-lab-card{
+  border-radius:8px;
+  background:#fff;
+  border:1px solid #dce7f2;
+  box-shadow:0 18px 45px rgba(15,23,42,.07);
+  padding:18px;
+}
+.manager-lab-form textarea{
+  min-height:96px;
+}
+.manager-lab-submit{
+  grid-column:1/-1;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.manager-lab-list .table-wrap{
+  max-height:620px;
+  overflow:auto;
+}
+@media (max-width:1180px){
+  .manager-lab-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .manager-lab-layout{grid-template-columns:1fr}
+}
+@media (max-width:680px){
+  .manager-lab-hero{display:grid;padding:20px}
+  .manager-lab-hero h1{font-size:28px}
+  .manager-lab-hero > strong{width:72px;height:72px;font-size:28px}
+  .manager-lab-tabs{grid-template-columns:1fr}
+}
+
+/* === alooSMM Manager OS redesign: dashboard and shell identity === */
+.brand-mark{
+  background:linear-gradient(135deg,#051321,#0f2f4d 52%,#00bfa6)!important;
+  border:1px solid rgba(255,255,255,.16)!important;
+  box-shadow:0 18px 38px rgba(0,191,166,.18)!important;
+}
+.brand-mark-image{border-radius:12px!important}
+.sidebar-workspace-card{
+  background:linear-gradient(135deg,rgba(0,191,166,.14),rgba(20,120,242,.10))!important;
+  border-color:rgba(125,211,252,.18)!important;
+}
+.sidebar-role-switcher{
+  background:rgba(255,255,255,.045)!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  border-radius:18px!important;
+  padding:6px!important;
+}
+.sidebar-role-pill{
+  border-radius:14px!important;
+  background:transparent!important;
+}
+.sidebar-role-pill.active{
+  background:linear-gradient(135deg,#ffffff,#ddfff8)!important;
+  color:#07111d!important;
+  box-shadow:0 14px 28px rgba(0,191,166,.16)!important;
+}
+.sidebar-role-pill.active span,
+.sidebar-role-pill.active strong{color:#07111d!important}
+.manager-os-page{
+  display:grid;
+  gap:18px;
+  color:#0f172a;
+}
+.manager-os-page *{letter-spacing:0}
+.manager-os-hero{
+  min-height:238px;
+  border-radius:8px;
+  padding:26px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 280px;
+  gap:22px;
+  align-items:stretch;
+  background:
+    linear-gradient(90deg,rgba(2,10,20,.96),rgba(6,25,43,.94) 58%,rgba(0,117,105,.88)),
+    #07111d;
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 26px 70px rgba(2,8,23,.22);
+  overflow:hidden;
+  position:relative;
+}
+.manager-os-hero::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+  background-size:34px 34px;
+  mask-image:linear-gradient(90deg,black,transparent 72%);
+  pointer-events:none;
+}
+.manager-os-hero-copy,
+.manager-os-pulse{position:relative;z-index:1}
+.manager-os-eyebrow{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  min-height:34px;
+  padding:0 12px;
+  border-radius:999px;
+  background:rgba(0,191,166,.14);
+  border:1px solid rgba(94,234,212,.25);
+  color:#a7fff1;
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.manager-os-hero h1{
+  margin:18px 0 10px;
+  max-width:790px;
+  color:#fff;
+  font-size:42px;
+  line-height:1.03;
+}
+.manager-os-hero p{
+  margin:0;
+  max-width:820px;
+  color:#c9d7e8;
+  font-size:15px;
+  line-height:1.7;
+  font-weight:650;
+}
+.manager-os-pulse{
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,.16);
+  background:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.06));
+  display:grid;
+  place-items:center;
+  text-align:center;
+  padding:22px;
+}
+.manager-os-pulse span{
+  width:118px;
+  height:118px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  color:#fff;
+  font-size:40px;
+  font-weight:950;
+  background:
+    radial-gradient(circle at center,#092033 52%,transparent 54%),
+    conic-gradient(#2dd4bf 0 74%,#f59e0b 74% 88%,rgba(255,255,255,.15) 88%);
+  box-shadow:0 20px 48px rgba(45,212,191,.20);
+}
+.manager-os-pulse strong{color:#fff;font-size:18px;margin-top:10px}
+.manager-os-pulse small{color:#b8c8da;font-weight:800}
+.manager-os-strip{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:12px;
+}
+.manager-os-strip div,
+.manager-os-card{
+  border-radius:8px;
+  background:linear-gradient(180deg,#ffffff,#f8fbff);
+  border:1px solid #dce7f2;
+  box-shadow:0 18px 45px rgba(15,23,42,.07);
+}
+.manager-os-strip div{
+  min-height:102px;
+  padding:16px;
+  display:grid;
+  align-content:center;
+}
+.manager-os-strip span,
+.manager-os-card-head span{
+  color:#667085;
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.manager-os-strip strong{
+  margin-top:5px;
+  color:#0f172a;
+  font-size:30px;
+  line-height:1;
+}
+.manager-os-strip small{color:#008f7d;font-weight:900}
+.manager-os-snapshot{
+  display:grid;
+  grid-template-columns:repeat(10,minmax(0,1fr));
+  gap:8px;
+}
+.manager-os-snapshot div{
+  min-height:72px;
+  border-radius:8px;
+  background:#0f172a;
+  border:1px solid rgba(45,212,191,.24);
+  padding:12px;
+  display:grid;
+  align-content:center;
+}
+.manager-os-snapshot span{
+  color:#a7b6c8;
+  font-size:11px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.manager-os-snapshot strong{
+  margin-top:4px;
+  color:#5eead4;
+  font-size:22px;
+  line-height:1;
+}
+.manager-os-layout{
+  display:grid;
+  grid-template-columns:minmax(0,1.55fr) minmax(340px,.75fr);
+  gap:18px;
+}
+.manager-os-card{padding:18px}
+.manager-os-card-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  margin-bottom:16px;
+}
+.manager-os-card-head h2{
+  margin:4px 0 0;
+  color:#0f172a;
+  font-size:20px;
+  line-height:1.15;
+}
+.manager-os-card-head b{
+  flex:0 0 auto;
+  border-radius:999px;
+  background:#ecfeff;
+  color:#00796d;
+  border:1px solid #c9f6ee;
+  padding:7px 10px;
+  font-size:11px;
+  text-transform:uppercase;
+}
+.manager-os-module-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+}
+.manager-os-module{
+  min-height:56px;
+  border:1px solid #dfe8f2;
+  background:#f8fbff;
+  border-radius:8px;
+  padding:10px;
+  display:grid;
+  grid-template-columns:32px 22px 1fr;
+  align-items:center;
+  gap:8px;
+  color:#162033;
+  text-align:left;
+}
+.manager-os-module:hover{
+  transform:translateY(-1px);
+  border-color:#8be9dd;
+  box-shadow:0 10px 26px rgba(20,120,242,.10);
+}
+.manager-os-module span{
+  color:#94a3b8;
+  font-size:11px;
+  font-weight:950;
+}
+.manager-os-module svg{color:#0d9488}
+.manager-os-module strong{
+  min-width:0;
+  color:#162033;
+  font-size:13px;
+}
+.manager-os-focus-list{display:grid;gap:13px}
+.manager-os-focus-list div{
+  display:grid;
+  grid-template-columns:1fr 112px 42px;
+  gap:10px;
+  align-items:center;
+}
+.manager-os-focus-list span{color:#344054;font-size:13px;font-weight:850}
+.manager-os-focus-list i{
+  height:9px;
+  border-radius:999px;
+  background:#edf2f7;
+  overflow:hidden;
+}
+.manager-os-focus-list em{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#1478f2,#00bfa6);
+}
+.manager-os-focus-list strong{font-size:13px;color:#0f172a}
+.manager-os-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:18px;
+}
+.manager-os-bottom{
+  display:grid;
+  grid-template-columns:minmax(0,1.35fr) minmax(320px,.75fr);
+  gap:18px;
+}
+.manager-os-table{display:grid;gap:9px}
+.manager-os-table > div{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:3px 12px;
+  align-items:center;
+  min-height:58px;
+  padding:11px 12px;
+  border-radius:8px;
+  background:#f8fbff;
+  border:1px solid #e0e8f2;
+}
+.manager-os-table strong{color:#101828;font-size:13px}
+.manager-os-table span{color:#667085;font-size:12px;font-weight:750}
+.manager-os-table b{
+  grid-row:1 / span 2;
+  grid-column:2;
+  border-radius:999px;
+  background:#fff7ed;
+  color:#c2410c;
+  padding:6px 9px;
+  font-size:11px;
+  max-width:120px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.manager-os-platforms{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.manager-os-platforms > div{
+  padding:13px;
+  border-radius:8px;
+  border:1px solid #e0e8f2;
+  background:#f8fbff;
+}
+.manager-os-platforms strong{display:block;color:#0f172a;font-size:13px}
+.manager-os-platforms span{display:block;color:#667085;font-size:12px;font-weight:750;margin:6px 0 10px}
+.manager-os-platforms i{
+  display:block;
+  height:8px;
+  border-radius:999px;
+  background:#edf2f7;
+  overflow:hidden;
+}
+.manager-os-platforms em{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#f97316,#00bfa6);
+}
+.manager-os-principle{
+  background:linear-gradient(135deg,#fef3c7,#ffffff 58%,#e0f7f4);
+  display:grid;
+  align-content:center;
+}
+.manager-os-principle span{font-size:12px;font-weight:950;color:#b45309;text-transform:uppercase}
+.manager-os-principle h2{margin:8px 0;color:#0f172a;font-size:24px;line-height:1.12}
+.manager-os-principle p{margin:0;color:#475467;font-weight:750;line-height:1.65}
+.manager-os-empty{
+  margin:0;
+  padding:18px;
+  border-radius:8px;
+  border:1px dashed #cbd5e1;
+  background:#f8fbff;
+  color:#667085;
+  font-weight:750;
+}
+@media (max-width:1180px){
+  .manager-os-hero,.manager-os-layout,.manager-os-grid,.manager-os-bottom{grid-template-columns:1fr}
+  .manager-os-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-os-snapshot{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .manager-os-module-grid,.manager-os-platforms{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:680px){
+  .manager-os-hero{padding:20px}
+  .manager-os-hero h1{font-size:30px}
+  .manager-os-strip,.manager-os-module-grid,.manager-os-platforms{grid-template-columns:1fr}
+  .manager-os-snapshot{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-os-focus-list div{grid-template-columns:1fr 72px 38px}
+}
 
 /* === Campaigns Safe Redesign v6.1: does not break old functions === */
 .campaigns-safe-page{
