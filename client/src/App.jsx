@@ -2493,9 +2493,14 @@ function ManagerOsLabPage({ onToast }) {
   const [editingRow, setEditingRow] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const onToastRef = useRef(onToast);
 
   const visibleFields = activeConfig.fields.slice(0, 5);
   const activeCount = Number(snapshot?.[activeResource]?.count || rows.length || 0);
+
+  useEffect(() => {
+    onToastRef.current = onToast;
+  }, [onToast]);
 
   const loadRows = useCallback(async () => {
     try {
@@ -2507,17 +2512,17 @@ function ManagerOsLabPage({ onToast }) {
       setRows(listRes || []);
       setSnapshot(snapshotRes || {});
     } catch (err) {
-      onToast(err.message || "Manager OS Lab ma'lumotlari olinmadi", "error");
+      onToastRef.current?.(err.message || "Manager OS Lab ma'lumotlari olinmadi", "error");
     } finally {
       setLoading(false);
     }
-  }, [activeResource, onToast]);
+  }, [activeResource]);
 
   useEffect(() => {
     setForm(buildManagerLabForm(activeConfig));
     setEditingRow(null);
     loadRows();
-  }, [activeResource, loadRows]);
+  }, [activeConfig, loadRows]);
 
   function setField(key, value) {
     setForm((prev) => ({ ...prev, [key]: value }));
