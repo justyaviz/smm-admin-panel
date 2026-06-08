@@ -36,6 +36,16 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+function normalizeOrigin(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return raw.replace(/\/+$/, "");
+  }
+}
+
 // CORS allowlist: keep production safe, but allow all known frontend domains.
 // Add extra domains in Railway with ALLOWED_ORIGINS=https://domain1.uz,https://domain2.uz
 const allowedOrigins = [
@@ -48,18 +58,19 @@ const allowedOrigins = [
   "http://localhost:3000"
 ]
   .concat(String(process.env.ALLOWED_ORIGINS || "").split(","))
-  .map((origin) => String(origin || "").trim())
+  .map(normalizeOrigin)
   .filter(Boolean);
 
 const corsOptions = {
   origin(origin, callback) {
+    const requestOrigin = normalizeOrigin(origin);
     // allow server-to-server / curl / same-origin requests without an Origin header
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    if (process.env.NODE_ENV !== "production" && origin.startsWith("http://localhost:")) {
+    if (allowedOrigins.includes(requestOrigin)) return callback(null, true);
+    if (process.env.NODE_ENV !== "production" && requestOrigin.startsWith("http://localhost:")) {
       return callback(null, true);
     }
-    return callback(new Error(`CORS blocked origin: ${origin}`));
+    return callback(new Error(`CORS blocked origin: ${requestOrigin}`));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -72,6 +83,10 @@ app.options("*", cors(corsOptions));
 
 app.use(express.json({ limit: "25mb" }));
 app.use("/uploads", express.static(uploadsDir));
+
+app.get("/api/ping", (_, res) => {
+  res.json({ ok: true, service: "aloo-smm-server" });
+});
 
 const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {

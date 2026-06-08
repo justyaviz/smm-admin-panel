@@ -1,5 +1,5 @@
 export const API_BASE =
-  import.meta.env.VITE_API_BASE || "http://localhost:8080";
+  String(import.meta.env.VITE_API_BASE || "http://localhost:8080").replace(/\/+$/, "");
 export const SOCKET_BASE = API_BASE;
 
 export function getCurrentUser() {
@@ -48,14 +48,19 @@ async function request(path, options = {}) {
   const isFormData = options.body instanceof FormData;
   const url = buildUrl(path, options.query);
 
-  const res = await fetch(url, {
-    ...options,
-    headers: {
-      ...(isFormData ? {} : { "Content-Type": "application/json" }),
-      ...authHeaders(),
-      ...(options.headers || {})
-    }
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      ...options,
+      headers: {
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
+        ...authHeaders(),
+        ...(options.headers || {})
+      }
+    });
+  } catch {
+    throw new Error(`API bilan aloqa yo'q: ${API_BASE}. Backend URL, CORS va server ishlayotganini tekshiring.`);
+  }
 
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
