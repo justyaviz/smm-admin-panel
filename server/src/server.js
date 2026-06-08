@@ -10,7 +10,7 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { fileURLToPath } from "url";
 import { Server as SocketIOServer } from "socket.io";
-import { getClient, query } from "./db.js";
+import { getClient, getDatabaseStatus, query } from "./db.js";
 import { actionPermissionAllowed, authRequired, pagePermissionAllowed, rolesAllowed, signToken } from "./auth.js";
 import { buildBranchOrderSql, DEFAULT_BRANCHES } from "./defaultBranches.js";
 import { sendContestExpensePdf, sendExcel, sendSimplePdf, sendTravelExpensePdf } from "./exports.js";
@@ -86,6 +86,28 @@ app.use("/uploads", express.static(uploadsDir));
 
 app.get("/api/ping", (_, res) => {
   res.json({ ok: true, service: "aloo-smm-server" });
+});
+
+app.get("/api/db-health", async (_, res) => {
+  const database = getDatabaseStatus();
+  try {
+    const result = await query(`SELECT NOW() AS now, current_database() AS database_name`);
+    res.json({
+      ok: true,
+      database: {
+        ...database,
+        database: result.rows[0]?.database_name || database.database
+      },
+      timestamp: result.rows[0]?.now
+    });
+  } catch (err) {
+    res.status(503).json({
+      ok: false,
+      message: err.message,
+      code: err.code || null,
+      database
+    });
+  }
 });
 
 const httpServer = http.createServer(app);
@@ -1332,6 +1354,200 @@ async function pullBonusUpdatesFromMySeOne(force = false) {
 
 async function ensureRuntimeSchema() {
   const statements = [
+    `CREATE TABLE IF NOT EXISTS app_settings (
+      id SERIAL PRIMARY KEY,
+      company_name TEXT NOT NULL DEFAULT 'aloo',
+      platform_name TEXT NOT NULL DEFAULT 'SMM jamoasi platformasi',
+      department_name TEXT NOT NULL DEFAULT 'SMM department',
+      theme_default TEXT NOT NULL DEFAULT 'dark',
+      website_url TEXT,
+      telegram_url TEXT,
+      instagram_url TEXT,
+      youtube_url TEXT,
+      facebook_url TEXT,
+      tiktok_url TEXT,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      full_name TEXT NOT NULL,
+      phone TEXT UNIQUE NOT NULL,
+      login TEXT UNIQUE,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'viewer',
+      avatar_url TEXT,
+      department_role TEXT,
+      permissions_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS branches (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      city TEXT,
+      manager_name TEXT,
+      phone TEXT,
+      notes TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS social_accounts (
+      id SERIAL PRIMARY KEY,
+      platform TEXT NOT NULL,
+      account_name TEXT,
+      account_url TEXT,
+      login_name TEXT,
+      status TEXT NOT NULL DEFAULT 'inactive',
+      notes TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS content_items (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      platform TEXT NOT NULL DEFAULT '',
+      content_type TEXT NOT NULL DEFAULT 'post',
+      rubric TEXT NOT NULL DEFAULT 'rubrika-yoq',
+      status TEXT NOT NULL DEFAULT 'reja',
+      publish_date DATE,
+      assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      bonus_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      proposal_count INTEGER NOT NULL DEFAULT 0,
+      approved_count INTEGER NOT NULL DEFAULT 0,
+      difficulty_level TEXT NOT NULL DEFAULT 'sodda',
+      notes TEXT,
+      final_url TEXT,
+      plan_month TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS tasks (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'todo',
+      priority TEXT NOT NULL DEFAULT 'medium',
+      due_date DATE,
+      assignee_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS campaigns (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      lead_chat_id TEXT,
+      start_date DATE,
+      end_date DATE,
+      start_at TIMESTAMP,
+      end_at TIMESTAMP,
+      daily_budget NUMERIC(14,2) NOT NULL DEFAULT 0,
+      budget NUMERIC(14,2) NOT NULL DEFAULT 0,
+      spend NUMERIC(14,2) NOT NULL DEFAULT 0,
+      leads INTEGER NOT NULL DEFAULT 0,
+      sales INTEGER NOT NULL DEFAULT 0,
+      ctr NUMERIC(8,2) NOT NULL DEFAULT 0,
+      revenue_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      cpa NUMERIC(14,2) NOT NULL DEFAULT 0,
+      roi NUMERIC(14,2) NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      notes TEXT,
+      telegram_started_at TIMESTAMP,
+      telegram_ended_at TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS daily_branch_reports (
+      id SERIAL PRIMARY KEY,
+      report_date DATE NOT NULL,
+      branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+      stories_count INTEGER NOT NULL DEFAULT 0,
+      posts_count INTEGER NOT NULL DEFAULT 0,
+      reels_count INTEGER NOT NULL DEFAULT 0,
+      subscriber_count INTEGER NOT NULL DEFAULT 0,
+      condition_text TEXT,
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (report_date, branch_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS bonuses (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      month_label TEXT NOT NULL,
+      total_units INTEGER NOT NULL DEFAULT 0,
+      unit_price NUMERIC(14,2) NOT NULL DEFAULT 25000,
+      total_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      kpi_score NUMERIC(6,2) NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (user_id, month_label)
+    )`,
+    `CREATE TABLE IF NOT EXISTS bonus_items (
+      id SERIAL PRIMARY KEY,
+      month_label TEXT NOT NULL,
+      work_date DATE NOT NULL,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      content_type TEXT NOT NULL DEFAULT 'post',
+      content_title TEXT,
+      work_url TEXT,
+      notes TEXT,
+      proposal_count INTEGER NOT NULL DEFAULT 0,
+      approved_count INTEGER NOT NULL DEFAULT 0,
+      proposal_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      approved_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      total_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      difficulty_level TEXT NOT NULL DEFAULT 'sodda',
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      approval_status TEXT NOT NULL DEFAULT 'draft',
+      approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      approved_at TIMESTAMP,
+      myseone_item_id INTEGER,
+      myseone_synced_title TEXT,
+      myseone_sync_status TEXT NOT NULL DEFAULT 'pending',
+      myseone_sync_error TEXT,
+      myseone_synced_at TIMESTAMP,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS uploads (
+      id SERIAL PRIMARY KEY,
+      file_name TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL DEFAULT 0,
+      file_url TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id INTEGER,
+      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'info',
+      is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS audit_logs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action_type TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER,
+      meta JSONB,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     // Keep existing data and make later ALTER TABLE statements safe on fresh databases.
     `CREATE TABLE IF NOT EXISTS expenses (
       id SERIAL PRIMARY KEY,
@@ -1680,8 +1896,84 @@ async function ensureRuntimeSchema() {
         END IF;
       END $$;
     `);
+
+    await query(`
+      INSERT INTO app_settings (company_name, platform_name, department_name, theme_default)
+      SELECT 'aloo', 'SMM jamoasi platformasi', 'SMM department', 'dark'
+      WHERE NOT EXISTS (SELECT 1 FROM app_settings)
+    `);
+
+    await query(
+      `
+      INSERT INTO users (
+        full_name,
+        phone,
+        login,
+        password_hash,
+        role,
+        department_role,
+        permissions_json,
+        is_active
+      )
+      SELECT
+        'Asosiy administrator',
+        '998939000',
+        'admin',
+        $1,
+        'admin',
+        'Administrator',
+        $2::jsonb,
+        TRUE
+      WHERE NOT EXISTS (SELECT 1 FROM users)
+      `,
+      [
+        "$2b$10$1w2I1nA5P0nXkHfA4fRrU.6s7n2lTnV5h2g7xqN1pJt4m4Xw5D8sG",
+        JSON.stringify(DIRECTOR_PERMISSION_PRESET)
+      ]
+    );
+
+    await query(`
+      INSERT INTO branches (name, city)
+      SELECT seed.name, seed.city
+      FROM (VALUES
+        ('Bosh ofis', 'Bosh ofis'),
+        ('Ohangaron', 'Ohangaron'),
+        ('Angren', 'Angren'),
+        ('Chirchiq', 'Chirchiq'),
+        ('Guliston', 'Guliston'),
+        ('Jarqorgon', 'Jarqorgon'),
+        ('Sherobod', 'Sherobod'),
+        ('Qibray', 'Qibray'),
+        ('Gazalkent', 'Gazalkent'),
+        ('Olmaliq', 'Olmaliq'),
+        ('Piskent', 'Piskent'),
+        ('Oqqorgon', 'Oqqorgon'),
+        ('Chinoz', 'Chinoz'),
+        ('Shorchi', 'Shorchi'),
+        ('Parkent', 'Parkent')
+      ) AS seed(name, city)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM branches WHERE branches.name = seed.name
+      )
+    `);
+
+    await query(`
+      INSERT INTO social_accounts (platform, status)
+      SELECT seed.platform, seed.status
+      FROM (VALUES
+        ('Telegram', 'active'),
+        ('Instagram', 'active'),
+        ('YouTube', 'inactive'),
+        ('Facebook', 'inactive'),
+        ('TikTok', 'inactive')
+      ) AS seed(platform, status)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM social_accounts WHERE social_accounts.platform = seed.platform
+      )
+    `);
   } catch (err) {
     console.error("ensureRuntimeSchema error:", err.message);
+    throw err;
   }
 }
 
