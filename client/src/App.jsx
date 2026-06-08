@@ -2823,6 +2823,15 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
   const [calendarPlatformFilter, setCalendarPlatformFilter] = useState("all");
   const [calendarBranchFilter, setCalendarBranchFilter] = useState("all");
   const [bulkStatus, setBulkStatus] = useState("jarayonda");
+  const [plannerForm, setPlannerForm] = useState({
+    title: "",
+    publish_date: `${getMonthLabel()}-01`,
+    publish_time: "10:00",
+    platform: "Instagram",
+    content_type: "post",
+    rubric: "rubrika-yoq",
+    note: ""
+  });
 
   const emptyForm = {
     title: "",
@@ -2859,6 +2868,14 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
   const canEditContent = canDoAction(user, "content", "edit");
   const canDeleteContent = canDoAction(user, "content", "delete");
   const formLocked = editRow ? !canEditContent : !canCreateContent;
+
+  useEffect(() => {
+    setPlannerForm((prev) => (
+      String(prev.publish_date || "").startsWith(selectedMonth)
+        ? prev
+        : { ...prev, publish_date: `${selectedMonth}-01` }
+    ));
+  }, [selectedMonth]);
   const dueSoonTasks = [];
   const overdueTasks = [];
   const tasks = [];
@@ -2949,6 +2966,23 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
   const calendarPlatformTabs = useMemo(() => {
     return ["all", ...new Set(["Instagram", "Telegram", "YouTube", ...calendarPlatforms].filter(Boolean))];
   }, [calendarPlatforms]);
+  const plannerRows = useMemo(() => sortRowsByDate(rows, "publish_date"), [rows]);
+  const plannerShootDays = useMemo(() => {
+    const dates = new Set();
+    plannerRows.forEach((row) => {
+      if (/video|reels|mobi-video/i.test(String(row.content_type || ""))) {
+        const date = formatDate(row.publish_date);
+        if (date !== "-") dates.add(date);
+      }
+    });
+    return dates.size;
+  }, [plannerRows]);
+  const plannerTemplates = [
+    { title: "Haftalik post", platform: "Instagram", content_type: "post", rubric: "foydali-malumot", note: "Haftalik foydali post uchun qisqa reja." },
+    { title: "Aksiya e'loni", platform: "Telegram", content_type: "post", rubric: "aksiyalar", note: "Aksiya, chegirma yoki konkurs e'loni." },
+    { title: "Story signal", platform: "Instagram", content_type: "story", rubric: "trend-video", note: "Story uchun tezkor signal yoki reminder." },
+    { title: "Syomka kuni", platform: "Instagram", content_type: "reels", rubric: "xodimlar-bilan", note: "Mobilograf uchun suratga olish / reels reja." }
+  ];
   const weeklyLoad = useMemo(() => {
     const stats = new Map();
     calendarRows.forEach((row) => {
@@ -2989,9 +3023,9 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
     }));
   }, [campaigns, managerOSData, platformMix, rows, selectedMonth]);
   const emptyCalendarDays = useMemo(() => {
-    const days = buildMonthCalendar(selectedMonth, calendarRows, "publish_date").filter((cell) => !cell.empty);
+    const days = buildMonthCalendar(selectedMonth, plannerRows, "publish_date").filter((cell) => !cell.empty);
     return days.filter((cell) => !cell.items.length).length;
-  }, [selectedMonth, calendarRows]);
+  }, [selectedMonth, plannerRows]);
 
   async function loadMonth(monthValue = selectedMonth) {
     try {
@@ -3013,9 +3047,146 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function setPlannerField(key, value) {
+    setPlannerForm((prev) => ({ ...prev, [key]: value }));
+  }
+
   function resetForm() {
     setForm(emptyForm);
     setEditRow(null);
+  }
+
+  function buildPlannerPayload(source = {}, overrides = {}) {
+    const title = overrides.title ?? source.title ?? plannerForm.title;
+    const publishDate = overrides.publish_date ?? source.publish_date ?? plannerForm.publish_date;
+    const platform = overrides.platform ?? source.platform ?? plannerForm.platform;
+    const contentType = overrides.content_type ?? source.content_type ?? plannerForm.content_type;
+    const rubric = overrides.rubric ?? source.rubric ?? plannerForm.rubric;
+    const note = overrides.note ?? source.approval_comment ?? plannerForm.note;
+    const time = overrides.publish_time ?? (source.id ? "" : plannerForm.publish_time);
+    const noteWithTime = [time ? `Vaqt: ${time}` : "", note].filter(Boolean).join(" / ");
+
+    return {
+      title: String(title || "").trim(),
+      publish_date: publishDate || null,
+      status: overrides.status ?? source.status ?? "reja",
+      platform: platform || "Instagram",
+      content_type: contentType || "post",
+      rubric: rubric || "rubrika-yoq",
+      assigned_user_id: source.assigned_user_id || null,
+      video_editor_user_id: source.video_editor_user_id || null,
+      video_face_user_id: source.video_face_user_id || null,
+      bonus_enabled: false,
+      proposal_count: 0,
+      approved_count: 0,
+      difficulty_level: "bonussiz",
+      final_url: source.final_url || "",
+      notes: source.notes || "",
+      branch_ids_json: Array.isArray(source.branch_ids_json) ? source.branch_ids_json : [],
+      approval_comment: noteWithTime || source.approval_comment || "",
+      product_name: source.product_name || "",
+      video_type: source.video_type || contentType || "",
+      hook_text: source.hook_text || "",
+      main_body_text: source.main_body_text || source.scenario_text || "",
+      cta_text: source.cta_text || "",
+      scenario_text: source.scenario_text || source.main_body_text || "",
+      content_template: source.content_template || "monthly_planner",
+      idea_score: Number(source.idea_score || 0),
+      visual_score: Number(source.visual_score || 0),
+      editing_score: Number(source.editing_score || 0),
+      result_score: Number(source.result_score || 0),
+      reach_value: Number(source.reach_value || 0)
+    };
+  }
+
+  async function quickAddPlannerItem(e) {
+    e.preventDefault();
+    if (!canCreateContent) {
+      onToast("Sizda kontent qo'shish ruxsati yo'q", "error");
+      return;
+    }
+    const payload = buildPlannerPayload();
+    if (!payload.title || !payload.publish_date) {
+      onToast("Kontent nomi va sana majburiy", "error");
+      return;
+    }
+    try {
+      setSaving(true);
+      await api.create("content", payload);
+      await loadMonth(selectedMonth);
+      await reload();
+      setPlannerForm((prev) => ({ ...prev, title: "", note: "" }));
+      onToast("Oylik rejaga kontent qo'shildi", "success", { center: true });
+    } catch (err) {
+      onToast(err.message || "Oylik rejaga qo'shib bo'lmadi", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function movePlannerItem(id, nextDate) {
+    if (!canEditContent) {
+      onToast("Sizda kontent sanasini o'zgartirish ruxsati yo'q", "error");
+      return;
+    }
+    const row = rows.find((item) => Number(item.id) === Number(id));
+    if (!row) return;
+    try {
+      await api.update("content", id, {
+        ...row,
+        publish_date: nextDate,
+        assigned_user_id: row.assigned_user_id || null,
+        video_editor_user_id: row.video_editor_user_id || null,
+        video_face_user_id: row.video_face_user_id || null,
+        branch_ids_json: Array.isArray(row.branch_ids_json) ? row.branch_ids_json : [],
+        approval_comment: row.approval_comment || ""
+      });
+      await loadMonth(selectedMonth);
+      await reload();
+      onToast("Kontent boshqa sanaga o'tkazildi", "success", { center: true });
+    } catch (err) {
+      onToast(err.message || "Sanani o'zgartirib bo'lmadi", "error");
+    }
+  }
+
+  async function duplicatePlannerItem(row) {
+    if (!canCreateContent) {
+      onToast("Sizda kontent nusxalash ruxsati yo'q", "error");
+      return;
+    }
+    const sourceDate = new Date(`${formatDate(row.publish_date)}T00:00:00`);
+    if (!Number.isNaN(sourceDate.getTime())) sourceDate.setDate(sourceDate.getDate() + 1);
+    const defaultDate = Number.isNaN(sourceDate.getTime()) ? `${selectedMonth}-01` : formatDate(sourceDate);
+    const nextDate = window.prompt("Qaysi sanaga nusxalansin? YYYY-MM-DD", defaultDate);
+    if (!nextDate) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
+      onToast("Sana formati noto'g'ri. Masalan: 2026-06-15", "error");
+      return;
+    }
+    try {
+      const payload = buildPlannerPayload(row, {
+        publish_date: nextDate,
+        title: `${row.title || "Kontent"} copy`
+      });
+      await api.create("content", payload);
+      if (!nextDate.startsWith(selectedMonth)) setSelectedMonth(nextDate.slice(0, 7));
+      await loadMonth(nextDate.slice(0, 7));
+      await reload();
+      onToast("Kontent boshqa sanaga nusxalandi", "success", { center: true });
+    } catch (err) {
+      onToast(err.message || "Nusxalab bo'lmadi", "error");
+    }
+  }
+
+  function applyPlannerTemplate(template) {
+    setPlannerForm((prev) => ({
+      ...prev,
+      title: template.title,
+      platform: template.platform,
+      content_type: template.content_type,
+      rubric: template.rubric,
+      note: template.note
+    }));
   }
 
 
@@ -3226,6 +3397,92 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
           </div>
         ))}
       </div>
+
+      <section className="monthly-planner">
+        <div className="monthly-planner-head">
+          <div>
+            <span>Oylik kontent reja</span>
+            <h2>Bir oy rejasini tez to'ldirish</h2>
+            <p>Kontent kartalarini qo'shing, nusxalang yoki kalendarda boshqa sanaga sudrab o'tkazing. Saqlanganlar pastdagi kontent reja ro'yxatiga tushadi.</p>
+          </div>
+          <div className="monthly-planner-actions">
+            <button type="button" className="btn secondary" onClick={() => setViewMode("calendar")}>Kalendar view</button>
+            <button type="button" className="btn primary" onClick={() => setViewMode("table")}><Send size={15} /> Kontent reja ro'yxati</button>
+          </div>
+        </div>
+        <div className="monthly-planner-stats">
+          <div><span>Rejalashtirilgan</span><strong>{plannerRows.length}</strong><small>{getMonthTitle(selectedMonth)}</small></div>
+          <div><span>Syomka kunlari</span><strong>{plannerShootDays}</strong><small>video / reels</small></div>
+          <div><span>Bo'sh kunlar</span><strong>{emptyCalendarDays}</strong><small>ritm uchun signal</small></div>
+        </div>
+        <div className="monthly-planner-layout">
+          <aside className="planner-templates">
+            <strong>Shablonlar</strong>
+            <span>Bir bosishda formani to'ldiradi.</span>
+            {plannerTemplates.map((template) => (
+              <button key={template.title} type="button" onClick={() => applyPlannerTemplate(template)}>
+                <i>{template.platform.slice(0, 2)}</i>
+                <div>
+                  <strong>{template.title}</strong>
+                  <small>{formatContentType(template.content_type)} / {formatRubric(template.rubric)}</small>
+                </div>
+              </button>
+            ))}
+          </aside>
+          <div className="planner-calendar">
+            <div className="planner-calendar-head">
+              <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>‹</button>
+              <strong>{getMonthTitle(selectedMonth)}</strong>
+              <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>›</button>
+              <span>Drag & drop yoqilgan</span>
+            </div>
+            <MiniCalendar
+              monthLabel={selectedMonth}
+              rows={plannerRows}
+              dateKey="publish_date"
+              onMoveDate={movePlannerItem}
+              renderItem={(item) => (
+                <div className={`planner-calendar-pill ${contentTypeChipTone(item.content_type)}`}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <span>{item.platform || "Platforma"} / {formatContentType(item.content_type)}</span>
+                  </div>
+                  <button type="button" title="Nusxalash" onClick={(e) => { e.stopPropagation(); duplicatePlannerItem(item); }}>
+                    <Copy size={13} />
+                  </button>
+                </div>
+              )}
+            />
+          </div>
+          <aside className="planner-quick">
+            <div className="planner-quick-head">
+              <strong>Tez qo'shish</strong>
+              <span>Reja kartasi</span>
+            </div>
+            <form onSubmit={quickAddPlannerItem}>
+              <label><span>Kontent nomi</span><input value={plannerForm.title} onChange={(e) => setPlannerField("title", e.target.value)} placeholder="Masalan: SMM trendlar 2026" required /></label>
+              <label><span>Sana</span><input type="date" value={plannerForm.publish_date} onChange={(e) => setPlannerField("publish_date", e.target.value)} required /></label>
+              <label><span>Vaqt</span><input type="time" value={plannerForm.publish_time} onChange={(e) => setPlannerField("publish_time", e.target.value)} /></label>
+              <label><span>Platforma</span><select value={plannerForm.platform} onChange={(e) => setPlannerField("platform", e.target.value)}><option>Instagram</option><option>Telegram</option><option>YouTube</option><option>TikTok</option><option>Facebook</option></select></label>
+              <label><span>Format</span><select value={plannerForm.content_type} onChange={(e) => setPlannerField("content_type", e.target.value)}>{CONTENT_TYPE_OPTIONS.slice(0, 7).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+              <label><span>Rubrika</span><select value={plannerForm.rubric} onChange={(e) => setPlannerField("rubric", e.target.value)}>{RUBRIC_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+              <label className="full"><span>Izoh</span><textarea value={plannerForm.note} onChange={(e) => setPlannerField("note", e.target.value)} rows={3} placeholder="Hook, izoh yoki qisqa topshiriq..." /></label>
+              <button type="submit" className="btn primary" disabled={saving || !canCreateContent}>{saving ? "Saqlanmoqda..." : "Oylik rejaga qo'shish"}</button>
+            </form>
+            <div className="planner-live-list">
+              <strong>Live preview</strong>
+              {plannerRows.slice(0, 6).map((row) => (
+                <button key={`planner-live-${row.id}`} type="button" onClick={() => setViewRow(row)}>
+                  <span>{formatDate(row.publish_date)}</span>
+                  <b>{row.title}</b>
+                  <small>{row.platform || "-"} / {formatContentType(row.content_type)}</small>
+                </button>
+              ))}
+              {!plannerRows.length ? <p>Bu oy uchun reja hali yo'q.</p> : null}
+            </div>
+          </aside>
+        </div>
+      </section>
 
       <section className="content-weekly-report">
         <div className="content-weekly-head">
@@ -19506,6 +19763,318 @@ tr:hover td,
 .content-page-v5 .content-v5-stat strong{color:#101827 !important;}
 .content-page-v5 .content-v5-stat small{color:#6b7280 !important;}
 .content-page-v5 .content-v5-stat::after{opacity:1;}
+.monthly-planner{
+  display:grid;
+  gap:16px;
+  border-radius:30px;
+  padding:18px;
+  background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);
+  border:1px solid rgba(148,163,184,.16);
+  box-shadow:0 18px 50px rgba(15,23,42,.07);
+  color:#101827;
+}
+.monthly-planner-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+}
+.monthly-planner-head span{
+  color:#0b63d1;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.monthly-planner-head h2{
+  margin:5px 0 6px;
+  color:#101827;
+  font-size:28px;
+  line-height:1.08;
+}
+.monthly-planner-head p{
+  margin:0;
+  max-width:780px;
+  color:#64748b;
+  font-weight:750;
+  line-height:1.55;
+}
+.monthly-planner-actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.monthly-planner-actions .btn{
+  border-radius:16px;
+  min-height:42px;
+}
+.monthly-planner-stats{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+}
+.monthly-planner-stats div{
+  min-height:96px;
+  border-radius:22px;
+  padding:16px;
+  background:#fff;
+  border:1px solid rgba(148,163,184,.16);
+  box-shadow:0 12px 30px rgba(15,23,42,.045);
+}
+.monthly-planner-stats span{
+  display:block;
+  color:#64748b;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.monthly-planner-stats strong{
+  display:block;
+  margin-top:8px;
+  color:#101827;
+  font-size:32px;
+  line-height:1;
+}
+.monthly-planner-stats small{
+  color:#0f766e;
+  font-weight:850;
+}
+.monthly-planner-layout{
+  display:grid;
+  grid-template-columns:250px minmax(0,1fr) 320px;
+  gap:14px;
+  align-items:start;
+}
+.planner-templates,
+.planner-calendar,
+.planner-quick{
+  border-radius:24px;
+  background:#fff;
+  border:1px solid rgba(148,163,184,.16);
+  box-shadow:0 12px 30px rgba(15,23,42,.045);
+}
+.planner-templates{
+  padding:14px;
+  display:grid;
+  gap:10px;
+}
+.planner-templates > strong,
+.planner-quick-head strong,
+.planner-live-list > strong{
+  color:#101827;
+  font-size:16px;
+}
+.planner-templates > span,
+.planner-quick-head span{
+  color:#64748b;
+  font-weight:750;
+  font-size:12px;
+}
+.planner-templates button{
+  min-height:74px;
+  border-radius:18px;
+  border:1px solid rgba(148,163,184,.16);
+  background:#f8fbff;
+  display:grid;
+  grid-template-columns:38px 1fr;
+  gap:10px;
+  align-items:center;
+  text-align:left;
+  padding:10px;
+}
+.planner-templates button:hover{
+  border-color:#93c5fd;
+  transform:translateY(-1px);
+}
+.planner-templates i{
+  width:38px;
+  height:38px;
+  border-radius:14px;
+  display:grid;
+  place-items:center;
+  background:#eaf4ff;
+  color:#0b63d1;
+  font-style:normal;
+  font-weight:950;
+}
+.planner-templates button strong{
+  display:block;
+  color:#101827;
+  font-size:13px;
+}
+.planner-templates button small{
+  display:block;
+  margin-top:3px;
+  color:#64748b;
+  font-size:11px;
+  font-weight:750;
+}
+.planner-calendar{
+  padding:14px;
+}
+.planner-calendar-head{
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr) 42px auto;
+  gap:8px;
+  align-items:center;
+  margin-bottom:12px;
+}
+.planner-calendar-head button{
+  height:38px;
+  border-radius:14px;
+  border:1px solid rgba(148,163,184,.18);
+  background:#fff;
+  color:#101827;
+  font-size:20px;
+  font-weight:900;
+}
+.planner-calendar-head strong{
+  color:#101827;
+  font-size:20px;
+  text-align:center;
+}
+.planner-calendar-head span{
+  border-radius:999px;
+  background:#eff6ff;
+  color:#0b63d1;
+  border:1px solid #dbeafe;
+  padding:8px 10px;
+  font-size:12px;
+  font-weight:900;
+}
+.planner-calendar .calendar-card{
+  border-radius:20px;
+  border:1px solid rgba(148,163,184,.16);
+  overflow:hidden;
+}
+.planner-calendar .calendar-cell{
+  min-height:118px;
+}
+.planner-calendar-pill{
+  width:100%;
+  border-radius:14px;
+  border:1px solid #bfdbfe;
+  background:#eff6ff;
+  color:#101827;
+  padding:8px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 28px;
+  gap:6px;
+  align-items:center;
+  box-shadow:0 8px 18px rgba(37,99,235,.08);
+}
+.planner-calendar-pill.warning{background:#fffbeb;border-color:#fde68a}
+.planner-calendar-pill.info{background:#ecfeff;border-color:#a5f3fc}
+.planner-calendar-pill.danger{background:#fff1f2;border-color:#fecdd3}
+.planner-calendar-pill strong{
+  display:block;
+  color:#101827;
+  font-size:12px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.planner-calendar-pill span{
+  display:block;
+  color:#64748b;
+  font-size:11px;
+  font-weight:750;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.planner-calendar-pill button{
+  width:28px;
+  height:28px;
+  border-radius:10px;
+  border:1px solid rgba(148,163,184,.18);
+  background:#fff;
+  color:#0b63d1;
+  display:grid;
+  place-items:center;
+}
+.planner-quick{
+  padding:14px;
+  display:grid;
+  gap:12px;
+}
+.planner-quick-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+}
+.planner-quick form{
+  display:grid;
+  gap:10px;
+}
+.planner-quick label{
+  display:grid;
+  gap:6px;
+  color:#64748b;
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.planner-quick input,
+.planner-quick select,
+.planner-quick textarea{
+  width:100%;
+  border-radius:14px;
+  border:1px solid rgba(148,163,184,.20);
+  background:#f8fbff;
+  color:#101827;
+  padding:11px 12px;
+  font-size:14px;
+  font-weight:750;
+  text-transform:none;
+}
+.planner-quick textarea{
+  resize:vertical;
+}
+.planner-quick .btn{
+  width:100%;
+  border-radius:16px;
+  min-height:44px;
+}
+.planner-live-list{
+  display:grid;
+  gap:8px;
+  border-top:1px solid rgba(148,163,184,.16);
+  padding-top:12px;
+}
+.planner-live-list button{
+  min-height:62px;
+  border-radius:16px;
+  border:1px solid rgba(148,163,184,.16);
+  background:#fff;
+  display:grid;
+  grid-template-columns:72px 1fr;
+  gap:3px 8px;
+  align-items:center;
+  text-align:left;
+  padding:10px;
+}
+.planner-live-list span{
+  grid-row:1 / span 2;
+  color:#0b63d1;
+  font-size:12px;
+  font-weight:900;
+}
+.planner-live-list b{
+  color:#101827;
+  font-size:13px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.planner-live-list small,
+.planner-live-list p{
+  margin:0;
+  color:#64748b;
+  font-size:12px;
+  font-weight:750;
+}
 .content-page-v5 .content-v5-viewbar{
   position:sticky;
   top:12px;
@@ -19704,6 +20273,10 @@ tr:hover td,
   .content-page-v5 .content-v5-hero{grid-template-columns:1fr !important;}
   .content-page-v5 .content-v5-hero-panel{grid-template-columns:150px 1fr !important;}
   .content-page-v5 .content-control-grid{grid-template-columns:1fr !important;}
+  .monthly-planner-layout{grid-template-columns:1fr}
+  .planner-templates{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .planner-templates > strong,
+  .planner-templates > span{grid-column:1 / -1}
 }
 @media (max-width:900px){
   .content-page-v5 .content-v5-stats-row,
@@ -19711,6 +20284,14 @@ tr:hover td,
   .content-page-v5 .content-v5-hero-panel{grid-template-columns:1fr !important;}
   .content-page-v5 .content-v5-viewbar{position:relative;top:auto;}
   .content-page-v5 .content-v5-hero{padding:22px !important;border-radius:26px !important;}
+  .monthly-planner{padding:14px;border-radius:24px}
+  .monthly-planner-head,
+  .monthly-planner-actions{display:grid;justify-content:stretch}
+  .monthly-planner-stats,
+  .planner-templates{grid-template-columns:1fr}
+  .planner-calendar-head{grid-template-columns:42px 1fr 42px}
+  .planner-calendar-head span{grid-column:1 / -1;text-align:center}
+  .planner-calendar .calendar-cell{min-height:104px}
 }
 
 /* === v5.6 Sidebar split: SMM menejer / Mobilograf. Old routes and functions preserved. === */
