@@ -2644,7 +2644,7 @@ function ManagerOsLabPage({ onToast }) {
   );
 }
 
-function ContentPage({ users = [], branches = [], settings, user, onToast, reload }) {
+function ContentPage({ users = [], branches = [], campaigns = [], managerOSData = {}, settings, user, onToast, reload }) {
   const [selectedMonth, setSelectedMonth] = useState(getMonthLabel());
   const [rows, setRows] = useState([]);
   const [tableSearch, setTableSearch] = useState("");
@@ -2779,6 +2779,9 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
   const calendarPlatforms = useMemo(() => {
     return [...new Set(visibleRows.flatMap((row) => splitCellValues(row.platform)))].filter(Boolean).sort();
   }, [visibleRows]);
+  const calendarPlatformTabs = useMemo(() => {
+    return ["all", ...new Set(["Instagram", "Telegram", "YouTube", ...calendarPlatforms].filter(Boolean))];
+  }, [calendarPlatforms]);
   const weeklyLoad = useMemo(() => {
     const stats = new Map();
     calendarRows.forEach((row) => {
@@ -2792,6 +2795,32 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     });
     return [...stats.entries()].map(([label, count]) => ({ label, count }));
   }, [calendarRows, selectedMonth]);
+  const weeklyReportRows = useMemo(() => {
+    const currentCampaigns = (campaigns || []).filter((row) => {
+      const start = formatDate(row.start_at || row.start_date);
+      const end = formatDate(row.end_at || row.end_date);
+      return start.startsWith(selectedMonth) || end.startsWith(selectedMonth);
+    });
+    const scriptRows = rows.filter((row) => row.hook_text || row.main_body_text || row.cta_text || row.scenario_text || row.video_type);
+    const creativeRows = managerOSData?.creative_briefs?.rows || [];
+    const audienceRows = managerOSData?.audience_metrics?.rows || [];
+    const bloggerRows = managerOSData?.blogger_partners?.rows || [];
+    const campaignBriefRows = managerOSData?.campaign_briefs?.rows || [];
+    const adsRows = managerOSData?.ad_budgets?.rows || [];
+    const weeklyMap = [
+      { label: "Kontent + ssenariy", share: 25, value: scriptRows.length || rows.length, hint: `${scriptRows.length} ssenariy / ${rows.length} reja`, tone: "blue" },
+      { label: "Kampaniya + aksiya", share: 20, value: campaignBriefRows.length || currentCampaigns.length, hint: `${currentCampaigns.length} kampaniya`, tone: "fuchsia" },
+      { label: "Ads + target", share: 20, value: adsRows.length || currentCampaigns.length, hint: `${currentCampaigns.reduce((sum, row) => sum + Number(row.lead_count || row.leads || 0), 0)} lid`, tone: "green" },
+      { label: "Dizayn + kreativ", share: 15, value: creativeRows.length, hint: `${creativeRows.length} brief`, tone: "purple" },
+      { label: "Platforma rivoji", share: 10, value: Object.keys(platformMix).length, hint: `${Object.keys(platformMix).length} platforma`, tone: "cyan" },
+      { label: "Analitika", share: 5, value: audienceRows.length, hint: `${audienceRows.length} signal`, tone: "sky" },
+      { label: "Blogerlar", share: 5, value: bloggerRows.length, hint: `${bloggerRows.length} hamkor`, tone: "amber" }
+    ];
+    return weeklyMap.map((item) => ({
+      ...item,
+      readiness: Math.min(100, Math.round((Number(item.value || 0) / Math.max(1, Math.ceil(item.share / 10))) * 100))
+    }));
+  }, [campaigns, managerOSData, platformMix, rows, selectedMonth]);
   const emptyCalendarDays = useMemo(() => {
     const days = buildMonthCalendar(selectedMonth, calendarRows, "publish_date").filter((cell) => !cell.empty);
     return days.filter((cell) => !cell.items.length).length;
@@ -3030,6 +3059,28 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
           </div>
         ))}
       </div>
+
+      <section className="content-weekly-report">
+        <div className="content-weekly-head">
+          <div>
+            <span>Haftalik hisobot</span>
+            <h2>25/20/20/15/10/5/5 ish taqsimoti</h2>
+          </div>
+          <strong>{getMonthTitle(selectedMonth)}</strong>
+        </div>
+        <div className="content-weekly-grid">
+          {weeklyReportRows.map((item) => (
+            <div key={item.label} className={`content-weekly-item ${item.tone}`}>
+              <div>
+                <span>{item.label}</span>
+                <strong>{item.share}%</strong>
+              </div>
+              <i><em style={{ width: `${item.readiness}%` }} /></i>
+              <small>{item.hint}</small>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="content-v5-viewbar">
         <div className="content-v5-segment">
@@ -3444,6 +3495,24 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
           </div>
         </> : viewMode === "calendar" ? (
           <div className="calendar-pro-shell">
+            <div className="content-calendar-tabs">
+              {calendarPlatformTabs.map((platform) => {
+                const count = platform === "all"
+                  ? visibleRows.length
+                  : visibleRows.filter((row) => splitCellValues(row.platform).includes(platform)).length;
+                return (
+                  <button
+                    key={platform}
+                    type="button"
+                    className={calendarPlatformFilter === platform ? "active" : ""}
+                    onClick={() => setCalendarPlatformFilter(platform)}
+                  >
+                    <span>{platform === "all" ? "Hammasi" : platform}</span>
+                    <strong>{count}</strong>
+                  </button>
+                );
+              })}
+            </div>
             <div className="calendar-pro-toolbar">
               <div className="calendar-signal-card">
                 <strong>Haftalik yuklama</strong>
@@ -3503,8 +3572,9 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                 const branchIndex = branchIds.length ? Math.abs(branchIds[0]) % 6 : 0;
                 return (
                   <button key={item.id} type="button" className={`calendar-pill content-calendar-pill branch-tone-${branchIndex}`} onClick={() => setViewRow(item)}>
-                    <span>{item.platform || "-"}</span>
-                    {item.title}
+                    <span>{item.platform || "-"} / {item.video_type || item.content_type || "post"}</span>
+                    <strong>{item.title}</strong>
+                    <small>{item.hook_text ? "Hook" : "Hook yo'q"} / {item.cta_text ? "CTA" : "CTA yo'q"}</small>
                   </button>
                 );
               }}
@@ -3567,6 +3637,11 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                 <div><strong>Platforma</strong><span className="table-chip-row">{splitCellValues(viewRow.platform).length ? splitCellValues(viewRow.platform).map((platform, idx) => <PlatformBadge key={`${viewRow.id}-detail-platform-${idx}`} platform={platform} />) : "-"}</span></div>
                 <div><strong>Turi</strong><span>{formatContentType(viewRow.content_type)}</span></div>
                 <div><strong>Rubrika</strong><span>{formatRubric(viewRow.rubric)}</span></div>
+                <div><strong>Mahsulot</strong><span>{viewRow.product_name || "-"}</span></div>
+                <div><strong>Video formati</strong><span>{viewRow.video_type || "-"}</span></div>
+                <div className="full-col"><strong>Hook</strong><span>{viewRow.hook_text || "-"}</span></div>
+                <div className="full-col"><strong>Asosiy qism / ssenariy</strong><span>{viewRow.main_body_text || viewRow.scenario_text || "-"}</span></div>
+                <div className="full-col"><strong>CTA</strong><span>{viewRow.cta_text || "-"}</span></div>
                 <div className="full-col">
                   <strong>Qilingan ish linki</strong>
                   <span>
@@ -8771,9 +8846,17 @@ function App() {
         setManagerOSData(managerOsRes || {});
         break;
       }
-      case "content":
-        setContentRows(await api.list("content").catch(() => []));
+      case "content": {
+        const [contentRes, campaignsRes, managerOsRes] = await Promise.all([
+          api.list("content").catch(() => []),
+          api.list("campaigns").catch(() => []),
+          api.list("/api/manager-os").catch(() => ({}))
+        ]);
+        setContentRows(contentRes || []);
+        setCampaigns(campaignsRes || []);
+        setManagerOSData(managerOsRes || {});
         break;
+      }
       case "bonus":
         setBonusItems(await api.list("bonus-items", queryScope).catch(() => []));
         break;
@@ -9216,7 +9299,7 @@ function App() {
   } else if (active === "managerLab") {
     page = <ManagerOsLabPage onToast={showToast} />;
   } else if (active === "content") {
-    page = <ContentPage users={users} branches={branches} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
+    page = <ContentPage users={users} branches={branches} campaigns={campaigns} managerOSData={managerOSData} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "bonus") {
     page = <BonusPage bonusItems={bonusItems} users={users} branches={branches} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "expenses") {
@@ -18487,6 +18570,95 @@ tr:hover td,
   color:var(--muted);
   font-weight:750;
 }
+.content-weekly-report{
+  border-radius:24px;
+  background:#fff;
+  border:1px solid rgba(148,163,184,.14);
+  box-shadow:0 20px 45px rgba(15,23,42,.07);
+  padding:18px;
+}
+.content-weekly-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:14px;
+}
+.content-weekly-head span{
+  color:#0d9488;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.content-weekly-head h2{
+  margin:4px 0 0;
+  color:#0f172a;
+  font-size:22px;
+  line-height:1.15;
+}
+.content-weekly-head > strong{
+  flex:0 0 auto;
+  border-radius:999px;
+  padding:8px 12px;
+  background:#ecfeff;
+  color:#0f766e;
+  font-size:12px;
+  text-transform:uppercase;
+}
+.content-weekly-grid{
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:10px;
+}
+.content-weekly-item{
+  min-height:118px;
+  border-radius:18px;
+  border:1px solid rgba(148,163,184,.14);
+  background:#f8fbff;
+  padding:12px;
+  display:grid;
+  align-content:space-between;
+  gap:10px;
+}
+.content-weekly-item div{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:8px;
+}
+.content-weekly-item span{
+  color:#344054;
+  font-size:12px;
+  font-weight:900;
+}
+.content-weekly-item strong{
+  color:#0f172a;
+  font-size:18px;
+  line-height:1;
+}
+.content-weekly-item i{
+  display:block;
+  height:7px;
+  border-radius:999px;
+  background:#e2e8f0;
+  overflow:hidden;
+}
+.content-weekly-item em{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:#1690f5;
+}
+.content-weekly-item.fuchsia em{background:#d946ef}
+.content-weekly-item.green em{background:#10b981}
+.content-weekly-item.purple em{background:#8b5cf6}
+.content-weekly-item.cyan em{background:#06b6d4}
+.content-weekly-item.sky em{background:#0ea5e9}
+.content-weekly-item.amber em{background:#f59e0b}
+.content-weekly-item small{
+  color:#667085;
+  font-weight:800;
+}
 .content-v5-viewbar{
   position:sticky;
   top:10px;
@@ -18562,10 +18734,63 @@ tr:hover td,
   border:1px solid rgba(148,163,184,.13);
   padding:14px;
 }
+.content-calendar-tabs{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+  margin-bottom:12px;
+}
+.content-calendar-tabs button{
+  min-height:64px;
+  border-radius:16px;
+  border:1px solid rgba(148,163,184,.18);
+  background:#fff;
+  padding:12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  color:#475467;
+  font-weight:950;
+  cursor:pointer;
+}
+.content-calendar-tabs button.active{
+  color:#0f766e;
+  border-color:rgba(45,212,191,.45);
+  background:#ecfeff;
+  box-shadow:0 14px 34px rgba(45,212,191,.16);
+}
+.content-calendar-tabs strong{
+  min-width:30px;
+  height:30px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:#0f172a;
+  color:#5eead4;
+  font-size:12px;
+}
+.content-calendar-pill{
+  display:grid;
+  gap:3px;
+  text-align:left;
+}
+.content-calendar-pill strong{
+  color:#0f172a;
+  font-size:12px;
+  line-height:1.18;
+}
+.content-calendar-pill small{
+  color:#64748b;
+  font-size:10px;
+  font-weight:850;
+}
 @media (max-width: 1100px){
   .content-v5-hero,
   .content-v5-hero-panel,
   .content-v5-stats-row,
+  .content-weekly-grid,
+  .content-calendar-tabs,
   .content-v5-viewbar{grid-template-columns:1fr}
   .content-v5-hero{padding:20px;border-radius:26px}
   .content-v5-hero h1{font-size:34px}
