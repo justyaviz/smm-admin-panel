@@ -675,17 +675,23 @@ function IconActions({ onView, onEdit, onDelete }) {
 }
 
 function Toast({ toast, onClose }) {
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(onClose, toast.variant === "toast" ? 2800 : 2200);
+    const timer = setTimeout(() => onCloseRef.current?.(), toast.variant === "toast" ? 2800 : 1600);
     return () => clearTimeout(timer);
-  }, [toast, onClose]);
+  }, [toast]);
 
   if (!toast) return null;
 
   if (toast.variant === "center-success") {
     return (
-      <div className="success-overlay" aria-live="polite" aria-atomic="true">
+      <div className="success-overlay" aria-live="polite" aria-atomic="true" onClick={onClose}>
         <div className="success-wrapper">
           <div className="icon-wrap">
             <svg className="success-svg" viewBox="0 0 100 100" width="120" height="120" aria-hidden="true">
@@ -702,7 +708,7 @@ function Toast({ toast, onClose }) {
 
   if (toast.variant === "center-delete") {
     return (
-      <div className="success-overlay delete-overlay" aria-live="polite" aria-atomic="true">
+      <div className="success-overlay delete-overlay" aria-live="polite" aria-atomic="true" onClick={onClose}>
         <div className="delete-wrapper">
           <div className="delete-icon-wrap" aria-hidden="true">
             <svg viewBox="0 0 100 100" fill="none" width="100" height="100">
