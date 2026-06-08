@@ -7781,23 +7781,28 @@ app.get("/api/export/travel-expenses.pdf", authRequired, async (req, res) => {
 
 let campaignLifecycleTimer = null;
 
-ensureRuntimeSchema()
-  .then(() => ensureDefaultBranches())
-  .catch((err) => {
+async function runStartupJobs() {
+  try {
+    await ensureRuntimeSchema();
+    await ensureDefaultBranches();
+  } catch (err) {
     console.error("startup schema error:", err.message);
-  })
-  .finally(() => {
-    httpServer.listen(PORT, () => {
-      console.log(`Server running on ${PORT}`);
-      syncCampaignLifecycleNotifications().catch((err) => {
-        console.error("campaign lifecycle initial sync error:", err.message);
-      });
-      if (!campaignLifecycleTimer) {
-        campaignLifecycleTimer = setInterval(() => {
-          syncCampaignLifecycleNotifications().catch((err) => {
-            console.error("campaign lifecycle timer error:", err.message);
-          });
-        }, 10000);
-      }
-    });
+    return;
+  }
+
+  syncCampaignLifecycleNotifications().catch((err) => {
+    console.error("campaign lifecycle initial sync error:", err.message);
   });
+  if (!campaignLifecycleTimer) {
+    campaignLifecycleTimer = setInterval(() => {
+      syncCampaignLifecycleNotifications().catch((err) => {
+        console.error("campaign lifecycle timer error:", err.message);
+      });
+    }, 10000);
+  }
+}
+
+httpServer.listen(PORT, () => {
+  console.log(`Server running on ${PORT}`);
+  runStartupJobs();
+});
