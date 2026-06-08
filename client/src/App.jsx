@@ -1219,6 +1219,7 @@ const RUBRIC_OPTIONS = [
   { value: "abzor", label: "Abzor" },
   { value: "trend-video", label: "Trend video" },
   { value: "xodimlar-bilan", label: "Xodimlar bilan" },
+  { value: "customer-heroes", label: "Mijozlar qahramonlarimiz" },
   { value: "sovgali-oyin", label: "Sovg'ali o'yin" },
   { value: "intervyu", label: "Intervyu" },
   { value: "unboxing", label: "Unboxing" },
@@ -1321,6 +1322,7 @@ function PlatformBadge({ platform }) {
 function rubricChipTone(value) {
   const normalized = String(value || "").toLowerCase();
   if (normalized === "lifehack-academy") return "academy";
+  if (normalized === "customer-heroes") return "customer";
   if (["sotuv", "sale-promo", "aksiyalar", "chegirma"].includes(normalized)) return "success";
   if (["trend-video", "lifehack", "unboxing", "intervyu"].includes(normalized)) return "info";
   if (["abzor", "locatsiya", "xodimlar-bilan"].includes(normalized)) return "warning";
@@ -1330,6 +1332,11 @@ function rubricChipTone(value) {
 function isAcademyContent(row = {}) {
   return String(row.rubric || "").toLowerCase() === "lifehack-academy" ||
     String(row.content_template || "").toLowerCase() === "aloo_academy";
+}
+
+function isCustomerHeroContent(row = {}) {
+  return String(row.rubric || "").toLowerCase() === "customer-heroes" ||
+    String(row.content_template || "").toLowerCase() === "customer_heroes";
 }
 
 function campaignStatusClass(status) {
@@ -3450,7 +3457,7 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
               dateKey="publish_date"
               onMoveDate={movePlannerItem}
               renderItem={(item) => (
-                <div className={`planner-calendar-pill ${contentTypeChipTone(item.content_type)} ${isAcademyContent(item) ? "academy" : ""}`}>
+                <div className={`planner-calendar-pill ${contentTypeChipTone(item.content_type)} ${isAcademyContent(item) ? "academy" : ""} ${isCustomerHeroContent(item) ? "customer" : ""}`}>
                   <div>
                     <strong>{item.title}</strong>
                     <span>{item.platform || "Platforma"} / {formatContentType(item.content_type)}</span>
@@ -3810,11 +3817,12 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
                   <tr><td colSpan="8" className="empty-cell">Yuklanmoqda...</td></tr>
                 ) : visibleRows.length ? (
                   visibleRows.map((row) => (
-                    <tr key={row.id} className={isAcademyContent(row) ? "academy-content-row" : ""}>
+                    <tr key={row.id} className={`${isAcademyContent(row) ? "academy-content-row" : ""} ${isCustomerHeroContent(row) ? "customer-content-row" : ""}`}>
                       <td>
                         <div className="table-title-cell">
                           <strong className="table-title-main">
                             {isAcademyContent(row) ? <span className="academy-cap"><GraduationCap size={15} /></span> : null}
+                            {isCustomerHeroContent(row) ? <span className="customer-cap"><ContactRound size={15} /></span> : null}
                             {row.title}
                           </strong>
                           <div className="table-title-sub">
@@ -3895,10 +3903,10 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
               <div className="mobile-record-card empty">Yuklanmoqda...</div>
             ) : visibleRows.length ? (
               visibleRows.map((row) => (
-                <div key={`content-card-${row.id}`} className={`mobile-record-card ${isAcademyContent(row) ? "academy-content-card" : ""}`}>
+                <div key={`content-card-${row.id}`} className={`mobile-record-card ${isAcademyContent(row) ? "academy-content-card" : ""} ${isCustomerHeroContent(row) ? "customer-content-card" : ""}`}>
                   <div className="mobile-record-head">
                     <div className="mobile-record-title">
-                      <strong>{isAcademyContent(row) ? <GraduationCap size={15} /> : null}{row.title}</strong>
+                      <strong>{isAcademyContent(row) ? <GraduationCap size={15} /> : null}{isCustomerHeroContent(row) ? <ContactRound size={15} /> : null}{row.title}</strong>
                       <span>{formatDate(row.publish_date)} • {formatContentType(row.content_type)}</span>
                     </div>
                     <span className={approvalStatusClass(row.status)}>{formatApprovalStatus(row.status)}</span>
@@ -4014,7 +4022,7 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
                 const branchIds = Array.isArray(item.branch_ids_json) ? item.branch_ids_json.map(Number) : [];
                 const branchIndex = branchIds.length ? Math.abs(branchIds[0]) % 6 : 0;
                 return (
-                  <button key={item.id} type="button" className={`calendar-pill content-calendar-pill branch-tone-${branchIndex} ${isAcademyContent(item) ? "academy" : ""}`} onClick={() => setViewRow(item)}>
+                  <button key={item.id} type="button" className={`calendar-pill content-calendar-pill branch-tone-${branchIndex} ${isAcademyContent(item) ? "academy" : ""} ${isCustomerHeroContent(item) ? "customer" : ""}`} onClick={() => setViewRow(item)}>
                     <span>{item.platform || "-"} / {item.video_type || item.content_type || "post"}</span>
                     <strong>{item.title}</strong>
                     <small>{item.hook_text ? "Hook" : "Hook yo'q"} / {item.cta_text ? "CTA" : "CTA yo'q"}</small>
@@ -12318,18 +12326,38 @@ tbody tr:hover{
   border:1px solid #bbf7d0;
   flex:0 0 auto;
 }
+.customer-cap{
+  width:24px;
+  height:24px;
+  border-radius:10px;
+  display:inline-grid;
+  place-items:center;
+  color:#b45309;
+  background:#fef3c7;
+  border:1px solid #fde68a;
+  flex:0 0 auto;
+}
 .academy-content-row{
   background:linear-gradient(90deg,rgba(34,197,94,.12),rgba(240,253,244,.65) 52%,transparent) !important;
 }
 .academy-content-row td:first-child{
   box-shadow:inset 5px 0 0 #22c55e;
 }
+.customer-content-row{
+  background:linear-gradient(90deg,rgba(245,158,11,.14),rgba(255,251,235,.72) 52%,transparent) !important;
+}
+.customer-content-row td:first-child{
+  box-shadow:inset 5px 0 0 #f59e0b;
+}
 .academy-content-card{
   border-color:#bbf7d0 !important;
   background:linear-gradient(135deg,#f0fdf4,#ffffff) !important;
 }
+.customer-content-card{
+  border-color:#fde68a !important;
+  background:linear-gradient(135deg,#fffbeb,#ffffff) !important;
+}
 .mobile-record-title strong svg{
-  color:#047857;
   margin-right:6px;
   vertical-align:-2px;
 }
@@ -12413,6 +12441,11 @@ tbody tr:hover{
   background:linear-gradient(135deg,rgba(34,197,94,.16),rgba(240,253,244,.98));
   color:#047857;
   border-color:#bbf7d0;
+}
+.table-chip.customer{
+  background:linear-gradient(135deg,rgba(245,158,11,.18),rgba(255,251,235,.98));
+  color:#b45309;
+  border-color:#fde68a;
 }
 .table-person-stack{
   display:flex;
@@ -13953,6 +13986,11 @@ tbody tr:hover{
   background:linear-gradient(135deg,#f0fdf4,#ffffff);
   border-left-color:#22c55e;
   border-color:#bbf7d0;
+}
+.content-calendar-pill.customer{
+  background:linear-gradient(135deg,#fffbeb,#ffffff);
+  border-left-color:#f59e0b;
+  border-color:#fde68a;
 }
 .bonus-plastic-title{
   display:flex;
@@ -20021,6 +20059,11 @@ tr:hover td,
   border-color:#86efac;
   box-shadow:0 8px 18px rgba(34,197,94,.10);
 }
+.planner-calendar-pill.customer{
+  background:#fffbeb;
+  border-color:#fcd34d;
+  box-shadow:0 8px 18px rgba(245,158,11,.10);
+}
 .planner-calendar-pill strong{
   display:block;
   color:#101827;
@@ -20269,14 +20312,26 @@ tr:hover td,
 .content-page-v5 .content-list-card tbody tr.academy-content-row td{
   background:linear-gradient(90deg,#f0fdf4,#ffffff) !important;
 }
+.content-page-v5 .content-list-card tbody tr.customer-content-row td{
+  background:linear-gradient(90deg,#fffbeb,#ffffff) !important;
+}
 .content-page-v5 .table-chip.academy{
   background:#dcfce7 !important;
   color:#047857 !important;
   border-color:#86efac !important;
 }
+.content-page-v5 .table-chip.customer{
+  background:#fef3c7 !important;
+  color:#b45309 !important;
+  border-color:#fcd34d !important;
+}
 .content-page-v5 .academy-content-card{
   background:linear-gradient(135deg,#f0fdf4,#ffffff) !important;
   border-color:#86efac !important;
+}
+.content-page-v5 .customer-content-card{
+  background:linear-gradient(135deg,#fffbeb,#ffffff) !important;
+  border-color:#fcd34d !important;
 }
 .content-page-v5 .table-title-main,
 .content-page-v5 .table-person,
@@ -20313,6 +20368,10 @@ tr:hover td,
 .content-page-v5 .mobile-record-card.academy-content-card{
   background:linear-gradient(135deg,#f0fdf4,#ffffff) !important;
   border-color:#86efac !important;
+}
+.content-page-v5 .mobile-record-card.customer-content-card{
+  background:linear-gradient(135deg,#fffbeb,#ffffff) !important;
+  border-color:#fcd34d !important;
 }
 .content-page-v5 .kanban-column h3,
 .content-page-v5 .kanban-card strong{color:#101827 !important;}
