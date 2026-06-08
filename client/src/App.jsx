@@ -51,38 +51,38 @@ import { DESIGN_SYSTEM_VERSION } from "./design-system";
 import { UiHealthStrip, UiOpsTimeline, UiStatusStepper } from "./ui-system";
 
 const MENU = [
-  { id: "dashboard", title: "Boshqaruv markazi", icon: LayoutDashboard, tone: "indigo", desc: "SMM command center" },
-  { id: "content", title: "Kontent reja", icon: Clapperboard, tone: "cyan", desc: "Postlar va reja" },
-  { id: "tasks", title: "Ish taqsimoti", icon: ListTodo, tone: "green", desc: "SMM va mobilograf workflow" },
-  { id: "travelPlans", title: "Safar rejasi", icon: PlaneTakeoff, tone: "violet", desc: "SMM va mobilograf rejalari" },
-  { id: "bonus", title: "Bonus tizimi", icon: BadgeDollarSign, tone: "emerald", desc: "Faqat mobilograf uchun" },
-  { id: "campaigns", title: "Reklama va aksiyalar", icon: Target, tone: "fuchsia", desc: "Target, bloger va hamkorlar" },
-  { id: "uploads", title: "Media kutubxona", icon: Image, tone: "purple", desc: "Fayl va assetlar" },
-  { id: "analytics", title: "Analitika va hisobot", icon: BarChart3, tone: "sky", desc: "Natija va auditoriya" },
-  { id: "dailyReports", title: "Platforma monitoringi", icon: ClipboardList, tone: "slate", desc: "Post, story va faollik" },
-  { id: "users", title: "Jamoa", icon: ContactRound, tone: "blue", desc: "SMM va mobilograf rollari" },
-  { id: "profile", title: "Profil", icon: CircleUserRound, tone: "cyan", desc: "Shaxsiy kabinet" },
-  { id: "settings", title: "Sozlamalar", icon: SlidersHorizontal, tone: "slate", desc: "Tizim boshqaruvi" }
+  { id: "dashboard", title: "Manager OS", icon: LayoutDashboard, tone: "indigo", desc: "Lavozim boshqaruv markazi" },
+  { id: "content", title: "Strategiya va kontent", icon: Clapperboard, tone: "cyan", desc: "Reja, kalendar, ssenariy" },
+  { id: "tasks", title: "Mobilograf workflow", icon: ListTodo, tone: "green", desc: "Topshiriq va nazorat" },
+  { id: "travelPlans", title: "Production safarlar", icon: PlaneTakeoff, tone: "violet", desc: "Filial, suratga olish, montaj" },
+  { id: "bonus", title: "Mobilograf bonus", icon: BadgeDollarSign, tone: "emerald", desc: "Bajarilish motivatsiyasi" },
+  { id: "campaigns", title: "Kampaniya va Ads Lab", icon: Target, tone: "fuchsia", desc: "Target, aksiya, blogerlar" },
+  { id: "uploads", title: "Brand media arxiv", icon: Image, tone: "purple", desc: "Dizayn, video, kreativlar" },
+  { id: "analytics", title: "Growth analytics", icon: BarChart3, tone: "sky", desc: "Auditoriya va natija" },
+  { id: "dailyReports", title: "Platforma pulse", icon: ClipboardList, tone: "slate", desc: "Instagram, Telegram, YouTube" },
+  { id: "users", title: "Jamoa rollari", icon: ContactRound, tone: "blue", desc: "SMM, mobilograf, rahbar" },
+  { id: "profile", title: "Menejer profili", icon: CircleUserRound, tone: "cyan", desc: "Shaxsiy kabinet" },
+  { id: "settings", title: "Brand sozlamalar", icon: SlidersHorizontal, tone: "slate", desc: "Logo, brandbook, tizim" }
 ];
 
 const MENU_GROUPS = [
-  { id: "core", title: "SMM jarayoni", items: ["dashboard", "content", "tasks"] },
-  { id: "growth", title: "Marketing", items: ["campaigns", "analytics", "dailyReports"] },
-  { id: "assets", title: "Media", items: ["uploads"] },
-  { id: "system", title: "Boshqaruv", items: ["users", "profile", "settings"] }
+  { id: "core", title: "Manager OS", items: ["dashboard", "content", "tasks"] },
+  { id: "growth", title: "Growth va reklama", items: ["campaigns", "analytics", "dailyReports"] },
+  { id: "assets", title: "Brand aktivlar", items: ["uploads"] },
+  { id: "system", title: "Jamoa va tizim", items: ["users", "profile", "settings"] }
 ];
 
 
 const SIDEBAR_WORKSPACES = [
   {
     id: "smm",
-    title: "SMM menejer",
-    desc: "Strategiya, kontent, reklama",
+    title: "alooSMM Manager OS",
+    desc: "Strategiya, kontent, reklama, natija",
     items: ["dashboard", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "uploads", "users", "settings"],
     groups: [
-      { id: "smm-main", title: "Reja va ssenariy", items: ["dashboard", "content", "tasks", "travelPlans"] },
-      { id: "smm-growth", title: "Reklama va natija", items: ["campaigns", "analytics", "dailyReports"] },
-      { id: "smm-admin", title: "Jamoa", items: ["uploads", "users", "settings", "profile"] }
+      { id: "smm-main", title: "Strategiya va production", items: ["dashboard", "content", "tasks", "travelPlans"] },
+      { id: "smm-growth", title: "Growth tizimi", items: ["campaigns", "analytics", "dailyReports"] },
+      { id: "smm-admin", title: "Brand va jamoa", items: ["uploads", "users", "settings", "profile"] }
     ]
   },
   {
@@ -2070,6 +2070,217 @@ function DashboardPage({ summary = {}, dailyReports = [], contentRows = [], camp
             <span>Dizayn, analitika, hamkorlar<b>35%</b></span>
           </div>
         </div>
+      </section>
+    </div>
+  );
+}
+
+function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [], campaigns = [], travelPlans = [], tasks = [], uploads = [], user = null }) {
+  const currentMonth = getMonthLabel();
+  const currentMonthTitle = getMonthTitle(currentMonth);
+  const todayKey = formatDate(new Date());
+  const monthContent = (contentRows || []).filter((row) => formatDate(row.publish_date || row.created_at).slice(0, 7) === currentMonth);
+  const publishedContent = monthContent.filter((row) => ["joylangan", "yakunlandi", "published"].includes(String(row.status || "").toLowerCase()));
+  const videoContent = monthContent.filter((row) => /video|reels|shorts|youtube/i.test(`${row.content_type || ""} ${row.platform || ""} ${row.title || ""}`));
+  const scriptReady = monthContent.filter((row) => row.scenario_text || row.script || row.approval_comment || /hook|cta|ssenariy/i.test(`${row.notes || ""} ${row.title || ""}`));
+  const activeCampaigns = (campaigns || []).filter((row) => {
+    const status = String(row.status || "").toLowerCase();
+    return !["done", "yakunlandi", "cancelled", "canceled"].includes(status);
+  });
+  const campaignSpend = activeCampaigns.reduce((sum, row) => sum + Number(row.spend || row.budget_spent || 0), 0);
+  const campaignLeads = activeCampaigns.reduce((sum, row) => sum + Number(row.leads || row.leads_count || 0), 0);
+  const openTasks = (tasks || []).filter((row) => !["done", "yakunlandi", "closed"].includes(String(row.status || "").toLowerCase()));
+  const productionTasks = openTasks.filter((row) => /video|foto|surat|montaj|reels|shorts|filial/i.test(`${row.title || ""} ${row.description || ""}`));
+  const overdueTasks = openTasks.filter((row) => {
+    const due = formatDate(row.due_date);
+    return due !== "-" && due < todayKey;
+  });
+  const platformPulse = Object.values((dailyReports || []).reduce((acc, row) => {
+    const key = row.branch_name || "Platforma";
+    if (!acc[key]) acc[key] = { name: key, posts: 0, stories: 0, reels: 0, subscribers: 0 };
+    acc[key].posts += Number(row.posts_count || 0);
+    acc[key].stories += Number(row.stories_count || 0);
+    acc[key].reels += Number(row.reels_count || 0);
+    acc[key].subscribers += Number(row.subscriber_count || 0);
+    return acc;
+  }, {})).sort((a, b) => (b.posts + b.stories + b.reels) - (a.posts + a.stories + a.reels)).slice(0, 6);
+  const brandScore = Math.max(8, Math.min(100, Math.round(
+    ((publishedContent.length / Math.max(monthContent.length, 1)) * 38) +
+    ((scriptReady.length / Math.max(monthContent.length, 1)) * 22) +
+    (activeCampaigns.length ? 18 : 4) +
+    (productionTasks.length ? 12 : 4) +
+    (platformPulse.length ? 10 : 2)
+  )));
+  const modules = [
+    ["Strategiya", Sparkles],
+    ["Oylik reja", ClipboardList],
+    ["Haftalik reja", Clock3],
+    ["Ssenariy", Pencil],
+    ["Hook / CTA", MessageCircle],
+    ["Kontent kalendar", LayoutGrid],
+    ["Instagram / TG / YouTube", Globe2],
+    ["Kampaniyalar", Megaphone],
+    ["Aksiyalar", BadgeDollarSign],
+    ["Reklama byudjeti", ReceiptText],
+    ["Target nazorati", Target],
+    ["Bloger va media", ContactRound],
+    ["Raqobatchi tahlili", Eye],
+    ["Auditoriya tahlili", BarChart3],
+    ["Mobilograf tasklari", Mic],
+    ["Dizayn va kreativ", Image],
+    ["Hisobotlar", ClipboardList],
+    ["Brand KPI", ShieldCheck]
+  ];
+  const focusRows = [
+    ["Kontent reja + ssenariy", 25],
+    ["Kampaniya + aksiya", 20],
+    ["Reklama va target", 20],
+    ["Dizayn va kreativ", 15],
+    ["Platforma rivoji", 10],
+    ["Analitika", 5],
+    ["Blogerlar", 5]
+  ];
+  const latestContent = [...monthContent]
+    .sort((a, b) => getDateSortValue(a.publish_date || a.created_at, Number.POSITIVE_INFINITY) - getDateSortValue(b.publish_date || b.created_at, Number.POSITIVE_INFINITY))
+    .slice(0, 5);
+  const latestCampaigns = [...activeCampaigns]
+    .sort((a, b) => getDateSortValue(a.end_at || a.end_date, Number.POSITIVE_INFINITY) - getDateSortValue(b.end_at || b.end_date, Number.POSITIVE_INFINITY))
+    .slice(0, 4);
+  const productionQueue = [...productionTasks, ...openTasks].slice(0, 5);
+
+  return (
+    <div className="manager-os-page">
+      <section className="manager-os-hero">
+        <div className="manager-os-hero-copy">
+          <span className="manager-os-eyebrow"><Sparkles size={16} /> alooSMM manager operating system</span>
+          <h1>SMM menejer uchun yangi boshqaruv tizimi</h1>
+          <p>
+            Strategiya, kontent reja, ssenariy, reklama, blogerlar, mobilograf workflow va brand KPI bir ekranda.
+            Bu panel ko'proq kontent chiqarish emas, brendni kuchaytiradigan marketing tizimini boshqarish uchun.
+          </p>
+        </div>
+        <div className="manager-os-pulse">
+          <span>{brandScore}</span>
+          <strong>Brand KPI</strong>
+          <small>{currentMonthTitle} bo'yicha real pulse</small>
+        </div>
+      </section>
+
+      <section className="manager-os-strip">
+        <div><span>Kontent reja</span><strong>{monthContent.length}</strong><small>{publishedContent.length} joylangan</small></div>
+        <div><span>Ssenariy tayyor</span><strong>{scriptReady.length}</strong><small>Hook / CTA nazorat</small></div>
+        <div><span>Video format</span><strong>{videoContent.length}</strong><small>Reels, Shorts, YouTube</small></div>
+        <div><span>Faol target</span><strong>{activeCampaigns.length}</strong><small>{formatMoney(campaignSpend)} sarf</small></div>
+        <div><span>Leadlar</span><strong>{campaignLeads}</strong><small>kampaniya natijasi</small></div>
+        <div><span>Mobilograf queue</span><strong>{productionTasks.length}</strong><small>{overdueTasks.length} deadline risk</small></div>
+      </section>
+
+      <section className="manager-os-layout">
+        <article className="manager-os-card manager-os-modules">
+          <div className="manager-os-card-head">
+            <div><span>Lavozim modullari</span><h2>18 qismli manager tizimi</h2></div>
+            <b>role scope</b>
+          </div>
+          <div className="manager-os-module-grid">
+            {modules.map(([label, Icon], index) => (
+              <button key={label} type="button" className="manager-os-module">
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <Icon size={17} />
+                <strong>{label}</strong>
+              </button>
+            ))}
+          </div>
+        </article>
+
+        <article className="manager-os-card manager-os-focus">
+          <div className="manager-os-card-head">
+            <div><span>Haftalik fokus</span><h2>Ish ulushi</h2></div>
+            <b>job map</b>
+          </div>
+          <div className="manager-os-focus-list">
+            {focusRows.map(([label, value]) => (
+              <div key={label}>
+                <span>{label}</span>
+                <i><em style={{ width: `${value * 3.2}%` }} /></i>
+                <strong>{value}%</strong>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <section className="manager-os-grid">
+        <article className="manager-os-card">
+          <div className="manager-os-card-head">
+            <div><span>Kontent strategiyasi</span><h2>Reja, ssenariy, nashr</h2></div>
+            <b>{currentMonthTitle}</b>
+          </div>
+          <div className="manager-os-table">
+            {latestContent.length ? latestContent.map((row) => (
+              <div key={row.id}>
+                <strong>{row.title}</strong>
+                <span>{formatDate(row.publish_date || row.created_at)} / {row.platform_primary || row.platform || "platforma"}</span>
+                <b>{row.status || "reja"}</b>
+              </div>
+            )) : <p className="manager-os-empty">Kontent reja hali to'ldirilmagan.</p>}
+          </div>
+        </article>
+
+        <article className="manager-os-card">
+          <div className="manager-os-card-head">
+            <div><span>Ads Lab</span><h2>Kampaniya va aksiya</h2></div>
+            <b>growth</b>
+          </div>
+          <div className="manager-os-table">
+            {latestCampaigns.length ? latestCampaigns.map((row) => (
+              <div key={row.id}>
+                <strong>{row.title}</strong>
+                <span>{row.platform || "ads"} / {formatMoney(row.daily_budget || row.budget || 0)}</span>
+                <b>{row.status || "active"}</b>
+              </div>
+            )) : <p className="manager-os-empty">Faol kampaniya yo'q. Aksiya yoki target reja kiriting.</p>}
+          </div>
+        </article>
+
+        <article className="manager-os-card">
+          <div className="manager-os-card-head">
+            <div><span>Mobilograf nazorati</span><h2>Production queue</h2></div>
+            <b>{productionQueue.length} task</b>
+          </div>
+          <div className="manager-os-table">
+            {productionQueue.length ? productionQueue.map((row) => (
+              <div key={row.id}>
+                <strong>{row.title}</strong>
+                <span>{formatDate(row.due_date || row.created_at)} / {row.priority || "normal"}</span>
+                <b>{taskStatusLabel(row.status)}</b>
+              </div>
+            )) : <p className="manager-os-empty">Mobilografga ochiq production topshiriq yo'q.</p>}
+          </div>
+        </article>
+      </section>
+
+      <section className="manager-os-bottom">
+        <article className="manager-os-card">
+          <div className="manager-os-card-head">
+            <div><span>Platforma pulse</span><h2>Instagram, Telegram, YouTube monitoring</h2></div>
+            <b>{platformPulse.length || 0} signal</b>
+          </div>
+          <div className="manager-os-platforms">
+            {platformPulse.length ? platformPulse.map((row) => (
+              <div key={row.name}>
+                <strong>{row.name}</strong>
+                <span>{row.posts} post / {row.stories} story / {row.reels} reels</span>
+                <i><em style={{ width: `${Math.min(100, Math.max(12, row.posts * 8 + row.stories * 2 + row.reels * 10))}%` }} /></i>
+              </div>
+            )) : <p className="manager-os-empty">Kunlik monitoring yozuvlari hali yo'q.</p>}
+          </div>
+        </article>
+
+        <article className="manager-os-card manager-os-principle">
+          <span>Yakuniy tamoyil</span>
+          <h2>SMM menejer natija uchun javob beradi.</h2>
+          <p>Mobilograf bajarilish uchun javob beradi. Har bir kontent, reklama va marketing faoliyati aloo brendbooki, qadriyatlari va uzoq muddatli strategiyasiga mos bo'lishi shart.</p>
+        </article>
       </section>
     </div>
   );
@@ -8552,7 +8763,7 @@ function App() {
 
   if (active === "dashboard") {
     page = (
-      <DashboardPage
+      <ManagerOSDashboard
         summary={summary}
         dailyReports={dailyReports}
         contentRows={contentRows}
@@ -8602,15 +8813,15 @@ function App() {
               <img src={LOGIN_LOGO} alt="logo" className="brand-mark-image" />
             </div>
             <div className="brand-copy">
-              <div className="brand-name">{settings?.company_name || "aloo"}</div>
-              <div className="brand-desc">{settings?.platform_name || "SMM jamoasi platformasi"}</div>
+              <div className="brand-name">alooSMM OS</div>
+              <div className="brand-desc">SMM menejer boshqaruvi</div>
             </div>
           </div>
 
           <div className="sidebar-workspace-card">
             <div>
               <span>Workspace</span>
-              <strong>{settings?.company_name || "aloo"} SMM</strong>
+              <strong>Manager Command</strong>
             </div>
             <small><i /> Live</small>
           </div>
@@ -8680,9 +8891,9 @@ function App() {
           </div>
 
           <div className="sidebar-help-card">
-            <span>SMM Control Center</span>
-            <strong>Tezkor boshqaruv</strong>
-            <small>Kontent, vazifa, KPI va hisobotlar bitta professional panelda.</small>
+            <span>alooSMM Manager OS</span>
+            <strong>Lavozimga mos tizim</strong>
+            <small>Strategiya, reklama, ssenariy va mobilograf nazorati bitta panelda.</small>
             <a href="/menu">Boshqaruvga o'tish</a>
           </div>
 
@@ -8699,7 +8910,7 @@ function App() {
                 <span className={`page-title-badge icon-tone-${activeMenuItem?.tone || "indigo"}`}>
                   <ActivePageIcon size={18} />
                 </span>
-                <div className="small-label">{(settings?.company_name || "aloo")} platforma</div>
+                <div className="small-label">alooSMM manager platforma</div>
                 <h1>{activeMenuItem?.title || "Bosh sahifa"}</h1>
               </div>
               <button
@@ -19085,6 +19296,327 @@ tr:hover td,
 .bonus-v58-lock-note *{color:#0f3f69 !important}
 .bonus-v58-lock-note svg{color:#1690f5 !important}
 
+
+/* === alooSMM Manager OS redesign: dashboard and shell identity === */
+.brand-mark{
+  background:linear-gradient(135deg,#051321,#0f2f4d 52%,#00bfa6)!important;
+  border:1px solid rgba(255,255,255,.16)!important;
+  box-shadow:0 18px 38px rgba(0,191,166,.18)!important;
+}
+.brand-mark-image{border-radius:12px!important}
+.sidebar-workspace-card{
+  background:linear-gradient(135deg,rgba(0,191,166,.14),rgba(20,120,242,.10))!important;
+  border-color:rgba(125,211,252,.18)!important;
+}
+.sidebar-role-switcher{
+  background:rgba(255,255,255,.045)!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  border-radius:18px!important;
+  padding:6px!important;
+}
+.sidebar-role-pill{
+  border-radius:14px!important;
+  background:transparent!important;
+}
+.sidebar-role-pill.active{
+  background:linear-gradient(135deg,#ffffff,#ddfff8)!important;
+  color:#07111d!important;
+  box-shadow:0 14px 28px rgba(0,191,166,.16)!important;
+}
+.sidebar-role-pill.active span,
+.sidebar-role-pill.active strong{color:#07111d!important}
+.manager-os-page{
+  display:grid;
+  gap:18px;
+  color:#0f172a;
+}
+.manager-os-page *{letter-spacing:0}
+.manager-os-hero{
+  min-height:238px;
+  border-radius:8px;
+  padding:26px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 280px;
+  gap:22px;
+  align-items:stretch;
+  background:
+    linear-gradient(90deg,rgba(2,10,20,.96),rgba(6,25,43,.94) 58%,rgba(0,117,105,.88)),
+    #07111d;
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 26px 70px rgba(2,8,23,.22);
+  overflow:hidden;
+  position:relative;
+}
+.manager-os-hero::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+  background-size:34px 34px;
+  mask-image:linear-gradient(90deg,black,transparent 72%);
+  pointer-events:none;
+}
+.manager-os-hero-copy,
+.manager-os-pulse{position:relative;z-index:1}
+.manager-os-eyebrow{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  min-height:34px;
+  padding:0 12px;
+  border-radius:999px;
+  background:rgba(0,191,166,.14);
+  border:1px solid rgba(94,234,212,.25);
+  color:#a7fff1;
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.manager-os-hero h1{
+  margin:18px 0 10px;
+  max-width:790px;
+  color:#fff;
+  font-size:42px;
+  line-height:1.03;
+}
+.manager-os-hero p{
+  margin:0;
+  max-width:820px;
+  color:#c9d7e8;
+  font-size:15px;
+  line-height:1.7;
+  font-weight:650;
+}
+.manager-os-pulse{
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,.16);
+  background:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.06));
+  display:grid;
+  place-items:center;
+  text-align:center;
+  padding:22px;
+}
+.manager-os-pulse span{
+  width:118px;
+  height:118px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  color:#fff;
+  font-size:40px;
+  font-weight:950;
+  background:
+    radial-gradient(circle at center,#092033 52%,transparent 54%),
+    conic-gradient(#2dd4bf 0 74%,#f59e0b 74% 88%,rgba(255,255,255,.15) 88%);
+  box-shadow:0 20px 48px rgba(45,212,191,.20);
+}
+.manager-os-pulse strong{color:#fff;font-size:18px;margin-top:10px}
+.manager-os-pulse small{color:#b8c8da;font-weight:800}
+.manager-os-strip{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:12px;
+}
+.manager-os-strip div,
+.manager-os-card{
+  border-radius:8px;
+  background:linear-gradient(180deg,#ffffff,#f8fbff);
+  border:1px solid #dce7f2;
+  box-shadow:0 18px 45px rgba(15,23,42,.07);
+}
+.manager-os-strip div{
+  min-height:102px;
+  padding:16px;
+  display:grid;
+  align-content:center;
+}
+.manager-os-strip span,
+.manager-os-card-head span{
+  color:#667085;
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.manager-os-strip strong{
+  margin-top:5px;
+  color:#0f172a;
+  font-size:30px;
+  line-height:1;
+}
+.manager-os-strip small{color:#008f7d;font-weight:900}
+.manager-os-layout{
+  display:grid;
+  grid-template-columns:minmax(0,1.55fr) minmax(340px,.75fr);
+  gap:18px;
+}
+.manager-os-card{padding:18px}
+.manager-os-card-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  margin-bottom:16px;
+}
+.manager-os-card-head h2{
+  margin:4px 0 0;
+  color:#0f172a;
+  font-size:20px;
+  line-height:1.15;
+}
+.manager-os-card-head b{
+  flex:0 0 auto;
+  border-radius:999px;
+  background:#ecfeff;
+  color:#00796d;
+  border:1px solid #c9f6ee;
+  padding:7px 10px;
+  font-size:11px;
+  text-transform:uppercase;
+}
+.manager-os-module-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+}
+.manager-os-module{
+  min-height:56px;
+  border:1px solid #dfe8f2;
+  background:#f8fbff;
+  border-radius:8px;
+  padding:10px;
+  display:grid;
+  grid-template-columns:32px 22px 1fr;
+  align-items:center;
+  gap:8px;
+  color:#162033;
+  text-align:left;
+}
+.manager-os-module:hover{
+  transform:translateY(-1px);
+  border-color:#8be9dd;
+  box-shadow:0 10px 26px rgba(20,120,242,.10);
+}
+.manager-os-module span{
+  color:#94a3b8;
+  font-size:11px;
+  font-weight:950;
+}
+.manager-os-module svg{color:#0d9488}
+.manager-os-module strong{
+  min-width:0;
+  color:#162033;
+  font-size:13px;
+}
+.manager-os-focus-list{display:grid;gap:13px}
+.manager-os-focus-list div{
+  display:grid;
+  grid-template-columns:1fr 112px 42px;
+  gap:10px;
+  align-items:center;
+}
+.manager-os-focus-list span{color:#344054;font-size:13px;font-weight:850}
+.manager-os-focus-list i{
+  height:9px;
+  border-radius:999px;
+  background:#edf2f7;
+  overflow:hidden;
+}
+.manager-os-focus-list em{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#1478f2,#00bfa6);
+}
+.manager-os-focus-list strong{font-size:13px;color:#0f172a}
+.manager-os-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:18px;
+}
+.manager-os-bottom{
+  display:grid;
+  grid-template-columns:minmax(0,1.35fr) minmax(320px,.75fr);
+  gap:18px;
+}
+.manager-os-table{display:grid;gap:9px}
+.manager-os-table > div{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:3px 12px;
+  align-items:center;
+  min-height:58px;
+  padding:11px 12px;
+  border-radius:8px;
+  background:#f8fbff;
+  border:1px solid #e0e8f2;
+}
+.manager-os-table strong{color:#101828;font-size:13px}
+.manager-os-table span{color:#667085;font-size:12px;font-weight:750}
+.manager-os-table b{
+  grid-row:1 / span 2;
+  grid-column:2;
+  border-radius:999px;
+  background:#fff7ed;
+  color:#c2410c;
+  padding:6px 9px;
+  font-size:11px;
+  max-width:120px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.manager-os-platforms{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.manager-os-platforms > div{
+  padding:13px;
+  border-radius:8px;
+  border:1px solid #e0e8f2;
+  background:#f8fbff;
+}
+.manager-os-platforms strong{display:block;color:#0f172a;font-size:13px}
+.manager-os-platforms span{display:block;color:#667085;font-size:12px;font-weight:750;margin:6px 0 10px}
+.manager-os-platforms i{
+  display:block;
+  height:8px;
+  border-radius:999px;
+  background:#edf2f7;
+  overflow:hidden;
+}
+.manager-os-platforms em{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#f97316,#00bfa6);
+}
+.manager-os-principle{
+  background:linear-gradient(135deg,#fef3c7,#ffffff 58%,#e0f7f4);
+  display:grid;
+  align-content:center;
+}
+.manager-os-principle span{font-size:12px;font-weight:950;color:#b45309;text-transform:uppercase}
+.manager-os-principle h2{margin:8px 0;color:#0f172a;font-size:24px;line-height:1.12}
+.manager-os-principle p{margin:0;color:#475467;font-weight:750;line-height:1.65}
+.manager-os-empty{
+  margin:0;
+  padding:18px;
+  border-radius:8px;
+  border:1px dashed #cbd5e1;
+  background:#f8fbff;
+  color:#667085;
+  font-weight:750;
+}
+@media (max-width:1180px){
+  .manager-os-hero,.manager-os-layout,.manager-os-grid,.manager-os-bottom{grid-template-columns:1fr}
+  .manager-os-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-os-module-grid,.manager-os-platforms{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:680px){
+  .manager-os-hero{padding:20px}
+  .manager-os-hero h1{font-size:30px}
+  .manager-os-strip,.manager-os-module-grid,.manager-os-platforms{grid-template-columns:1fr}
+  .manager-os-focus-list div{grid-template-columns:1fr 72px 38px}
+}
 
 /* === Campaigns Safe Redesign v6.1: does not break old functions === */
 .campaigns-safe-page{
