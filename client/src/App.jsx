@@ -27,6 +27,7 @@ import {
   PhoneCall,
   ReceiptText,
   Filter,
+  GraduationCap,
   Search,
   Send,
   SlidersHorizontal,
@@ -1213,6 +1214,7 @@ const RUBRIC_OPTIONS = [
   { value: "chegirma", label: "Chegirma" },
   { value: "foydali-malumot", label: "Foydali ma'lumot" },
   { value: "aksiyalar", label: "Aksiyalar" },
+  { value: "lifehack-academy", label: "Lifehack / ACADEMY" },
   { value: "lifehack", label: "Lifehack" },
   { value: "abzor", label: "Abzor" },
   { value: "trend-video", label: "Trend video" },
@@ -1318,10 +1320,16 @@ function PlatformBadge({ platform }) {
 
 function rubricChipTone(value) {
   const normalized = String(value || "").toLowerCase();
+  if (normalized === "lifehack-academy") return "academy";
   if (["sotuv", "sale-promo", "aksiyalar", "chegirma"].includes(normalized)) return "success";
   if (["trend-video", "lifehack", "unboxing", "intervyu"].includes(normalized)) return "info";
   if (["abzor", "locatsiya", "xodimlar-bilan"].includes(normalized)) return "warning";
   return "default";
+}
+
+function isAcademyContent(row = {}) {
+  return String(row.rubric || "").toLowerCase() === "lifehack-academy" ||
+    String(row.content_template || "").toLowerCase() === "aloo_academy";
 }
 
 function campaignStatusClass(status) {
@@ -3442,7 +3450,7 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
               dateKey="publish_date"
               onMoveDate={movePlannerItem}
               renderItem={(item) => (
-                <div className={`planner-calendar-pill ${contentTypeChipTone(item.content_type)}`}>
+                <div className={`planner-calendar-pill ${contentTypeChipTone(item.content_type)} ${isAcademyContent(item) ? "academy" : ""}`}>
                   <div>
                     <strong>{item.title}</strong>
                     <span>{item.platform || "Platforma"} / {formatContentType(item.content_type)}</span>
@@ -3802,10 +3810,13 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
                   <tr><td colSpan="8" className="empty-cell">Yuklanmoqda...</td></tr>
                 ) : visibleRows.length ? (
                   visibleRows.map((row) => (
-                    <tr key={row.id}>
+                    <tr key={row.id} className={isAcademyContent(row) ? "academy-content-row" : ""}>
                       <td>
                         <div className="table-title-cell">
-                          <strong className="table-title-main">{row.title}</strong>
+                          <strong className="table-title-main">
+                            {isAcademyContent(row) ? <span className="academy-cap"><GraduationCap size={15} /></span> : null}
+                            {row.title}
+                          </strong>
                           <div className="table-title-sub">
                             {row.final_url ? (
                               <button type="button" className="table-inline-link" onClick={() => openExternalUrl(row.final_url)}>
@@ -3884,10 +3895,10 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
               <div className="mobile-record-card empty">Yuklanmoqda...</div>
             ) : visibleRows.length ? (
               visibleRows.map((row) => (
-                <div key={`content-card-${row.id}`} className="mobile-record-card">
+                <div key={`content-card-${row.id}`} className={`mobile-record-card ${isAcademyContent(row) ? "academy-content-card" : ""}`}>
                   <div className="mobile-record-head">
                     <div className="mobile-record-title">
-                      <strong>{row.title}</strong>
+                      <strong>{isAcademyContent(row) ? <GraduationCap size={15} /> : null}{row.title}</strong>
                       <span>{formatDate(row.publish_date)} • {formatContentType(row.content_type)}</span>
                     </div>
                     <span className={approvalStatusClass(row.status)}>{formatApprovalStatus(row.status)}</span>
@@ -4003,7 +4014,7 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
                 const branchIds = Array.isArray(item.branch_ids_json) ? item.branch_ids_json.map(Number) : [];
                 const branchIndex = branchIds.length ? Math.abs(branchIds[0]) % 6 : 0;
                 return (
-                  <button key={item.id} type="button" className={`calendar-pill content-calendar-pill branch-tone-${branchIndex}`} onClick={() => setViewRow(item)}>
+                  <button key={item.id} type="button" className={`calendar-pill content-calendar-pill branch-tone-${branchIndex} ${isAcademyContent(item) ? "academy" : ""}`} onClick={() => setViewRow(item)}>
                     <span>{item.platform || "-"} / {item.video_type || item.content_type || "post"}</span>
                     <strong>{item.title}</strong>
                     <small>{item.hook_text ? "Hook" : "Hook yo'q"} / {item.cta_text ? "CTA" : "CTA yo'q"}</small>
@@ -12292,6 +12303,35 @@ tbody tr:hover{
   font-size:15px;
   line-height:1.4;
   letter-spacing:-.01em;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+}
+.academy-cap{
+  width:24px;
+  height:24px;
+  border-radius:10px;
+  display:inline-grid;
+  place-items:center;
+  color:#047857;
+  background:#dcfce7;
+  border:1px solid #bbf7d0;
+  flex:0 0 auto;
+}
+.academy-content-row{
+  background:linear-gradient(90deg,rgba(34,197,94,.12),rgba(240,253,244,.65) 52%,transparent) !important;
+}
+.academy-content-row td:first-child{
+  box-shadow:inset 5px 0 0 #22c55e;
+}
+.academy-content-card{
+  border-color:#bbf7d0 !important;
+  background:linear-gradient(135deg,#f0fdf4,#ffffff) !important;
+}
+.mobile-record-title strong svg{
+  color:#047857;
+  margin-right:6px;
+  vertical-align:-2px;
 }
 .table-title-sub{
   display:flex;
@@ -12368,6 +12408,11 @@ tbody tr:hover{
   background:linear-gradient(135deg, rgba(20,120,242,.14), rgba(255,255,255,.98));
   color:#1478F2;
   border-color:rgba(20,120,242,.18);
+}
+.table-chip.academy{
+  background:linear-gradient(135deg,rgba(34,197,94,.16),rgba(240,253,244,.98));
+  color:#047857;
+  border-color:#bbf7d0;
 }
 .table-person-stack{
   display:flex;
@@ -13904,6 +13949,11 @@ tbody tr:hover{
 .content-calendar-pill.branch-tone-3{border-left-color:#8b5cf6}
 .content-calendar-pill.branch-tone-4{border-left-color:#ef4444}
 .content-calendar-pill.branch-tone-5{border-left-color:#06b6d4}
+.content-calendar-pill.academy{
+  background:linear-gradient(135deg,#f0fdf4,#ffffff);
+  border-left-color:#22c55e;
+  border-color:#bbf7d0;
+}
 .bonus-plastic-title{
   display:flex;
   align-items:center;
@@ -19966,6 +20016,11 @@ tr:hover td,
 .planner-calendar-pill.warning{background:#fffbeb;border-color:#fde68a}
 .planner-calendar-pill.info{background:#ecfeff;border-color:#a5f3fc}
 .planner-calendar-pill.danger{background:#fff1f2;border-color:#fecdd3}
+.planner-calendar-pill.academy{
+  background:#f0fdf4;
+  border-color:#86efac;
+  box-shadow:0 8px 18px rgba(34,197,94,.10);
+}
 .planner-calendar-pill strong{
   display:block;
   color:#101827;
@@ -20211,6 +20266,18 @@ tr:hover td,
 .content-page-v5 .content-list-card tbody tr:hover td{
   background:#f8fbff !important;
 }
+.content-page-v5 .content-list-card tbody tr.academy-content-row td{
+  background:linear-gradient(90deg,#f0fdf4,#ffffff) !important;
+}
+.content-page-v5 .table-chip.academy{
+  background:#dcfce7 !important;
+  color:#047857 !important;
+  border-color:#86efac !important;
+}
+.content-page-v5 .academy-content-card{
+  background:linear-gradient(135deg,#f0fdf4,#ffffff) !important;
+  border-color:#86efac !important;
+}
 .content-page-v5 .table-title-main,
 .content-page-v5 .table-person,
 .content-page-v5 .table-date-stack strong{color:#101827 !important;}
@@ -20242,6 +20309,10 @@ tr:hover td,
   border:1px solid rgba(148,163,184,.16) !important;
   color:#101827 !important;
   box-shadow:0 12px 30px rgba(15,23,42,.045) !important;
+}
+.content-page-v5 .mobile-record-card.academy-content-card{
+  background:linear-gradient(135deg,#f0fdf4,#ffffff) !important;
+  border-color:#86efac !important;
 }
 .content-page-v5 .kanban-column h3,
 .content-page-v5 .kanban-card strong{color:#101827 !important;}
