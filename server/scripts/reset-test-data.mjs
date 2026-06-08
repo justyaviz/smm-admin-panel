@@ -17,7 +17,7 @@ const pool = new Pool({
   connectionTimeoutMillis: Number(process.env.DB_CONNECT_TIMEOUT_MS || 10000)
 });
 
-const ADMIN_ONLY_RESET_VERSION = "2026-06-08-admin-only-998931949200";
+const ADMIN_ONLY_RESET_VERSION = "2026-06-08-admin-only-998931949200-v2";
 const ADMIN_ONLY_RESET_FLAG_KEY = "admin_only_reset_version";
 const DEFAULT_ADMIN_PHONE = "998931949200";
 const DEFAULT_ADMIN_PASSWORD = "2000";

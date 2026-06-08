@@ -185,7 +185,7 @@ const DIRECTOR_PERMISSION_PRESET = [
   "aiAssistant"
 ];
 
-const ADMIN_ONLY_RESET_VERSION = "2026-06-08-admin-only-998931949200";
+const ADMIN_ONLY_RESET_VERSION = "2026-06-08-admin-only-998931949200-v2";
 const ADMIN_ONLY_RESET_FLAG_KEY = "admin_only_reset_version";
 const DEFAULT_ADMIN_PHONE = "998931949200";
 const DEFAULT_ADMIN_PASSWORD = "2000";
@@ -458,6 +458,14 @@ async function ensurePublicShareToken() {
 
 async function ensureDefaultBranches() {
   try {
+    const resetFlag = await query(
+      `SELECT flag_value FROM system_flags WHERE flag_key = $1 LIMIT 1`,
+      [ADMIN_ONLY_RESET_FLAG_KEY]
+    );
+    if (resetFlag.rows[0]?.flag_value === ADMIN_ONLY_RESET_VERSION) {
+      return;
+    }
+
     const existingRes = await query(`SELECT id, name, city FROM branches`);
     const existingByName = new Map(
       existingRes.rows.map((row) => [String(row.name || "").trim().toLowerCase(), row])
