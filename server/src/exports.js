@@ -75,6 +75,195 @@ function formatDateOnly(value) {
   return d.toISOString().slice(0, 10);
 }
 
+function getMonthTitle(monthLabel) {
+  const [year, month] = String(monthLabel || "").split("-");
+  const names = {
+    "01": "Yanvar",
+    "02": "Fevral",
+    "03": "Mart",
+    "04": "Aprel",
+    "05": "May",
+    "06": "Iyun",
+    "07": "Iyul",
+    "08": "Avgust",
+    "09": "Sentabr",
+    "10": "Oktabr",
+    "11": "Noyabr",
+    "12": "Dekabr"
+  };
+  return `${names[month] || month || ""} ${year || ""}`.trim();
+}
+
+function safePdfText(value, fallback = "-") {
+  const text = String(value ?? "").trim();
+  if (!text) return fallback;
+  return text
+    .replace(/[‘’`´]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/–|—/g, "-")
+    .replace(/\s+/g, " ");
+}
+
+function truncateText(value, maxLength = 46) {
+  const text = safePdfText(value, "");
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, Math.max(0, maxLength - 1)).trim()}...`;
+}
+
+function getContentWorkTime(row = {}) {
+  const direct = [row.publish_time, row.deadline_time, row.time]
+    .map((value) => String(value || "").trim())
+    .find((value) => /^\d{1,2}:\d{2}$/.test(value));
+  if (direct) return direct.padStart(5, "0");
+  const text = [row.approval_comment, row.notes, row.description].map((value) => String(value || "")).join(" / ");
+  const labeled = text.match(/(?:vaqt|soat)\s*[:=-]?\s*(\d{1,2}:\d{2})/i);
+  if (labeled) return labeled[1].padStart(5, "0");
+  const loose = text.match(/\b(\d{1,2}:\d{2})\b/);
+  return loose ? loose[1].padStart(5, "0") : "";
+}
+
+function getContentTone(row = {}) {
+  const template = String(row.content_template || "").toLowerCase();
+  const rubric = String(row.rubric || "").toLowerCase();
+  if (template.includes("academy") || rubric.includes("academy") || rubric.includes("lifehack")) {
+    return { fill: "#ecfdf3", stroke: "#22c55e", text: "#166534", tag: "Academy" };
+  }
+  if (template.includes("customer") || rubric.includes("customer") || rubric.includes("qahramon")) {
+    return { fill: "#fffbeb", stroke: "#f59e0b", text: "#92400e", tag: "Mijoz" };
+  }
+  if (template.includes("services") || rubric.includes("xizmat")) {
+    return { fill: "#eff6ff", stroke: "#0ea5e9", text: "#075985", tag: "Xizmat" };
+  }
+  const platform = String(row.platform || "").toLowerCase();
+  if (platform.includes("telegram")) return { fill: "#eff6ff", stroke: "#38bdf8", text: "#0369a1", tag: "Telegram" };
+  if (platform.includes("youtube")) return { fill: "#fff1f2", stroke: "#fb7185", text: "#9f1239", tag: "YouTube" };
+  return { fill: "#f5f3ff", stroke: "#8b5cf6", text: "#5b21b6", tag: "Instagram" };
+}
+
+function buildCalendarCells(monthLabel, rows = []) {
+  const [year, month] = String(monthLabel || "").split("-").map(Number);
+  const firstDay = new Date(year, (month || 1) - 1, 1);
+  const lastDate = new Date(year, month || 1, 0).getDate();
+  const startWeekday = (firstDay.getDay() + 6) % 7;
+  const cells = [];
+  const itemsByDate = new Map();
+
+  rows.forEach((row) => {
+    const date = formatDateOnly(row.publish_date);
+    if (!date || date === "-" || !date.startsWith(String(monthLabel))) return;
+    if (!itemsByDate.has(date)) itemsByDate.set(date, []);
+    itemsByDate.get(date).push(row);
+  });
+
+  for (let i = 0; i < startWeekday; i += 1) cells.push({ empty: true, key: `empty-${i}` });
+  for (let day = 1; day <= lastDate; day += 1) {
+    const date = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    cells.push({ empty: false, key: date, day, date, items: itemsByDate.get(date) || [] });
+  }
+  while (cells.length % 7 !== 0) cells.push({ empty: true, key: `tail-${cells.length}` });
+  return cells;
+}
+
+export function sendContentCalendarPdf(res, rows, monthLabel, fileName = "content-calendar.pdf") {
+  const safeRows = Array.isArray(rows) ? rows : [];
+  const doc = new PDFDocument({ margin: 22, size: "A4", layout: "landscape" });
+
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+  doc.pipe(res);
+
+  const pageLeft = doc.page.margins.left;
+  const pageTop = doc.page.margins.top;
+  const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const title = `${getMonthTitle(monthLabel)} kontent reja`;
+
+  doc
+    .roundedRect(pageLeft, pageTop, pageWidth, 56, 14)
+    .fillAndStroke("#0f172a", "#0f172a");
+  doc.font("Helvetica-Bold").fontSize(20).fillColor("#ffffff").text(title, pageLeft + 16, pageTop + 12, { width: pageWidth - 32 });
+  doc.font("Helvetica").fontSize(9).fillColor("#cbd5e1").text(
+    `alooSMM Manager OS / kalendar ko'rinishi / ${safeRows.length} ta kontent`,
+    pageLeft + 16,
+    pageTop + 36,
+    { width: pageWidth - 32 }
+  );
+
+  const legend = [
+    { label: "Lifehack / ACADEMY", color: "#22c55e" },
+    { label: "Mijozlar", color: "#f59e0b" },
+    { label: "Xizmatlarimiz", color: "#0ea5e9" },
+    { label: "Boshqa kontent", color: "#8b5cf6" }
+  ];
+  let legendX = pageLeft + pageWidth - 360;
+  legend.forEach((item) => {
+    doc.circle(legendX, pageTop + 43, 4).fill(item.color);
+    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#e2e8f0").text(item.label, legendX + 8, pageTop + 39, { width: 82 });
+    legendX += 90;
+  });
+
+  const weekdays = ["Du", "Se", "Cho", "Pay", "Ju", "Sha", "Yak"];
+  const calendarTop = pageTop + 72;
+  const weekdayHeight = 22;
+  const colWidth = pageWidth / 7;
+  const cells = buildCalendarCells(monthLabel, safeRows);
+  const rowCount = Math.max(5, Math.ceil(cells.length / 7));
+  const cellHeight = (doc.page.height - doc.page.margins.bottom - calendarTop - weekdayHeight) / rowCount;
+
+  weekdays.forEach((day, index) => {
+    const x = pageLeft + index * colWidth;
+    doc.rect(x, calendarTop, colWidth, weekdayHeight).fillAndStroke("#f1f5f9", "#dbe4f0");
+    doc.font("Helvetica-Bold").fontSize(9).fillColor("#334155").text(day, x, calendarTop + 7, { width: colWidth, align: "center" });
+  });
+
+  cells.forEach((cell, index) => {
+    const col = index % 7;
+    const row = Math.floor(index / 7);
+    const x = pageLeft + col * colWidth;
+    const y = calendarTop + weekdayHeight + row * cellHeight;
+    const isWeekend = col >= 5;
+
+    doc
+      .rect(x, y, colWidth, cellHeight)
+      .fillAndStroke(cell.empty ? "#f8fafc" : isWeekend ? "#fff7ed" : "#ffffff", "#dbe4f0");
+
+    if (cell.empty) return;
+    doc.font("Helvetica-Bold").fontSize(10).fillColor("#0f172a").text(String(cell.day), x + 6, y + 5, { width: 22 });
+
+    const maxItems = cellHeight > 74 ? 3 : 2;
+    cell.items.slice(0, maxItems).forEach((item, itemIndex) => {
+      const tone = getContentTone(item);
+      const cardX = x + 5;
+      const cardY = y + 21 + itemIndex * 26;
+      const cardW = colWidth - 10;
+      const cardH = 21;
+      doc.roundedRect(cardX, cardY, cardW, cardH, 4).fillAndStroke(tone.fill, tone.stroke);
+      doc.font("Helvetica-Bold").fontSize(6.8).fillColor(tone.text).text(
+        `${getContentWorkTime(item) || "--:--"} ${safePdfText(item.platform || tone.tag, "")}`,
+        cardX + 4,
+        cardY + 3,
+        { width: cardW - 8, height: 7, ellipsis: true }
+      );
+      doc.font("Helvetica-Bold").fontSize(7.2).fillColor("#0f172a").text(
+        truncateText(item.title, 34),
+        cardX + 4,
+        cardY + 11,
+        { width: cardW - 8, height: 8, ellipsis: true }
+      );
+    });
+
+    if (cell.items.length > maxItems) {
+      doc.font("Helvetica-Bold").fontSize(7).fillColor("#475569").text(
+        `+${cell.items.length - maxItems} ta yana`,
+        x + 6,
+        y + cellHeight - 12,
+        { width: colWidth - 12, align: "right" }
+      );
+    }
+  });
+
+  doc.end();
+}
+
 async function loadImageBuffer(url) {
   if (!url) return null;
   try {

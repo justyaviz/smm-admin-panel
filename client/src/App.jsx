@@ -3671,6 +3671,13 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
             <strong>{getMonthTitle(selectedMonth)}</strong>
             <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>{">"}</button>
           </div>
+          <button
+            type="button"
+            className="btn secondary mobilograf-pdf-btn"
+            onClick={() => api.exportFile(`/api/export/content-calendar.pdf?month=${selectedMonth}`, `content-calendar-${selectedMonth}.pdf`)}
+          >
+            PDF saqlash
+          </button>
         </section>
       ) : (
       <>
@@ -3682,6 +3689,7 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
           <div className="content-v5-hero-actions">
             <button type="button" className="btn primary" onClick={() => { resetForm(); window.scrollTo({ top: 280, behavior: "smooth" }); }} disabled={!canCreateContent}>+ Kontent qo'shish</button>
             <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/content.xlsx", `content-${selectedMonth}.xlsx`)}>Excel export</button>
+            <button type="button" className="btn secondary" onClick={() => api.exportFile(`/api/export/content-calendar.pdf?month=${selectedMonth}`, `content-calendar-${selectedMonth}.pdf`)}>PDF kalendar</button>
             <div className="content-v5-month-switch">
               <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>‹</button>
               <strong>{getMonthTitle(selectedMonth)}</strong>
@@ -4090,6 +4098,13 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
                 onClick={() => api.exportFile("/api/export/content.xlsx", `content-${selectedMonth}.xlsx`)}
               >
                 Excel export
+              </button>
+              <button
+                type="button"
+                className="btn secondary content-modern-btn"
+                onClick={() => api.exportFile(`/api/export/content-calendar.pdf?month=${selectedMonth}`, `content-calendar-${selectedMonth}.pdf`)}
+              >
+                PDF kalendar
               </button>
               <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)}>
                 <option value="reja">Reja</option>
@@ -20307,6 +20322,11 @@ tr:hover td,
   background:#eff6ff;
   border:1px solid #dbeafe;
   color:#0b63d1;
+}
+.mobilograf-pdf-btn{
+  min-height:42px;
+  justify-content:center;
+  white-space:nowrap;
 }
 .mobilograf-content-only .content-list-card{
   padding:16px !important;

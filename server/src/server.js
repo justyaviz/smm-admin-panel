@@ -13,7 +13,7 @@ import { Server as SocketIOServer } from "socket.io";
 import { getClient, getDatabaseStatus, query } from "./db.js";
 import { actionPermissionAllowed, authRequired, pagePermissionAllowed, rolesAllowed, signToken } from "./auth.js";
 import { buildBranchOrderSql, DEFAULT_BRANCHES } from "./defaultBranches.js";
-import { sendContestExpensePdf, sendExcel, sendSimplePdf, sendTravelExpensePdf } from "./exports.js";
+import { sendContentCalendarPdf, sendContestExpensePdf, sendExcel, sendSimplePdf, sendTravelExpensePdf } from "./exports.js";
 import { isMySeOneSyncEnabled, pullBonusMirrorFromMySeOne, syncBonusDeleteToMySeOne, syncBonusUpsertToMySeOne } from "./mySeOneSync.js";
 import { importDailyReportsFromImages } from "./dailyReportImport.js";
 
@@ -8189,6 +8189,39 @@ app.get("/api/export/content.xlsx", authRequired, async (_, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Export xatoligi" });
+  }
+});
+
+app.get("/api/export/content-calendar.pdf", authRequired, pagePermissionAllowed("content"), async (req, res) => {
+  try {
+    const month = String(req.query.month || getMonthLabel()).trim();
+    const rows = (
+      await query(
+        `
+        SELECT
+          title,
+          publish_date,
+          status,
+          platform,
+          content_type,
+          rubric,
+          video_type,
+          content_template,
+          approval_comment,
+          final_url
+        FROM content_items
+        WHERE to_char(publish_date, 'YYYY-MM') = $1
+        ORDER BY publish_date ASC NULLS LAST, id ASC
+        `,
+        [month]
+      )
+    ).rows;
+
+    await logAction(req.user.id, "export", "content_items", null, { month_label: month, export_type: "calendar_pdf" });
+    sendContentCalendarPdf(res, rows, month, `content-calendar-${month}.pdf`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Kontent kalendar PDF export xatoligi" });
   }
 });
 
