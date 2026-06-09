@@ -3128,6 +3128,7 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
   };
 
   const [form, setForm] = useState(emptyForm);
+  const [mobilografProgress, setMobilografProgress] = useState({ final_url: "", approval_comment: "" });
   const isVideo = form.content_type === "video";
   const canCreateContent = canDoAction(user, "content", "create");
   const canEditContent = canDoAction(user, "content", "edit");
@@ -3145,6 +3146,13 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
   useEffect(() => {
     if (isMobilografContentOnly && viewMode !== "calendar") setViewMode("calendar");
   }, [isMobilografContentOnly, viewMode]);
+  useEffect(() => {
+    if (!viewRow || !isMobilografContentOnly) return;
+    setMobilografProgress({
+      final_url: viewRow.final_url || "",
+      approval_comment: ""
+    });
+  }, [isMobilografContentOnly, viewRow]);
   const dueSoonTasks = [];
   const overdueTasks = [];
   const tasks = [];
@@ -3570,6 +3578,34 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
       resetForm();
     } catch (err) {
       onToast(err.message || "Saqlashda xatolik", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitMobilografProgress(status) {
+    if (!viewRow?.id) return;
+    const isSubmitStep = status === "submitted";
+    const finalUrl = normalizeExternalUrl(mobilografProgress.final_url);
+    if (isSubmitStep && !finalUrl) {
+      onToast("Link yuborish uchun ish linkini kiriting", "error");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const updated = await api.post(`/api/content/${viewRow.id}/mobilograf-progress`, {
+        status,
+        final_url: finalUrl,
+        approval_comment: mobilografProgress.approval_comment
+      });
+      setRows((prev) => sortRowsByDate(prev.map((row) => Number(row.id) === Number(updated.id) ? updated : row), "publish_date"));
+      setViewRow(updated);
+      await loadMonth(selectedMonth);
+      await reload();
+      onToast(isSubmitStep ? "Ish linki managerga yuborildi" : "Mobilograf statusi yangilandi", "success", { center: true });
+    } catch (err) {
+      onToast(err.message || "Mobilograf progress saqlanmadi", "error");
     } finally {
       setSaving(false);
     }
@@ -4372,6 +4408,33 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
                 <div><strong>Ssenariy / asosiy qism</strong><p>{viewRow.main_body_text || viewRow.scenario_text || "Ssenariy kiritilmagan"}</p></div>
                 <div><strong>CTA</strong><p>{viewRow.cta_text || "CTA kiritilmagan"}</p></div>
                 <div><strong>Izoh</strong><p>{viewRow.approval_comment || "Qo'shimcha izoh yo'q"}</p></div>
+              </div>
+              <div className="mobilograf-progress-box">
+                <label>
+                  <span>Ish linki</span>
+                  <input
+                    value={mobilografProgress.final_url}
+                    onChange={(e) => setMobilografProgress((prev) => ({ ...prev, final_url: e.target.value }))}
+                    placeholder="Instagram, Telegram yoki Drive link"
+                  />
+                </label>
+                <label>
+                  <span>Mobilograf izohi</span>
+                  <textarea
+                    value={mobilografProgress.approval_comment}
+                    onChange={(e) => setMobilografProgress((prev) => ({ ...prev, approval_comment: e.target.value }))}
+                    rows={2}
+                    placeholder="Masalan: syomka tugadi, montajga o'tdi, link yuborildi"
+                  />
+                </label>
+                <div className="mobilograf-progress-actions">
+                  <button type="button" className="btn secondary" onClick={() => submitMobilografProgress("started")} disabled={saving}>Ishni boshladim</button>
+                  <button type="button" className="btn secondary" onClick={() => submitMobilografProgress("editing")} disabled={saving}>Montajda</button>
+                  <button type="button" className="btn secondary" onClick={() => submitMobilografProgress("ready")} disabled={saving}>Tayyor</button>
+                  <button type="button" className="btn primary" onClick={() => submitMobilografProgress("submitted")} disabled={saving}>
+                    <Send size={15} /> Link yuborildi
+                  </button>
+                </div>
               </div>
               <div className="mobilograf-brief-footer">
                 <span className={approvalStatusClass(viewRow.status)}>{formatApprovalStatus(viewRow.status)}</span>
@@ -20344,6 +20407,48 @@ tr:hover td,
   display:grid;
   gap:10px;
 }
+.mobilograf-progress-box{
+  display:grid;
+  gap:12px;
+  border:1px solid #dbeafe;
+  border-radius:20px;
+  padding:14px;
+  background:#f8fbff;
+}
+.mobilograf-progress-box label{
+  display:grid;
+  gap:7px;
+}
+.mobilograf-progress-box label span{
+  color:#475467;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.mobilograf-progress-box input,
+.mobilograf-progress-box textarea{
+  width:100%;
+  border:1px solid rgba(148,163,184,.24);
+  border-radius:14px;
+  background:#fff;
+  color:#101827;
+  font-weight:800;
+  padding:12px 14px;
+  outline:none;
+}
+.mobilograf-progress-box textarea{
+  resize:vertical;
+}
+.mobilograf-progress-actions{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+.mobilograf-progress-actions .btn{
+  justify-content:center;
+  min-height:44px;
+  white-space:normal;
+}
 .mobilograf-brief-footer{
   display:flex;
   justify-content:space-between;
@@ -20942,6 +21047,7 @@ tr:hover td,
   .mobilograf-content-only .calendar-cell{min-height:112px}
   .mobilograf-brief-hero{display:grid}
   .mobilograf-brief-meta{grid-template-columns:1fr}
+  .mobilograf-progress-actions{grid-template-columns:1fr 1fr}
   .monthly-planner{padding:14px;border-radius:24px}
   .monthly-planner-head,
   .monthly-planner-actions{display:grid;justify-content:stretch}

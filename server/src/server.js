@@ -196,6 +196,12 @@ function isLeadershipRole(role) {
   return ["admin", "manager", "director"].includes(role);
 }
 
+function isMobilografAccount(user = {}) {
+  const role = String(user?.role || "").toLowerCase();
+  const departmentRole = String(user?.department_role || "").toLowerCase();
+  return role.includes("mobilograf") || departmentRole.includes("mobilograf") || role.includes("video") || departmentRole.includes("video");
+}
+
 function normalizeUserPermissions(role, permissions) {
   const safePermissions = Array.isArray(permissions) ? permissions : [];
   if (role === "director" && !safePermissions.length) {
@@ -1329,6 +1335,22 @@ function getApprovalNotificationMeta(status, label) {
     };
   }
   return null;
+}
+
+function formatApprovalStatusForLog(status) {
+  const normalized = String(status || "").toLowerCase();
+  const labels = {
+    reja: "Reja",
+    tasdiqlandi: "Workflow",
+    jarayonda: "Ish boshlandi",
+    tayyorlanmoqda: "Montajda",
+    tayyor: "Tayyor",
+    qayta_ishlash: "Qayta ishlash",
+    rad_etildi: "Rad etildi",
+    yakunlandi: "Yakunlandi",
+    joylangan: "Joylangan"
+  };
+  return labels[normalized] || status || "-";
 }
 
 const BONUS_SYNC_SELECT = `
@@ -4342,6 +4364,93 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
     await client.query("ROLLBACK");
     console.error(err);
     res.status(500).json({ message: `Kontentni yangilab boвЂlmadi: ${err.message}` });
+  } finally {
+    client.release();
+  }
+});
+
+app.post("/api/content/:id/mobilograf-progress", authRequired, pagePermissionAllowed("content"), async (req, res) => {
+  if (!isMobilografAccount(req.user) && !isLeadershipRole(req.user?.role)) {
+    return res.status(403).json({ message: "Bu amal faqat mobilograf workflow uchun" });
+  }
+
+  const statusMap = {
+    started: "jarayonda",
+    editing: "tayyorlanmoqda",
+    ready: "tayyor",
+    submitted: "tasdiqlandi",
+    jarayonda: "jarayonda",
+    tayyorlanmoqda: "tayyorlanmoqda",
+    tayyor: "tayyor",
+    tasdiqlandi: "tasdiqlandi"
+  };
+  const requestedStatus = String(req.body?.status || "").trim().toLowerCase();
+  const nextStatus = statusMap[requestedStatus];
+  if (!nextStatus) {
+    return res.status(400).json({ message: "Mobilograf statusi noto'g'ri" });
+  }
+
+  const submittedUrl = normalizeNoticeUrl(req.body?.final_url || "");
+  const note = String(req.body?.approval_comment || "").trim();
+  if (requestedStatus === "submitted" && !submittedUrl) {
+    return res.status(400).json({ message: "Link yuborish uchun ish linki majburiy" });
+  }
+
+  const client = await getClient();
+  try {
+    await client.query("BEGIN");
+    const found = await client.query(`SELECT * FROM content_items WHERE id = $1 LIMIT 1`, [req.params.id]);
+    if (!found.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Kontent topilmadi" });
+    }
+
+    const current = found.rows[0];
+    const finalUrl = submittedUrl || current.final_url || "";
+    const stamp = `${formatDateTimeText(new Date())} - ${getActorName(req.user)}: ${note || formatApprovalStatusForLog(nextStatus)}`;
+    const approvalComment = [current.approval_comment, stamp].filter(Boolean).join("\n");
+
+    const updated = await client.query(
+      `
+      UPDATE content_items
+      SET
+        status = $1,
+        final_url = $2,
+        approval_comment = $3,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $4
+      RETURNING *
+      `,
+      [nextStatus, finalUrl, approvalComment, req.params.id]
+    );
+
+    const row = updated.rows[0];
+    await addApprovalComment("content", row.id, req.user.id, stamp);
+    await logAction(req.user.id, "mobilograf_progress", "content_items", row.id, {
+      status: nextStatus,
+      has_final_url: !!finalUrl
+    });
+    await client.query("COMMIT");
+
+    const telegramRow = await getContentDetailRow(query, row.id);
+    createTelegramEvent(
+      buildPlatformTelegramTitle("рџЋ¬", "Mobilograf progress", "kontent"),
+      buildContentTelegramLines(telegramRow || row, getActorName(req.user), "Mobilograf yangiladi")
+    );
+    await createNotification(
+      null,
+      "Mobilograf progress",
+      `${row.title || "Kontent"}: ${formatApprovalStatusForLog(nextStatus)}`,
+      submittedUrl ? "success" : "info",
+      "approval",
+      "/content"
+    );
+
+    res.json(telegramRow || row);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ message: `Mobilograf progress saqlanmadi: ${err.message}` });
   } finally {
     client.release();
   }
