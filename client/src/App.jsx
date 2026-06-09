@@ -1220,6 +1220,7 @@ const RUBRIC_OPTIONS = [
   { value: "trend-video", label: "Trend video" },
   { value: "xodimlar-bilan", label: "Xodimlar bilan" },
   { value: "customer-heroes", label: "Mijozlar qahramonlarimiz" },
+  { value: "xizmatlarimiz", label: "Xizmatlarimiz" },
   { value: "sovgali-oyin", label: "Sovg'ali o'yin" },
   { value: "intervyu", label: "Intervyu" },
   { value: "unboxing", label: "Unboxing" },
@@ -1323,6 +1324,7 @@ function rubricChipTone(value) {
   const normalized = String(value || "").toLowerCase();
   if (normalized === "lifehack-academy") return "academy";
   if (normalized === "customer-heroes") return "customer";
+  if (normalized === "xizmatlarimiz") return "services";
   if (["sotuv", "sale-promo", "aksiyalar", "chegirma"].includes(normalized)) return "success";
   if (["trend-video", "lifehack", "unboxing", "intervyu"].includes(normalized)) return "info";
   if (["abzor", "locatsiya", "xodimlar-bilan"].includes(normalized)) return "warning";
@@ -1337,6 +1339,11 @@ function isAcademyContent(row = {}) {
 function isCustomerHeroContent(row = {}) {
   return String(row.rubric || "").toLowerCase() === "customer-heroes" ||
     String(row.content_template || "").toLowerCase() === "customer_heroes";
+}
+
+function isServicesContent(row = {}) {
+  return String(row.rubric || "").toLowerCase() === "xizmatlarimiz" ||
+    String(row.content_template || "").toLowerCase() === "aloo_services";
 }
 
 function campaignStatusClass(status) {
@@ -3457,7 +3464,7 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
               dateKey="publish_date"
               onMoveDate={movePlannerItem}
               renderItem={(item) => (
-                <div className={`planner-calendar-pill ${contentTypeChipTone(item.content_type)} ${isAcademyContent(item) ? "academy" : ""} ${isCustomerHeroContent(item) ? "customer" : ""}`}>
+                <div className={`planner-calendar-pill ${contentTypeChipTone(item.content_type)} ${isAcademyContent(item) ? "academy" : ""} ${isCustomerHeroContent(item) ? "customer" : ""} ${isServicesContent(item) ? "services" : ""}`}>
                   <div>
                     <strong>{item.title}</strong>
                     <span>{item.platform || "Platforma"} / {formatContentType(item.content_type)}</span>
@@ -3817,12 +3824,13 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
                   <tr><td colSpan="8" className="empty-cell">Yuklanmoqda...</td></tr>
                 ) : visibleRows.length ? (
                   visibleRows.map((row) => (
-                    <tr key={row.id} className={`${isAcademyContent(row) ? "academy-content-row" : ""} ${isCustomerHeroContent(row) ? "customer-content-row" : ""}`}>
+                    <tr key={row.id} className={`${isAcademyContent(row) ? "academy-content-row" : ""} ${isCustomerHeroContent(row) ? "customer-content-row" : ""} ${isServicesContent(row) ? "services-content-row" : ""}`}>
                       <td>
                         <div className="table-title-cell">
                           <strong className="table-title-main">
                             {isAcademyContent(row) ? <span className="academy-cap"><GraduationCap size={15} /></span> : null}
                             {isCustomerHeroContent(row) ? <span className="customer-cap"><ContactRound size={15} /></span> : null}
+                            {isServicesContent(row) ? <span className="services-cap"><ReceiptText size={15} /></span> : null}
                             {row.title}
                           </strong>
                           <div className="table-title-sub">
@@ -3903,10 +3911,10 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
               <div className="mobile-record-card empty">Yuklanmoqda...</div>
             ) : visibleRows.length ? (
               visibleRows.map((row) => (
-                <div key={`content-card-${row.id}`} className={`mobile-record-card ${isAcademyContent(row) ? "academy-content-card" : ""} ${isCustomerHeroContent(row) ? "customer-content-card" : ""}`}>
+                <div key={`content-card-${row.id}`} className={`mobile-record-card ${isAcademyContent(row) ? "academy-content-card" : ""} ${isCustomerHeroContent(row) ? "customer-content-card" : ""} ${isServicesContent(row) ? "services-content-card" : ""}`}>
                   <div className="mobile-record-head">
                     <div className="mobile-record-title">
-                      <strong>{isAcademyContent(row) ? <GraduationCap size={15} /> : null}{isCustomerHeroContent(row) ? <ContactRound size={15} /> : null}{row.title}</strong>
+                      <strong>{isAcademyContent(row) ? <GraduationCap size={15} /> : null}{isCustomerHeroContent(row) ? <ContactRound size={15} /> : null}{isServicesContent(row) ? <ReceiptText size={15} /> : null}{row.title}</strong>
                       <span>{formatDate(row.publish_date)} • {formatContentType(row.content_type)}</span>
                     </div>
                     <span className={approvalStatusClass(row.status)}>{formatApprovalStatus(row.status)}</span>
@@ -4022,7 +4030,7 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
                 const branchIds = Array.isArray(item.branch_ids_json) ? item.branch_ids_json.map(Number) : [];
                 const branchIndex = branchIds.length ? Math.abs(branchIds[0]) % 6 : 0;
                 return (
-                  <button key={item.id} type="button" className={`calendar-pill content-calendar-pill branch-tone-${branchIndex} ${isAcademyContent(item) ? "academy" : ""} ${isCustomerHeroContent(item) ? "customer" : ""}`} onClick={() => setViewRow(item)}>
+                  <button key={item.id} type="button" className={`calendar-pill content-calendar-pill branch-tone-${branchIndex} ${isAcademyContent(item) ? "academy" : ""} ${isCustomerHeroContent(item) ? "customer" : ""} ${isServicesContent(item) ? "services" : ""}`} onClick={() => setViewRow(item)}>
                     <span>{item.platform || "-"} / {item.video_type || item.content_type || "post"}</span>
                     <strong>{item.title}</strong>
                     <small>{item.hook_text ? "Hook" : "Hook yo'q"} / {item.cta_text ? "CTA" : "CTA yo'q"}</small>
@@ -12337,6 +12345,17 @@ tbody tr:hover{
   border:1px solid #fde68a;
   flex:0 0 auto;
 }
+.services-cap{
+  width:24px;
+  height:24px;
+  border-radius:10px;
+  display:inline-grid;
+  place-items:center;
+  color:#0369a1;
+  background:#e0f2fe;
+  border:1px solid #bae6fd;
+  flex:0 0 auto;
+}
 .academy-content-row{
   background:linear-gradient(90deg,rgba(34,197,94,.12),rgba(240,253,244,.65) 52%,transparent) !important;
 }
@@ -12349,6 +12368,12 @@ tbody tr:hover{
 .customer-content-row td:first-child{
   box-shadow:inset 5px 0 0 #f59e0b;
 }
+.services-content-row{
+  background:linear-gradient(90deg,rgba(14,165,233,.13),rgba(240,249,255,.72) 52%,transparent) !important;
+}
+.services-content-row td:first-child{
+  box-shadow:inset 5px 0 0 #0ea5e9;
+}
 .academy-content-card{
   border-color:#bbf7d0 !important;
   background:linear-gradient(135deg,#f0fdf4,#ffffff) !important;
@@ -12356,6 +12381,10 @@ tbody tr:hover{
 .customer-content-card{
   border-color:#fde68a !important;
   background:linear-gradient(135deg,#fffbeb,#ffffff) !important;
+}
+.services-content-card{
+  border-color:#bae6fd !important;
+  background:linear-gradient(135deg,#f0f9ff,#ffffff) !important;
 }
 .mobile-record-title strong svg{
   margin-right:6px;
@@ -12446,6 +12475,11 @@ tbody tr:hover{
   background:linear-gradient(135deg,rgba(245,158,11,.18),rgba(255,251,235,.98));
   color:#b45309;
   border-color:#fde68a;
+}
+.table-chip.services{
+  background:linear-gradient(135deg,rgba(14,165,233,.16),rgba(240,249,255,.98));
+  color:#0369a1;
+  border-color:#bae6fd;
 }
 .table-person-stack{
   display:flex;
@@ -13991,6 +14025,11 @@ tbody tr:hover{
   background:linear-gradient(135deg,#fffbeb,#ffffff);
   border-left-color:#f59e0b;
   border-color:#fde68a;
+}
+.content-calendar-pill.services{
+  background:linear-gradient(135deg,#f0f9ff,#ffffff);
+  border-left-color:#0ea5e9;
+  border-color:#bae6fd;
 }
 .bonus-plastic-title{
   display:flex;
@@ -20064,6 +20103,11 @@ tr:hover td,
   border-color:#fcd34d;
   box-shadow:0 8px 18px rgba(245,158,11,.10);
 }
+.planner-calendar-pill.services{
+  background:#f0f9ff;
+  border-color:#7dd3fc;
+  box-shadow:0 8px 18px rgba(14,165,233,.10);
+}
 .planner-calendar-pill strong{
   display:block;
   color:#101827;
@@ -20315,6 +20359,9 @@ tr:hover td,
 .content-page-v5 .content-list-card tbody tr.customer-content-row td{
   background:linear-gradient(90deg,#fffbeb,#ffffff) !important;
 }
+.content-page-v5 .content-list-card tbody tr.services-content-row td{
+  background:linear-gradient(90deg,#f0f9ff,#ffffff) !important;
+}
 .content-page-v5 .table-chip.academy{
   background:#dcfce7 !important;
   color:#047857 !important;
@@ -20325,6 +20372,11 @@ tr:hover td,
   color:#b45309 !important;
   border-color:#fcd34d !important;
 }
+.content-page-v5 .table-chip.services{
+  background:#e0f2fe !important;
+  color:#0369a1 !important;
+  border-color:#7dd3fc !important;
+}
 .content-page-v5 .academy-content-card{
   background:linear-gradient(135deg,#f0fdf4,#ffffff) !important;
   border-color:#86efac !important;
@@ -20332,6 +20384,10 @@ tr:hover td,
 .content-page-v5 .customer-content-card{
   background:linear-gradient(135deg,#fffbeb,#ffffff) !important;
   border-color:#fcd34d !important;
+}
+.content-page-v5 .services-content-card{
+  background:linear-gradient(135deg,#f0f9ff,#ffffff) !important;
+  border-color:#7dd3fc !important;
 }
 .content-page-v5 .table-title-main,
 .content-page-v5 .table-person,
@@ -20372,6 +20428,10 @@ tr:hover td,
 .content-page-v5 .mobile-record-card.customer-content-card{
   background:linear-gradient(135deg,#fffbeb,#ffffff) !important;
   border-color:#fcd34d !important;
+}
+.content-page-v5 .mobile-record-card.services-content-card{
+  background:linear-gradient(135deg,#f0f9ff,#ffffff) !important;
+  border-color:#7dd3fc !important;
 }
 .content-page-v5 .kanban-column h3,
 .content-page-v5 .kanban-card strong{color:#101827 !important;}
