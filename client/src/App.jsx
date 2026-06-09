@@ -2627,6 +2627,36 @@ function ManagerOsLabPage({ onToast }) {
 
   const visibleFields = activeConfig.fields.slice(0, 5);
   const activeCount = Number(snapshot?.[activeResource]?.count || rows.length || 0);
+  const labStatusCounts = useMemo(() => {
+    return rows.reduce((acc, row) => {
+      const status = String(row.status || "draft").toLowerCase();
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+  }, [rows]);
+  const strategyPulse = useMemo(() => {
+    const currentRows = rows.filter((row) => row.month_label === getMonthLabel());
+    const platforms = [...new Set(rows.map((row) => row.platform).filter(Boolean))];
+    const activeRows = rows.filter((row) => String(row.status || "").toLowerCase() === "active");
+    return {
+      currentRows,
+      platforms,
+      activeRows,
+      latest: rows.slice(0, 3)
+    };
+  }, [rows]);
+  const bloggerPulse = useMemo(() => {
+    const totalBudget = rows.reduce((sum, row) => sum + Number(row.price_amount || 0), 0);
+    const resultReady = rows.filter((row) => String(row.actual_result || "").trim()).length;
+    const followUps = rows.filter((row) => /follow|follow-up|qayta|bog'lan|bog‘lan|aloqa/i.test(String(row.notes || ""))).length;
+    return {
+      totalBudget,
+      resultReady,
+      followUps,
+      activePipeline: rows.filter((row) => ["negotiation", "approved", "in_progress"].includes(String(row.status || "").toLowerCase())),
+      latest: rows.slice(0, 4)
+    };
+  }, [rows]);
 
   useEffect(() => {
     onToastRef.current = onToast;
@@ -2661,6 +2691,30 @@ function ManagerOsLabPage({ onToast }) {
   function resetForm() {
     setForm(buildManagerLabForm(activeConfig));
     setEditingRow(null);
+  }
+
+  function applyLabPreset(kind) {
+    if (kind === "strategy-month") {
+      setForm((prev) => ({
+        ...prev,
+        month_label: getMonthLabel(),
+        platform: "all",
+        objective: prev.objective || "Oy bo'yicha asosiy SMM maqsad",
+        strategy_text: prev.strategy_text || "Platformalar kesimida kontent, reklama va brand signalni bir ritmga keltirish.",
+        trend_notes: prev.trend_notes || "Trendlar: qisqa video, foydali post, mijoz hikoyalari, xizmatlar kontenti.",
+        market_notes: prev.market_notes || "Bozor signali: servis, nasiya, to'lov xizmatlari va ishonchli xarid tajribasi.",
+        status: "active"
+      }));
+      return;
+    }
+    if (kind === "blogger-followup") {
+      setForm((prev) => ({
+        ...prev,
+        status: prev.status || "negotiation",
+        expected_result: prev.expected_result || "Reach, obuna, murojaat va sotuv signali.",
+        notes: prev.notes || `Follow-up: ${formatDate(new Date())} / kelishuv, narx va kontent formatini aniqlash.`
+      }));
+    }
   }
 
   function startEdit(row) {
@@ -2743,6 +2797,74 @@ function ManagerOsLabPage({ onToast }) {
           );
         })}
       </div>
+
+      <section className={`manager-lab-command manager-lab-command-${activeResource}`}>
+        <div className="manager-lab-command-head">
+          <div>
+            <span>{activeConfig.title} command</span>
+            <h2>{activeResource === "strategies" ? "Oy strategiyasi va platforma fokuslari" : activeResource === "blogger_partners" ? "Hamkorlar pipeline va natija nazorati" : "Modul holati"}</h2>
+          </div>
+          {activeResource === "strategies" ? (
+            <button type="button" className="btn secondary" onClick={() => applyLabPreset("strategy-month")}>Oylik strategiya preset</button>
+          ) : activeResource === "blogger_partners" ? (
+            <button type="button" className="btn secondary" onClick={() => applyLabPreset("blogger-followup")}>Follow-up preset</button>
+          ) : (
+            <strong>{rows.length} yozuv</strong>
+          )}
+        </div>
+
+        {activeResource === "strategies" ? (
+          <div className="manager-lab-command-grid strategy">
+            <div className="manager-lab-metric"><span>Joriy oy strategiya</span><strong>{strategyPulse.currentRows.length}</strong><small>{getMonthTitle(getMonthLabel())}</small></div>
+            <div className="manager-lab-metric"><span>Faol strategiya</span><strong>{strategyPulse.activeRows.length}</strong><small>active status</small></div>
+            <div className="manager-lab-metric"><span>Platforma qamrovi</span><strong>{strategyPulse.platforms.length}</strong><small>{strategyPulse.platforms.slice(0, 3).join(", ") || "hali yo'q"}</small></div>
+            <div className="manager-lab-action-list">
+              <span>So'nggi strategiyalar</span>
+              {strategyPulse.latest.length ? strategyPulse.latest.map((row) => (
+                <button key={`strategy-pulse-${row.id}`} type="button" onClick={() => startEdit(row)}>
+                  <strong>{row.objective}</strong>
+                  <small>{row.month_label} / {row.platform} / {row.status}</small>
+                </button>
+              )) : <p>Strategiya hali kiritilmagan.</p>}
+            </div>
+          </div>
+        ) : activeResource === "blogger_partners" ? (
+          <div className="manager-lab-command-grid blogger">
+            <div className="manager-lab-metric"><span>Pipeline</span><strong>{bloggerPulse.activePipeline.length}</strong><small>negotiation / approved / progress</small></div>
+            <div className="manager-lab-metric"><span>Kelishuv budjeti</span><strong>{formatMoney(bloggerPulse.totalBudget)}</strong><small>hamkorlar narxi</small></div>
+            <div className="manager-lab-metric"><span>Natija yozilgan</span><strong>{bloggerPulse.resultReady}</strong><small>{bloggerPulse.followUps} follow-up signal</small></div>
+            <div className="manager-lab-pipeline">
+              {["negotiation", "approved", "in_progress", "done", "rejected"].map((status) => (
+                <span key={status}><b>{status}</b><strong>{labStatusCounts[status] || 0}</strong></span>
+              ))}
+            </div>
+            <div className="manager-lab-action-list">
+              <span>Hamkorlar CRM</span>
+              {bloggerPulse.latest.length ? bloggerPulse.latest.map((row) => (
+                <button key={`blogger-pulse-${row.id}`} type="button" onClick={() => startEdit(row)}>
+                  <strong>{row.partner_name}</strong>
+                  <small>{row.platform} / {formatMoney(row.price_amount)} / {row.status}</small>
+                </button>
+              )) : <p>Hamkor hali kiritilmagan.</p>}
+            </div>
+          </div>
+        ) : (
+          <div className="manager-lab-command-grid generic">
+            <div className="manager-lab-metric"><span>Yozuvlar</span><strong>{rows.length}</strong><small>{activeConfig.title}</small></div>
+            <div className="manager-lab-metric"><span>Oxirgi holat</span><strong>{Object.keys(labStatusCounts).length}</strong><small>status turi</small></div>
+            <div className="manager-lab-action-list">
+              <span>So'nggi yozuvlar</span>
+              {rows.slice(0, 3).map((row) => (
+                <button key={`generic-pulse-${row.id}`} type="button" onClick={() => startEdit(row)}>
+                  <strong>{renderManagerLabValue(row[visibleFields[0]?.key])}</strong>
+                  <small>{activeConfig.title}</small>
+                </button>
+              ))}
+              {!rows.length ? <p>Bu modul hali bo'sh.</p> : null}
+            </div>
+          </div>
+        )}
+      </section>
 
       <section className="manager-lab-layout">
         <article className="manager-lab-card">
@@ -21020,6 +21142,150 @@ tr:hover td,
   color:#5eead4;
   font-size:12px;
 }
+.manager-lab-command{
+  border-radius:8px;
+  padding:18px;
+  background:linear-gradient(135deg,#ffffff,#f8fbff 62%,#ecfeff);
+  border:1px solid #dce7f2;
+  box-shadow:0 18px 45px rgba(15,23,42,.07);
+  display:grid;
+  gap:14px;
+}
+.manager-lab-command-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+}
+.manager-lab-command-head span,
+.manager-lab-action-list > span{
+  color:#0d9488;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-lab-command-head h2{
+  margin:5px 0 0;
+  color:#0f172a;
+  font-size:22px;
+  line-height:1.12;
+}
+.manager-lab-command-head > strong{
+  flex:0 0 auto;
+  min-width:64px;
+  height:40px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:#ecfeff;
+  color:#0f766e;
+  border:1px solid #99f6e4;
+}
+.manager-lab-command-grid{
+  display:grid;
+  gap:10px;
+  align-items:stretch;
+}
+.manager-lab-command-grid.strategy,
+.manager-lab-command-grid.generic{
+  grid-template-columns:repeat(3,minmax(0,1fr)) minmax(260px,1fr);
+}
+.manager-lab-command-grid.blogger{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+.manager-lab-metric,
+.manager-lab-action-list,
+.manager-lab-pipeline{
+  border-radius:8px;
+  background:#fff;
+  border:1px solid #dfe8f2;
+  box-shadow:0 12px 30px rgba(15,23,42,.045);
+  padding:14px;
+}
+.manager-lab-metric{
+  min-height:112px;
+  display:grid;
+  align-content:start;
+  gap:7px;
+}
+.manager-lab-metric span{
+  color:#667085;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-lab-metric strong{
+  color:#0f172a;
+  font-size:30px;
+  line-height:1;
+}
+.manager-lab-metric small{
+  color:#667085;
+  font-weight:800;
+  line-height:1.45;
+}
+.manager-lab-action-list{
+  display:grid;
+  gap:8px;
+}
+.manager-lab-command-grid.blogger .manager-lab-action-list,
+.manager-lab-pipeline{
+  grid-column:span 3;
+}
+.manager-lab-action-list button{
+  min-height:56px;
+  border-radius:8px;
+  border:1px solid #e0e8f2;
+  background:#f8fbff;
+  display:grid;
+  align-content:center;
+  gap:3px;
+  padding:10px;
+  text-align:left;
+}
+.manager-lab-action-list button:hover{
+  border-color:#2dd4bf;
+  transform:translateY(-1px);
+}
+.manager-lab-action-list button strong{
+  color:#101828;
+  font-size:13px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.manager-lab-action-list button small,
+.manager-lab-action-list p{
+  margin:0;
+  color:#667085;
+  font-size:12px;
+  font-weight:800;
+}
+.manager-lab-pipeline{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:8px;
+}
+.manager-lab-pipeline span{
+  min-height:54px;
+  border-radius:8px;
+  background:#f8fbff;
+  border:1px solid #e0e8f2;
+  padding:10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.manager-lab-pipeline b{
+  color:#667085;
+  font-size:11px;
+  text-transform:uppercase;
+}
+.manager-lab-pipeline strong{
+  color:#0f172a;
+  font-size:18px;
+}
 .manager-lab-layout{
   display:grid;
   grid-template-columns:minmax(320px,.72fr) minmax(0,1.28fr);
@@ -21072,6 +21338,11 @@ tr:hover td,
 }
 @media (max-width:1180px){
   .manager-lab-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .manager-lab-command-grid.strategy,
+  .manager-lab-command-grid.generic,
+  .manager-lab-command-grid.blogger{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-lab-command-grid.blogger .manager-lab-action-list,
+  .manager-lab-pipeline{grid-column:1 / -1}
   .manager-lab-layout{grid-template-columns:1fr}
 }
 @media (max-width:680px){
@@ -21079,6 +21350,11 @@ tr:hover td,
   .manager-lab-hero h1{font-size:28px}
   .manager-lab-hero > strong{width:72px;height:72px;font-size:28px}
   .manager-lab-tabs{grid-template-columns:1fr}
+  .manager-lab-command-head{display:grid}
+  .manager-lab-command-grid.strategy,
+  .manager-lab-command-grid.generic,
+  .manager-lab-command-grid.blogger,
+  .manager-lab-pipeline{grid-template-columns:1fr}
 }
 
 /* === alooSMM Manager OS redesign: dashboard and shell identity === */
