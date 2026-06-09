@@ -1,4 +1,4 @@
-export const DESIGN_SYSTEM_VERSION = "9.0";
+export const DESIGN_SYSTEM_VERSION = "10.0-premium";
 
 export const brandPalette = {
   background: "#F6F8FB",
@@ -6,8 +6,8 @@ export const brandPalette = {
   surfaceSoft: "#F3F6FA",
   text: "#151515",
   muted: "#6B6F7A",
-  primary: "#1478F2",
-  primaryHover: "#0B63D1",
+  primary: "#1690F5",
+  primaryHover: "#0676D8",
   accent: "#EAF3FF",
   warning: "#FF7A1A",
   success: "#21B573",

@@ -10,10 +10,10 @@ import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import { fileURLToPath } from "url";
 import { Server as SocketIOServer } from "socket.io";
-import { getClient, query } from "./db.js";
+import { getClient, getDatabaseStatus, query } from "./db.js";
 import { actionPermissionAllowed, authRequired, pagePermissionAllowed, rolesAllowed, signToken } from "./auth.js";
 import { buildBranchOrderSql, DEFAULT_BRANCHES } from "./defaultBranches.js";
-import { sendContestExpensePdf, sendExcel, sendSimplePdf, sendTravelExpensePdf } from "./exports.js";
+import { sendContentCalendarPdf, sendContestExpensePdf, sendExcel, sendSimplePdf, sendTravelExpensePdf } from "./exports.js";
 import { isMySeOneSyncEnabled, pullBonusMirrorFromMySeOne, syncBonusDeleteToMySeOne, syncBonusUpsertToMySeOne } from "./mySeOneSync.js";
 import { importDailyReportsFromImages } from "./dailyReportImport.js";
 
@@ -36,6 +36,16 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+function normalizeOrigin(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    return new URL(raw).origin;
+  } catch {
+    return raw.replace(/\/+$/, "");
+  }
+}
+
 // CORS allowlist: keep production safe, but allow all known frontend domains.
 // Add extra domains in Railway with ALLOWED_ORIGINS=https://domain1.uz,https://domain2.uz
 const allowedOrigins = [
@@ -48,18 +58,19 @@ const allowedOrigins = [
   "http://localhost:3000"
 ]
   .concat(String(process.env.ALLOWED_ORIGINS || "").split(","))
-  .map((origin) => String(origin || "").trim())
+  .map(normalizeOrigin)
   .filter(Boolean);
 
 const corsOptions = {
   origin(origin, callback) {
+    const requestOrigin = normalizeOrigin(origin);
     // allow server-to-server / curl / same-origin requests without an Origin header
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
-    if (process.env.NODE_ENV !== "production" && origin.startsWith("http://localhost:")) {
+    if (allowedOrigins.includes(requestOrigin)) return callback(null, true);
+    if (process.env.NODE_ENV !== "production" && requestOrigin.startsWith("http://localhost:")) {
       return callback(null, true);
     }
-    return callback(new Error(`CORS blocked origin: ${origin}`));
+    return callback(new Error(`CORS blocked origin: ${requestOrigin}`));
   },
   credentials: true,
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
@@ -72,6 +83,32 @@ app.options("*", cors(corsOptions));
 
 app.use(express.json({ limit: "25mb" }));
 app.use("/uploads", express.static(uploadsDir));
+
+app.get("/api/ping", (_, res) => {
+  res.json({ ok: true, service: "aloo-smm-server" });
+});
+
+app.get("/api/db-health", async (_, res) => {
+  const database = getDatabaseStatus();
+  try {
+    const result = await query(`SELECT NOW() AS now, current_database() AS database_name`);
+    res.json({
+      ok: true,
+      database: {
+        ...database,
+        database: result.rows[0]?.database_name || database.database
+      },
+      timestamp: result.rows[0]?.now
+    });
+  } catch (err) {
+    res.status(503).json({
+      ok: false,
+      message: err.message,
+      code: err.code || null,
+      database
+    });
+  }
+});
 
 const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
@@ -102,6 +139,7 @@ const upload = multer({ storage });
 
 const DIRECTOR_PERMISSION_PRESET = [
   "dashboard",
+  "managerLab",
   "content",
   "content_create",
   "content_edit",
@@ -147,8 +185,21 @@ const DIRECTOR_PERMISSION_PRESET = [
   "aiAssistant"
 ];
 
+const ADMIN_ONLY_RESET_VERSION = "2026-06-08-admin-only-998931949200-v2";
+const ADMIN_ONLY_RESET_FLAG_KEY = "admin_only_reset_version";
+const DEFAULT_ADMIN_PHONE = "998931949200";
+const DEFAULT_ADMIN_PASSWORD = "2000";
+const DEFAULT_ADMIN_LOGIN = "admin";
+const DEFAULT_ADMIN_NAME = "Asosiy administrator";
+
 function isLeadershipRole(role) {
   return ["admin", "manager", "director"].includes(role);
+}
+
+function isMobilografAccount(user = {}) {
+  const role = String(user?.role || "").toLowerCase();
+  const departmentRole = String(user?.department_role || "").toLowerCase();
+  return role.includes("mobilograf") || departmentRole.includes("mobilograf") || role.includes("video") || departmentRole.includes("video");
 }
 
 function normalizeUserPermissions(role, permissions) {
@@ -384,12 +435,62 @@ function createNotification(userId, title, body, type = "info", category = "syst
   });
 }
 
-async function getSettingsRow() {
+function firstEnvValue(...keys) {
+  for (const key of keys) {
+    const value = String(process.env[key] || "").trim();
+    if (value) return value;
+  }
+  return "";
+}
+
+function withRuntimeTelegramFallback(settings = null) {
+  const row = settings || {};
+  return {
+    ...row,
+    telegram_bot_token:
+      String(row.telegram_bot_token || "").trim() ||
+      firstEnvValue("TELEGRAM_BOT_TOKEN", "BOT_TOKEN"),
+    telegram_chat_id:
+      String(row.telegram_chat_id || "").trim() ||
+      firstEnvValue(
+        "TELEGRAM_CHAT_ID",
+        "TELEGRAM_GROUP_ID",
+        "TELEGRAM_ADMIN_CHAT_ID",
+        "TARGET_CAMPAIGN_CHAT_ID",
+        "TRAVEL_PLAN_CHAT_ID"
+      )
+  };
+}
+
+function sanitizePublicSettings(settings = null) {
+  if (!settings) return null;
+  const { telegram_bot_token, ...safeSettings } = settings;
+  return {
+    ...safeSettings,
+    telegram_chat_id: settings.telegram_chat_id ? "configured" : ""
+  };
+}
+
+function hasValidAuthHeader(req) {
+  try {
+    const header = String(req.headers.authorization || "");
+    const token = header.startsWith("Bearer ") ? header.slice(7) : "";
+    if (!token) return false;
+    jwt.verify(token, JWT_SECRET);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function getSettingsRow(options = {}) {
+  const { includeRuntimeFallback = true } = options;
   try {
     const result = await query(`SELECT * FROM app_settings ORDER BY id ASC LIMIT 1`);
-    return result.rows[0] || null;
+    const row = result.rows[0] || null;
+    return includeRuntimeFallback ? withRuntimeTelegramFallback(row) : row;
   } catch {
-    return null;
+    return includeRuntimeFallback ? withRuntimeTelegramFallback(null) : null;
   }
 }
 
@@ -413,6 +514,14 @@ async function ensurePublicShareToken() {
 
 async function ensureDefaultBranches() {
   try {
+    const resetFlag = await query(
+      `SELECT flag_value FROM system_flags WHERE flag_key = $1 LIMIT 1`,
+      [ADMIN_ONLY_RESET_FLAG_KEY]
+    );
+    if (resetFlag.rows[0]?.flag_value === ADMIN_ONLY_RESET_VERSION) {
+      return;
+    }
+
     const existingRes = await query(`SELECT id, name, city FROM branches`);
     const existingByName = new Map(
       existingRes.rows.map((row) => [String(row.name || "").trim().toLowerCase(), row])
@@ -454,7 +563,12 @@ async function sendTelegramMessageNow(text, chatIdOverride = null) {
   try {
     const settings = await getSettingsRow();
     const chatId = chatIdOverride || settings?.telegram_chat_id;
-    if (!settings?.telegram_bot_token || !chatId) return;
+    if (!settings?.telegram_bot_token) {
+      throw new Error("Telegram bot token sozlanmagan. TELEGRAM_BOT_TOKEN env yoki Brand sozlamalariga token kiriting.");
+    }
+    if (!chatId) {
+      throw new Error("Telegram chat ID sozlanmagan. TELEGRAM_CHAT_ID/TELEGRAM_GROUP_ID/TARGET_CAMPAIGN_CHAT_ID env yoki Brand sozlamalariga chat ID kiriting.");
+    }
 
     const sendOnce = async (targetChatId) => {
       const controller = new AbortController();
@@ -873,6 +987,165 @@ function resolveCampaignLeadChatId(branchName) {
   return map[normalizeBranchKey(branchName)] || null;
 }
 
+function getCampaignMonthLabel(startAt, fallback = null) {
+  const safeDate = formatDateOnly(startAt || fallback || new Date());
+  return safeDate && safeDate !== "-" ? safeDate.slice(0, 7) : new Date().toISOString().slice(0, 7);
+}
+
+async function syncCampaignManagerOsRows(row, userId) {
+  if (!row?.id) return;
+  const briefUpdate = await query(
+    `
+    UPDATE campaign_briefs
+    SET
+      title = $2,
+      campaign_goal = $3,
+      target_audience = $4,
+      channel_name = $5,
+      expected_result = $6,
+      status = $7,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE campaign_id = $1
+    RETURNING id
+    `,
+    [
+      row.id,
+      row.title || "Kampaniya",
+      row.campaign_goal || "",
+      row.target_audience || "",
+      row.channel_name || row.platform || "",
+      row.expected_result || "",
+      row.status || "brief"
+    ]
+  );
+  if (!briefUpdate.rows.length) {
+    await query(
+    `
+    INSERT INTO campaign_briefs
+      (campaign_id, title, campaign_goal, target_audience, channel_name, expected_result, status, created_by)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    `,
+      [
+        row.id,
+        row.title || "Kampaniya",
+        row.campaign_goal || "",
+        row.target_audience || "",
+        row.channel_name || row.platform || "",
+        row.expected_result || "",
+        row.status || "brief",
+        userId || null
+      ]
+    );
+  }
+
+  const budgetUpdate = await query(
+    `
+    UPDATE ad_budgets
+    SET
+      platform = $2,
+      month_label = $3,
+      budget_amount = $4,
+      spent_amount = $5,
+      leads_count = $6,
+      cpl_amount = $7,
+      roi_amount = $8,
+      status = $9,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE campaign_id = $1
+    RETURNING id
+    `,
+    [
+      row.id,
+      row.platform || row.channel_name || "Ads",
+      getCampaignMonthLabel(row.start_at, row.start_date),
+      Number(row.budget || row.daily_budget || 0),
+      Number(row.spend || 0),
+      Number(row.leads || 0),
+      Number(row.cpl_amount || row.cpa || 0),
+      Number(row.roi_amount || row.roi || 0),
+      row.status || "planned"
+    ]
+  );
+  if (!budgetUpdate.rows.length) {
+    await query(
+    `
+    INSERT INTO ad_budgets
+      (campaign_id, platform, month_label, budget_amount, spent_amount, leads_count, cpl_amount, roi_amount, status, created_by)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+    `,
+      [
+        row.id,
+        row.platform || row.channel_name || "Ads",
+        getCampaignMonthLabel(row.start_at, row.start_date),
+        Number(row.budget || row.daily_budget || 0),
+        Number(row.spend || 0),
+        Number(row.leads || 0),
+        Number(row.cpl_amount || row.cpa || 0),
+        Number(row.roi_amount || row.roi || 0),
+        row.status || "planned",
+        userId || null
+      ]
+    );
+  }
+}
+
+const MANAGER_OS_RESOURCES = {
+  strategies: {
+    table: "strategies",
+    columns: ["month_label", "platform", "objective", "strategy_text", "trend_notes", "market_notes", "status", "owner_user_id"],
+    orderBy: "updated_at DESC, id DESC"
+  },
+  content_scripts: {
+    table: "content_scripts",
+    columns: ["content_id", "title", "hook_text", "main_body_text", "cta_text", "product_name", "platform", "video_type", "status"],
+    orderBy: "updated_at DESC, id DESC"
+  },
+  campaign_briefs: {
+    table: "campaign_briefs",
+    columns: ["campaign_id", "title", "campaign_goal", "target_audience", "channel_name", "expected_result", "status"],
+    orderBy: "updated_at DESC, id DESC"
+  },
+  ad_budgets: {
+    table: "ad_budgets",
+    columns: ["campaign_id", "platform", "month_label", "budget_amount", "spent_amount", "leads_count", "cpl_amount", "roi_amount", "status"],
+    orderBy: "updated_at DESC, id DESC"
+  },
+  blogger_partners: {
+    table: "blogger_partners",
+    columns: ["partner_name", "platform", "contact_url", "price_amount", "status", "expected_result", "actual_result", "notes"],
+    orderBy: "updated_at DESC, id DESC"
+  },
+  competitor_reports: {
+    table: "competitor_reports",
+    columns: ["competitor_name", "platform", "report_date", "content_format", "campaign_notes", "strengths_text", "weaknesses_text", "action_idea"],
+    orderBy: "report_date DESC, id DESC"
+  },
+  audience_metrics: {
+    table: "audience_metrics",
+    columns: ["metric_date", "platform", "reach_count", "engagement_count", "follower_growth", "signal_text"],
+    orderBy: "metric_date DESC, id DESC"
+  },
+  creative_briefs: {
+    table: "creative_briefs",
+    columns: ["title", "creative_type", "platform", "brief_text", "deadline_date", "status", "assigned_user_id"],
+    orderBy: "deadline_date ASC NULLS LAST, updated_at DESC, id DESC"
+  },
+  approval_flows: {
+    table: "approval_flows",
+    columns: ["entity_type", "entity_id", "current_step", "status", "manager_user_id", "approver_user_id", "executor_user_id", "notes"],
+    orderBy: "updated_at DESC, id DESC"
+  },
+  brand_kpi_scores: {
+    table: "brand_kpi_scores",
+    columns: ["month_label", "brand_quality_score", "content_quality_score", "ads_result_score", "deadline_score", "notes"],
+    orderBy: "month_label DESC, id DESC"
+  }
+};
+
+function getManagerOsResource(resource) {
+  return MANAGER_OS_RESOURCES[String(resource || "").trim()];
+}
+
 async function getBranchName(branchId) {
   const numericId = Number(branchId || 0);
   if (!numericId) return "";
@@ -927,6 +1200,78 @@ async function insertBackupRows(client, tableName, rows = []) {
       `INSERT INTO ${tableName} (${columns.join(", ")}) VALUES (${placeholders}) ON CONFLICT DO NOTHING`,
       values
     );
+  }
+}
+
+async function resetToAdminOnlyOnce() {
+  const client = await getClient();
+  try {
+    const flag = await client.query(
+      `SELECT flag_value FROM system_flags WHERE flag_key = $1 LIMIT 1`,
+      [ADMIN_ONLY_RESET_FLAG_KEY]
+    );
+    if (flag.rows[0]?.flag_value === ADMIN_ONLY_RESET_VERSION) {
+      return false;
+    }
+
+    const tablesRes = await client.query(
+      `
+      SELECT tablename
+      FROM pg_tables
+      WHERE schemaname = 'public'
+        AND tablename <> ALL($1)
+      ORDER BY tablename ASC
+      `,
+      [["app_settings", "system_flags"]]
+    );
+    const tableNames = tablesRes.rows.map((row) => row.tablename).filter(Boolean);
+    const adminPasswordHash = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
+
+    await client.query("BEGIN");
+    if (tableNames.length) {
+      await client.query(
+        `TRUNCATE TABLE ${tableNames.map((tableName) => `"${tableName}"`).join(", ")} RESTART IDENTITY CASCADE`
+      );
+    }
+    await client.query(
+      `
+      INSERT INTO users (
+        full_name,
+        phone,
+        login,
+        password_hash,
+        role,
+        department_role,
+        permissions_json,
+        is_active
+      )
+      VALUES ($1,$2,$3,$4,'admin','Administrator',$5::jsonb,TRUE)
+      `,
+      [
+        DEFAULT_ADMIN_NAME,
+        DEFAULT_ADMIN_PHONE,
+        DEFAULT_ADMIN_LOGIN,
+        adminPasswordHash,
+        JSON.stringify(DIRECTOR_PERMISSION_PRESET)
+      ]
+    );
+    await client.query(
+      `
+      INSERT INTO system_flags (flag_key, flag_value)
+      VALUES ($1, $2)
+      ON CONFLICT (flag_key)
+      DO UPDATE SET flag_value = EXCLUDED.flag_value, updated_at = CURRENT_TIMESTAMP
+      `,
+      [ADMIN_ONLY_RESET_FLAG_KEY, ADMIN_ONLY_RESET_VERSION]
+    );
+    await client.query("COMMIT");
+    console.log(`Admin-only reset applied: ${DEFAULT_ADMIN_PHONE}`);
+    return true;
+  } catch (err) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw err;
+  } finally {
+    client.release();
   }
 }
 
@@ -1045,6 +1390,22 @@ function getApprovalNotificationMeta(status, label) {
     };
   }
   return null;
+}
+
+function formatApprovalStatusForLog(status) {
+  const normalized = String(status || "").toLowerCase();
+  const labels = {
+    reja: "Reja",
+    tasdiqlandi: "Workflow",
+    jarayonda: "Ish boshlandi",
+    tayyorlanmoqda: "Montajda",
+    tayyor: "Tayyor",
+    qayta_ishlash: "Qayta ishlash",
+    rad_etildi: "Rad etildi",
+    yakunlandi: "Yakunlandi",
+    joylangan: "Joylangan"
+  };
+  return labels[normalized] || status || "-";
 }
 
 const BONUS_SYNC_SELECT = `
@@ -1317,6 +1678,206 @@ async function pullBonusUpdatesFromMySeOne(force = false) {
 
 async function ensureRuntimeSchema() {
   const statements = [
+    `CREATE TABLE IF NOT EXISTS app_settings (
+      id SERIAL PRIMARY KEY,
+      company_name TEXT NOT NULL DEFAULT 'aloo',
+      platform_name TEXT NOT NULL DEFAULT 'SMM jamoasi platformasi',
+      department_name TEXT NOT NULL DEFAULT 'SMM department',
+      theme_default TEXT NOT NULL DEFAULT 'dark',
+      website_url TEXT,
+      telegram_url TEXT,
+      instagram_url TEXT,
+      youtube_url TEXT,
+      facebook_url TEXT,
+      tiktok_url TEXT,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS system_flags (
+      flag_key TEXT PRIMARY KEY,
+      flag_value TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      full_name TEXT NOT NULL,
+      phone TEXT UNIQUE NOT NULL,
+      login TEXT UNIQUE,
+      password_hash TEXT NOT NULL,
+      role TEXT NOT NULL DEFAULT 'viewer',
+      avatar_url TEXT,
+      department_role TEXT,
+      permissions_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS branches (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL,
+      city TEXT,
+      manager_name TEXT,
+      phone TEXT,
+      notes TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS social_accounts (
+      id SERIAL PRIMARY KEY,
+      platform TEXT NOT NULL,
+      account_name TEXT,
+      account_url TEXT,
+      login_name TEXT,
+      status TEXT NOT NULL DEFAULT 'inactive',
+      notes TEXT,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS content_items (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      platform TEXT NOT NULL DEFAULT '',
+      content_type TEXT NOT NULL DEFAULT 'post',
+      rubric TEXT NOT NULL DEFAULT 'rubrika-yoq',
+      status TEXT NOT NULL DEFAULT 'reja',
+      publish_date DATE,
+      assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      bonus_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      proposal_count INTEGER NOT NULL DEFAULT 0,
+      approved_count INTEGER NOT NULL DEFAULT 0,
+      difficulty_level TEXT NOT NULL DEFAULT 'sodda',
+      notes TEXT,
+      final_url TEXT,
+      plan_month TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS tasks (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT,
+      status TEXT NOT NULL DEFAULT 'todo',
+      priority TEXT NOT NULL DEFAULT 'medium',
+      due_date DATE,
+      assignee_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS campaigns (
+      id SERIAL PRIMARY KEY,
+      title TEXT NOT NULL,
+      platform TEXT NOT NULL,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      lead_chat_id TEXT,
+      start_date DATE,
+      end_date DATE,
+      start_at TIMESTAMP,
+      end_at TIMESTAMP,
+      daily_budget NUMERIC(14,2) NOT NULL DEFAULT 0,
+      budget NUMERIC(14,2) NOT NULL DEFAULT 0,
+      spend NUMERIC(14,2) NOT NULL DEFAULT 0,
+      leads INTEGER NOT NULL DEFAULT 0,
+      sales INTEGER NOT NULL DEFAULT 0,
+      ctr NUMERIC(8,2) NOT NULL DEFAULT 0,
+      revenue_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      cpa NUMERIC(14,2) NOT NULL DEFAULT 0,
+      roi NUMERIC(14,2) NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'active',
+      notes TEXT,
+      telegram_started_at TIMESTAMP,
+      telegram_ended_at TIMESTAMP,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS daily_branch_reports (
+      id SERIAL PRIMARY KEY,
+      report_date DATE NOT NULL,
+      branch_id INTEGER NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+      stories_count INTEGER NOT NULL DEFAULT 0,
+      posts_count INTEGER NOT NULL DEFAULT 0,
+      reels_count INTEGER NOT NULL DEFAULT 0,
+      subscriber_count INTEGER NOT NULL DEFAULT 0,
+      condition_text TEXT,
+      notes TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (report_date, branch_id)
+    )`,
+    `CREATE TABLE IF NOT EXISTS bonuses (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      month_label TEXT NOT NULL,
+      total_units INTEGER NOT NULL DEFAULT 0,
+      unit_price NUMERIC(14,2) NOT NULL DEFAULT 25000,
+      total_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      kpi_score NUMERIC(6,2) NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (user_id, month_label)
+    )`,
+    `CREATE TABLE IF NOT EXISTS bonus_items (
+      id SERIAL PRIMARY KEY,
+      month_label TEXT NOT NULL,
+      work_date DATE NOT NULL,
+      branch_id INTEGER REFERENCES branches(id) ON DELETE SET NULL,
+      content_type TEXT NOT NULL DEFAULT 'post',
+      content_title TEXT,
+      work_url TEXT,
+      notes TEXT,
+      proposal_count INTEGER NOT NULL DEFAULT 0,
+      approved_count INTEGER NOT NULL DEFAULT 0,
+      proposal_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      approved_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      total_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+      difficulty_level TEXT NOT NULL DEFAULT 'sodda',
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      video_editor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      video_face_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      approval_status TEXT NOT NULL DEFAULT 'draft',
+      approved_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      approved_at TIMESTAMP,
+      myseone_item_id INTEGER,
+      myseone_synced_title TEXT,
+      myseone_sync_status TEXT NOT NULL DEFAULT 'pending',
+      myseone_sync_error TEXT,
+      myseone_synced_at TIMESTAMP,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS uploads (
+      id SERIAL PRIMARY KEY,
+      file_name TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      file_size INTEGER NOT NULL DEFAULT 0,
+      file_url TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id INTEGER,
+      uploaded_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'info',
+      is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS audit_logs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      action_type TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id INTEGER,
+      meta JSONB,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )`,
     // Keep existing data and make later ALTER TABLE statements safe on fresh databases.
     `CREATE TABLE IF NOT EXISTS expenses (
       id SERIAL PRIMARY KEY,
@@ -1388,6 +1949,11 @@ async function ensureRuntimeSchema() {
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS approval_comment TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS scenario_text TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS shot_list_text TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS hook_text TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS main_body_text TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS cta_text TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS product_name TEXT`,
+    `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS video_type TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS preview_url TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS final_url TEXT`,
     `ALTER TABLE content_items ADD COLUMN IF NOT EXISTS edit_file_url TEXT`,
@@ -1467,8 +2033,153 @@ async function ensureRuntimeSchema() {
       `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS daily_budget NUMERIC(14,2) NOT NULL DEFAULT 0`,
       `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS start_at TIMESTAMP`,
     `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS end_at TIMESTAMP`,
-    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_started_at TIMESTAMP`,
-    `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_ended_at TIMESTAMP`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_started_at TIMESTAMP`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS telegram_ended_at TIMESTAMP`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS campaign_goal TEXT`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS target_audience TEXT`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS channel_name TEXT`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS expected_result TEXT`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS cpl_amount NUMERIC(14,2) NOT NULL DEFAULT 0`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS roi_amount NUMERIC(14,2) NOT NULL DEFAULT 0`,
+      `ALTER TABLE campaigns ADD COLUMN IF NOT EXISTS campaign_type TEXT NOT NULL DEFAULT 'target'`,
+      `CREATE TABLE IF NOT EXISTS strategies (
+        id SERIAL PRIMARY KEY,
+        month_label TEXT NOT NULL,
+        platform TEXT NOT NULL DEFAULT 'all',
+        objective TEXT NOT NULL,
+        strategy_text TEXT,
+        trend_notes TEXT,
+        market_notes TEXT,
+        status TEXT NOT NULL DEFAULT 'draft',
+        owner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS content_scripts (
+        id SERIAL PRIMARY KEY,
+        content_id INTEGER REFERENCES content_items(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        hook_text TEXT,
+        main_body_text TEXT,
+        cta_text TEXT,
+        product_name TEXT,
+        platform TEXT,
+        video_type TEXT,
+        status TEXT NOT NULL DEFAULT 'draft',
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS campaign_briefs (
+        id SERIAL PRIMARY KEY,
+        campaign_id INTEGER REFERENCES campaigns(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        campaign_goal TEXT,
+        target_audience TEXT,
+        channel_name TEXT,
+        expected_result TEXT,
+        status TEXT NOT NULL DEFAULT 'brief',
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS ad_budgets (
+        id SERIAL PRIMARY KEY,
+        campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL,
+        platform TEXT NOT NULL,
+        month_label TEXT NOT NULL,
+        budget_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+        spent_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+        leads_count INTEGER NOT NULL DEFAULT 0,
+        cpl_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+        roi_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'planned',
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS blogger_partners (
+        id SERIAL PRIMARY KEY,
+        partner_name TEXT NOT NULL,
+        platform TEXT NOT NULL DEFAULT 'Instagram',
+        contact_url TEXT,
+        price_amount NUMERIC(14,2) NOT NULL DEFAULT 0,
+        status TEXT NOT NULL DEFAULT 'negotiation',
+        expected_result TEXT,
+        actual_result TEXT,
+        notes TEXT,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS competitor_reports (
+        id SERIAL PRIMARY KEY,
+        competitor_name TEXT NOT NULL,
+        platform TEXT NOT NULL DEFAULT 'Instagram',
+        report_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        content_format TEXT,
+        campaign_notes TEXT,
+        strengths_text TEXT,
+        weaknesses_text TEXT,
+        action_idea TEXT,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS audience_metrics (
+        id SERIAL PRIMARY KEY,
+        metric_date DATE NOT NULL DEFAULT CURRENT_DATE,
+        platform TEXT NOT NULL,
+        reach_count INTEGER NOT NULL DEFAULT 0,
+        engagement_count INTEGER NOT NULL DEFAULT 0,
+        follower_growth INTEGER NOT NULL DEFAULT 0,
+        signal_text TEXT,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS creative_briefs (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        creative_type TEXT NOT NULL DEFAULT 'banner',
+        platform TEXT,
+        brief_text TEXT,
+        deadline_date DATE,
+        status TEXT NOT NULL DEFAULT 'brief',
+        assigned_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS approval_flows (
+        id SERIAL PRIMARY KEY,
+        entity_type TEXT NOT NULL,
+        entity_id INTEGER,
+        current_step TEXT NOT NULL DEFAULT 'manager',
+        status TEXT NOT NULL DEFAULT 'pending',
+        manager_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        approver_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        executor_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        notes TEXT,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS brand_kpi_scores (
+        id SERIAL PRIMARY KEY,
+        month_label TEXT NOT NULL,
+        brand_quality_score INTEGER NOT NULL DEFAULT 0,
+        content_quality_score INTEGER NOT NULL DEFAULT 0,
+        ads_result_score INTEGER NOT NULL DEFAULT 0,
+        deadline_score INTEGER NOT NULL DEFAULT 0,
+        notes TEXT,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`,
     `CREATE TABLE IF NOT EXISTS campaign_leads (
       id SERIAL PRIMARY KEY,
       campaign_id INTEGER NOT NULL REFERENCES campaigns(id) ON DELETE CASCADE,
@@ -1665,8 +2376,101 @@ async function ensureRuntimeSchema() {
         END IF;
       END $$;
     `);
+
+    await query(`
+      INSERT INTO app_settings (company_name, platform_name, department_name, theme_default)
+      SELECT 'aloo', 'SMM jamoasi platformasi', 'SMM department', 'dark'
+      WHERE NOT EXISTS (SELECT 1 FROM app_settings)
+    `);
+
+    const defaultAdminPasswordHash = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
+
+    await query(
+      `
+      INSERT INTO users (
+        full_name,
+        phone,
+        login,
+        password_hash,
+        role,
+        department_role,
+        permissions_json,
+        is_active
+      )
+      SELECT
+        $1,
+        $2,
+        $3,
+        $4,
+        'admin',
+        'Administrator',
+        $5::jsonb,
+        TRUE
+      WHERE NOT EXISTS (SELECT 1 FROM users)
+      `,
+      [
+        DEFAULT_ADMIN_NAME,
+        DEFAULT_ADMIN_PHONE,
+        DEFAULT_ADMIN_LOGIN,
+        defaultAdminPasswordHash,
+        JSON.stringify(DIRECTOR_PERMISSION_PRESET)
+      ]
+    );
+
+    await resetToAdminOnlyOnce();
+
+    await query(`
+      INSERT INTO branches (name, city)
+      SELECT seed.name, seed.city
+      FROM (VALUES
+        ('Bosh ofis', 'Bosh ofis'),
+        ('Ohangaron', 'Ohangaron'),
+        ('Angren', 'Angren'),
+        ('Chirchiq', 'Chirchiq'),
+        ('Guliston', 'Guliston'),
+        ('Jarqorgon', 'Jarqorgon'),
+        ('Sherobod', 'Sherobod'),
+        ('Qibray', 'Qibray'),
+        ('Gazalkent', 'Gazalkent'),
+        ('Olmaliq', 'Olmaliq'),
+        ('Piskent', 'Piskent'),
+        ('Oqqorgon', 'Oqqorgon'),
+        ('Chinoz', 'Chinoz'),
+        ('Shorchi', 'Shorchi'),
+        ('Parkent', 'Parkent')
+      ) AS seed(name, city)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM branches WHERE branches.name = seed.name
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM system_flags
+        WHERE flag_key = '${ADMIN_ONLY_RESET_FLAG_KEY}'
+          AND flag_value = '${ADMIN_ONLY_RESET_VERSION}'
+      )
+    `);
+
+    await query(`
+      INSERT INTO social_accounts (platform, status)
+      SELECT seed.platform, seed.status
+      FROM (VALUES
+        ('Telegram', 'active'),
+        ('Instagram', 'active'),
+        ('YouTube', 'inactive'),
+        ('Facebook', 'inactive'),
+        ('TikTok', 'inactive')
+      ) AS seed(platform, status)
+      WHERE NOT EXISTS (
+        SELECT 1 FROM social_accounts WHERE social_accounts.platform = seed.platform
+      )
+      AND NOT EXISTS (
+        SELECT 1 FROM system_flags
+        WHERE flag_key = '${ADMIN_ONLY_RESET_FLAG_KEY}'
+          AND flag_value = '${ADMIN_ONLY_RESET_VERSION}'
+      )
+    `);
   } catch (err) {
     console.error("ensureRuntimeSchema error:", err.message);
+    throw err;
   }
 }
 
@@ -1971,10 +2775,11 @@ async function findUserForAuth({ phone = "", login = "", role = "", userId = nul
 
 app.post("/api/auth/login", async (req, res) => {
   try {
-    const { phone, login, password } = req.body;
+    const { phone, password } = req.body;
+    const normalizedPhone = normalizePhoneForAuth(phone);
 
-    if ((!phone && !login) || !password) {
-      return res.status(400).json({ message: "Login va parol kiriting" });
+    if (!normalizedPhone || !password) {
+      return res.status(400).json({ message: "Telefon raqam va parol kiriting" });
     }
 
     const result = await query(
@@ -1991,14 +2796,14 @@ app.post("/api/auth/login", async (req, res) => {
         is_active,
         password_hash
       FROM users
-      WHERE phone = $1 OR login = $2
+      WHERE REGEXP_REPLACE(COALESCE(phone, ''), '\\D', '', 'g') = $1
       LIMIT 1
       `,
-      [phone || "", login || ""]
+      [normalizedPhone]
     );
 
     if (!result.rows.length) {
-      return res.status(401).json({ message: "Login yoki parol notoвЂgвЂri" });
+      return res.status(401).json({ message: "Telefon yoki parol noto'g'ri" });
     }
 
     const user = result.rows[0];
@@ -2016,7 +2821,7 @@ app.post("/api/auth/login", async (req, res) => {
 
 
     if (!ok) {
-      return res.status(401).json({ message: "Login yoki parol notoвЂgвЂri" });
+      return res.status(401).json({ message: "Telefon yoki parol noto'g'ri" });
     }
 
     const token = signToken({
@@ -2033,7 +2838,8 @@ app.post("/api/auth/login", async (req, res) => {
 
     await logAction(user.id, "login", "auth", user.id, {
       login: user.login,
-      phone: user.phone
+      phone: user.phone,
+      method: "phone_password"
     });
 
     res.json({
@@ -2674,10 +3480,10 @@ app.get("/api/search", authRequired, async (req, res) => {
 
 /* SETTINGS */
 
-app.get("/api/settings", async (_, res) => {
+app.get("/api/settings", async (req, res) => {
   try {
-    const result = await query(`SELECT * FROM app_settings ORDER BY id ASC LIMIT 1`);
-    res.json(result.rows[0] || null);
+    const settings = await getSettingsRow({ includeRuntimeFallback: false });
+    res.json(hasValidAuthHeader(req) ? settings : sanitizePublicSettings(settings));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Sozlamalarni olib boвЂlmadi" });
@@ -3208,6 +4014,11 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
       branch_ids_json,
       scenario_text,
       shot_list_text,
+      hook_text,
+      main_body_text,
+      cta_text,
+      product_name,
+      video_type,
       preview_url,
       final_url,
       edit_file_url,
@@ -3248,6 +4059,11 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
         branch_ids_json,
         scenario_text,
         shot_list_text,
+        hook_text,
+        main_body_text,
+        cta_text,
+        product_name,
+        video_type,
         preview_url,
         final_url,
         edit_file_url,
@@ -3261,7 +4077,7 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
         plan_month,
         created_by
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,$33,$34)
       RETURNING *
       `,
       [
@@ -3282,6 +4098,11 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
         JSON.stringify(Array.isArray(branch_ids_json) ? branch_ids_json : []),
         scenario_text || "",
         shot_list_text || "",
+        hook_text || "",
+        main_body_text || "",
+        cta_text || "",
+        product_name || "",
+        video_type || "",
         preview_url || "",
         final_url || "",
         edit_file_url || "",
@@ -3298,6 +4119,28 @@ app.post("/api/content", authRequired, actionPermissionAllowed("content", "creat
     );
 
     const row = inserted.rows[0];
+
+    if (hook_text || main_body_text || cta_text || product_name || video_type || scenario_text) {
+      await client.query(
+        `
+        INSERT INTO content_scripts
+        (content_id, title, hook_text, main_body_text, cta_text, product_name, platform, video_type, status, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        `,
+        [
+          row.id,
+          row.title,
+          hook_text || "",
+          main_body_text || scenario_text || "",
+          cta_text || "",
+          product_name || "",
+          platform || "",
+          video_type || content_type || "",
+          status || "draft",
+          req.user.id
+        ]
+      );
+    }
 
     const bonusSyncMeta = await upsertBonusFromContentRow(client, row, req.user.id);
     await client.query("COMMIT");
@@ -3372,6 +4215,11 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
       branch_ids_json,
       scenario_text,
       shot_list_text,
+      hook_text,
+      main_body_text,
+      cta_text,
+      product_name,
+      video_type,
       preview_url,
       final_url,
       edit_file_url,
@@ -3413,19 +4261,24 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
         branch_ids_json = $15,
         scenario_text = $16,
         shot_list_text = $17,
-        preview_url = $18,
-        final_url = $19,
-        edit_file_url = $20,
-        approval_comment = $21,
-        content_template = $22,
-        idea_score = $23,
-        visual_score = $24,
-        editing_score = $25,
-        result_score = $26,
-        reach_value = $27,
-        plan_month = $28,
+        hook_text = $18,
+        main_body_text = $19,
+        cta_text = $20,
+        product_name = $21,
+        video_type = $22,
+        preview_url = $23,
+        final_url = $24,
+        edit_file_url = $25,
+        approval_comment = $26,
+        content_template = $27,
+        idea_score = $28,
+        visual_score = $29,
+        editing_score = $30,
+        result_score = $31,
+        reach_value = $32,
+        plan_month = $33,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $29
+      WHERE id = $34
       RETURNING *
       `,
       [
@@ -3446,6 +4299,11 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
         JSON.stringify(Array.isArray(branch_ids_json) ? branch_ids_json : []),
         scenario_text || "",
         shot_list_text || "",
+        hook_text || "",
+        main_body_text || "",
+        cta_text || "",
+        product_name || "",
+        video_type || "",
         preview_url || "",
         final_url || "",
         edit_file_url || "",
@@ -3467,6 +4325,58 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
     }
 
     const row = updated.rows[0];
+
+    if (hook_text || main_body_text || cta_text || product_name || video_type || scenario_text) {
+      const scriptUpdate = await client.query(
+        `
+        UPDATE content_scripts
+        SET
+          title = $2,
+          hook_text = $3,
+          main_body_text = $4,
+          cta_text = $5,
+          product_name = $6,
+          platform = $7,
+          video_type = $8,
+          status = $9,
+          updated_at = CURRENT_TIMESTAMP
+        WHERE content_id = $1
+        RETURNING id
+        `,
+        [
+          row.id,
+          row.title,
+          hook_text || "",
+          main_body_text || scenario_text || "",
+          cta_text || "",
+          product_name || "",
+          platform || "",
+          video_type || content_type || "",
+          status || "draft"
+        ]
+      );
+      if (!scriptUpdate.rows.length) {
+        await client.query(
+        `
+        INSERT INTO content_scripts
+        (content_id, title, hook_text, main_body_text, cta_text, product_name, platform, video_type, status, created_by)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+        `,
+          [
+            row.id,
+            row.title,
+            hook_text || "",
+            main_body_text || scenario_text || "",
+            cta_text || "",
+            product_name || "",
+            platform || "",
+            video_type || content_type || "",
+            status || "draft",
+            req.user.id
+          ]
+        );
+      }
+    }
 
     const bonusSyncMeta = await upsertBonusFromContentRow(client, row, req.user.id);
     await client.query("COMMIT");
@@ -3509,6 +4419,93 @@ app.put("/api/content/:id", authRequired, actionPermissionAllowed("content", "ed
     await client.query("ROLLBACK");
     console.error(err);
     res.status(500).json({ message: `Kontentni yangilab boвЂlmadi: ${err.message}` });
+  } finally {
+    client.release();
+  }
+});
+
+app.post("/api/content/:id/mobilograf-progress", authRequired, pagePermissionAllowed("content"), async (req, res) => {
+  if (!isMobilografAccount(req.user) && !isLeadershipRole(req.user?.role)) {
+    return res.status(403).json({ message: "Bu amal faqat mobilograf workflow uchun" });
+  }
+
+  const statusMap = {
+    started: "jarayonda",
+    editing: "tayyorlanmoqda",
+    ready: "tayyor",
+    submitted: "tasdiqlandi",
+    jarayonda: "jarayonda",
+    tayyorlanmoqda: "tayyorlanmoqda",
+    tayyor: "tayyor",
+    tasdiqlandi: "tasdiqlandi"
+  };
+  const requestedStatus = String(req.body?.status || "").trim().toLowerCase();
+  const nextStatus = statusMap[requestedStatus];
+  if (!nextStatus) {
+    return res.status(400).json({ message: "Mobilograf statusi noto'g'ri" });
+  }
+
+  const submittedUrl = normalizeNoticeUrl(req.body?.final_url || "");
+  const note = String(req.body?.approval_comment || "").trim();
+  if (requestedStatus === "submitted" && !submittedUrl) {
+    return res.status(400).json({ message: "Link yuborish uchun ish linki majburiy" });
+  }
+
+  const client = await getClient();
+  try {
+    await client.query("BEGIN");
+    const found = await client.query(`SELECT * FROM content_items WHERE id = $1 LIMIT 1`, [req.params.id]);
+    if (!found.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ message: "Kontent topilmadi" });
+    }
+
+    const current = found.rows[0];
+    const finalUrl = submittedUrl || current.final_url || "";
+    const stamp = `${formatDateTimeText(new Date())} - ${getActorName(req.user)}: ${note || formatApprovalStatusForLog(nextStatus)}`;
+    const approvalComment = [current.approval_comment, stamp].filter(Boolean).join("\n");
+
+    const updated = await client.query(
+      `
+      UPDATE content_items
+      SET
+        status = $1,
+        final_url = $2,
+        approval_comment = $3,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $4
+      RETURNING *
+      `,
+      [nextStatus, finalUrl, approvalComment, req.params.id]
+    );
+
+    const row = updated.rows[0];
+    await addApprovalComment("content", row.id, req.user.id, stamp);
+    await logAction(req.user.id, "mobilograf_progress", "content_items", row.id, {
+      status: nextStatus,
+      has_final_url: !!finalUrl
+    });
+    await client.query("COMMIT");
+
+    const telegramRow = await getContentDetailRow(query, row.id);
+    createTelegramEvent(
+      buildPlatformTelegramTitle("рџЋ¬", "Mobilograf progress", "kontent"),
+      buildContentTelegramLines(telegramRow || row, getActorName(req.user), "Mobilograf yangiladi")
+    );
+    await createNotification(
+      null,
+      "Mobilograf progress",
+      `${row.title || "Kontent"}: ${formatApprovalStatusForLog(nextStatus)}`,
+      submittedUrl ? "success" : "info",
+      "approval",
+      "/content"
+    );
+
+    res.json(telegramRow || row);
+  } catch (err) {
+    await client.query("ROLLBACK");
+    console.error(err);
+    res.status(500).json({ message: `Mobilograf progress saqlanmadi: ${err.message}` });
   } finally {
     client.release();
   }
@@ -4959,6 +5956,13 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
       sales,
       ctr,
       revenue_amount,
+      campaign_goal,
+      target_audience,
+      channel_name,
+      expected_result,
+      cpl_amount,
+      roi_amount,
+      campaign_type,
       status,
       notes
     } = req.body;
@@ -5001,10 +6005,17 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
         revenue_amount,
         cpa,
         roi,
+        campaign_goal,
+        target_audience,
+        channel_name,
+        expected_result,
+        cpl_amount,
+        roi_amount,
+        campaign_type,
         status,
         notes
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
       RETURNING *
       `,
       [
@@ -5025,11 +6036,19 @@ app.post("/api/campaigns", authRequired, async (req, res) => {
         safeRevenueAmount,
         cpa,
         roi,
+        campaign_goal || "",
+        target_audience || "",
+        channel_name || platform || "",
+        expected_result || "",
+        Number(cpl_amount || cpa || 0),
+        Number(roi_amount || roi || 0),
+        campaign_type || "target",
         safeStatus,
         notes || ""
       ]
     );
 
+    await syncCampaignManagerOsRows(inserted.rows[0], req.user.id);
     await logAction(req.user.id, "create", "campaigns", inserted.rows[0].id, {});
     const rowWithBranchName = {
       ...inserted.rows[0],
@@ -5064,6 +6083,13 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
       sales,
       ctr,
       revenue_amount,
+      campaign_goal,
+      target_audience,
+      channel_name,
+      expected_result,
+      cpl_amount,
+      roi_amount,
+      campaign_type,
       status,
       notes
     } = req.body;
@@ -5117,10 +6143,17 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
         revenue_amount = $15,
         cpa = $16,
         roi = $17,
-        status = $18,
-        notes = $19,
+        campaign_goal = $18,
+        target_audience = $19,
+        channel_name = $20,
+        expected_result = $21,
+        cpl_amount = $22,
+        roi_amount = $23,
+        campaign_type = $24,
+        status = $25,
+        notes = $26,
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $20
+      WHERE id = $27
       RETURNING *
       `,
       [
@@ -5141,12 +6174,20 @@ app.put("/api/campaigns/:id", authRequired, async (req, res) => {
         safeRevenueAmount,
         cpa,
         roi,
+        campaign_goal ?? previousRow.campaign_goal ?? "",
+        target_audience ?? previousRow.target_audience ?? "",
+        channel_name ?? previousRow.channel_name ?? platform ?? previousRow.platform ?? "",
+        expected_result ?? previousRow.expected_result ?? "",
+        Number(cpl_amount ?? previousRow.cpl_amount ?? cpa ?? 0),
+        Number(roi_amount ?? previousRow.roi_amount ?? roi ?? 0),
+        campaign_type ?? previousRow.campaign_type ?? "target",
         safeStatus,
         safeNotes,
         req.params.id
       ]
     );
 
+    await syncCampaignManagerOsRows(updated.rows[0], req.user.id);
     await logAction(req.user.id, "update", "campaigns", Number(req.params.id), {});
     const rowWithBranchName = {
       ...updated.rows[0],
@@ -5171,6 +6212,106 @@ app.delete("/api/campaigns/:id", authRequired, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Kampaniyani oвЂchirib boвЂlmadi" });
+  }
+});
+
+/* MANAGER OS */
+
+app.get("/api/manager-os", authRequired, async (_req, res) => {
+  try {
+    const entries = await Promise.all(Object.entries(MANAGER_OS_RESOURCES).map(async ([resource, config]) => {
+      const [rowsResult, countResult] = await Promise.all([
+        query(`SELECT * FROM ${config.table} ORDER BY ${config.orderBy} LIMIT 8`),
+        query(`SELECT COUNT(*)::int AS count FROM ${config.table}`)
+      ]);
+      return [resource, {
+        count: countResult.rows[0]?.count || 0,
+        rows: rowsResult.rows || []
+      }];
+    }));
+
+    res.json(Object.fromEntries(entries));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Manager OS ma'lumotlarini olib bo'lmadi" });
+  }
+});
+
+app.get("/api/manager-os/:resource", authRequired, async (req, res) => {
+  try {
+    const config = getManagerOsResource(req.params.resource);
+    if (!config) return res.status(404).json({ message: "Manager OS resurs topilmadi" });
+
+    const limit = Math.min(Math.max(Number(req.query.limit || 100), 1), 300);
+    const result = await query(`SELECT * FROM ${config.table} ORDER BY ${config.orderBy} LIMIT $1`, [limit]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Manager OS ro'yxatini olib bo'lmadi" });
+  }
+});
+
+app.post("/api/manager-os/:resource", authRequired, async (req, res) => {
+  try {
+    const config = getManagerOsResource(req.params.resource);
+    if (!config) return res.status(404).json({ message: "Manager OS resurs topilmadi" });
+
+    const columns = config.columns.filter((column) => Object.prototype.hasOwnProperty.call(req.body || {}, column));
+    if (!columns.length) return res.status(400).json({ message: "Saqlash uchun maydon kiriting" });
+
+    const finalColumns = [...columns, "created_by"];
+    const values = [...columns.map((column) => req.body[column]), req.user.id];
+    const placeholders = finalColumns.map((_, index) => `$${index + 1}`).join(",");
+    const result = await query(
+      `INSERT INTO ${config.table} (${finalColumns.join(",")}) VALUES (${placeholders}) RETURNING *`,
+      values
+    );
+    await logAction(req.user.id, "create", config.table, result.rows[0].id, {});
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Manager OS yozuvini saqlab bo'lmadi" });
+  }
+});
+
+app.put("/api/manager-os/:resource/:id", authRequired, async (req, res) => {
+  try {
+    const config = getManagerOsResource(req.params.resource);
+    if (!config) return res.status(404).json({ message: "Manager OS resurs topilmadi" });
+
+    const columns = config.columns.filter((column) => Object.prototype.hasOwnProperty.call(req.body || {}, column));
+    if (!columns.length) return res.status(400).json({ message: "Yangilash uchun maydon kiriting" });
+
+    const assignments = columns.map((column, index) => `${column} = $${index + 1}`).join(", ");
+    const values = columns.map((column) => req.body[column]);
+    values.push(req.params.id);
+    const result = await query(
+      `UPDATE ${config.table} SET ${assignments}, updated_at = CURRENT_TIMESTAMP WHERE id = $${values.length} RETURNING *`,
+      values
+    );
+    if (!result.rows.length) return res.status(404).json({ message: "Manager OS yozuvi topilmadi" });
+
+    await logAction(req.user.id, "update", config.table, Number(req.params.id), {});
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Manager OS yozuvini yangilab bo'lmadi" });
+  }
+});
+
+app.delete("/api/manager-os/:resource/:id", authRequired, async (req, res) => {
+  try {
+    const config = getManagerOsResource(req.params.resource);
+    if (!config) return res.status(404).json({ message: "Manager OS resurs topilmadi" });
+
+    const result = await query(`DELETE FROM ${config.table} WHERE id = $1 RETURNING id`, [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ message: "Manager OS yozuvi topilmadi" });
+
+    await logAction(req.user.id, "delete", config.table, Number(req.params.id), {});
+    res.json({ message: "Manager OS yozuvi o'chirildi" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Manager OS yozuvini o'chirib bo'lmadi" });
   }
 });
 
@@ -7106,6 +8247,39 @@ app.get("/api/export/content.xlsx", authRequired, async (_, res) => {
   }
 });
 
+app.get("/api/export/content-calendar.pdf", authRequired, pagePermissionAllowed("content"), async (req, res) => {
+  try {
+    const month = String(req.query.month || getMonthLabel()).trim();
+    const rows = (
+      await query(
+        `
+        SELECT
+          title,
+          publish_date,
+          status,
+          platform,
+          content_type,
+          rubric,
+          video_type,
+          content_template,
+          approval_comment,
+          final_url
+        FROM content_items
+        WHERE to_char(publish_date, 'YYYY-MM') = $1
+        ORDER BY publish_date ASC NULLS LAST, id ASC
+        `,
+        [month]
+      )
+    ).rows;
+
+    await logAction(req.user.id, "export", "content_items", null, { month_label: month, export_type: "calendar_pdf" });
+    sendContentCalendarPdf(res, rows, month, `content-calendar-${month}.pdf`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Kontent kalendar PDF export xatoligi" });
+  }
+});
+
 app.get("/api/export/bonuses.xlsx", authRequired, async (_, res) => {
   try {
     const rows = (
@@ -7472,23 +8646,28 @@ app.get("/api/export/travel-expenses.pdf", authRequired, async (req, res) => {
 
 let campaignLifecycleTimer = null;
 
-ensureRuntimeSchema()
-  .then(() => ensureDefaultBranches())
-  .catch((err) => {
+async function runStartupJobs() {
+  try {
+    await ensureRuntimeSchema();
+    await ensureDefaultBranches();
+  } catch (err) {
     console.error("startup schema error:", err.message);
-  })
-  .finally(() => {
-    httpServer.listen(PORT, () => {
-      console.log(`Server running on ${PORT}`);
-      syncCampaignLifecycleNotifications().catch((err) => {
-        console.error("campaign lifecycle initial sync error:", err.message);
-      });
-      if (!campaignLifecycleTimer) {
-        campaignLifecycleTimer = setInterval(() => {
-          syncCampaignLifecycleNotifications().catch((err) => {
-            console.error("campaign lifecycle timer error:", err.message);
-          });
-        }, 10000);
-      }
-    });
+    return;
+  }
+
+  syncCampaignLifecycleNotifications().catch((err) => {
+    console.error("campaign lifecycle initial sync error:", err.message);
   });
+  if (!campaignLifecycleTimer) {
+    campaignLifecycleTimer = setInterval(() => {
+      syncCampaignLifecycleNotifications().catch((err) => {
+        console.error("campaign lifecycle timer error:", err.message);
+      });
+    }, 10000);
+  }
+}
+
+httpServer.listen(PORT, () => {
+  console.log(`Server running on ${PORT}`);
+  runStartupJobs();
+});

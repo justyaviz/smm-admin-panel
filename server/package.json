@@ -5,6 +5,7 @@
   "scripts": {
     "start": "node src/server.js",
     "reset:test-data": "node scripts/reset-test-data.mjs",
+    "reset:admin-only": "node scripts/reset-test-data.mjs",
     "sync:branches": "node scripts/sync-branches.mjs"
   },
   "dependencies": {

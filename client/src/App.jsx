@@ -27,6 +27,7 @@ import {
   PhoneCall,
   ReceiptText,
   Filter,
+  GraduationCap,
   Search,
   Send,
   SlidersHorizontal,
@@ -51,48 +52,48 @@ import { DESIGN_SYSTEM_VERSION } from "./design-system";
 import { UiHealthStrip, UiOpsTimeline, UiStatusStepper } from "./ui-system";
 
 const MENU = [
-  { id: "dashboard", title: "Boshqaruv markazi", icon: LayoutDashboard, tone: "indigo", desc: "SMM command center" },
-  { id: "content", title: "Kontent reja", icon: Clapperboard, tone: "cyan", desc: "Postlar va reja" },
-  { id: "tasks", title: "Ish taqsimoti", icon: ListTodo, tone: "green", desc: "SMM va mobilograf workflow" },
-  { id: "travelPlans", title: "Safar rejasi", icon: PlaneTakeoff, tone: "violet", desc: "SMM va mobilograf rejalari" },
-  { id: "bonus", title: "Bonus tizimi", icon: BadgeDollarSign, tone: "emerald", desc: "Faqat mobilograf uchun" },
-  { id: "campaigns", title: "Reklama va aksiyalar", icon: Target, tone: "fuchsia", desc: "Target, bloger va hamkorlar" },
-  { id: "uploads", title: "Media kutubxona", icon: Image, tone: "purple", desc: "Fayl va assetlar" },
-  { id: "analytics", title: "Analitika va hisobot", icon: BarChart3, tone: "sky", desc: "Natija va auditoriya" },
-  { id: "dailyReports", title: "Platforma monitoringi", icon: ClipboardList, tone: "slate", desc: "Post, story va faollik" },
-  { id: "users", title: "Jamoa", icon: ContactRound, tone: "blue", desc: "SMM va mobilograf rollari" },
-  { id: "profile", title: "Profil", icon: CircleUserRound, tone: "cyan", desc: "Shaxsiy kabinet" },
-  { id: "settings", title: "Sozlamalar", icon: SlidersHorizontal, tone: "slate", desc: "Tizim boshqaruvi" }
+  { id: "dashboard", title: "Manager OS", icon: LayoutDashboard, tone: "indigo", desc: "Lavozim boshqaruv markazi" },
+  { id: "managerLab", title: "Manager OS Lab", icon: Sparkles, tone: "violet", desc: "Strategiya, CRM, KPI" },
+  { id: "content", title: "Strategiya va kontent", icon: Clapperboard, tone: "cyan", desc: "Reja, kalendar, ssenariy" },
+  { id: "tasks", title: "Mobilograf workflow", icon: ListTodo, tone: "green", desc: "Topshiriq va nazorat" },
+  { id: "travelPlans", title: "Production safarlar", icon: PlaneTakeoff, tone: "violet", desc: "Filial, suratga olish, montaj" },
+  { id: "bonus", title: "Mobilograf bonus", icon: BadgeDollarSign, tone: "emerald", desc: "Bajarilish motivatsiyasi" },
+  { id: "campaigns", title: "Kampaniya va Ads Lab", icon: Target, tone: "fuchsia", desc: "Target, aksiya, blogerlar" },
+  { id: "uploads", title: "Brand media arxiv", icon: Image, tone: "purple", desc: "Dizayn, video, kreativlar" },
+  { id: "analytics", title: "Growth analytics", icon: BarChart3, tone: "sky", desc: "Auditoriya va natija" },
+  { id: "dailyReports", title: "Platforma pulse", icon: ClipboardList, tone: "slate", desc: "Instagram, Telegram, YouTube" },
+  { id: "users", title: "Jamoa rollari", icon: ContactRound, tone: "blue", desc: "SMM, mobilograf, rahbar" },
+  { id: "profile", title: "Menejer profili", icon: CircleUserRound, tone: "cyan", desc: "Shaxsiy kabinet" },
+  { id: "settings", title: "Brand sozlamalar", icon: SlidersHorizontal, tone: "slate", desc: "Logo, brandbook, tizim" }
 ];
 
 const MENU_GROUPS = [
-  { id: "core", title: "SMM jarayoni", items: ["dashboard", "content", "tasks"] },
-  { id: "growth", title: "Marketing", items: ["campaigns", "analytics", "dailyReports"] },
-  { id: "assets", title: "Media", items: ["uploads"] },
-  { id: "system", title: "Boshqaruv", items: ["users", "profile", "settings"] }
+  { id: "core", title: "Manager OS", items: ["dashboard", "managerLab", "content", "tasks"] },
+  { id: "growth", title: "Growth va reklama", items: ["campaigns", "analytics", "dailyReports"] },
+  { id: "assets", title: "Brand aktivlar", items: ["uploads"] },
+  { id: "system", title: "Jamoa va tizim", items: ["users", "profile", "settings"] }
 ];
 
 
 const SIDEBAR_WORKSPACES = [
   {
     id: "smm",
-    title: "SMM menejer",
-    desc: "Strategiya, kontent, reklama",
-    items: ["dashboard", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "uploads", "users", "settings"],
+    title: "alooSMM Manager OS",
+    desc: "Strategiya, kontent, reklama, natija",
+    items: ["dashboard", "managerLab", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "uploads", "users", "settings"],
     groups: [
-      { id: "smm-main", title: "Reja va ssenariy", items: ["dashboard", "content", "tasks", "travelPlans"] },
-      { id: "smm-growth", title: "Reklama va natija", items: ["campaigns", "analytics", "dailyReports"] },
-      { id: "smm-admin", title: "Jamoa", items: ["uploads", "users", "settings", "profile"] }
+      { id: "smm-main", title: "Strategiya va production", items: ["dashboard", "managerLab", "content", "tasks", "travelPlans"] },
+      { id: "smm-growth", title: "Growth tizimi", items: ["campaigns", "analytics", "dailyReports"] },
+      { id: "smm-admin", title: "Brand va jamoa", items: ["uploads", "users", "settings", "profile"] }
     ]
   },
   {
     id: "mobilograf",
     title: "Mobilograf",
     desc: "Foto, video, montaj",
-    items: ["dashboard", "travelPlans", "bonus", "tasks", "content", "uploads", "dailyReports", "profile"],
+    items: ["content", "profile"],
     groups: [
-      { id: "mob-main", title: "Ish jarayoni", items: ["dashboard", "travelPlans", "bonus", "tasks"] },
-      { id: "mob-content", title: "Kontent ishlab chiqarish", items: ["content", "uploads", "dailyReports"] },
+      { id: "mob-content", title: "Kontent ishlab chiqarish", items: ["content"] },
       { id: "mob-account", title: "Shaxsiy", items: ["profile"] }
     ]
   }
@@ -119,24 +120,12 @@ const scopedDataQuery = (currentUser) => (
 const rolePresetPermissions = (currentUser) => {
   if (isMobilografUser(currentUser)) {
     return [
-      "dashboard",
       "content",
-      "uploads",
-      "dailyReports",
-      "tasks",
-      "travelPlans",
-      "travelPlans_create",
-      "travelPlans_edit",
-      "travelPlans_delete",
-      "bonus",
-      "bonus_create",
-      "bonus_edit",
-      "bonus_delete",
       "profile"
     ];
   }
   if (["manager", "director"].includes(String(currentUser?.role || "").toLowerCase())) {
-    return ["travelPlans", "travelPlans_create", "travelPlans_edit", "travelPlans_delete"];
+    return ["managerLab", "travelPlans", "travelPlans_create", "travelPlans_edit", "travelPlans_delete"];
   }
   return [];
 };
@@ -146,6 +135,7 @@ const ROUTES_BY_PAGE = {
   login: "/login",
   campaignLeadForm: "/reklama-forma",
   dashboard: "/menu",
+  managerLab: "/manager-os-lab",
   content: "/kontent",
   bonus: "/bonus",
   travelPlans: "/safar",
@@ -166,6 +156,7 @@ const PAGE_BY_ROUTE = {
   "/reklama-forma": "campaignLeadForm",
   "/menu": "dashboard",
   "/dashboard": "dashboard",
+  "/manager-os-lab": "managerLab",
   "/kontent": "content",
   "/bonus": "bonus",
   "/harajatlar": "dashboard",
@@ -184,6 +175,7 @@ const PAGE_BY_ROUTE = {
 
 const PERMISSION_OPTIONS = [
   { id: "dashboard", label: "Bosh sahifa" },
+  { id: "managerLab", label: "Manager OS Lab" },
   { id: "content", label: "Kontent reja" },
   { id: "content_create", label: "Kontent qo'shish" },
   { id: "content_edit", label: "Kontent tahrirlash" },
@@ -219,10 +211,10 @@ const PERMISSION_OPTIONS = [
 const DIRECTOR_PERMISSION_PRESET = PERMISSION_OPTIONS.map((item) => item.id);
 
 const ROLE_WORKSPACE_PRESETS = {
-  director: ["dashboard", "analytics", "dailyReports", "campaigns", "profile"],
-  manager: ["dashboard", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "profile"],
+  director: ["dashboard", "managerLab", "analytics", "dailyReports", "campaigns", "profile"],
+  manager: ["dashboard", "managerLab", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "profile"],
   editor: ["dashboard", "tasks", "uploads", "content", "profile"],
-  mobilograf: ["dashboard", "travelPlans", "bonus", "tasks", "content", "uploads", "dailyReports", "profile"],
+  mobilograf: ["content", "profile"],
   viewer: ["dashboard", "content", "campaigns", "analytics", "dailyReports", "profile"]
 };
 
@@ -372,6 +364,18 @@ function formatDateTime(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return formatDate(value);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function getContentWorkTime(row = {}) {
+  const direct = [row.publish_time, row.deadline_time, row.time]
+    .map((value) => String(value || "").trim())
+    .find((value) => /^\d{1,2}:\d{2}$/.test(value));
+  if (direct) return direct.padStart(5, "0");
+  const text = [row.approval_comment, row.notes, row.description].map((value) => String(value || "")).join(" / ");
+  const labeled = text.match(/(?:vaqt|soat)\s*[:=-]?\s*(\d{1,2}:\d{2})/i);
+  if (labeled) return labeled[1].padStart(5, "0");
+  const loose = text.match(/\b(\d{1,2}:\d{2})\b/);
+  return loose ? loose[1].padStart(5, "0") : "-";
 }
 
 function formatDateTimeInput(value) {
@@ -671,17 +675,23 @@ function IconActions({ onView, onEdit, onDelete }) {
 }
 
 function Toast({ toast, onClose }) {
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(onClose, toast.variant === "toast" ? 2800 : 2200);
+    const timer = setTimeout(() => onCloseRef.current?.(), toast.variant === "toast" ? 2800 : 1600);
     return () => clearTimeout(timer);
-  }, [toast, onClose]);
+  }, [toast]);
 
   if (!toast) return null;
 
   if (toast.variant === "center-success") {
     return (
-      <div className="success-overlay" aria-live="polite" aria-atomic="true">
+      <div className="success-overlay" aria-live="polite" aria-atomic="true" onClick={onClose}>
         <div className="success-wrapper">
           <div className="icon-wrap">
             <svg className="success-svg" viewBox="0 0 100 100" width="120" height="120" aria-hidden="true">
@@ -698,7 +708,7 @@ function Toast({ toast, onClose }) {
 
   if (toast.variant === "center-delete") {
     return (
-      <div className="success-overlay delete-overlay" aria-live="polite" aria-atomic="true">
+      <div className="success-overlay delete-overlay" aria-live="polite" aria-atomic="true" onClick={onClose}>
         <div className="delete-wrapper">
           <div className="delete-icon-wrap" aria-hidden="true">
             <svg viewBox="0 0 100 100" fill="none" width="100" height="100">
@@ -1203,10 +1213,13 @@ const RUBRIC_OPTIONS = [
   { value: "chegirma", label: "Chegirma" },
   { value: "foydali-malumot", label: "Foydali ma'lumot" },
   { value: "aksiyalar", label: "Aksiyalar" },
+  { value: "lifehack-academy", label: "Lifehack / ACADEMY" },
   { value: "lifehack", label: "Lifehack" },
   { value: "abzor", label: "Abzor" },
   { value: "trend-video", label: "Trend video" },
   { value: "xodimlar-bilan", label: "Xodimlar bilan" },
+  { value: "customer-heroes", label: "Mijozlar qahramonlarimiz" },
+  { value: "xizmatlarimiz", label: "Xizmatlarimiz" },
   { value: "sovgali-oyin", label: "Sovg'ali o'yin" },
   { value: "intervyu", label: "Intervyu" },
   { value: "unboxing", label: "Unboxing" },
@@ -1308,10 +1321,28 @@ function PlatformBadge({ platform }) {
 
 function rubricChipTone(value) {
   const normalized = String(value || "").toLowerCase();
+  if (normalized === "lifehack-academy") return "academy";
+  if (normalized === "customer-heroes") return "customer";
+  if (normalized === "xizmatlarimiz") return "services";
   if (["sotuv", "sale-promo", "aksiyalar", "chegirma"].includes(normalized)) return "success";
   if (["trend-video", "lifehack", "unboxing", "intervyu"].includes(normalized)) return "info";
   if (["abzor", "locatsiya", "xodimlar-bilan"].includes(normalized)) return "warning";
   return "default";
+}
+
+function isAcademyContent(row = {}) {
+  return String(row.rubric || "").toLowerCase() === "lifehack-academy" ||
+    String(row.content_template || "").toLowerCase() === "aloo_academy";
+}
+
+function isCustomerHeroContent(row = {}) {
+  return String(row.rubric || "").toLowerCase() === "customer-heroes" ||
+    String(row.content_template || "").toLowerCase() === "customer_heroes";
+}
+
+function isServicesContent(row = {}) {
+  return String(row.rubric || "").toLowerCase() === "xizmatlarimiz" ||
+    String(row.content_template || "").toLowerCase() === "aloo_services";
 }
 
 function campaignStatusClass(status) {
@@ -1341,7 +1372,7 @@ function normalizeAlooText(value = "") {
 }
 
 function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpenInstallGuide }) {
-  const [loginMode, setLoginMode] = useState("telegram");
+  const [loginMode, setLoginMode] = useState("password");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
@@ -1465,7 +1496,7 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
           </div>
           <div className="brand-kicker">Aloo SMM Operating System {DESIGN_SYSTEM_VERSION}</div>
           <h1>Command center kirish oynasi</h1>
-          <p>Kontent studio, payroll, finance va AI signallar bitta professional ish muhitida.</p>
+          <p>Telefon raqam va parol orqali alooSMM Manager OS ish muhitiga kiring.</p>
           <div className="login-public-nav">
             <a href="/platforma/">Platforma</a>
             <a href="/filiallar/">Filiallar</a>
@@ -1473,8 +1504,8 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
           </div>
           <div className="login-status-row compact">
             <span className="login-status-pill">Light UI</span>
-            <span className="login-status-pill">Telegram secure</span>
-            <span className="login-status-pill">Role workspace</span>
+            <span className="login-status-pill">Phone secure</span>
+            <span className="login-status-pill">Admin workspace</span>
           </div>
           <div className="login-command-preview">
             <div className="login-command-top">
@@ -1508,9 +1539,9 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
             </div>
           </div>
           <div className="login-title">Tizimga kirish</div>
-          <div className="login-subtitle">Kirish turini tanlang va ishchi workspace oching.</div>
+          <div className="login-subtitle">Telefon raqam va parolni kiriting.</div>
 
-          <div className="login-mode-switch">
+          {false ? <div className="login-mode-switch">
             {loginModes.map((mode) => {
               const Icon = mode.icon;
               return (
@@ -1528,7 +1559,7 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
                 </button>
               );
             })}
-          </div>
+          </div> : null}
 
           {loginMode === "telegram" ? (
             <div className="login-progress-steps">
@@ -1578,11 +1609,11 @@ function LoginPage({ onLoggedIn, settings, showInstallGuideAction = false, onOpe
           {loginMode === "password" ? (
             <div className="login-mode-panel">
               <label>
-                <span>Telefon yoki login</span>
+                <span>Telefon raqam</span>
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  placeholder="99890... yoki admin"
+                  placeholder="+998931949200"
                 />
               </label>
               <label>
@@ -2075,7 +2106,977 @@ function DashboardPage({ summary = {}, dailyReports = [], contentRows = [], camp
   );
 }
 
-function ContentPage({ users = [], branches = [], settings, user, onToast, reload }) {
+function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [], campaigns = [], travelPlans = [], tasks = [], uploads = [], managerOSData = {}, user = null, onNavigate = null }) {
+  const currentMonth = getMonthLabel();
+  const currentMonthTitle = getMonthTitle(currentMonth);
+  const todayKey = formatDate(new Date());
+  const monthContent = (contentRows || []).filter((row) => formatDate(row.publish_date || row.created_at).slice(0, 7) === currentMonth);
+  const publishedContent = monthContent.filter((row) => ["joylangan", "yakunlandi", "published"].includes(String(row.status || "").toLowerCase()));
+  const videoContent = monthContent.filter((row) => /video|reels|shorts|youtube/i.test(`${row.content_type || ""} ${row.platform || ""} ${row.title || ""}`));
+  const scriptReady = monthContent.filter((row) => row.scenario_text || row.script || row.approval_comment || /hook|cta|ssenariy/i.test(`${row.notes || ""} ${row.title || ""}`));
+  const activeCampaigns = (campaigns || []).filter((row) => {
+    const status = String(row.status || "").toLowerCase();
+    return !["done", "yakunlandi", "cancelled", "canceled"].includes(status);
+  });
+  const campaignSpend = activeCampaigns.reduce((sum, row) => sum + Number(row.spend || row.budget_spent || 0), 0);
+  const campaignLeads = activeCampaigns.reduce((sum, row) => sum + Number(row.leads || row.leads_count || 0), 0);
+  const openTasks = (tasks || []).filter((row) => !["done", "yakunlandi", "closed"].includes(String(row.status || "").toLowerCase()));
+  const productionTasks = openTasks.filter((row) => /video|foto|surat|montaj|reels|shorts|filial/i.test(`${row.title || ""} ${row.description || ""}`));
+  const overdueTasks = openTasks.filter((row) => {
+    const due = formatDate(row.due_date);
+    return due !== "-" && due < todayKey;
+  });
+  const todayContent = monthContent.filter((row) => formatDate(row.publish_date || row.created_at) === todayKey);
+  const overdueContent = monthContent.filter((row) => {
+    const publishDate = formatDate(row.publish_date || row.created_at);
+    const status = String(row.status || "").toLowerCase();
+    return publishDate !== "-" && publishDate < todayKey && !["joylangan", "yakunlandi", "published", "archived"].includes(status);
+  });
+  const reviewContent = monthContent.filter((row) => {
+    const status = String(row.status || "").toLowerCase();
+    return ["tasdiqlandi", "tasdiqlanishda", "tekshiruvda", "review", "pending", "approved"].includes(status);
+  });
+  const dueTodayTasks = openTasks.filter((row) => formatDate(row.due_date) === todayKey);
+  const todayReports = (dailyReports || []).filter((row) => formatDate(row.report_date || row.created_at) === todayKey);
+  const todayPulseTotals = todayReports.reduce((acc, row) => ({
+    posts: acc.posts + Number(row.posts_count || 0),
+    stories: acc.stories + Number(row.stories_count || 0),
+    reels: acc.reels + Number(row.reels_count || 0)
+  }), { posts: 0, stories: 0, reels: 0 });
+  const approvalRows = managerOSData?.approval_flows?.rows || [];
+  const pendingApprovals = approvalRows.filter((row) => !["approved", "done", "rejected"].includes(String(row.status || "").toLowerCase()));
+  const todayCommandItems = [
+    {
+      label: "Bugungi kontent",
+      value: todayContent.length,
+      detail: `${reviewContent.length} ta review/navbat`,
+      tone: todayContent.length ? "good" : "idle",
+      page: "content"
+    },
+    {
+      label: "Kechikkan kontent",
+      value: overdueContent.length,
+      detail: overdueContent.length ? "deadline nazorat kerak" : "deadline toza",
+      tone: overdueContent.length ? "danger" : "good",
+      page: "content"
+    },
+    {
+      label: "Bugungi task",
+      value: dueTodayTasks.length,
+      detail: `${overdueTasks.length} ta task riskda`,
+      tone: overdueTasks.length ? "warning" : "good",
+      page: "tasks"
+    },
+    {
+      label: "Approval navbati",
+      value: pendingApprovals.length,
+      detail: "manager -> rahbar -> posting",
+      tone: pendingApprovals.length ? "warning" : "idle",
+      page: "managerLab"
+    }
+  ];
+  const commandFeed = [
+    ...todayContent.slice(0, 3).map((row) => ({
+      title: row.title || "Kontent",
+      meta: `${row.platform_primary || row.platform || "platforma"} / ${formatApprovalStatus(row.status || "reja")}`,
+      page: "content"
+    })),
+    ...dueTodayTasks.slice(0, 2).map((row) => ({
+      title: row.title || "Task",
+      meta: `${row.priority || "normal"} / ${taskStatusLabel(row.status)}`,
+      page: "tasks"
+    })),
+    ...[...activeCampaigns]
+      .sort((a, b) => getDateSortValue(a.end_at || a.end_date, Number.POSITIVE_INFINITY) - getDateSortValue(b.end_at || b.end_date, Number.POSITIVE_INFINITY))
+      .slice(0, 2)
+      .map((row) => ({
+      title: row.title || "Kampaniya",
+      meta: `${row.platform || "ads"} / ${formatCampaignStatus(row.status || "active")}`,
+      page: "campaigns"
+    }))
+  ].slice(0, 5);
+  const platformPulse = Object.values((dailyReports || []).reduce((acc, row) => {
+    const key = row.branch_name || "Platforma";
+    if (!acc[key]) acc[key] = { name: key, posts: 0, stories: 0, reels: 0, subscribers: 0 };
+    acc[key].posts += Number(row.posts_count || 0);
+    acc[key].stories += Number(row.stories_count || 0);
+    acc[key].reels += Number(row.reels_count || 0);
+    acc[key].subscribers += Number(row.subscriber_count || 0);
+    return acc;
+  }, {})).sort((a, b) => (b.posts + b.stories + b.reels) - (a.posts + a.stories + a.reels)).slice(0, 6);
+  const brandScore = Math.max(8, Math.min(100, Math.round(
+    ((publishedContent.length / Math.max(monthContent.length, 1)) * 38) +
+    ((scriptReady.length / Math.max(monthContent.length, 1)) * 22) +
+    (activeCampaigns.length ? 18 : 4) +
+    (productionTasks.length ? 12 : 4) +
+    (platformPulse.length ? 10 : 2)
+  )));
+  const modules = [
+    ["Strategiya", Sparkles],
+    ["Oylik reja", ClipboardList],
+    ["Haftalik reja", Clock3],
+    ["Ssenariy", Pencil],
+    ["Hook / CTA", MessageCircle],
+    ["Kontent kalendar", LayoutGrid],
+    ["Instagram / TG / YouTube", Globe2],
+    ["Kampaniyalar", Megaphone],
+    ["Aksiyalar", BadgeDollarSign],
+    ["Reklama byudjeti", ReceiptText],
+    ["Target nazorati", Target],
+    ["Bloger va media", ContactRound],
+    ["Raqobatchi tahlili", Eye],
+    ["Auditoriya tahlili", BarChart3],
+    ["Mobilograf tasklari", Mic],
+    ["Dizayn va kreativ", Image],
+    ["Hisobotlar", ClipboardList],
+    ["Brand KPI", ShieldCheck]
+  ];
+  const focusRows = [
+    ["Kontent reja + ssenariy", 25],
+    ["Kampaniya + aksiya", 20],
+    ["Reklama va target", 20],
+    ["Dizayn va kreativ", 15],
+    ["Platforma rivoji", 10],
+    ["Analitika", 5],
+    ["Blogerlar", 5]
+  ];
+  const latestContent = [...monthContent]
+    .sort((a, b) => getDateSortValue(a.publish_date || a.created_at, Number.POSITIVE_INFINITY) - getDateSortValue(b.publish_date || b.created_at, Number.POSITIVE_INFINITY))
+    .slice(0, 5);
+  const latestCampaigns = [...activeCampaigns]
+    .sort((a, b) => getDateSortValue(a.end_at || a.end_date, Number.POSITIVE_INFINITY) - getDateSortValue(b.end_at || b.end_date, Number.POSITIVE_INFINITY))
+    .slice(0, 4);
+  const productionQueue = [...productionTasks, ...openTasks].slice(0, 5);
+  const resourceCount = (key) => Number(managerOSData?.[key]?.count || managerOSData?.[key]?.rows?.length || 0);
+  const managerOsSnapshot = [
+    ["Strategiya", resourceCount("strategies")],
+    ["Ssenariy", resourceCount("content_scripts")],
+    ["Campaign brief", resourceCount("campaign_briefs")],
+    ["Ads budget", resourceCount("ad_budgets")],
+    ["Bloger CRM", resourceCount("blogger_partners")],
+    ["Raqobatchi", resourceCount("competitor_reports")],
+    ["Auditoriya", resourceCount("audience_metrics")],
+    ["Kreativ brief", resourceCount("creative_briefs")],
+    ["Approval", resourceCount("approval_flows")],
+    ["Brand KPI", resourceCount("brand_kpi_scores")]
+  ];
+  const setupItems = [
+    {
+      title: "Strategiyani boshlash",
+      body: "Oylik maqsad, platforma yo'nalishi va trend signalini kiriting.",
+      done: resourceCount("strategies") > 0,
+      page: "managerLab"
+    },
+    {
+      title: "Brand KPI oyini ochish",
+      body: "Brand sifati, kontent sifati va deadline intizomi uchun birinchi score.",
+      done: resourceCount("brand_kpi_scores") > 0,
+      page: "managerLab"
+    },
+    {
+      title: "Birinchi kontent kartasi",
+      body: "Hook, ssenariy, CTA va platforma bilan kontent reja yarating.",
+      done: monthContent.length > 0,
+      page: "content"
+    },
+    {
+      title: "Birinchi kampaniya briefi",
+      body: "Maqsad, auditoriya, kanal, byudjet va natija mezonini belgilang.",
+      done: activeCampaigns.length > 0 || resourceCount("campaign_briefs") > 0,
+      page: "campaigns"
+    }
+  ];
+  const setupDone = setupItems.filter((item) => item.done).length;
+
+  return (
+    <div className="manager-os-page">
+      <section className="manager-os-hero">
+        <div className="manager-os-hero-copy">
+          <span className="manager-os-eyebrow"><Sparkles size={16} /> alooSMM manager operating system</span>
+          <h1>SMM menejer uchun yangi boshqaruv tizimi</h1>
+          <p>
+            Strategiya, kontent reja, ssenariy, reklama, blogerlar, mobilograf workflow va brand KPI bir ekranda.
+            Bu panel ko'proq kontent chiqarish emas, brendni kuchaytiradigan marketing tizimini boshqarish uchun.
+          </p>
+        </div>
+        <div className="manager-os-pulse">
+          <span>{brandScore}</span>
+          <strong>Brand KPI</strong>
+          <small>{currentMonthTitle} bo'yicha real pulse</small>
+        </div>
+      </section>
+
+      <section className="manager-os-strip">
+        <div><span>Kontent reja</span><strong>{monthContent.length}</strong><small>{publishedContent.length} joylangan</small></div>
+        <div><span>Ssenariy tayyor</span><strong>{scriptReady.length}</strong><small>Hook / CTA nazorat</small></div>
+        <div><span>Video format</span><strong>{videoContent.length}</strong><small>Reels, Shorts, YouTube</small></div>
+        <div><span>Faol target</span><strong>{activeCampaigns.length}</strong><small>{formatMoney(campaignSpend)} sarf</small></div>
+        <div><span>Leadlar</span><strong>{campaignLeads}</strong><small>kampaniya natijasi</small></div>
+        <div><span>Mobilograf queue</span><strong>{productionTasks.length}</strong><small>{overdueTasks.length} deadline risk</small></div>
+      </section>
+
+      <section className="manager-os-today">
+        <div className="manager-os-today-head">
+          <div>
+            <span>Bugungi nazorat</span>
+            <h2>{formatDate(new Date())} uchun manager command</h2>
+          </div>
+          <button type="button" onClick={() => onNavigate?.("content")}>Kontentga o'tish</button>
+        </div>
+        <div className="manager-os-today-grid">
+          {todayCommandItems.map((item) => (
+            <button key={item.label} type="button" className={`manager-os-today-stat ${item.tone}`} onClick={() => onNavigate?.(item.page)}>
+              <span>{item.label}</span>
+              <strong>{item.value}</strong>
+              <small>{item.detail}</small>
+            </button>
+          ))}
+          <div className="manager-os-today-pulse">
+            <span>Platforma pulse</span>
+            <strong>{todayPulseTotals.posts + todayPulseTotals.stories + todayPulseTotals.reels}</strong>
+            <small>{todayPulseTotals.posts} post / {todayPulseTotals.stories} story / {todayPulseTotals.reels} reels</small>
+          </div>
+          <div className="manager-os-today-feed">
+            <span>Tezkor ishlar</span>
+            {commandFeed.length ? commandFeed.map((item, index) => (
+              <button key={`${item.title}-${index}`} type="button" onClick={() => onNavigate?.(item.page)}>
+                <strong>{item.title}</strong>
+                <small>{item.meta}</small>
+              </button>
+            )) : <p>Bugun uchun ochiq signal yo'q.</p>}
+          </div>
+        </div>
+      </section>
+
+      <section className="manager-os-snapshot">
+        {managerOsSnapshot.map(([label, count]) => (
+          <div key={label}>
+            <span>{label}</span>
+            <strong>{count}</strong>
+          </div>
+        ))}
+      </section>
+
+      <section className="manager-os-onboarding">
+        <div className="manager-os-onboarding-head">
+          <div>
+            <span>Start setup</span>
+            <h2>Toza tizimni ishga tayyorlash</h2>
+          </div>
+          <strong>{setupDone}/{setupItems.length}</strong>
+        </div>
+        <div className="manager-os-onboarding-grid">
+          {setupItems.map((item) => (
+            <button key={item.title} type="button" className={item.done ? "done" : ""} onClick={() => onNavigate?.(item.page)}>
+              <i>{item.done ? "OK" : "Start"}</i>
+              <strong>{item.title}</strong>
+              <span>{item.body}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="manager-os-layout">
+        <article className="manager-os-card manager-os-modules">
+          <div className="manager-os-card-head">
+            <div><span>Lavozim modullari</span><h2>18 qismli manager tizimi</h2></div>
+            <b>role scope</b>
+          </div>
+          <div className="manager-os-module-grid">
+            {modules.map(([label, Icon], index) => (
+              <button key={label} type="button" className="manager-os-module">
+                <span>{String(index + 1).padStart(2, "0")}</span>
+                <Icon size={17} />
+                <strong>{label}</strong>
+              </button>
+            ))}
+          </div>
+        </article>
+
+        <article className="manager-os-card manager-os-focus">
+          <div className="manager-os-card-head">
+            <div><span>Haftalik fokus</span><h2>Ish ulushi</h2></div>
+            <b>job map</b>
+          </div>
+          <div className="manager-os-focus-list">
+            {focusRows.map(([label, value]) => (
+              <div key={label}>
+                <span>{label}</span>
+                <i><em style={{ width: `${value * 3.2}%` }} /></i>
+                <strong>{value}%</strong>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <section className="manager-os-grid">
+        <article className="manager-os-card">
+          <div className="manager-os-card-head">
+            <div><span>Kontent strategiyasi</span><h2>Reja, ssenariy, nashr</h2></div>
+            <b>{currentMonthTitle}</b>
+          </div>
+          <div className="manager-os-table">
+            {latestContent.length ? latestContent.map((row) => (
+              <div key={row.id}>
+                <strong>{row.title}</strong>
+                <span>{formatDate(row.publish_date || row.created_at)} / {row.platform_primary || row.platform || "platforma"}</span>
+                <b>{row.status || "reja"}</b>
+              </div>
+            )) : <p className="manager-os-empty">Kontent reja hali to'ldirilmagan.</p>}
+          </div>
+        </article>
+
+        <article className="manager-os-card">
+          <div className="manager-os-card-head">
+            <div><span>Ads Lab</span><h2>Kampaniya va aksiya</h2></div>
+            <b>growth</b>
+          </div>
+          <div className="manager-os-table">
+            {latestCampaigns.length ? latestCampaigns.map((row) => (
+              <div key={row.id}>
+                <strong>{row.title}</strong>
+                <span>{row.platform || "ads"} / {formatMoney(row.daily_budget || row.budget || 0)}</span>
+                <b>{row.status || "active"}</b>
+              </div>
+            )) : <p className="manager-os-empty">Faol kampaniya yo'q. Aksiya yoki target reja kiriting.</p>}
+          </div>
+        </article>
+
+        <article className="manager-os-card">
+          <div className="manager-os-card-head">
+            <div><span>Mobilograf nazorati</span><h2>Production queue</h2></div>
+            <b>{productionQueue.length} task</b>
+          </div>
+          <div className="manager-os-table">
+            {productionQueue.length ? productionQueue.map((row) => (
+              <div key={row.id}>
+                <strong>{row.title}</strong>
+                <span>{formatDate(row.due_date || row.created_at)} / {row.priority || "normal"}</span>
+                <b>{taskStatusLabel(row.status)}</b>
+              </div>
+            )) : <p className="manager-os-empty">Mobilografga ochiq production topshiriq yo'q.</p>}
+          </div>
+        </article>
+      </section>
+
+      <section className="manager-os-bottom">
+        <article className="manager-os-card">
+          <div className="manager-os-card-head">
+            <div><span>Platforma pulse</span><h2>Instagram, Telegram, YouTube monitoring</h2></div>
+            <b>{platformPulse.length || 0} signal</b>
+          </div>
+          <div className="manager-os-platforms">
+            {platformPulse.length ? platformPulse.map((row) => (
+              <div key={row.name}>
+                <strong>{row.name}</strong>
+                <span>{row.posts} post / {row.stories} story / {row.reels} reels</span>
+                <i><em style={{ width: `${Math.min(100, Math.max(12, row.posts * 8 + row.stories * 2 + row.reels * 10))}%` }} /></i>
+              </div>
+            )) : <p className="manager-os-empty">Kunlik monitoring yozuvlari hali yo'q.</p>}
+          </div>
+        </article>
+
+        <article className="manager-os-card manager-os-principle">
+          <span>Yakuniy tamoyil</span>
+          <h2>SMM menejer natija uchun javob beradi.</h2>
+          <p>Mobilograf bajarilish uchun javob beradi. Har bir kontent, reklama va marketing faoliyati aloo brendbooki, qadriyatlari va uzoq muddatli strategiyasiga mos bo'lishi shart.</p>
+        </article>
+      </section>
+    </div>
+  );
+}
+
+const MANAGER_OS_LAB_MODULES = [
+  {
+    resource: "strategies",
+    title: "Strategiya",
+    subtitle: "Oylik maqsad, platforma strategiyasi, trend va bozor signal.",
+    icon: Sparkles,
+    tone: "violet",
+    fields: [
+      { key: "month_label", label: "Oy", type: "month", defaultValue: () => getMonthLabel(), required: true },
+      { key: "platform", label: "Platforma", type: "select", options: ["all", "Instagram", "Telegram", "YouTube", "TikTok"], defaultValue: "all" },
+      { key: "objective", label: "Oylik maqsad", type: "text", required: true },
+      { key: "strategy_text", label: "Strategiya", type: "textarea" },
+      { key: "trend_notes", label: "Trendlar", type: "textarea" },
+      { key: "market_notes", label: "Bozor yangiliklari", type: "textarea" },
+      { key: "status", label: "Status", type: "select", options: ["draft", "active", "done"], defaultValue: "draft" }
+    ]
+  },
+  {
+    resource: "blogger_partners",
+    title: "Bloger CRM",
+    subtitle: "Bloger, Telegram kanal va media hamkorlar narx/natija nazorati.",
+    icon: ContactRound,
+    tone: "cyan",
+    fields: [
+      { key: "partner_name", label: "Hamkor nomi", type: "text", required: true },
+      { key: "platform", label: "Platforma", type: "select", options: ["Instagram", "Telegram", "YouTube", "TikTok", "Media"], defaultValue: "Instagram" },
+      { key: "contact_url", label: "Kontakt / link", type: "text" },
+      { key: "price_amount", label: "Narx", type: "number", defaultValue: 0 },
+      { key: "status", label: "Status", type: "select", options: ["negotiation", "approved", "in_progress", "done", "rejected"], defaultValue: "negotiation" },
+      { key: "expected_result", label: "Kutilgan natija", type: "textarea" },
+      { key: "actual_result", label: "Real natija", type: "textarea" },
+      { key: "notes", label: "Izoh", type: "textarea" }
+    ]
+  },
+  {
+    resource: "competitor_reports",
+    title: "Raqobatchi tahlili",
+    subtitle: "Postlar, aksiya, format, kuchli va kuchsiz tomonlar.",
+    icon: Eye,
+    tone: "amber",
+    fields: [
+      { key: "competitor_name", label: "Raqobatchi", type: "text", required: true },
+      { key: "platform", label: "Platforma", type: "select", options: ["Instagram", "Telegram", "YouTube", "TikTok"], defaultValue: "Instagram" },
+      { key: "report_date", label: "Sana", type: "date", defaultValue: () => formatDate(new Date()) },
+      { key: "content_format", label: "Kontent formati", type: "text" },
+      { key: "campaign_notes", label: "Aksiya / kampaniya", type: "textarea" },
+      { key: "strengths_text", label: "Kuchli tomon", type: "textarea" },
+      { key: "weaknesses_text", label: "Kuchsiz tomon", type: "textarea" },
+      { key: "action_idea", label: "Biz uchun idea", type: "textarea" }
+    ]
+  },
+  {
+    resource: "audience_metrics",
+    title: "Auditoriya tahlili",
+    subtitle: "Reach, engagement, follower growth va platforma signali.",
+    icon: BarChart3,
+    tone: "sky",
+    fields: [
+      { key: "metric_date", label: "Sana", type: "date", defaultValue: () => formatDate(new Date()) },
+      { key: "platform", label: "Platforma", type: "select", options: ["Instagram", "Telegram", "YouTube", "TikTok"], defaultValue: "Instagram" },
+      { key: "reach_count", label: "Reach", type: "number", defaultValue: 0 },
+      { key: "engagement_count", label: "Engagement", type: "number", defaultValue: 0 },
+      { key: "follower_growth", label: "Follower growth", type: "number", defaultValue: 0 },
+      { key: "signal_text", label: "Signal / xulosa", type: "textarea" }
+    ]
+  },
+  {
+    resource: "creative_briefs",
+    title: "Kreativ brief",
+    subtitle: "Banner, post, story va reklama kreativi uchun topshiriq.",
+    icon: Image,
+    tone: "purple",
+    fields: [
+      { key: "title", label: "Brief nomi", type: "text", required: true },
+      { key: "creative_type", label: "Kreativ turi", type: "select", options: ["banner", "post", "story", "reklama", "cover"], defaultValue: "banner" },
+      { key: "platform", label: "Platforma", type: "select", options: ["Instagram", "Telegram", "YouTube", "TikTok", "All"], defaultValue: "Instagram" },
+      { key: "brief_text", label: "Topshiriq", type: "textarea" },
+      { key: "deadline_date", label: "Deadline", type: "date" },
+      { key: "status", label: "Status", type: "select", options: ["brief", "in_progress", "review", "done"], defaultValue: "brief" }
+    ]
+  },
+  {
+    resource: "brand_kpi_scores",
+    title: "Brand KPI",
+    subtitle: "Brand sifati, kontent sifati, reklama natijasi va deadline intizomi.",
+    icon: ShieldCheck,
+    tone: "green",
+    fields: [
+      { key: "month_label", label: "Oy", type: "month", defaultValue: () => getMonthLabel(), required: true },
+      { key: "brand_quality_score", label: "Brand sifati", type: "number", defaultValue: 0 },
+      { key: "content_quality_score", label: "Kontent sifati", type: "number", defaultValue: 0 },
+      { key: "ads_result_score", label: "Reklama natijasi", type: "number", defaultValue: 0 },
+      { key: "deadline_score", label: "Deadline intizomi", type: "number", defaultValue: 0 },
+      { key: "notes", label: "Xulosa", type: "textarea" }
+    ]
+  },
+  {
+    resource: "approval_flows",
+    title: "Tasdiqlash oqimi",
+    subtitle: "Menejer, marketing rahbari va ijrochi bosqichlari.",
+    icon: ClipboardList,
+    tone: "slate",
+    fields: [
+      { key: "entity_type", label: "Entity turi", type: "select", options: ["content", "campaign", "creative", "task"], defaultValue: "content" },
+      { key: "entity_id", label: "Entity ID", type: "number" },
+      { key: "current_step", label: "Bosqich", type: "select", options: ["manager", "marketing_head", "mobilograf", "posting"], defaultValue: "manager" },
+      { key: "status", label: "Status", type: "select", options: ["pending", "approved", "rejected", "done"], defaultValue: "pending" },
+      { key: "notes", label: "Izoh", type: "textarea" }
+    ]
+  }
+];
+
+function buildManagerLabForm(config) {
+  return Object.fromEntries(config.fields.map((field) => [
+    field.key,
+    typeof field.defaultValue === "function" ? field.defaultValue() : field.defaultValue ?? ""
+  ]));
+}
+
+function renderManagerLabValue(value) {
+  if (value === null || value === undefined || value === "") return "-";
+  if (typeof value === "number") return Number(value).toLocaleString();
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value)) return formatDateTime(value);
+  return String(value);
+}
+
+function ManagerOsLabPage({ onToast }) {
+  const [activeResource, setActiveResource] = useState(MANAGER_OS_LAB_MODULES[0].resource);
+  const activeConfig = MANAGER_OS_LAB_MODULES.find((item) => item.resource === activeResource) || MANAGER_OS_LAB_MODULES[0];
+  const [rows, setRows] = useState([]);
+  const [snapshot, setSnapshot] = useState({});
+  const [form, setForm] = useState(() => buildManagerLabForm(activeConfig));
+  const [editingRow, setEditingRow] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const onToastRef = useRef(onToast);
+
+  const visibleFields = activeConfig.fields.slice(0, 5);
+  const activeCount = Number(snapshot?.[activeResource]?.count || rows.length || 0);
+  const labStatusCounts = useMemo(() => {
+    return rows.reduce((acc, row) => {
+      const status = String(row.status || "draft").toLowerCase();
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
+  }, [rows]);
+  const strategyPulse = useMemo(() => {
+    const currentRows = rows.filter((row) => row.month_label === getMonthLabel());
+    const platforms = [...new Set(rows.map((row) => row.platform).filter(Boolean))];
+    const activeRows = rows.filter((row) => String(row.status || "").toLowerCase() === "active");
+    return {
+      currentRows,
+      platforms,
+      activeRows,
+      latest: rows.slice(0, 3)
+    };
+  }, [rows]);
+  const bloggerPulse = useMemo(() => {
+    const totalBudget = rows.reduce((sum, row) => sum + Number(row.price_amount || 0), 0);
+    const resultReady = rows.filter((row) => String(row.actual_result || "").trim()).length;
+    const followUps = rows.filter((row) => /follow|follow-up|qayta|bog'lan|bog‘lan|aloqa/i.test(String(row.notes || ""))).length;
+    return {
+      totalBudget,
+      resultReady,
+      followUps,
+      activePipeline: rows.filter((row) => ["negotiation", "approved", "in_progress"].includes(String(row.status || "").toLowerCase())),
+      latest: rows.slice(0, 4)
+    };
+  }, [rows]);
+
+  const competitorPulse = useMemo(() => {
+    const platforms = [...new Set(rows.map((row) => row.platform).filter(Boolean))];
+    const competitors = [...new Set(rows.map((row) => row.competitor_name).filter(Boolean))];
+    const formats = rows.reduce((acc, row) => {
+      const format = String(row.content_format || "format yo'q").trim();
+      acc[format] = (acc[format] || 0) + 1;
+      return acc;
+    }, {});
+    const topFormat = Object.entries(formats).sort((a, b) => b[1] - a[1])[0];
+    const campaignSignals = rows.filter((row) => String(row.campaign_notes || "").trim()).length;
+    const actionIdeas = rows.filter((row) => String(row.action_idea || "").trim());
+    return {
+      platforms,
+      competitors,
+      topFormat,
+      campaignSignals,
+      actionIdeas,
+      latest: rows.slice(0, 4)
+    };
+  }, [rows]);
+  const audiencePulse = useMemo(() => {
+    const totalReach = rows.reduce((sum, row) => sum + Number(row.reach_count || 0), 0);
+    const totalEngagement = rows.reduce((sum, row) => sum + Number(row.engagement_count || 0), 0);
+    const followerGrowth = rows.reduce((sum, row) => sum + Number(row.follower_growth || 0), 0);
+    const platformMap = rows.reduce((acc, row) => {
+      const platform = row.platform || "Platforma";
+      if (!acc[platform]) acc[platform] = { platform, reach: 0, engagement: 0, growth: 0, count: 0 };
+      acc[platform].reach += Number(row.reach_count || 0);
+      acc[platform].engagement += Number(row.engagement_count || 0);
+      acc[platform].growth += Number(row.follower_growth || 0);
+      acc[platform].count += 1;
+      return acc;
+    }, {});
+    const platformRows = Object.values(platformMap).sort((a, b) => (b.reach + b.engagement + b.growth) - (a.reach + a.engagement + a.growth));
+    return {
+      totalReach,
+      totalEngagement,
+      followerGrowth,
+      engagementRate: totalReach ? Math.round((totalEngagement / Math.max(totalReach, 1)) * 100) : 0,
+      platformRows,
+      latestSignals: rows.filter((row) => String(row.signal_text || "").trim()).slice(0, 4)
+    };
+  }, [rows]);
+  const labCommandTitle = {
+    strategies: "Oy strategiyasi va platforma fokuslari",
+    blogger_partners: "Hamkorlar pipeline va natija nazorati",
+    competitor_reports: "Raqobatchi signallari va idea bank",
+    audience_metrics: "Auditoriya signal va platforma pulse"
+  }[activeResource] || "Modul holati";
+
+  useEffect(() => {
+    onToastRef.current = onToast;
+  }, [onToast]);
+
+  const loadRows = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [listRes, snapshotRes] = await Promise.all([
+        api.list(`/api/manager-os/${activeResource}`, { limit: 120 }).catch(() => []),
+        api.list("/api/manager-os").catch(() => ({}))
+      ]);
+      setRows(listRes || []);
+      setSnapshot(snapshotRes || {});
+    } catch (err) {
+      onToastRef.current?.(err.message || "Manager OS Lab ma'lumotlari olinmadi", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [activeResource]);
+
+  useEffect(() => {
+    setForm(buildManagerLabForm(activeConfig));
+    setEditingRow(null);
+    loadRows();
+  }, [activeConfig, loadRows]);
+
+  function setField(key, value) {
+    setForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function resetForm() {
+    setForm(buildManagerLabForm(activeConfig));
+    setEditingRow(null);
+  }
+
+  function applyLabPreset(kind) {
+    if (kind === "strategy-month") {
+      setForm((prev) => ({
+        ...prev,
+        month_label: getMonthLabel(),
+        platform: "all",
+        objective: prev.objective || "Oy bo'yicha asosiy SMM maqsad",
+        strategy_text: prev.strategy_text || "Platformalar kesimida kontent, reklama va brand signalni bir ritmga keltirish.",
+        trend_notes: prev.trend_notes || "Trendlar: qisqa video, foydali post, mijoz hikoyalari, xizmatlar kontenti.",
+        market_notes: prev.market_notes || "Bozor signali: servis, nasiya, to'lov xizmatlari va ishonchli xarid tajribasi.",
+        status: "active"
+      }));
+      return;
+    }
+    if (kind === "blogger-followup") {
+      setForm((prev) => ({
+        ...prev,
+        status: prev.status || "negotiation",
+        expected_result: prev.expected_result || "Reach, obuna, murojaat va sotuv signali.",
+        notes: prev.notes || `Follow-up: ${formatDate(new Date())} / kelishuv, narx va kontent formatini aniqlash.`
+      }));
+      return;
+    }
+    if (kind === "competitor-idea") {
+      setForm((prev) => ({
+        ...prev,
+        platform: prev.platform || "Instagram",
+        report_date: prev.report_date || formatDate(new Date()),
+        content_format: prev.content_format || "Reels / post / aksiya",
+        campaign_notes: prev.campaign_notes || "Raqobatchi aksiya yoki kontent signalini yozing.",
+        action_idea: prev.action_idea || "Biz uchun olinadigan idea va keyingi kontent yo'nalishi."
+      }));
+      return;
+    }
+    if (kind === "audience-signal") {
+      setForm((prev) => ({
+        ...prev,
+        metric_date: prev.metric_date || formatDate(new Date()),
+        platform: prev.platform || "Instagram",
+        signal_text: prev.signal_text || "Auditoriya signali, o'sish sababi va keyingi tavsiya."
+      }));
+    }
+  }
+
+  function startEdit(row) {
+    setEditingRow(row);
+    setForm(Object.fromEntries(activeConfig.fields.map((field) => [
+      field.key,
+      row[field.key] ?? (typeof field.defaultValue === "function" ? field.defaultValue() : field.defaultValue ?? "")
+    ])));
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function buildPayload() {
+    return Object.fromEntries(activeConfig.fields.map((field) => {
+      const raw = form[field.key];
+      if (field.type === "number") return [field.key, Number(raw || 0)];
+      return [field.key, raw ?? ""];
+    }));
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const missing = activeConfig.fields.find((field) => field.required && !String(form[field.key] || "").trim());
+    if (missing) {
+      onToast(`${missing.label} majburiy`, "error");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const payload = buildPayload();
+      if (editingRow?.id) {
+        await api.update(`manager-os/${activeResource}`, editingRow.id, payload);
+        onToast("Manager OS yozuvi yangilandi", "success");
+      } else {
+        await api.post(`/api/manager-os/${activeResource}`, payload);
+        onToast("Manager OS yozuvi saqlandi", "success");
+      }
+      await loadRows();
+      resetForm();
+    } catch (err) {
+      onToast(err.message || "Saqlashda xatolik", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeRow(row) {
+    const ok = window.confirm("Rostdan ham o'chirilsinmi?");
+    if (!ok) return;
+    try {
+      await api.remove(`manager-os/${activeResource}`, row.id);
+      await loadRows();
+      onToast("Manager OS yozuvi o'chirildi", "success", { deleteCenter: true });
+    } catch (err) {
+      onToast(err.message || "O'chirishda xatolik", "error");
+    }
+  }
+
+  return (
+    <div className="manager-lab-page">
+      <section className="manager-lab-hero">
+        <div>
+          <span><Sparkles size={16} /> Manager OS Lab</span>
+          <h1>Strategiya, CRM, tahlil va KPI modullari</h1>
+          <p>Bu sahifa yangi Manager OS jadvallarini real ish oynasiga aylantiradi: reja tuzish, tahlil kiritish, hamkorlarni nazorat qilish va brand KPI baholash.</p>
+        </div>
+        <strong>{activeCount}</strong>
+      </section>
+
+      <div className="manager-lab-tabs">
+        {MANAGER_OS_LAB_MODULES.map((module) => {
+          const Icon = module.icon;
+          const count = Number(snapshot?.[module.resource]?.count || 0);
+          return (
+            <button key={module.resource} type="button" className={activeResource === module.resource ? "active" : ""} onClick={() => setActiveResource(module.resource)}>
+              <Icon size={16} />
+              <span>{module.title}</span>
+              <b>{count}</b>
+            </button>
+          );
+        })}
+      </div>
+
+      <section className={`manager-lab-command manager-lab-command-${activeResource}`}>
+        <div className="manager-lab-command-head">
+          <div>
+            <span>{activeConfig.title} command</span>
+            <h2>{labCommandTitle}</h2>
+          </div>
+          {activeResource === "strategies" ? (
+            <button type="button" className="btn secondary" onClick={() => applyLabPreset("strategy-month")}>Oylik strategiya preset</button>
+          ) : activeResource === "blogger_partners" ? (
+            <button type="button" className="btn secondary" onClick={() => applyLabPreset("blogger-followup")}>Follow-up preset</button>
+          ) : activeResource === "competitor_reports" ? (
+            <button type="button" className="btn secondary" onClick={() => applyLabPreset("competitor-idea")}>Idea signal preset</button>
+          ) : activeResource === "audience_metrics" ? (
+            <button type="button" className="btn secondary" onClick={() => applyLabPreset("audience-signal")}>Auditoriya signal preset</button>
+          ) : (
+            <strong>{rows.length} yozuv</strong>
+          )}
+        </div>
+
+        {activeResource === "strategies" ? (
+          <div className="manager-lab-command-grid strategy">
+            <div className="manager-lab-metric"><span>Joriy oy strategiya</span><strong>{strategyPulse.currentRows.length}</strong><small>{getMonthTitle(getMonthLabel())}</small></div>
+            <div className="manager-lab-metric"><span>Faol strategiya</span><strong>{strategyPulse.activeRows.length}</strong><small>active status</small></div>
+            <div className="manager-lab-metric"><span>Platforma qamrovi</span><strong>{strategyPulse.platforms.length}</strong><small>{strategyPulse.platforms.slice(0, 3).join(", ") || "hali yo'q"}</small></div>
+            <div className="manager-lab-action-list">
+              <span>So'nggi strategiyalar</span>
+              {strategyPulse.latest.length ? strategyPulse.latest.map((row) => (
+                <button key={`strategy-pulse-${row.id}`} type="button" onClick={() => startEdit(row)}>
+                  <strong>{row.objective}</strong>
+                  <small>{row.month_label} / {row.platform} / {row.status}</small>
+                </button>
+              )) : <p>Strategiya hali kiritilmagan.</p>}
+            </div>
+          </div>
+        ) : activeResource === "blogger_partners" ? (
+          <div className="manager-lab-command-grid blogger">
+            <div className="manager-lab-metric"><span>Pipeline</span><strong>{bloggerPulse.activePipeline.length}</strong><small>negotiation / approved / progress</small></div>
+            <div className="manager-lab-metric"><span>Kelishuv budjeti</span><strong>{formatMoney(bloggerPulse.totalBudget)}</strong><small>hamkorlar narxi</small></div>
+            <div className="manager-lab-metric"><span>Natija yozilgan</span><strong>{bloggerPulse.resultReady}</strong><small>{bloggerPulse.followUps} follow-up signal</small></div>
+            <div className="manager-lab-pipeline">
+              {["negotiation", "approved", "in_progress", "done", "rejected"].map((status) => (
+                <span key={status}><b>{status}</b><strong>{labStatusCounts[status] || 0}</strong></span>
+              ))}
+            </div>
+            <div className="manager-lab-action-list">
+              <span>Hamkorlar CRM</span>
+              {bloggerPulse.latest.length ? bloggerPulse.latest.map((row) => (
+                <button key={`blogger-pulse-${row.id}`} type="button" onClick={() => startEdit(row)}>
+                  <strong>{row.partner_name}</strong>
+                  <small>{row.platform} / {formatMoney(row.price_amount)} / {row.status}</small>
+                </button>
+              )) : <p>Hamkor hali kiritilmagan.</p>}
+            </div>
+          </div>
+        ) : activeResource === "competitor_reports" ? (
+          <div className="manager-lab-command-grid competitor">
+            <div className="manager-lab-metric"><span>Raqobatchilar</span><strong>{competitorPulse.competitors.length}</strong><small>{competitorPulse.competitors.slice(0, 2).join(", ") || "hali yo'q"}</small></div>
+            <div className="manager-lab-metric"><span>Top format</span><strong>{competitorPulse.topFormat ? competitorPulse.topFormat[1] : 0}</strong><small>{competitorPulse.topFormat ? competitorPulse.topFormat[0] : "format yo'q"}</small></div>
+            <div className="manager-lab-metric"><span>Aksiya signali</span><strong>{competitorPulse.campaignSignals}</strong><small>{competitorPulse.platforms.length} platforma kuzatuvda</small></div>
+            <div className="manager-lab-action-list">
+              <span>Idea bank</span>
+              {competitorPulse.actionIdeas.length ? competitorPulse.actionIdeas.slice(0, 4).map((row) => (
+                <button key={`competitor-idea-${row.id}`} type="button" onClick={() => startEdit(row)}>
+                  <strong>{row.action_idea}</strong>
+                  <small>{row.competitor_name} / {row.platform} / {formatDate(row.report_date)}</small>
+                </button>
+              )) : <p>Raqobatchidan olinadigan idea hali yozilmagan.</p>}
+            </div>
+            <div className="manager-lab-signal-list">
+              {competitorPulse.latest.length ? competitorPulse.latest.map((row) => (
+                <button key={`competitor-latest-${row.id}`} type="button" onClick={() => startEdit(row)}>
+                  <strong>{row.competitor_name}</strong>
+                  <span>{row.content_format || "format yo'q"}</span>
+                  <small>{row.strengths_text || row.weaknesses_text || row.campaign_notes || "signal yo'q"}</small>
+                </button>
+              )) : <p>Kuzatuv yozuvi hali yo'q.</p>}
+            </div>
+          </div>
+        ) : activeResource === "audience_metrics" ? (
+          <div className="manager-lab-command-grid audience">
+            <div className="manager-lab-metric"><span>Reach</span><strong>{audiencePulse.totalReach.toLocaleString()}</strong><small>oylik jamlanma</small></div>
+            <div className="manager-lab-metric"><span>Engagement</span><strong>{audiencePulse.totalEngagement.toLocaleString()}</strong><small>{audiencePulse.engagementRate}% nisbat</small></div>
+            <div className="manager-lab-metric"><span>Follower growth</span><strong>{audiencePulse.followerGrowth.toLocaleString()}</strong><small>platformalar bo'yicha</small></div>
+            <div className="manager-lab-platform-pulse">
+              {audiencePulse.platformRows.length ? audiencePulse.platformRows.slice(0, 4).map((row) => (
+                <button key={`audience-platform-${row.platform}`} type="button">
+                  <strong>{row.platform}</strong>
+                  <span>Reach {row.reach.toLocaleString()} / Eng {row.engagement.toLocaleString()}</span>
+                  <i><em style={{ width: `${Math.min(100, Math.max(10, (row.reach + row.engagement + row.growth) / Math.max(1, audiencePulse.totalReach + audiencePulse.totalEngagement + audiencePulse.followerGrowth) * 100))}%` }} /></i>
+                </button>
+              )) : <p>Platforma metrikalari hali yo'q.</p>}
+            </div>
+            <div className="manager-lab-action-list">
+              <span>Auditoriya signallari</span>
+              {audiencePulse.latestSignals.length ? audiencePulse.latestSignals.map((row) => (
+                <button key={`audience-signal-${row.id}`} type="button" onClick={() => startEdit(row)}>
+                  <strong>{row.signal_text}</strong>
+                  <small>{row.platform} / {formatDate(row.metric_date)}</small>
+                </button>
+              )) : <p>Signal xulosasi hali yozilmagan.</p>}
+            </div>
+          </div>
+        ) : (
+          <div className="manager-lab-command-grid generic">
+            <div className="manager-lab-metric"><span>Yozuvlar</span><strong>{rows.length}</strong><small>{activeConfig.title}</small></div>
+            <div className="manager-lab-metric"><span>Oxirgi holat</span><strong>{Object.keys(labStatusCounts).length}</strong><small>status turi</small></div>
+            <div className="manager-lab-action-list">
+              <span>So'nggi yozuvlar</span>
+              {rows.slice(0, 3).map((row) => (
+                <button key={`generic-pulse-${row.id}`} type="button" onClick={() => startEdit(row)}>
+                  <strong>{renderManagerLabValue(row[visibleFields[0]?.key])}</strong>
+                  <small>{activeConfig.title}</small>
+                </button>
+              ))}
+              {!rows.length ? <p>Bu modul hali bo'sh.</p> : null}
+            </div>
+          </div>
+        )}
+      </section>
+
+      <section className="manager-lab-layout">
+        <article className="manager-lab-card">
+          <SectionTitle
+            title={editingRow ? `${activeConfig.title} tahrirlash` : `${activeConfig.title} qo'shish`}
+            desc={activeConfig.subtitle}
+            right={editingRow ? <button type="button" className="btn secondary" onClick={resetForm}>Bekor qilish</button> : null}
+          />
+          <form className="form-grid manager-lab-form" onSubmit={handleSubmit}>
+            {activeConfig.fields.map((field) => (
+              <label key={field.key} className={field.type === "textarea" ? "full-col" : ""}>
+                <span>{field.label}</span>
+                {field.type === "textarea" ? (
+                  <textarea value={form[field.key] || ""} onChange={(e) => setField(field.key, e.target.value)} rows={3} />
+                ) : field.type === "select" ? (
+                  <select value={form[field.key] || ""} onChange={(e) => setField(field.key, e.target.value)}>
+                    {(field.options || []).map((option) => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                ) : (
+                  <input type={field.type || "text"} value={form[field.key] || ""} onChange={(e) => setField(field.key, e.target.value)} required={!!field.required} />
+                )}
+              </label>
+            ))}
+            <div className="manager-lab-submit">
+              <button type="submit" className="btn primary" disabled={saving}>{saving ? "Saqlanmoqda..." : editingRow ? "Yangilash" : "Saqlash"}</button>
+              <button type="button" className="btn secondary" onClick={resetForm}>Tozalash</button>
+            </div>
+          </form>
+        </article>
+
+        <article className="manager-lab-card manager-lab-list">
+          <SectionTitle title={`${activeConfig.title} ro'yxati`} desc={loading ? "Yuklanmoqda..." : `${rows.length} ta yozuv`} />
+          {!loading && !rows.length ? (
+            <div className="manager-lab-empty">
+              <Sparkles size={20} />
+              <strong>Birinchi {activeConfig.title.toLowerCase()} yozuvini kiriting</strong>
+              <span>{activeConfig.subtitle}</span>
+              <button type="button" className="btn secondary" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}>Formaga o'tish</button>
+            </div>
+          ) : null}
+          <div className="table-wrap desktop-table">
+            <table>
+              <thead>
+                <tr>
+                  {visibleFields.map((field) => <th key={field.key}>{field.label}</th>)}
+                  <th>Amallar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length ? rows.map((row) => (
+                  <tr key={row.id}>
+                    {visibleFields.map((field) => <td key={field.key}>{renderManagerLabValue(row[field.key])}</td>)}
+                    <td>
+                      <div className="table-actions">
+                        <button type="button" className="btn tiny secondary" onClick={() => startEdit(row)}><Pencil size={14} /> Edit</button>
+                        <button type="button" className="btn tiny danger" onClick={() => removeRow(row)}><Trash2 size={14} /> Delete</button>
+                      </div>
+                    </td>
+                  </tr>
+                )) : loading ? <tr><td colSpan={visibleFields.length + 1} className="empty-cell">Yuklanmoqda...</td></tr> : null}
+              </tbody>
+            </table>
+          </div>
+          <div className="mobile-card-list">
+            {rows.length ? rows.map((row) => (
+              <div key={`manager-lab-${row.id}`} className="mobile-record-card">
+                <div className="mobile-record-head">
+                  <div className="mobile-record-title">
+                    <strong>{renderManagerLabValue(row[visibleFields[0]?.key])}</strong>
+                    <span>{activeConfig.title}</span>
+                  </div>
+                </div>
+                <div className="mobile-record-grid">
+                  {visibleFields.slice(1).map((field) => (
+                    <div key={field.key} className="mobile-record-field"><label>{field.label}</label><div>{renderManagerLabValue(row[field.key])}</div></div>
+                  ))}
+                </div>
+                <div className="mobile-record-actions">
+                  <button type="button" className="btn tiny secondary" onClick={() => startEdit(row)}><Pencil size={14} /> Edit</button>
+                  <button type="button" className="btn tiny danger" onClick={() => removeRow(row)}><Trash2 size={14} /> Delete</button>
+                </div>
+              </div>
+            )) : loading ? <div className="mobile-record-card empty">Yuklanmoqda...</div> : null}
+          </div>
+        </article>
+      </section>
+    </div>
+  );
+}
+
+function ContentPage({ users = [], branches = [], campaigns = [], managerOSData = {}, settings, user, onToast, reload }) {
   const [selectedMonth, setSelectedMonth] = useState(getMonthLabel());
   const [rows, setRows] = useState([]);
   const [tableSearch, setTableSearch] = useState("");
@@ -2087,6 +3088,15 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
   const [calendarPlatformFilter, setCalendarPlatformFilter] = useState("all");
   const [calendarBranchFilter, setCalendarBranchFilter] = useState("all");
   const [bulkStatus, setBulkStatus] = useState("jarayonda");
+  const [plannerForm, setPlannerForm] = useState({
+    title: "",
+    publish_date: `${getMonthLabel()}-01`,
+    publish_time: "10:00",
+    platform: "Instagram",
+    content_type: "post",
+    rubric: "rubrika-yoq",
+    note: ""
+  });
 
   const emptyForm = {
     title: "",
@@ -2104,6 +3114,11 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     difficulty_level: "sodda",
     work_url: "",
     approval_comment: "",
+    product_name: "",
+    video_type: "",
+    hook_text: "",
+    main_body_text: "",
+    cta_text: "",
     content_template: "custom",
     idea_score: 0,
     visual_score: 0,
@@ -2113,11 +3128,31 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
   };
 
   const [form, setForm] = useState(emptyForm);
+  const [mobilografProgress, setMobilografProgress] = useState({ final_url: "", approval_comment: "" });
   const isVideo = form.content_type === "video";
   const canCreateContent = canDoAction(user, "content", "create");
   const canEditContent = canDoAction(user, "content", "edit");
   const canDeleteContent = canDoAction(user, "content", "delete");
   const formLocked = editRow ? !canEditContent : !canCreateContent;
+  const isMobilografContentOnly = isMobilografUser(user) && user?.role !== "admin";
+
+  useEffect(() => {
+    setPlannerForm((prev) => (
+      String(prev.publish_date || "").startsWith(selectedMonth)
+        ? prev
+        : { ...prev, publish_date: `${selectedMonth}-01` }
+    ));
+  }, [selectedMonth]);
+  useEffect(() => {
+    if (isMobilografContentOnly && viewMode !== "calendar") setViewMode("calendar");
+  }, [isMobilografContentOnly, viewMode]);
+  useEffect(() => {
+    if (!viewRow || !isMobilografContentOnly) return;
+    setMobilografProgress({
+      final_url: viewRow.final_url || "",
+      approval_comment: ""
+    });
+  }, [isMobilografContentOnly, viewRow]);
   const dueSoonTasks = [];
   const overdueTasks = [];
   const tasks = [];
@@ -2205,6 +3240,26 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
   const calendarPlatforms = useMemo(() => {
     return [...new Set(visibleRows.flatMap((row) => splitCellValues(row.platform)))].filter(Boolean).sort();
   }, [visibleRows]);
+  const calendarPlatformTabs = useMemo(() => {
+    return ["all", ...new Set(["Instagram", "Telegram", "YouTube", ...calendarPlatforms].filter(Boolean))];
+  }, [calendarPlatforms]);
+  const plannerRows = useMemo(() => sortRowsByDate(rows, "publish_date"), [rows]);
+  const plannerShootDays = useMemo(() => {
+    const dates = new Set();
+    plannerRows.forEach((row) => {
+      if (/video|reels|mobi-video/i.test(String(row.content_type || ""))) {
+        const date = formatDate(row.publish_date);
+        if (date !== "-") dates.add(date);
+      }
+    });
+    return dates.size;
+  }, [plannerRows]);
+  const plannerTemplates = [
+    { title: "Haftalik post", platform: "Instagram", content_type: "post", rubric: "foydali-malumot", note: "Haftalik foydali post uchun qisqa reja." },
+    { title: "Aksiya e'loni", platform: "Telegram", content_type: "post", rubric: "aksiyalar", note: "Aksiya, chegirma yoki konkurs e'loni." },
+    { title: "Story signal", platform: "Instagram", content_type: "story", rubric: "trend-video", note: "Story uchun tezkor signal yoki reminder." },
+    { title: "Syomka kuni", platform: "Instagram", content_type: "reels", rubric: "xodimlar-bilan", note: "Mobilograf uchun suratga olish / reels reja." }
+  ];
   const weeklyLoad = useMemo(() => {
     const stats = new Map();
     calendarRows.forEach((row) => {
@@ -2218,10 +3273,36 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     });
     return [...stats.entries()].map(([label, count]) => ({ label, count }));
   }, [calendarRows, selectedMonth]);
+  const weeklyReportRows = useMemo(() => {
+    const currentCampaigns = (campaigns || []).filter((row) => {
+      const start = formatDate(row.start_at || row.start_date);
+      const end = formatDate(row.end_at || row.end_date);
+      return start.startsWith(selectedMonth) || end.startsWith(selectedMonth);
+    });
+    const scriptRows = rows.filter((row) => row.hook_text || row.main_body_text || row.cta_text || row.scenario_text || row.video_type);
+    const creativeRows = managerOSData?.creative_briefs?.rows || [];
+    const audienceRows = managerOSData?.audience_metrics?.rows || [];
+    const bloggerRows = managerOSData?.blogger_partners?.rows || [];
+    const campaignBriefRows = managerOSData?.campaign_briefs?.rows || [];
+    const adsRows = managerOSData?.ad_budgets?.rows || [];
+    const weeklyMap = [
+      { label: "Kontent + ssenariy", share: 25, value: scriptRows.length || rows.length, hint: `${scriptRows.length} ssenariy / ${rows.length} reja`, tone: "blue" },
+      { label: "Kampaniya + aksiya", share: 20, value: campaignBriefRows.length || currentCampaigns.length, hint: `${currentCampaigns.length} kampaniya`, tone: "fuchsia" },
+      { label: "Ads + target", share: 20, value: adsRows.length || currentCampaigns.length, hint: `${currentCampaigns.reduce((sum, row) => sum + Number(row.lead_count || row.leads || 0), 0)} lid`, tone: "green" },
+      { label: "Dizayn + kreativ", share: 15, value: creativeRows.length, hint: `${creativeRows.length} brief`, tone: "purple" },
+      { label: "Platforma rivoji", share: 10, value: Object.keys(platformMix).length, hint: `${Object.keys(platformMix).length} platforma`, tone: "cyan" },
+      { label: "Analitika", share: 5, value: audienceRows.length, hint: `${audienceRows.length} signal`, tone: "sky" },
+      { label: "Blogerlar", share: 5, value: bloggerRows.length, hint: `${bloggerRows.length} hamkor`, tone: "amber" }
+    ];
+    return weeklyMap.map((item) => ({
+      ...item,
+      readiness: Math.min(100, Math.round((Number(item.value || 0) / Math.max(1, Math.ceil(item.share / 10))) * 100))
+    }));
+  }, [campaigns, managerOSData, platformMix, rows, selectedMonth]);
   const emptyCalendarDays = useMemo(() => {
-    const days = buildMonthCalendar(selectedMonth, calendarRows, "publish_date").filter((cell) => !cell.empty);
+    const days = buildMonthCalendar(selectedMonth, plannerRows, "publish_date").filter((cell) => !cell.empty);
     return days.filter((cell) => !cell.items.length).length;
-  }, [selectedMonth, calendarRows]);
+  }, [selectedMonth, plannerRows]);
 
   async function loadMonth(monthValue = selectedMonth) {
     try {
@@ -2243,9 +3324,146 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
+  function setPlannerField(key, value) {
+    setPlannerForm((prev) => ({ ...prev, [key]: value }));
+  }
+
   function resetForm() {
     setForm(emptyForm);
     setEditRow(null);
+  }
+
+  function buildPlannerPayload(source = {}, overrides = {}) {
+    const title = overrides.title ?? source.title ?? plannerForm.title;
+    const publishDate = overrides.publish_date ?? source.publish_date ?? plannerForm.publish_date;
+    const platform = overrides.platform ?? source.platform ?? plannerForm.platform;
+    const contentType = overrides.content_type ?? source.content_type ?? plannerForm.content_type;
+    const rubric = overrides.rubric ?? source.rubric ?? plannerForm.rubric;
+    const note = overrides.note ?? source.approval_comment ?? plannerForm.note;
+    const time = overrides.publish_time ?? (source.id ? "" : plannerForm.publish_time);
+    const noteWithTime = [time ? `Vaqt: ${time}` : "", note].filter(Boolean).join(" / ");
+
+    return {
+      title: String(title || "").trim(),
+      publish_date: publishDate || null,
+      status: overrides.status ?? source.status ?? "reja",
+      platform: platform || "Instagram",
+      content_type: contentType || "post",
+      rubric: rubric || "rubrika-yoq",
+      assigned_user_id: source.assigned_user_id || null,
+      video_editor_user_id: source.video_editor_user_id || null,
+      video_face_user_id: source.video_face_user_id || null,
+      bonus_enabled: false,
+      proposal_count: 0,
+      approved_count: 0,
+      difficulty_level: "bonussiz",
+      final_url: source.final_url || "",
+      notes: source.notes || "",
+      branch_ids_json: Array.isArray(source.branch_ids_json) ? source.branch_ids_json : [],
+      approval_comment: noteWithTime || source.approval_comment || "",
+      product_name: source.product_name || "",
+      video_type: source.video_type || contentType || "",
+      hook_text: source.hook_text || "",
+      main_body_text: source.main_body_text || source.scenario_text || "",
+      cta_text: source.cta_text || "",
+      scenario_text: source.scenario_text || source.main_body_text || "",
+      content_template: source.content_template || "monthly_planner",
+      idea_score: Number(source.idea_score || 0),
+      visual_score: Number(source.visual_score || 0),
+      editing_score: Number(source.editing_score || 0),
+      result_score: Number(source.result_score || 0),
+      reach_value: Number(source.reach_value || 0)
+    };
+  }
+
+  async function quickAddPlannerItem(e) {
+    e.preventDefault();
+    if (!canCreateContent) {
+      onToast("Sizda kontent qo'shish ruxsati yo'q", "error");
+      return;
+    }
+    const payload = buildPlannerPayload();
+    if (!payload.title || !payload.publish_date) {
+      onToast("Kontent nomi va sana majburiy", "error");
+      return;
+    }
+    try {
+      setSaving(true);
+      await api.create("content", payload);
+      await loadMonth(selectedMonth);
+      await reload();
+      setPlannerForm((prev) => ({ ...prev, title: "", note: "" }));
+      onToast("Oylik rejaga kontent qo'shildi", "success", { center: true });
+    } catch (err) {
+      onToast(err.message || "Oylik rejaga qo'shib bo'lmadi", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function movePlannerItem(id, nextDate) {
+    if (!canEditContent) {
+      onToast("Sizda kontent sanasini o'zgartirish ruxsati yo'q", "error");
+      return;
+    }
+    const row = rows.find((item) => Number(item.id) === Number(id));
+    if (!row) return;
+    try {
+      await api.update("content", id, {
+        ...row,
+        publish_date: nextDate,
+        assigned_user_id: row.assigned_user_id || null,
+        video_editor_user_id: row.video_editor_user_id || null,
+        video_face_user_id: row.video_face_user_id || null,
+        branch_ids_json: Array.isArray(row.branch_ids_json) ? row.branch_ids_json : [],
+        approval_comment: row.approval_comment || ""
+      });
+      await loadMonth(selectedMonth);
+      await reload();
+      onToast("Kontent boshqa sanaga o'tkazildi", "success", { center: true });
+    } catch (err) {
+      onToast(err.message || "Sanani o'zgartirib bo'lmadi", "error");
+    }
+  }
+
+  async function duplicatePlannerItem(row) {
+    if (!canCreateContent) {
+      onToast("Sizda kontent nusxalash ruxsati yo'q", "error");
+      return;
+    }
+    const sourceDate = new Date(`${formatDate(row.publish_date)}T00:00:00`);
+    if (!Number.isNaN(sourceDate.getTime())) sourceDate.setDate(sourceDate.getDate() + 1);
+    const defaultDate = Number.isNaN(sourceDate.getTime()) ? `${selectedMonth}-01` : formatDate(sourceDate);
+    const nextDate = window.prompt("Qaysi sanaga nusxalansin? YYYY-MM-DD", defaultDate);
+    if (!nextDate) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(nextDate)) {
+      onToast("Sana formati noto'g'ri. Masalan: 2026-06-15", "error");
+      return;
+    }
+    try {
+      const payload = buildPlannerPayload(row, {
+        publish_date: nextDate,
+        title: `${row.title || "Kontent"} copy`
+      });
+      await api.create("content", payload);
+      if (!nextDate.startsWith(selectedMonth)) setSelectedMonth(nextDate.slice(0, 7));
+      await loadMonth(nextDate.slice(0, 7));
+      await reload();
+      onToast("Kontent boshqa sanaga nusxalandi", "success", { center: true });
+    } catch (err) {
+      onToast(err.message || "Nusxalab bo'lmadi", "error");
+    }
+  }
+
+  function applyPlannerTemplate(template) {
+    setPlannerForm((prev) => ({
+      ...prev,
+      title: template.title,
+      platform: template.platform,
+      content_type: template.content_type,
+      rubric: template.rubric,
+      note: template.note
+    }));
   }
 
 
@@ -2273,6 +3491,11 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
       difficulty_level: normalizeDifficultyLevel(row.difficulty_level || "sodda"),
       work_url: row.final_url || "",
       approval_comment: row.approval_comment || "",
+      product_name: row.product_name || "",
+      video_type: row.video_type || "",
+      hook_text: row.hook_text || "",
+      main_body_text: row.main_body_text || row.scenario_text || "",
+      cta_text: row.cta_text || "",
       content_template: row.content_template || "custom",
       idea_score: row.idea_score || 0,
       visual_score: row.visual_score || 0,
@@ -2328,6 +3551,12 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         final_url: normalizeExternalUrl(form.work_url),
         notes: "",
         approval_comment: form.approval_comment || "",
+        product_name: form.product_name || "",
+        video_type: form.video_type || "",
+        hook_text: form.hook_text || "",
+        main_body_text: form.main_body_text || "",
+        cta_text: form.cta_text || "",
+        scenario_text: form.main_body_text || "",
         content_template: form.content_template || "custom",
         idea_score: Number(form.idea_score || 0),
         visual_score: Number(form.visual_score || 0),
@@ -2349,6 +3578,34 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
       resetForm();
     } catch (err) {
       onToast(err.message || "Saqlashda xatolik", "error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submitMobilografProgress(status) {
+    if (!viewRow?.id) return;
+    const isSubmitStep = status === "submitted";
+    const finalUrl = normalizeExternalUrl(mobilografProgress.final_url);
+    if (isSubmitStep && !finalUrl) {
+      onToast("Link yuborish uchun ish linkini kiriting", "error");
+      return;
+    }
+
+    try {
+      setSaving(true);
+      const updated = await api.post(`/api/content/${viewRow.id}/mobilograf-progress`, {
+        status,
+        final_url: finalUrl,
+        approval_comment: mobilografProgress.approval_comment
+      });
+      setRows((prev) => sortRowsByDate(prev.map((row) => Number(row.id) === Number(updated.id) ? updated : row), "publish_date"));
+      setViewRow(updated);
+      await loadMonth(selectedMonth);
+      await reload();
+      onToast(isSubmitStep ? "Ish linki managerga yuborildi" : "Mobilograf statusi yangilandi", "success", { center: true });
+    } catch (err) {
+      onToast(err.message || "Mobilograf progress saqlanmadi", "error");
     } finally {
       setSaving(false);
     }
@@ -2401,7 +3658,29 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
   }
 
   return (
-    <div className="page-grid content-page-modern content-page-v5">
+    <div className={`page-grid content-page-modern content-page-v5 ${isMobilografContentOnly ? "mobilograf-content-only" : ""}`}>
+      {isMobilografContentOnly ? (
+        <section className="mobilograf-content-head">
+          <div>
+            <span>Mobilograf kalendar</span>
+            <h1>Kontent reja</h1>
+            <p>Faqat ko'rish uchun oylik kontent kalendari.</p>
+          </div>
+          <div className="mobilograf-month-control">
+            <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>{"<"}</button>
+            <strong>{getMonthTitle(selectedMonth)}</strong>
+            <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>{">"}</button>
+          </div>
+          <button
+            type="button"
+            className="btn secondary mobilograf-pdf-btn"
+            onClick={() => api.exportFile(`/api/export/content-calendar.pdf?month=${selectedMonth}`, `content-calendar-${selectedMonth}.pdf`)}
+          >
+            PDF saqlash
+          </button>
+        </section>
+      ) : (
+      <>
       <div className="content-v5-hero">
         <div className="content-v5-hero-copy">
           <span className="content-v5-eyebrow">SMM Content Command Center</span>
@@ -2410,6 +3689,7 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
           <div className="content-v5-hero-actions">
             <button type="button" className="btn primary" onClick={() => { resetForm(); window.scrollTo({ top: 280, behavior: "smooth" }); }} disabled={!canCreateContent}>+ Kontent qo'shish</button>
             <button type="button" className="btn secondary" onClick={() => api.exportFile("/api/export/content.xlsx", `content-${selectedMonth}.xlsx`)}>Excel export</button>
+            <button type="button" className="btn secondary" onClick={() => api.exportFile(`/api/export/content-calendar.pdf?month=${selectedMonth}`, `content-calendar-${selectedMonth}.pdf`)}>PDF kalendar</button>
             <div className="content-v5-month-switch">
               <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>‹</button>
               <strong>{getMonthTitle(selectedMonth)}</strong>
@@ -2445,6 +3725,114 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
           </div>
         ))}
       </div>
+
+      <section className="monthly-planner">
+        <div className="monthly-planner-head">
+          <div>
+            <span>Oylik kontent reja</span>
+            <h2>Bir oy rejasini tez to'ldirish</h2>
+            <p>Kontent kartalarini qo'shing, nusxalang yoki kalendarda boshqa sanaga sudrab o'tkazing. Saqlanganlar pastdagi kontent reja ro'yxatiga tushadi.</p>
+          </div>
+          <div className="monthly-planner-actions">
+            <button type="button" className="btn secondary" onClick={() => setViewMode("calendar")}>Kalendar view</button>
+            <button type="button" className="btn primary" onClick={() => setViewMode("table")}><Send size={15} /> Kontent reja ro'yxati</button>
+          </div>
+        </div>
+        <div className="monthly-planner-stats">
+          <div><span>Rejalashtirilgan</span><strong>{plannerRows.length}</strong><small>{getMonthTitle(selectedMonth)}</small></div>
+          <div><span>Syomka kunlari</span><strong>{plannerShootDays}</strong><small>video / reels</small></div>
+          <div><span>Bo'sh kunlar</span><strong>{emptyCalendarDays}</strong><small>ritm uchun signal</small></div>
+        </div>
+        <div className="monthly-planner-layout">
+          <aside className="planner-templates">
+            <strong>Shablonlar</strong>
+            <span>Bir bosishda formani to'ldiradi.</span>
+            {plannerTemplates.map((template) => (
+              <button key={template.title} type="button" onClick={() => applyPlannerTemplate(template)}>
+                <i>{template.platform.slice(0, 2)}</i>
+                <div>
+                  <strong>{template.title}</strong>
+                  <small>{formatContentType(template.content_type)} / {formatRubric(template.rubric)}</small>
+                </div>
+              </button>
+            ))}
+          </aside>
+          <div className="planner-calendar">
+            <div className="planner-calendar-head">
+              <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>‹</button>
+              <strong>{getMonthTitle(selectedMonth)}</strong>
+              <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>›</button>
+              <span>Drag & drop yoqilgan</span>
+            </div>
+            <MiniCalendar
+              monthLabel={selectedMonth}
+              rows={plannerRows}
+              dateKey="publish_date"
+              onMoveDate={movePlannerItem}
+              renderItem={(item) => (
+                <div className={`planner-calendar-pill ${contentTypeChipTone(item.content_type)} ${isAcademyContent(item) ? "academy" : ""} ${isCustomerHeroContent(item) ? "customer" : ""} ${isServicesContent(item) ? "services" : ""}`}>
+                  <div>
+                    <strong>{item.title}</strong>
+                    <span>{item.platform || "Platforma"} / {formatContentType(item.content_type)}</span>
+                  </div>
+                  <button type="button" title="Nusxalash" onClick={(e) => { e.stopPropagation(); duplicatePlannerItem(item); }}>
+                    <Copy size={13} />
+                  </button>
+                </div>
+              )}
+            />
+          </div>
+          <aside className="planner-quick">
+            <div className="planner-quick-head">
+              <strong>Tez qo'shish</strong>
+              <span>Reja kartasi</span>
+            </div>
+            <form onSubmit={quickAddPlannerItem}>
+              <label><span>Kontent nomi</span><input value={plannerForm.title} onChange={(e) => setPlannerField("title", e.target.value)} placeholder="Masalan: SMM trendlar 2026" required /></label>
+              <label><span>Sana</span><input type="date" value={plannerForm.publish_date} onChange={(e) => setPlannerField("publish_date", e.target.value)} required /></label>
+              <label><span>Vaqt</span><input type="time" value={plannerForm.publish_time} onChange={(e) => setPlannerField("publish_time", e.target.value)} /></label>
+              <label><span>Platforma</span><select value={plannerForm.platform} onChange={(e) => setPlannerField("platform", e.target.value)}><option>Instagram</option><option>Telegram</option><option>YouTube</option><option>TikTok</option><option>Facebook</option></select></label>
+              <label><span>Format</span><select value={plannerForm.content_type} onChange={(e) => setPlannerField("content_type", e.target.value)}>{CONTENT_TYPE_OPTIONS.slice(0, 7).map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+              <label><span>Rubrika</span><select value={plannerForm.rubric} onChange={(e) => setPlannerField("rubric", e.target.value)}>{RUBRIC_OPTIONS.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+              <label className="full"><span>Izoh</span><textarea value={plannerForm.note} onChange={(e) => setPlannerField("note", e.target.value)} rows={3} placeholder="Hook, izoh yoki qisqa topshiriq..." /></label>
+              <button type="submit" className="btn primary" disabled={saving || !canCreateContent}>{saving ? "Saqlanmoqda..." : "Oylik rejaga qo'shish"}</button>
+            </form>
+            <div className="planner-live-list">
+              <strong>Live preview</strong>
+              {plannerRows.slice(0, 6).map((row) => (
+                <button key={`planner-live-${row.id}`} type="button" onClick={() => setViewRow(row)}>
+                  <span>{formatDate(row.publish_date)}</span>
+                  <b>{row.title}</b>
+                  <small>{row.platform || "-"} / {formatContentType(row.content_type)}</small>
+                </button>
+              ))}
+              {!plannerRows.length ? <p>Bu oy uchun reja hali yo'q.</p> : null}
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section className="content-weekly-report">
+        <div className="content-weekly-head">
+          <div>
+            <span>Haftalik hisobot</span>
+            <h2>25/20/20/15/10/5/5 ish taqsimoti</h2>
+          </div>
+          <strong>{getMonthTitle(selectedMonth)}</strong>
+        </div>
+        <div className="content-weekly-grid">
+          {weeklyReportRows.map((item) => (
+            <div key={item.label} className={`content-weekly-item ${item.tone}`}>
+              <div>
+                <span>{item.label}</span>
+                <strong>{item.share}%</strong>
+              </div>
+              <i><em style={{ width: `${item.readiness}%` }} /></i>
+              <small>{item.hint}</small>
+            </div>
+          ))}
+        </div>
+      </section>
 
       <div className="content-v5-viewbar">
         <div className="content-v5-segment">
@@ -2617,6 +4005,24 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
             </select>
           </label>
 
+          <label>
+            <span>Mahsulot / xizmat</span>
+            <input value={form.product_name} onChange={(e) => setField("product_name", e.target.value)} placeholder="Masalan: iPhone 15 Pro" disabled={formLocked} />
+          </label>
+
+          <label>
+            <span>Video formati</span>
+            <select value={form.video_type} onChange={(e) => setField("video_type", e.target.value)} disabled={formLocked}>
+              <option value="">Tanlanmagan</option>
+              <option value="review">Review</option>
+              <option value="comparison">Taqqoslash</option>
+              <option value="test">Test</option>
+              <option value="expert">Expert</option>
+              <option value="brand">Brand</option>
+              <option value="trend">Trend</option>
+            </select>
+          </label>
+
           {isVideo ? (
             <>
               <label>
@@ -2655,6 +4061,10 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
             />
           </label>
 
+          <label className="full-col"><span>Hook</span><textarea value={form.hook_text} onChange={(e) => setField("hook_text", e.target.value)} rows={2} placeholder="Videoning birinchi 3 soniyasida e'tibor tortadigan gap" disabled={formLocked} /></label>
+          <label className="full-col"><span>Asosiy qism / ssenariy</span><textarea value={form.main_body_text} onChange={(e) => setField("main_body_text", e.target.value)} rows={3} placeholder="Kadrlar ketma-ketligi, mahsulot argumentlari, gapiriladigan matn" disabled={formLocked} /></label>
+          <label className="full-col"><span>CTA</span><textarea value={form.cta_text} onChange={(e) => setField("cta_text", e.target.value)} rows={2} placeholder="Oxirida mijoz nima qilsin: yozsin, buyurtma bersin, kanalga o'tsin" disabled={formLocked} /></label>
+
           <label className="full-col"><span>Workflow izohi</span><textarea value={form.approval_comment} onChange={(e) => setField("approval_comment", e.target.value)} rows={2} placeholder="Qayta ishlash, fayl yoki publish bo'yicha izoh" disabled={formLocked} /></label>
 
           <button className="btn primary content-submit-btn" type="submit" disabled={saving || formLocked}>
@@ -2662,14 +4072,17 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
           </button>
         </form>
       </div>
+      </>
+      )}
 
       
 
 
       <div className="card content-modern-card content-list-card">
         <SectionTitle
-          title={`${getMonthTitle(selectedMonth)} operatsion ro'yxati`}
-          right={
+          title={isMobilografContentOnly ? `${getMonthTitle(selectedMonth)} kontent kalendari` : `${getMonthTitle(selectedMonth)} operatsion ro'yxati`}
+          desc={isMobilografContentOnly ? `${calendarRows.length} ta kontent reja` : undefined}
+          right={!isMobilografContentOnly ? (
             <div className="toolbar-actions content-modern-toolbar">
               <label className="table-search content-modern-search" aria-label="Kontent qidiruvi">
                 <Search size={16} />
@@ -2686,6 +4099,13 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               >
                 Excel export
               </button>
+              <button
+                type="button"
+                className="btn secondary content-modern-btn"
+                onClick={() => api.exportFile(`/api/export/content-calendar.pdf?month=${selectedMonth}`, `content-calendar-${selectedMonth}.pdf`)}
+              >
+                PDF kalendar
+              </button>
               <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)}>
                 <option value="reja">Reja</option>
                 <option value="tasdiqlandi">Workflow</option>
@@ -2697,10 +4117,10 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                 Bulk status
               </button>
             </div>
-          }
+          ) : null}
         />
 
-        {viewMode === "table" ? <>
+        {!isMobilografContentOnly && viewMode === "table" ? <>
           <div className="table-wrap desktop-table">
             <table>
               <thead>
@@ -2720,10 +4140,15 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                   <tr><td colSpan="8" className="empty-cell">Yuklanmoqda...</td></tr>
                 ) : visibleRows.length ? (
                   visibleRows.map((row) => (
-                    <tr key={row.id}>
+                    <tr key={row.id} className={`${isAcademyContent(row) ? "academy-content-row" : ""} ${isCustomerHeroContent(row) ? "customer-content-row" : ""} ${isServicesContent(row) ? "services-content-row" : ""}`}>
                       <td>
                         <div className="table-title-cell">
-                          <strong className="table-title-main">{row.title}</strong>
+                          <strong className="table-title-main">
+                            {isAcademyContent(row) ? <span className="academy-cap"><GraduationCap size={15} /></span> : null}
+                            {isCustomerHeroContent(row) ? <span className="customer-cap"><ContactRound size={15} /></span> : null}
+                            {isServicesContent(row) ? <span className="services-cap"><ReceiptText size={15} /></span> : null}
+                            {row.title}
+                          </strong>
                           <div className="table-title-sub">
                             {row.final_url ? (
                               <button type="button" className="table-inline-link" onClick={() => openExternalUrl(row.final_url)}>
@@ -2784,7 +4209,15 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                     </tr>
                   ))
                 ) : (
-                  <tr><td colSpan="8" className="empty-cell">{tableSearch.trim() ? "Qidiruv bo'yicha kontent topilmadi" : "Bu oy uchun reja yo'q"}</td></tr>
+                  <tr><td colSpan="8" className="empty-cell">
+                    {tableSearch.trim() ? "Qidiruv bo'yicha kontent topilmadi" : (
+                      <div className="content-empty-start">
+                        <strong>Birinchi kontent kartasini yarating</strong>
+                        <span>Hook, asosiy qism, CTA, mahsulot va platformani bir joyda kiriting.</span>
+                        <button type="button" className="btn tiny secondary" onClick={() => window.scrollTo({ top: 280, behavior: "smooth" })}>Formaga o'tish</button>
+                      </div>
+                    )}
+                  </td></tr>
                 )}
               </tbody>
             </table>
@@ -2794,10 +4227,10 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               <div className="mobile-record-card empty">Yuklanmoqda...</div>
             ) : visibleRows.length ? (
               visibleRows.map((row) => (
-                <div key={`content-card-${row.id}`} className="mobile-record-card">
+                <div key={`content-card-${row.id}`} className={`mobile-record-card ${isAcademyContent(row) ? "academy-content-card" : ""} ${isCustomerHeroContent(row) ? "customer-content-card" : ""} ${isServicesContent(row) ? "services-content-card" : ""}`}>
                   <div className="mobile-record-head">
                     <div className="mobile-record-title">
-                      <strong>{row.title}</strong>
+                      <strong>{isAcademyContent(row) ? <GraduationCap size={15} /> : null}{isCustomerHeroContent(row) ? <ContactRound size={15} /> : null}{isServicesContent(row) ? <ReceiptText size={15} /> : null}{row.title}</strong>
                       <span>{formatDate(row.publish_date)} • {formatContentType(row.content_type)}</span>
                     </div>
                     <span className={approvalStatusClass(row.status)}>{formatApprovalStatus(row.status)}</span>
@@ -2835,9 +4268,27 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               </div>
             )}
           </div>
-        </> : viewMode === "calendar" ? (
+        </> : (isMobilografContentOnly || viewMode === "calendar") ? (
           <div className="calendar-pro-shell">
-            <div className="calendar-pro-toolbar">
+            {!isMobilografContentOnly ? <div className="content-calendar-tabs">
+              {calendarPlatformTabs.map((platform) => {
+                const count = platform === "all"
+                  ? visibleRows.length
+                  : visibleRows.filter((row) => splitCellValues(row.platform).includes(platform)).length;
+                return (
+                  <button
+                    key={platform}
+                    type="button"
+                    className={calendarPlatformFilter === platform ? "active" : ""}
+                    onClick={() => setCalendarPlatformFilter(platform)}
+                  >
+                    <span>{platform === "all" ? "Hammasi" : platform}</span>
+                    <strong>{count}</strong>
+                  </button>
+                );
+              })}
+            </div> : null}
+            {!isMobilografContentOnly ? <div className="calendar-pro-toolbar">
               <div className="calendar-signal-card">
                 <strong>Haftalik yuklama</strong>
                 <div className="calendar-load-bars">
@@ -2866,12 +4317,12 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
                   {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                 </select>
               </label>
-            </div>
+            </div> : null}
             <MiniCalendar
               monthLabel={selectedMonth}
               rows={calendarRows}
               dateKey="publish_date"
-              onMoveDate={async (id, nextDate) => {
+              onMoveDate={isMobilografContentOnly ? null : async (id, nextDate) => {
                 const row = rows.find((item) => item.id === id);
                 if (!row) return;
                 try {
@@ -2894,10 +4345,12 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
               renderItem={(item) => {
                 const branchIds = Array.isArray(item.branch_ids_json) ? item.branch_ids_json.map(Number) : [];
                 const branchIndex = branchIds.length ? Math.abs(branchIds[0]) % 6 : 0;
+                const workTime = getContentWorkTime(item);
                 return (
-                  <button key={item.id} type="button" className={`calendar-pill content-calendar-pill branch-tone-${branchIndex}`} onClick={() => setViewRow(item)}>
-                    <span>{item.platform || "-"}</span>
-                    {item.title}
+                  <button key={item.id} type="button" className={`calendar-pill content-calendar-pill branch-tone-${branchIndex} ${isMobilografContentOnly ? "mobilograf-pill" : ""} ${isAcademyContent(item) ? "academy" : ""} ${isCustomerHeroContent(item) ? "customer" : ""} ${isServicesContent(item) ? "services" : ""}`} onClick={() => setViewRow(item)}>
+                    <span>{isMobilografContentOnly ? `${workTime} / ${item.platform || "-"} / ${formatContentType(item.content_type)}` : `${item.platform || "-"} / ${item.video_type || item.content_type || "post"}`}</span>
+                    <strong>{item.title}</strong>
+                    <small>{isMobilografContentOnly ? (item.video_type || formatRubric(item.rubric)) : `${item.hook_text ? "Hook" : "Hook yo'q"} / ${item.cta_text ? "CTA" : "CTA yo'q"}`}</small>
                   </button>
                 );
               }}
@@ -2947,36 +4400,101 @@ function ContentPage({ users = [], branches = [], settings, user, onToast, reloa
         )}
       </div>
 
-      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kontent reja tafsiloti" wide>
+      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title={isMobilografContentOnly ? "Mobilograf ish briefi" : "Kontent reja tafsiloti"} wide>
         {viewRow ? (
-          <div className="content-detail-layout">
-            <div className="content-detail-main">
-              <ContentStatusStepper status={viewRow.status} />
-              <div className="detail-grid content-detail-grid">
-                <div><strong>Kontent nomi</strong><span>{viewRow.title}</span></div>
-                <div><strong>Sana</strong><span>{formatDate(viewRow.publish_date)}</span></div>
-                <div><strong>Deadline risk</strong><span><DeadlineRiskPill row={viewRow} /></span></div>
-                <div><strong>Holati</strong><span className={approvalStatusClass(viewRow.status)}>{formatApprovalStatus(viewRow.status)}</span></div>
-                <div><strong>Platforma</strong><span className="table-chip-row">{splitCellValues(viewRow.platform).length ? splitCellValues(viewRow.platform).map((platform, idx) => <PlatformBadge key={`${viewRow.id}-detail-platform-${idx}`} platform={platform} />) : "-"}</span></div>
-                <div><strong>Turi</strong><span>{formatContentType(viewRow.content_type)}</span></div>
-                <div><strong>Rubrika</strong><span>{formatRubric(viewRow.rubric)}</span></div>
-                <div className="full-col">
-                  <strong>Qilingan ish linki</strong>
-                  <span>
-                    {viewRow.final_url ? (
-                      <a href={normalizeExternalUrl(viewRow.final_url)} target="_blank" rel="noreferrer">
-                        Havolani ochish
-                      </a>
-                    ) : "-"}
-                  </span>
+          isMobilografContentOnly ? (
+            <div className="mobilograf-brief-panel">
+              <div className="mobilograf-brief-hero">
+                <div>
+                  <span>Kontent vazifasi</span>
+                  <h2>{viewRow.title}</h2>
+                  <p>{formatDate(viewRow.publish_date)} / {getContentWorkTime(viewRow)} / {formatApprovalStatus(viewRow.status)}</p>
                 </div>
-                <div className="full-col"><strong>Workflow izohi</strong><span>{viewRow.approval_comment || "-"}</span></div>
+                <DeadlineRiskPill row={viewRow} />
+              </div>
+              <div className="mobilograf-brief-meta">
+                <div><strong>Platforma</strong><span className="table-chip-row">{splitCellValues(viewRow.platform).length ? splitCellValues(viewRow.platform).map((platform, idx) => <PlatformBadge key={`${viewRow.id}-mob-platform-${idx}`} platform={platform} />) : "-"}</span></div>
+                <div><strong>Format</strong><span>{viewRow.video_type || formatContentType(viewRow.content_type)}</span></div>
+                <div><strong>Rubrika</strong><span>{formatRubric(viewRow.rubric)}</span></div>
+                <div><strong>Mahsulot</strong><span>{viewRow.product_name || "-"}</span></div>
+              </div>
+              <div className="mobilograf-brief-script">
+                <div><strong>Hook</strong><p>{viewRow.hook_text || "Hook kiritilmagan"}</p></div>
+                <div><strong>Ssenariy / asosiy qism</strong><p>{viewRow.main_body_text || viewRow.scenario_text || "Ssenariy kiritilmagan"}</p></div>
+                <div><strong>CTA</strong><p>{viewRow.cta_text || "CTA kiritilmagan"}</p></div>
+                <div><strong>Izoh</strong><p>{viewRow.approval_comment || "Qo'shimcha izoh yo'q"}</p></div>
+              </div>
+              <div className="mobilograf-progress-box">
+                <label>
+                  <span>Ish linki</span>
+                  <input
+                    value={mobilografProgress.final_url}
+                    onChange={(e) => setMobilografProgress((prev) => ({ ...prev, final_url: e.target.value }))}
+                    placeholder="Instagram, Telegram yoki Drive link"
+                  />
+                </label>
+                <label>
+                  <span>Mobilograf izohi</span>
+                  <textarea
+                    value={mobilografProgress.approval_comment}
+                    onChange={(e) => setMobilografProgress((prev) => ({ ...prev, approval_comment: e.target.value }))}
+                    rows={2}
+                    placeholder="Masalan: syomka tugadi, montajga o'tdi, link yuborildi"
+                  />
+                </label>
+                <div className="mobilograf-progress-actions">
+                  <button type="button" className="btn secondary" onClick={() => submitMobilografProgress("started")} disabled={saving}>Ishni boshladim</button>
+                  <button type="button" className="btn secondary" onClick={() => submitMobilografProgress("editing")} disabled={saving}>Montajda</button>
+                  <button type="button" className="btn secondary" onClick={() => submitMobilografProgress("ready")} disabled={saving}>Tayyor</button>
+                  <button type="button" className="btn primary" onClick={() => submitMobilografProgress("submitted")} disabled={saving}>
+                    <Send size={15} /> Link yuborildi
+                  </button>
+                </div>
+              </div>
+              <div className="mobilograf-brief-footer">
+                <span className={approvalStatusClass(viewRow.status)}>{formatApprovalStatus(viewRow.status)}</span>
+                {viewRow.final_url ? (
+                  <button type="button" className="btn secondary" onClick={() => openExternalUrl(viewRow.final_url)}>
+                    <Link2 size={15} /> Ish linkini ochish
+                  </button>
+                ) : <span className="mini-badge warning">Ish linki yo'q</span>}
               </div>
             </div>
-            <div className="content-detail-side">
-              <DiscussionPanel entityType="content" entityId={viewRow.id} onToast={onToast} />
+          ) : (
+            <div className="content-detail-layout">
+              <div className="content-detail-main">
+                <ContentStatusStepper status={viewRow.status} />
+                <div className="detail-grid content-detail-grid">
+                  <div><strong>Kontent nomi</strong><span>{viewRow.title}</span></div>
+                  <div><strong>Sana</strong><span>{formatDate(viewRow.publish_date)}</span></div>
+                  <div><strong>Deadline risk</strong><span><DeadlineRiskPill row={viewRow} /></span></div>
+                  <div><strong>Holati</strong><span className={approvalStatusClass(viewRow.status)}>{formatApprovalStatus(viewRow.status)}</span></div>
+                  <div><strong>Platforma</strong><span className="table-chip-row">{splitCellValues(viewRow.platform).length ? splitCellValues(viewRow.platform).map((platform, idx) => <PlatformBadge key={`${viewRow.id}-detail-platform-${idx}`} platform={platform} />) : "-"}</span></div>
+                  <div><strong>Turi</strong><span>{formatContentType(viewRow.content_type)}</span></div>
+                  <div><strong>Rubrika</strong><span>{formatRubric(viewRow.rubric)}</span></div>
+                  <div><strong>Mahsulot</strong><span>{viewRow.product_name || "-"}</span></div>
+                  <div><strong>Video formati</strong><span>{viewRow.video_type || "-"}</span></div>
+                  <div className="full-col"><strong>Hook</strong><span>{viewRow.hook_text || "-"}</span></div>
+                  <div className="full-col"><strong>Asosiy qism / ssenariy</strong><span>{viewRow.main_body_text || viewRow.scenario_text || "-"}</span></div>
+                  <div className="full-col"><strong>CTA</strong><span>{viewRow.cta_text || "-"}</span></div>
+                  <div className="full-col">
+                    <strong>Qilingan ish linki</strong>
+                    <span>
+                      {viewRow.final_url ? (
+                        <a href={normalizeExternalUrl(viewRow.final_url)} target="_blank" rel="noreferrer">
+                          Havolani ochish
+                        </a>
+                      ) : "-"}
+                    </span>
+                  </div>
+                  <div className="full-col"><strong>Workflow izohi</strong><span>{viewRow.approval_comment || "-"}</span></div>
+                </div>
+              </div>
+              <div className="content-detail-side">
+                <DiscussionPanel entityType="content" entityId={viewRow.id} onToast={onToast} />
+              </div>
             </div>
-          </div>
+          )
         ) : null}
       </Modal>
     </div>
@@ -4735,6 +6253,13 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
     start_at: "",
     end_at: "",
     daily_budget: "",
+    campaign_type: "target",
+    campaign_goal: "",
+    target_audience: "",
+    channel_name: "",
+    expected_result: "",
+    cpl_amount: "",
+    roi_amount: "",
     status: "active"
   };
 
@@ -4775,6 +6300,13 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
       start_at: formatDateTimeInput(row.start_at || row.start_date),
       end_at: formatDateTimeInput(row.end_at || row.end_date),
       daily_budget: String(getCampaignDailyBudget(row) || ""),
+      campaign_type: row.campaign_type || "target",
+      campaign_goal: row.campaign_goal || "",
+      target_audience: row.target_audience || "",
+      channel_name: row.channel_name || row.platform || "",
+      expected_result: row.expected_result || "",
+      cpl_amount: String(row.cpl_amount || row.cpa || ""),
+      roi_amount: String(row.roi_amount || row.roi || ""),
       status: row.status || "active"
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -4792,6 +6324,13 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
         start_at: form.start_at,
         end_at: form.end_at,
         daily_budget: Number(form.daily_budget || 0),
+        campaign_type: form.campaign_type || "target",
+        campaign_goal: form.campaign_goal || "",
+        target_audience: form.target_audience || "",
+        channel_name: form.channel_name || form.platform,
+        expected_result: form.expected_result || "",
+        cpl_amount: Number(form.cpl_amount || 0),
+        roi_amount: Number(form.roi_amount || 0),
         status: form.status || "active"
       };
       if (editRow?.id) {
@@ -4886,9 +6425,26 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
                 <option value="done">Tugagan</option>
               </select>
             </label>
+            <label>
+              <span>Kampaniya turi</span>
+              <select value={form.campaign_type} onChange={(e) => setField("campaign_type", e.target.value)}>
+                <option value="target">Target reklama</option>
+                <option value="cashback">Cashback</option>
+                <option value="contest">Konkurs</option>
+                <option value="challenge">Challenge</option>
+                <option value="seasonal">Mavsumiy aksiya</option>
+                <option value="blogger">Bloger hamkorlik</option>
+              </select>
+            </label>
+            <label><span>Kanal nomi</span><input value={form.channel_name} onChange={(e) => setField("channel_name", e.target.value)} placeholder="Instagram Ads, Telegram Ads, YouTube Ads..." /></label>
             <label><span>Boshlanish sana va soat</span><input type="datetime-local" value={form.start_at} onChange={(e) => setField("start_at", e.target.value)} required /></label>
             <label><span>Tugash sana va soat</span><input type="datetime-local" value={form.end_at} onChange={(e) => setField("end_at", e.target.value)} required /></label>
             <label><span>Kunlik byudjet</span><input type="number" min="0" value={form.daily_budget} onChange={(e) => setField("daily_budget", e.target.value)} placeholder="250000" required /></label>
+            <label><span>CPL</span><input type="number" min="0" value={form.cpl_amount} onChange={(e) => setField("cpl_amount", e.target.value)} placeholder="45000" /></label>
+            <label><span>ROI</span><input type="number" value={form.roi_amount} onChange={(e) => setField("roi_amount", e.target.value)} placeholder="120" /></label>
+            <label className="campaign-safe-full"><span>Maqsad</span><textarea value={form.campaign_goal} onChange={(e) => setField("campaign_goal", e.target.value)} rows={2} placeholder="Masalan: Telegram kanalga 1000 ta sifatli lead olib kelish" /></label>
+            <label className="campaign-safe-full"><span>Auditoriya</span><textarea value={form.target_audience} onChange={(e) => setField("target_audience", e.target.value)} rows={2} placeholder="Yosh, hudud, qiziqish, xarid ehtiyoji" /></label>
+            <label className="campaign-safe-full"><span>Kutilgan natija</span><textarea value={form.expected_result} onChange={(e) => setField("expected_result", e.target.value)} rows={2} placeholder="Lead, savdo, reach, obuna yoki brand awareness natijasi" /></label>
             <label className="campaign-safe-full"><span>Lidlar boradigan Telegram guruh ID</span><input value={form.lead_chat_id} onChange={(e) => setField("lead_chat_id", e.target.value)} placeholder="-1003878116355" /></label>
             <div className="campaign-safe-submit-row">
               <button className="btn primary" type="submit" disabled={saving}>{saving ? "Saqlanmoqda..." : editRow ? "Yangilash" : "Kampaniya qo‘shish"}</button>
@@ -4960,7 +6516,7 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
       <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kampaniya tafsiloti">
         {viewRow ? (
           <div className="detail-grid">
-            <div><strong>Nomi:</strong> {viewRow.title}</div><div><strong>Platforma:</strong> {viewRow.platform}</div><div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div><div><strong>Boshlanish:</strong> {formatDateTime(viewRow.start_at || viewRow.start_date)}</div><div><strong>Tugash:</strong> {formatDateTime(viewRow.end_at || viewRow.end_date)}</div><div><strong>Kunlik byudjet:</strong> {formatMoney(getCampaignDailyBudget(viewRow))}</div><div><strong>Holat:</strong> <span className={campaignStatusClass(viewRow.status)}>{formatCampaignStatus(viewRow.status)}</span></div><div><strong>Leadlar soni:</strong> {viewRow.lead_count || 0} ta</div><div><strong>Lead chat ID:</strong> {viewRow.lead_chat_id || "-"}</div>
+            <div><strong>Nomi:</strong> {viewRow.title}</div><div><strong>Platforma:</strong> {viewRow.platform}</div><div><strong>Filial:</strong> {viewRow.branch_name || "-"}</div><div><strong>Boshlanish:</strong> {formatDateTime(viewRow.start_at || viewRow.start_date)}</div><div><strong>Tugash:</strong> {formatDateTime(viewRow.end_at || viewRow.end_date)}</div><div><strong>Kunlik byudjet:</strong> {formatMoney(getCampaignDailyBudget(viewRow))}</div><div><strong>Holat:</strong> <span className={campaignStatusClass(viewRow.status)}>{formatCampaignStatus(viewRow.status)}</span></div><div><strong>Leadlar soni:</strong> {viewRow.lead_count || 0} ta</div><div><strong>Lead chat ID:</strong> {viewRow.lead_chat_id || "-"}</div><div><strong>Turi:</strong> {viewRow.campaign_type || "-"}</div><div><strong>Kanal:</strong> {viewRow.channel_name || "-"}</div><div><strong>CPL:</strong> {formatMoney(viewRow.cpl_amount || viewRow.cpa)}</div><div><strong>ROI:</strong> {viewRow.roi_amount || viewRow.roi || 0}</div><div className="full-col"><strong>Maqsad:</strong> {viewRow.campaign_goal || "-"}</div><div className="full-col"><strong>Auditoriya:</strong> {viewRow.target_audience || "-"}</div><div className="full-col"><strong>Kutilgan natija:</strong> {viewRow.expected_result || "-"}</div>
             <div className="full-col campaign-lead-link-row"><strong>Website form URL:</strong><div className="campaign-lead-link-actions"><a href={getCampaignLeadFormUrl(viewRow.id)} target="_blank" rel="noreferrer" className="btn tiny secondary"><Eye size={14} /> Ochish</a><button type="button" className="btn tiny secondary" onClick={() => copyLeadFormLink(viewRow)}><Copy size={14} /> Nusxalash</button></div><div className="campaign-lead-link-preview">{getCampaignLeadFormUrl(viewRow.id)}</div></div>
           </div>
         ) : null}
@@ -7961,6 +9517,7 @@ function App() {
   const [contentRows, setContentRows] = useState([]);
   const [dailyReports, setDailyReports] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
+  const [managerOSData, setManagerOSData] = useState({});
   const [tasks, setTasks] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [budgets, setBudgets] = useState([]);
@@ -8061,6 +9618,7 @@ function App() {
   const pageNeedsReferences = useCallback((pageId) => {
     return [
       "content",
+      "managerLab",
       "bonus",
       "travelPlans",
       "dailyReports",
@@ -8106,13 +9664,14 @@ function App() {
     const queryScope = scopedDataQuery(user);
     switch (pageId) {
       case "dashboard": {
-        const [contentRes, dailyReportsRes, campaignsRes, travelPlansRes, tasksRes, uploadsRes] = await Promise.all([
+        const [contentRes, dailyReportsRes, campaignsRes, travelPlansRes, tasksRes, uploadsRes, managerOsRes] = await Promise.all([
           api.list("content").catch(() => []),
           api.list("daily-reports").catch(() => []),
           api.list("campaigns").catch(() => []),
           api.list("travel-plans", queryScope).catch(() => []),
           api.list("tasks").catch(() => []),
-          api.list("uploads").catch(() => [])
+          api.list("uploads").catch(() => []),
+          api.list("/api/manager-os").catch(() => ({}))
         ]);
         setContentRows(contentRes || []);
         setDailyReports(dailyReportsRes || []);
@@ -8120,11 +9679,20 @@ function App() {
         setTravelPlans(travelPlansRes || []);
         setTasks(tasksRes || []);
         setUploads(uploadsRes || []);
+        setManagerOSData(managerOsRes || {});
         break;
       }
-      case "content":
-        setContentRows(await api.list("content").catch(() => []));
+      case "content": {
+        const [contentRes, campaignsRes, managerOsRes] = await Promise.all([
+          api.list("content").catch(() => []),
+          api.list("campaigns").catch(() => []),
+          api.list("/api/manager-os").catch(() => ({}))
+        ]);
+        setContentRows(contentRes || []);
+        setCampaigns(campaignsRes || []);
+        setManagerOSData(managerOsRes || {});
         break;
+      }
       case "bonus":
         setBonusItems(await api.list("bonus-items", queryScope).catch(() => []));
         break;
@@ -8403,13 +9971,13 @@ function App() {
 
   const mobilePrimaryMenu = useMemo(() => {
     const rolePreferred = {
-      director: ["dashboard", "analytics", "campaigns", "profile"],
-      manager: ["dashboard", "content", "travelPlans", "campaigns", "profile"],
+      director: ["dashboard", "managerLab", "analytics", "campaigns", "profile"],
+      manager: ["dashboard", "managerLab", "content", "travelPlans", "campaigns", "profile"],
       editor: ["dashboard", "tasks", "uploads", "content", "profile"],
-      mobilograf: ["dashboard", "travelPlans", "bonus", "uploads", "profile"],
+      mobilograf: ["content", "profile"],
       viewer: ["dashboard", "content", "analytics", "profile"]
     };
-    const preferred = rolePreferred[user?.role] || ["dashboard", "content", "travelPlans", "campaigns", "profile"];
+    const preferred = rolePreferred[user?.role] || ["dashboard", "managerLab", "content", "travelPlans", "campaigns", "profile"];
     const pinned = preferred
       .map((id) => allowedMenu.find((item) => item.id === id))
       .filter(Boolean);
@@ -8552,7 +10120,7 @@ function App() {
 
   if (active === "dashboard") {
     page = (
-      <DashboardPage
+      <ManagerOSDashboard
         summary={summary}
         dailyReports={dailyReports}
         contentRows={contentRows}
@@ -8560,11 +10128,15 @@ function App() {
         travelPlans={travelPlans}
         tasks={tasks}
         uploads={uploads}
+        managerOSData={managerOSData}
         user={user}
+        onNavigate={goToPage}
       />
     );
+  } else if (active === "managerLab") {
+    page = <ManagerOsLabPage onToast={showToast} />;
   } else if (active === "content") {
-    page = <ContentPage users={users} branches={branches} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
+    page = <ContentPage users={users} branches={branches} campaigns={campaigns} managerOSData={managerOSData} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "bonus") {
     page = <BonusPage bonusItems={bonusItems} users={users} branches={branches} settings={settings} user={user} onToast={showToast} reload={reloadData} />;
   } else if (active === "expenses") {
@@ -8602,15 +10174,15 @@ function App() {
               <img src={LOGIN_LOGO} alt="logo" className="brand-mark-image" />
             </div>
             <div className="brand-copy">
-              <div className="brand-name">{settings?.company_name || "aloo"}</div>
-              <div className="brand-desc">{settings?.platform_name || "SMM jamoasi platformasi"}</div>
+              <div className="brand-name">alooSMM OS</div>
+              <div className="brand-desc">SMM menejer boshqaruvi</div>
             </div>
           </div>
 
           <div className="sidebar-workspace-card">
             <div>
               <span>Workspace</span>
-              <strong>{settings?.company_name || "aloo"} SMM</strong>
+              <strong>Manager Command</strong>
             </div>
             <small><i /> Live</small>
           </div>
@@ -8680,9 +10252,9 @@ function App() {
           </div>
 
           <div className="sidebar-help-card">
-            <span>SMM Control Center</span>
-            <strong>Tezkor boshqaruv</strong>
-            <small>Kontent, vazifa, KPI va hisobotlar bitta professional panelda.</small>
+            <span>alooSMM Manager OS</span>
+            <strong>Lavozimga mos tizim</strong>
+            <small>Strategiya, reklama, ssenariy va mobilograf nazorati bitta panelda.</small>
             <a href="/menu">Boshqaruvga o'tish</a>
           </div>
 
@@ -8699,7 +10271,7 @@ function App() {
                 <span className={`page-title-badge icon-tone-${activeMenuItem?.tone || "indigo"}`}>
                   <ActivePageIcon size={18} />
                 </span>
-                <div className="small-label">{(settings?.company_name || "aloo")} platforma</div>
+                <div className="small-label">alooSMM manager platforma</div>
                 <h1>{activeMenuItem?.title || "Bosh sahifa"}</h1>
               </div>
               <button
@@ -11124,6 +12696,76 @@ tbody tr:hover{
   font-size:15px;
   line-height:1.4;
   letter-spacing:-.01em;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+}
+.academy-cap{
+  width:24px;
+  height:24px;
+  border-radius:10px;
+  display:inline-grid;
+  place-items:center;
+  color:#047857;
+  background:#dcfce7;
+  border:1px solid #bbf7d0;
+  flex:0 0 auto;
+}
+.customer-cap{
+  width:24px;
+  height:24px;
+  border-radius:10px;
+  display:inline-grid;
+  place-items:center;
+  color:#b45309;
+  background:#fef3c7;
+  border:1px solid #fde68a;
+  flex:0 0 auto;
+}
+.services-cap{
+  width:24px;
+  height:24px;
+  border-radius:10px;
+  display:inline-grid;
+  place-items:center;
+  color:#0369a1;
+  background:#e0f2fe;
+  border:1px solid #bae6fd;
+  flex:0 0 auto;
+}
+.academy-content-row{
+  background:linear-gradient(90deg,rgba(34,197,94,.12),rgba(240,253,244,.65) 52%,transparent) !important;
+}
+.academy-content-row td:first-child{
+  box-shadow:inset 5px 0 0 #22c55e;
+}
+.customer-content-row{
+  background:linear-gradient(90deg,rgba(245,158,11,.14),rgba(255,251,235,.72) 52%,transparent) !important;
+}
+.customer-content-row td:first-child{
+  box-shadow:inset 5px 0 0 #f59e0b;
+}
+.services-content-row{
+  background:linear-gradient(90deg,rgba(14,165,233,.13),rgba(240,249,255,.72) 52%,transparent) !important;
+}
+.services-content-row td:first-child{
+  box-shadow:inset 5px 0 0 #0ea5e9;
+}
+.academy-content-card{
+  border-color:#bbf7d0 !important;
+  background:linear-gradient(135deg,#f0fdf4,#ffffff) !important;
+}
+.customer-content-card{
+  border-color:#fde68a !important;
+  background:linear-gradient(135deg,#fffbeb,#ffffff) !important;
+}
+.services-content-card{
+  border-color:#bae6fd !important;
+  background:linear-gradient(135deg,#f0f9ff,#ffffff) !important;
+}
+.mobile-record-title strong svg{
+  margin-right:6px;
+  vertical-align:-2px;
 }
 .table-title-sub{
   display:flex;
@@ -11200,6 +12842,21 @@ tbody tr:hover{
   background:linear-gradient(135deg, rgba(20,120,242,.14), rgba(255,255,255,.98));
   color:#1478F2;
   border-color:rgba(20,120,242,.18);
+}
+.table-chip.academy{
+  background:linear-gradient(135deg,rgba(34,197,94,.16),rgba(240,253,244,.98));
+  color:#047857;
+  border-color:#bbf7d0;
+}
+.table-chip.customer{
+  background:linear-gradient(135deg,rgba(245,158,11,.18),rgba(255,251,235,.98));
+  color:#b45309;
+  border-color:#fde68a;
+}
+.table-chip.services{
+  background:linear-gradient(135deg,rgba(14,165,233,.16),rgba(240,249,255,.98));
+  color:#0369a1;
+  border-color:#bae6fd;
 }
 .table-person-stack{
   display:flex;
@@ -12736,6 +14393,21 @@ tbody tr:hover{
 .content-calendar-pill.branch-tone-3{border-left-color:#8b5cf6}
 .content-calendar-pill.branch-tone-4{border-left-color:#ef4444}
 .content-calendar-pill.branch-tone-5{border-left-color:#06b6d4}
+.content-calendar-pill.academy{
+  background:linear-gradient(135deg,#f0fdf4,#ffffff);
+  border-left-color:#22c55e;
+  border-color:#bbf7d0;
+}
+.content-calendar-pill.customer{
+  background:linear-gradient(135deg,#fffbeb,#ffffff);
+  border-left-color:#f59e0b;
+  border-color:#fde68a;
+}
+.content-calendar-pill.services{
+  background:linear-gradient(135deg,#f0f9ff,#ffffff);
+  border-left-color:#0ea5e9;
+  border-color:#bae6fd;
+}
 .bonus-plastic-title{
   display:flex;
   align-items:center;
@@ -17835,6 +19507,95 @@ tr:hover td,
   color:var(--muted);
   font-weight:750;
 }
+.content-weekly-report{
+  border-radius:24px;
+  background:#fff;
+  border:1px solid rgba(148,163,184,.14);
+  box-shadow:0 20px 45px rgba(15,23,42,.07);
+  padding:18px;
+}
+.content-weekly-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:14px;
+}
+.content-weekly-head span{
+  color:#0d9488;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.content-weekly-head h2{
+  margin:4px 0 0;
+  color:#0f172a;
+  font-size:22px;
+  line-height:1.15;
+}
+.content-weekly-head > strong{
+  flex:0 0 auto;
+  border-radius:999px;
+  padding:8px 12px;
+  background:#ecfeff;
+  color:#0f766e;
+  font-size:12px;
+  text-transform:uppercase;
+}
+.content-weekly-grid{
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:10px;
+}
+.content-weekly-item{
+  min-height:118px;
+  border-radius:18px;
+  border:1px solid rgba(148,163,184,.14);
+  background:#f8fbff;
+  padding:12px;
+  display:grid;
+  align-content:space-between;
+  gap:10px;
+}
+.content-weekly-item div{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:8px;
+}
+.content-weekly-item span{
+  color:#344054;
+  font-size:12px;
+  font-weight:900;
+}
+.content-weekly-item strong{
+  color:#0f172a;
+  font-size:18px;
+  line-height:1;
+}
+.content-weekly-item i{
+  display:block;
+  height:7px;
+  border-radius:999px;
+  background:#e2e8f0;
+  overflow:hidden;
+}
+.content-weekly-item em{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:#1690f5;
+}
+.content-weekly-item.fuchsia em{background:#d946ef}
+.content-weekly-item.green em{background:#10b981}
+.content-weekly-item.purple em{background:#8b5cf6}
+.content-weekly-item.cyan em{background:#06b6d4}
+.content-weekly-item.sky em{background:#0ea5e9}
+.content-weekly-item.amber em{background:#f59e0b}
+.content-weekly-item small{
+  color:#667085;
+  font-weight:800;
+}
 .content-v5-viewbar{
   position:sticky;
   top:10px;
@@ -17910,10 +19671,63 @@ tr:hover td,
   border:1px solid rgba(148,163,184,.13);
   padding:14px;
 }
+.content-calendar-tabs{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+  margin-bottom:12px;
+}
+.content-calendar-tabs button{
+  min-height:64px;
+  border-radius:16px;
+  border:1px solid rgba(148,163,184,.18);
+  background:#fff;
+  padding:12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  color:#475467;
+  font-weight:950;
+  cursor:pointer;
+}
+.content-calendar-tabs button.active{
+  color:#0f766e;
+  border-color:rgba(45,212,191,.45);
+  background:#ecfeff;
+  box-shadow:0 14px 34px rgba(45,212,191,.16);
+}
+.content-calendar-tabs strong{
+  min-width:30px;
+  height:30px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:#0f172a;
+  color:#5eead4;
+  font-size:12px;
+}
+.content-calendar-pill{
+  display:grid;
+  gap:3px;
+  text-align:left;
+}
+.content-calendar-pill strong{
+  color:#0f172a;
+  font-size:12px;
+  line-height:1.18;
+}
+.content-calendar-pill small{
+  color:#64748b;
+  font-size:10px;
+  font-weight:850;
+}
 @media (max-width: 1100px){
   .content-v5-hero,
   .content-v5-hero-panel,
   .content-v5-stats-row,
+  .content-weekly-grid,
+  .content-calendar-tabs,
   .content-v5-viewbar{grid-template-columns:1fr}
   .content-v5-hero{padding:20px;border-radius:26px}
   .content-v5-hero h1{font-size:34px}
@@ -18453,6 +20267,544 @@ tr:hover td,
 .content-page-v5 .content-v5-stat strong{color:#101827 !important;}
 .content-page-v5 .content-v5-stat small{color:#6b7280 !important;}
 .content-page-v5 .content-v5-stat::after{opacity:1;}
+.mobilograf-content-only{
+  gap:16px !important;
+}
+.mobilograf-content-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  border-radius:24px;
+  padding:18px;
+  background:linear-gradient(135deg,#ffffff,#f8fbff);
+  border:1px solid rgba(148,163,184,.16);
+  box-shadow:0 14px 36px rgba(15,23,42,.06);
+}
+.mobilograf-content-head span{
+  color:#0b63d1;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.mobilograf-content-head h1{
+  margin:4px 0 3px;
+  color:#101827;
+  font-size:28px;
+  line-height:1.1;
+}
+.mobilograf-content-head p{
+  margin:0;
+  color:#64748b;
+  font-weight:750;
+}
+.mobilograf-month-control{
+  display:grid;
+  grid-template-columns:42px minmax(150px,1fr) 42px;
+  align-items:center;
+  gap:8px;
+}
+.mobilograf-month-control button{
+  height:42px;
+  border-radius:14px;
+  border:1px solid rgba(148,163,184,.18);
+  background:#fff;
+  color:#101827;
+  font-size:22px;
+  font-weight:950;
+}
+.mobilograf-month-control strong{
+  min-height:42px;
+  border-radius:14px;
+  display:grid;
+  place-items:center;
+  padding:0 14px;
+  background:#eff6ff;
+  border:1px solid #dbeafe;
+  color:#0b63d1;
+}
+.mobilograf-pdf-btn{
+  min-height:42px;
+  justify-content:center;
+  white-space:nowrap;
+}
+.mobilograf-content-only .content-list-card{
+  padding:16px !important;
+}
+.mobilograf-content-only .calendar-pro-shell{
+  border-radius:22px !important;
+  padding:0 !important;
+  box-shadow:none !important;
+}
+.mobilograf-content-only .calendar-card{
+  border-radius:20px;
+  overflow:hidden;
+}
+.mobilograf-content-only .calendar-cell{
+  min-height:126px;
+}
+.mobilograf-content-only .calendar-pill{
+  cursor:pointer;
+}
+.mobilograf-content-only .calendar-pill.mobilograf-pill{
+  gap:5px;
+  border-left:4px solid #1478f2;
+}
+.mobilograf-content-only .calendar-pill.mobilograf-pill span{
+  color:#0b63d1;
+  font-size:10px;
+  font-weight:950;
+}
+.mobilograf-content-only .calendar-pill.mobilograf-pill strong{
+  font-size:12px;
+  line-height:1.25;
+}
+.mobilograf-content-only .calendar-pill.mobilograf-pill small{
+  color:#64748b;
+  font-weight:850;
+}
+.mobilograf-brief-panel{
+  display:grid;
+  gap:16px;
+}
+.mobilograf-brief-hero{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  border-radius:24px;
+  padding:20px;
+  background:linear-gradient(135deg,#eff6ff,#f8fafc);
+  border:1px solid #dbeafe;
+}
+.mobilograf-brief-hero span{
+  display:inline-flex;
+  color:#0b63d1;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.mobilograf-brief-hero h2{
+  margin:6px 0;
+  color:#101827;
+  font-size:28px;
+  line-height:1.12;
+}
+.mobilograf-brief-hero p{
+  margin:0;
+  color:#475467;
+  font-weight:850;
+}
+.mobilograf-brief-meta{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+}
+.mobilograf-brief-meta > div,
+.mobilograf-brief-script > div{
+  display:grid;
+  gap:8px;
+  border:1px solid rgba(148,163,184,.18);
+  border-radius:18px;
+  padding:14px;
+  background:#fff;
+}
+.mobilograf-brief-meta strong,
+.mobilograf-brief-script strong{
+  color:#64748b;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.mobilograf-brief-meta span,
+.mobilograf-brief-script p{
+  margin:0;
+  color:#101827;
+  font-weight:800;
+  line-height:1.5;
+}
+.mobilograf-brief-script{
+  display:grid;
+  gap:10px;
+}
+.mobilograf-progress-box{
+  display:grid;
+  gap:12px;
+  border:1px solid #dbeafe;
+  border-radius:20px;
+  padding:14px;
+  background:#f8fbff;
+}
+.mobilograf-progress-box label{
+  display:grid;
+  gap:7px;
+}
+.mobilograf-progress-box label span{
+  color:#475467;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.mobilograf-progress-box input,
+.mobilograf-progress-box textarea{
+  width:100%;
+  border:1px solid rgba(148,163,184,.24);
+  border-radius:14px;
+  background:#fff;
+  color:#101827;
+  font-weight:800;
+  padding:12px 14px;
+  outline:none;
+}
+.mobilograf-progress-box textarea{
+  resize:vertical;
+}
+.mobilograf-progress-actions{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+.mobilograf-progress-actions .btn{
+  justify-content:center;
+  min-height:44px;
+  white-space:normal;
+}
+.mobilograf-brief-footer{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  border-top:1px solid rgba(148,163,184,.18);
+  padding-top:14px;
+}
+.monthly-planner{
+  display:grid;
+  gap:16px;
+  border-radius:30px;
+  padding:18px;
+  background:linear-gradient(180deg,#ffffff 0%,#f8fbff 100%);
+  border:1px solid rgba(148,163,184,.16);
+  box-shadow:0 18px 50px rgba(15,23,42,.07);
+  color:#101827;
+}
+.monthly-planner-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:16px;
+}
+.monthly-planner-head span{
+  color:#0b63d1;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.monthly-planner-head h2{
+  margin:5px 0 6px;
+  color:#101827;
+  font-size:28px;
+  line-height:1.08;
+}
+.monthly-planner-head p{
+  margin:0;
+  max-width:780px;
+  color:#64748b;
+  font-weight:750;
+  line-height:1.55;
+}
+.monthly-planner-actions{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.monthly-planner-actions .btn{
+  border-radius:16px;
+  min-height:42px;
+}
+.monthly-planner-stats{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+}
+.monthly-planner-stats div{
+  min-height:96px;
+  border-radius:22px;
+  padding:16px;
+  background:#fff;
+  border:1px solid rgba(148,163,184,.16);
+  box-shadow:0 12px 30px rgba(15,23,42,.045);
+}
+.monthly-planner-stats span{
+  display:block;
+  color:#64748b;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.monthly-planner-stats strong{
+  display:block;
+  margin-top:8px;
+  color:#101827;
+  font-size:32px;
+  line-height:1;
+}
+.monthly-planner-stats small{
+  color:#0f766e;
+  font-weight:850;
+}
+.monthly-planner-layout{
+  display:grid;
+  grid-template-columns:250px minmax(0,1fr) 320px;
+  gap:14px;
+  align-items:start;
+}
+.planner-templates,
+.planner-calendar,
+.planner-quick{
+  border-radius:24px;
+  background:#fff;
+  border:1px solid rgba(148,163,184,.16);
+  box-shadow:0 12px 30px rgba(15,23,42,.045);
+}
+.planner-templates{
+  padding:14px;
+  display:grid;
+  gap:10px;
+}
+.planner-templates > strong,
+.planner-quick-head strong,
+.planner-live-list > strong{
+  color:#101827;
+  font-size:16px;
+}
+.planner-templates > span,
+.planner-quick-head span{
+  color:#64748b;
+  font-weight:750;
+  font-size:12px;
+}
+.planner-templates button{
+  min-height:74px;
+  border-radius:18px;
+  border:1px solid rgba(148,163,184,.16);
+  background:#f8fbff;
+  display:grid;
+  grid-template-columns:38px 1fr;
+  gap:10px;
+  align-items:center;
+  text-align:left;
+  padding:10px;
+}
+.planner-templates button:hover{
+  border-color:#93c5fd;
+  transform:translateY(-1px);
+}
+.planner-templates i{
+  width:38px;
+  height:38px;
+  border-radius:14px;
+  display:grid;
+  place-items:center;
+  background:#eaf4ff;
+  color:#0b63d1;
+  font-style:normal;
+  font-weight:950;
+}
+.planner-templates button strong{
+  display:block;
+  color:#101827;
+  font-size:13px;
+}
+.planner-templates button small{
+  display:block;
+  margin-top:3px;
+  color:#64748b;
+  font-size:11px;
+  font-weight:750;
+}
+.planner-calendar{
+  padding:14px;
+}
+.planner-calendar-head{
+  display:grid;
+  grid-template-columns:42px minmax(0,1fr) 42px auto;
+  gap:8px;
+  align-items:center;
+  margin-bottom:12px;
+}
+.planner-calendar-head button{
+  height:38px;
+  border-radius:14px;
+  border:1px solid rgba(148,163,184,.18);
+  background:#fff;
+  color:#101827;
+  font-size:20px;
+  font-weight:900;
+}
+.planner-calendar-head strong{
+  color:#101827;
+  font-size:20px;
+  text-align:center;
+}
+.planner-calendar-head span{
+  border-radius:999px;
+  background:#eff6ff;
+  color:#0b63d1;
+  border:1px solid #dbeafe;
+  padding:8px 10px;
+  font-size:12px;
+  font-weight:900;
+}
+.planner-calendar .calendar-card{
+  border-radius:20px;
+  border:1px solid rgba(148,163,184,.16);
+  overflow:hidden;
+}
+.planner-calendar .calendar-cell{
+  min-height:118px;
+}
+.planner-calendar-pill{
+  width:100%;
+  border-radius:14px;
+  border:1px solid #bfdbfe;
+  background:#eff6ff;
+  color:#101827;
+  padding:8px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 28px;
+  gap:6px;
+  align-items:center;
+  box-shadow:0 8px 18px rgba(37,99,235,.08);
+}
+.planner-calendar-pill.warning{background:#fffbeb;border-color:#fde68a}
+.planner-calendar-pill.info{background:#ecfeff;border-color:#a5f3fc}
+.planner-calendar-pill.danger{background:#fff1f2;border-color:#fecdd3}
+.planner-calendar-pill.academy{
+  background:#f0fdf4;
+  border-color:#86efac;
+  box-shadow:0 8px 18px rgba(34,197,94,.10);
+}
+.planner-calendar-pill.customer{
+  background:#fffbeb;
+  border-color:#fcd34d;
+  box-shadow:0 8px 18px rgba(245,158,11,.10);
+}
+.planner-calendar-pill.services{
+  background:#f0f9ff;
+  border-color:#7dd3fc;
+  box-shadow:0 8px 18px rgba(14,165,233,.10);
+}
+.planner-calendar-pill strong{
+  display:block;
+  color:#101827;
+  font-size:12px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.planner-calendar-pill span{
+  display:block;
+  color:#64748b;
+  font-size:11px;
+  font-weight:750;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.planner-calendar-pill button{
+  width:28px;
+  height:28px;
+  border-radius:10px;
+  border:1px solid rgba(148,163,184,.18);
+  background:#fff;
+  color:#0b63d1;
+  display:grid;
+  place-items:center;
+}
+.planner-quick{
+  padding:14px;
+  display:grid;
+  gap:12px;
+}
+.planner-quick-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+}
+.planner-quick form{
+  display:grid;
+  gap:10px;
+}
+.planner-quick label{
+  display:grid;
+  gap:6px;
+  color:#64748b;
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.planner-quick input,
+.planner-quick select,
+.planner-quick textarea{
+  width:100%;
+  border-radius:14px;
+  border:1px solid rgba(148,163,184,.20);
+  background:#f8fbff;
+  color:#101827;
+  padding:11px 12px;
+  font-size:14px;
+  font-weight:750;
+  text-transform:none;
+}
+.planner-quick textarea{
+  resize:vertical;
+}
+.planner-quick .btn{
+  width:100%;
+  border-radius:16px;
+  min-height:44px;
+}
+.planner-live-list{
+  display:grid;
+  gap:8px;
+  border-top:1px solid rgba(148,163,184,.16);
+  padding-top:12px;
+}
+.planner-live-list button{
+  min-height:62px;
+  border-radius:16px;
+  border:1px solid rgba(148,163,184,.16);
+  background:#fff;
+  display:grid;
+  grid-template-columns:72px 1fr;
+  gap:3px 8px;
+  align-items:center;
+  text-align:left;
+  padding:10px;
+}
+.planner-live-list span{
+  grid-row:1 / span 2;
+  color:#0b63d1;
+  font-size:12px;
+  font-weight:900;
+}
+.planner-live-list b{
+  color:#101827;
+  font-size:13px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.planner-live-list small,
+.planner-live-list p{
+  margin:0;
+  color:#64748b;
+  font-size:12px;
+  font-weight:750;
+}
 .content-page-v5 .content-v5-viewbar{
   position:sticky;
   top:12px;
@@ -18589,6 +20941,42 @@ tr:hover td,
 .content-page-v5 .content-list-card tbody tr:hover td{
   background:#f8fbff !important;
 }
+.content-page-v5 .content-list-card tbody tr.academy-content-row td{
+  background:linear-gradient(90deg,#f0fdf4,#ffffff) !important;
+}
+.content-page-v5 .content-list-card tbody tr.customer-content-row td{
+  background:linear-gradient(90deg,#fffbeb,#ffffff) !important;
+}
+.content-page-v5 .content-list-card tbody tr.services-content-row td{
+  background:linear-gradient(90deg,#f0f9ff,#ffffff) !important;
+}
+.content-page-v5 .table-chip.academy{
+  background:#dcfce7 !important;
+  color:#047857 !important;
+  border-color:#86efac !important;
+}
+.content-page-v5 .table-chip.customer{
+  background:#fef3c7 !important;
+  color:#b45309 !important;
+  border-color:#fcd34d !important;
+}
+.content-page-v5 .table-chip.services{
+  background:#e0f2fe !important;
+  color:#0369a1 !important;
+  border-color:#7dd3fc !important;
+}
+.content-page-v5 .academy-content-card{
+  background:linear-gradient(135deg,#f0fdf4,#ffffff) !important;
+  border-color:#86efac !important;
+}
+.content-page-v5 .customer-content-card{
+  background:linear-gradient(135deg,#fffbeb,#ffffff) !important;
+  border-color:#fcd34d !important;
+}
+.content-page-v5 .services-content-card{
+  background:linear-gradient(135deg,#f0f9ff,#ffffff) !important;
+  border-color:#7dd3fc !important;
+}
 .content-page-v5 .table-title-main,
 .content-page-v5 .table-person,
 .content-page-v5 .table-date-stack strong{color:#101827 !important;}
@@ -18621,14 +21009,52 @@ tr:hover td,
   color:#101827 !important;
   box-shadow:0 12px 30px rgba(15,23,42,.045) !important;
 }
+.content-page-v5 .mobile-record-card.academy-content-card{
+  background:linear-gradient(135deg,#f0fdf4,#ffffff) !important;
+  border-color:#86efac !important;
+}
+.content-page-v5 .mobile-record-card.customer-content-card{
+  background:linear-gradient(135deg,#fffbeb,#ffffff) !important;
+  border-color:#fcd34d !important;
+}
+.content-page-v5 .mobile-record-card.services-content-card{
+  background:linear-gradient(135deg,#f0f9ff,#ffffff) !important;
+  border-color:#7dd3fc !important;
+}
 .content-page-v5 .kanban-column h3,
 .content-page-v5 .kanban-card strong{color:#101827 !important;}
 .content-page-v5 .empty-block,
 .content-page-v5 .empty-cell{color:#64748b !important;}
+.content-empty-start{
+  min-height:190px;
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:10px;
+  padding:24px;
+  text-align:center;
+  border-radius:18px;
+  background:linear-gradient(135deg,#f8fbff,#eef6ff);
+  border:1px dashed rgba(22,144,245,.24);
+}
+.content-empty-start strong{
+  color:#101827;
+  font-size:18px;
+}
+.content-empty-start span{
+  max-width:520px;
+  color:#64748b;
+  font-weight:750;
+  line-height:1.55;
+}
 @media (max-width:1280px){
   .content-page-v5 .content-v5-hero{grid-template-columns:1fr !important;}
   .content-page-v5 .content-v5-hero-panel{grid-template-columns:150px 1fr !important;}
   .content-page-v5 .content-control-grid{grid-template-columns:1fr !important;}
+  .monthly-planner-layout{grid-template-columns:1fr}
+  .planner-templates{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .planner-templates > strong,
+  .planner-templates > span{grid-column:1 / -1}
 }
 @media (max-width:900px){
   .content-page-v5 .content-v5-stats-row,
@@ -18636,6 +21062,20 @@ tr:hover td,
   .content-page-v5 .content-v5-hero-panel{grid-template-columns:1fr !important;}
   .content-page-v5 .content-v5-viewbar{position:relative;top:auto;}
   .content-page-v5 .content-v5-hero{padding:22px !important;border-radius:26px !important;}
+  .mobilograf-content-head{display:grid}
+  .mobilograf-month-control{grid-template-columns:42px 1fr 42px}
+  .mobilograf-content-only .calendar-cell{min-height:112px}
+  .mobilograf-brief-hero{display:grid}
+  .mobilograf-brief-meta{grid-template-columns:1fr}
+  .mobilograf-progress-actions{grid-template-columns:1fr 1fr}
+  .monthly-planner{padding:14px;border-radius:24px}
+  .monthly-planner-head,
+  .monthly-planner-actions{display:grid;justify-content:stretch}
+  .monthly-planner-stats,
+  .planner-templates{grid-template-columns:1fr}
+  .planner-calendar-head{grid-template-columns:42px 1fr 42px}
+  .planner-calendar-head span{grid-column:1 / -1;text-align:center}
+  .planner-calendar .calendar-cell{min-height:104px}
 }
 
 /* === v5.6 Sidebar split: SMM menejer / Mobilograf. Old routes and functions preserved. === */
@@ -19086,6 +21526,954 @@ tr:hover td,
 .bonus-v58-lock-note svg{color:#1690f5 !important}
 
 
+/* === Manager OS Lab: strategy, CRM, analytics, KPI modules === */
+.manager-lab-page{
+  display:grid;
+  gap:18px;
+}
+.manager-lab-hero{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  gap:18px;
+  border-radius:8px;
+  padding:24px;
+  color:#fff;
+  background:
+    linear-gradient(135deg,rgba(15,23,42,.96),rgba(8,47,73,.94)),
+    radial-gradient(circle at 88% 12%,rgba(45,212,191,.28),transparent 32%);
+  border:1px solid rgba(148,163,184,.2);
+  box-shadow:0 22px 58px rgba(15,23,42,.18);
+}
+.manager-lab-hero span{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  color:#5eead4;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-lab-hero h1{
+  margin:10px 0 8px;
+  font-size:34px;
+  line-height:1.08;
+  color:#fff;
+}
+.manager-lab-hero p{
+  max-width:820px;
+  margin:0;
+  color:#cbd5e1;
+  font-weight:750;
+  line-height:1.6;
+}
+.manager-lab-hero > strong{
+  flex:0 0 auto;
+  width:96px;
+  height:96px;
+  border-radius:8px;
+  display:grid;
+  place-items:center;
+  color:#0f172a;
+  background:#5eead4;
+  font-size:34px;
+  box-shadow:0 18px 44px rgba(45,212,191,.24);
+}
+.manager-lab-tabs{
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:10px;
+}
+.manager-lab-tabs button{
+  min-height:78px;
+  border-radius:8px;
+  border:1px solid #dce7f2;
+  background:#fff;
+  color:#475467;
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  align-items:center;
+  gap:8px;
+  padding:12px;
+  text-align:left;
+  font-weight:900;
+  box-shadow:0 12px 32px rgba(15,23,42,.06);
+}
+.manager-lab-tabs button.active{
+  border-color:#2dd4bf;
+  background:#ecfeff;
+  color:#0f766e;
+}
+.manager-lab-tabs b{
+  min-width:28px;
+  height:28px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:#0f172a;
+  color:#5eead4;
+  font-size:12px;
+}
+.manager-lab-command{
+  border-radius:8px;
+  padding:18px;
+  background:linear-gradient(135deg,#ffffff,#f8fbff 62%,#ecfeff);
+  border:1px solid #dce7f2;
+  box-shadow:0 18px 45px rgba(15,23,42,.07);
+  display:grid;
+  gap:14px;
+}
+.manager-lab-command-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+}
+.manager-lab-command-head span,
+.manager-lab-action-list > span{
+  color:#0d9488;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-lab-command-head h2{
+  margin:5px 0 0;
+  color:#0f172a;
+  font-size:22px;
+  line-height:1.12;
+}
+.manager-lab-command-head > strong{
+  flex:0 0 auto;
+  min-width:64px;
+  height:40px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:#ecfeff;
+  color:#0f766e;
+  border:1px solid #99f6e4;
+}
+.manager-lab-command-grid{
+  display:grid;
+  gap:10px;
+  align-items:stretch;
+}
+.manager-lab-command-grid.strategy,
+.manager-lab-command-grid.generic{
+  grid-template-columns:repeat(3,minmax(0,1fr)) minmax(260px,1fr);
+}
+.manager-lab-command-grid.blogger{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+.manager-lab-command-grid.competitor,
+.manager-lab-command-grid.audience{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
+.manager-lab-metric,
+.manager-lab-action-list,
+.manager-lab-pipeline,
+.manager-lab-signal-list,
+.manager-lab-platform-pulse{
+  border-radius:8px;
+  background:#fff;
+  border:1px solid #dfe8f2;
+  box-shadow:0 12px 30px rgba(15,23,42,.045);
+  padding:14px;
+}
+.manager-lab-metric{
+  min-height:112px;
+  display:grid;
+  align-content:start;
+  gap:7px;
+}
+.manager-lab-metric span{
+  color:#667085;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-lab-metric strong{
+  color:#0f172a;
+  font-size:30px;
+  line-height:1;
+}
+.manager-lab-metric small{
+  color:#667085;
+  font-weight:800;
+  line-height:1.45;
+}
+.manager-lab-action-list{
+  display:grid;
+  gap:8px;
+}
+.manager-lab-command-grid.blogger .manager-lab-action-list,
+.manager-lab-command-grid.competitor .manager-lab-action-list,
+.manager-lab-command-grid.audience .manager-lab-action-list,
+.manager-lab-pipeline,
+.manager-lab-signal-list,
+.manager-lab-platform-pulse{
+  grid-column:span 3;
+}
+.manager-lab-action-list button,
+.manager-lab-signal-list button,
+.manager-lab-platform-pulse button{
+  min-height:56px;
+  border-radius:8px;
+  border:1px solid #e0e8f2;
+  background:#f8fbff;
+  display:grid;
+  align-content:center;
+  gap:3px;
+  padding:10px;
+  text-align:left;
+}
+.manager-lab-action-list button:hover,
+.manager-lab-signal-list button:hover,
+.manager-lab-platform-pulse button:hover{
+  border-color:#2dd4bf;
+  transform:translateY(-1px);
+}
+.manager-lab-action-list button strong,
+.manager-lab-signal-list button strong,
+.manager-lab-platform-pulse button strong{
+  color:#101828;
+  font-size:13px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.manager-lab-action-list button small,
+.manager-lab-action-list p,
+.manager-lab-signal-list button small,
+.manager-lab-signal-list p,
+.manager-lab-platform-pulse p{
+  margin:0;
+  color:#667085;
+  font-size:12px;
+  font-weight:800;
+}
+.manager-lab-signal-list,
+.manager-lab-platform-pulse{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+.manager-lab-signal-list button{
+  min-height:94px;
+  align-content:start;
+}
+.manager-lab-signal-list button span,
+.manager-lab-platform-pulse button span{
+  color:#0d9488;
+  font-size:12px;
+  font-weight:900;
+}
+.manager-lab-platform-pulse button{
+  min-height:86px;
+}
+.manager-lab-platform-pulse i{
+  height:8px;
+  border-radius:999px;
+  background:#edf2f7;
+  overflow:hidden;
+}
+.manager-lab-platform-pulse em{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#1478f2,#00bfa6);
+}
+.manager-lab-pipeline{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:8px;
+}
+.manager-lab-pipeline span{
+  min-height:54px;
+  border-radius:8px;
+  background:#f8fbff;
+  border:1px solid #e0e8f2;
+  padding:10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.manager-lab-pipeline b{
+  color:#667085;
+  font-size:11px;
+  text-transform:uppercase;
+}
+.manager-lab-pipeline strong{
+  color:#0f172a;
+  font-size:18px;
+}
+.manager-lab-layout{
+  display:grid;
+  grid-template-columns:minmax(320px,.72fr) minmax(0,1.28fr);
+  gap:18px;
+  align-items:start;
+}
+.manager-lab-card{
+  border-radius:8px;
+  background:#fff;
+  border:1px solid #dce7f2;
+  box-shadow:0 18px 45px rgba(15,23,42,.07);
+  padding:18px;
+}
+.manager-lab-form textarea{
+  min-height:96px;
+}
+.manager-lab-submit{
+  grid-column:1/-1;
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.manager-lab-list .table-wrap{
+  max-height:620px;
+  overflow:auto;
+}
+.manager-lab-empty{
+  min-height:260px;
+  margin-top:14px;
+  border-radius:8px;
+  border:1px dashed #b9d7d2;
+  background:linear-gradient(135deg,#f8fbff,#ecfeff);
+  display:grid;
+  place-items:center;
+  align-content:center;
+  gap:10px;
+  padding:28px;
+  text-align:center;
+}
+.manager-lab-empty svg{color:#0d9488}
+.manager-lab-empty strong{
+  color:#0f172a;
+  font-size:18px;
+}
+.manager-lab-empty span{
+  max-width:520px;
+  color:#667085;
+  font-weight:750;
+  line-height:1.55;
+}
+@media (max-width:1180px){
+  .manager-lab-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .manager-lab-command-grid.strategy,
+  .manager-lab-command-grid.generic,
+  .manager-lab-command-grid.blogger,
+  .manager-lab-command-grid.competitor,
+  .manager-lab-command-grid.audience{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-lab-command-grid.blogger .manager-lab-action-list,
+  .manager-lab-pipeline,
+  .manager-lab-signal-list,
+  .manager-lab-platform-pulse{grid-column:1 / -1}
+  .manager-lab-signal-list,
+  .manager-lab-platform-pulse{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-lab-layout{grid-template-columns:1fr}
+}
+@media (max-width:680px){
+  .manager-lab-hero{display:grid;padding:20px}
+  .manager-lab-hero h1{font-size:28px}
+  .manager-lab-hero > strong{width:72px;height:72px;font-size:28px}
+  .manager-lab-tabs{grid-template-columns:1fr}
+  .manager-lab-command-head{display:grid}
+  .manager-lab-command-grid.strategy,
+  .manager-lab-command-grid.generic,
+  .manager-lab-command-grid.blogger,
+  .manager-lab-command-grid.competitor,
+  .manager-lab-command-grid.audience,
+  .manager-lab-signal-list,
+  .manager-lab-platform-pulse,
+  .manager-lab-pipeline{grid-template-columns:1fr}
+}
+
+/* === alooSMM Manager OS redesign: dashboard and shell identity === */
+.brand-mark{
+  background:linear-gradient(135deg,#051321,#0f2f4d 52%,#00bfa6)!important;
+  border:1px solid rgba(255,255,255,.16)!important;
+  box-shadow:0 18px 38px rgba(0,191,166,.18)!important;
+}
+.brand-mark-image{border-radius:12px!important}
+.sidebar-workspace-card{
+  background:linear-gradient(135deg,rgba(0,191,166,.14),rgba(20,120,242,.10))!important;
+  border-color:rgba(125,211,252,.18)!important;
+}
+.sidebar-role-switcher{
+  background:rgba(255,255,255,.045)!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  border-radius:18px!important;
+  padding:6px!important;
+}
+.sidebar-role-pill{
+  border-radius:14px!important;
+  background:transparent!important;
+}
+.sidebar-role-pill.active{
+  background:linear-gradient(135deg,#ffffff,#ddfff8)!important;
+  color:#07111d!important;
+  box-shadow:0 14px 28px rgba(0,191,166,.16)!important;
+}
+.sidebar-role-pill.active span,
+.sidebar-role-pill.active strong{color:#07111d!important}
+.manager-os-page{
+  display:grid;
+  gap:18px;
+  color:#0f172a;
+}
+.manager-os-page *{letter-spacing:0}
+.manager-os-hero{
+  min-height:238px;
+  border-radius:8px;
+  padding:26px;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 280px;
+  gap:22px;
+  align-items:stretch;
+  background:
+    linear-gradient(90deg,rgba(2,10,20,.96),rgba(6,25,43,.94) 58%,rgba(0,117,105,.88)),
+    #07111d;
+  border:1px solid rgba(255,255,255,.10);
+  box-shadow:0 26px 70px rgba(2,8,23,.22);
+  overflow:hidden;
+  position:relative;
+}
+.manager-os-hero::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px);
+  background-size:34px 34px;
+  mask-image:linear-gradient(90deg,black,transparent 72%);
+  pointer-events:none;
+}
+.manager-os-hero-copy,
+.manager-os-pulse{position:relative;z-index:1}
+.manager-os-eyebrow{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  min-height:34px;
+  padding:0 12px;
+  border-radius:999px;
+  background:rgba(0,191,166,.14);
+  border:1px solid rgba(94,234,212,.25);
+  color:#a7fff1;
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.manager-os-hero h1{
+  margin:18px 0 10px;
+  max-width:790px;
+  color:#fff;
+  font-size:42px;
+  line-height:1.03;
+}
+.manager-os-hero p{
+  margin:0;
+  max-width:820px;
+  color:#c9d7e8;
+  font-size:15px;
+  line-height:1.7;
+  font-weight:650;
+}
+.manager-os-pulse{
+  border-radius:8px;
+  border:1px solid rgba(255,255,255,.16);
+  background:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.06));
+  display:grid;
+  place-items:center;
+  text-align:center;
+  padding:22px;
+}
+.manager-os-pulse span{
+  width:118px;
+  height:118px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  color:#fff;
+  font-size:40px;
+  font-weight:950;
+  background:
+    radial-gradient(circle at center,#092033 52%,transparent 54%),
+    conic-gradient(#2dd4bf 0 74%,#f59e0b 74% 88%,rgba(255,255,255,.15) 88%);
+  box-shadow:0 20px 48px rgba(45,212,191,.20);
+}
+.manager-os-pulse strong{color:#fff;font-size:18px;margin-top:10px}
+.manager-os-pulse small{color:#b8c8da;font-weight:800}
+.manager-os-strip{
+  display:grid;
+  grid-template-columns:repeat(6,minmax(0,1fr));
+  gap:12px;
+}
+.manager-os-strip div,
+.manager-os-card{
+  border-radius:8px;
+  background:linear-gradient(180deg,#ffffff,#f8fbff);
+  border:1px solid #dce7f2;
+  box-shadow:0 18px 45px rgba(15,23,42,.07);
+}
+.manager-os-strip div{
+  min-height:102px;
+  padding:16px;
+  display:grid;
+  align-content:center;
+}
+.manager-os-strip span,
+.manager-os-card-head span{
+  color:#667085;
+  font-size:12px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.manager-os-strip strong{
+  margin-top:5px;
+  color:#0f172a;
+  font-size:30px;
+  line-height:1;
+}
+.manager-os-strip small{color:#008f7d;font-weight:900}
+.manager-os-today{
+  border-radius:8px;
+  padding:18px;
+  background:
+    linear-gradient(135deg,#ffffff 0%,#f8fbff 58%,#eefdf9 100%);
+  border:1px solid #d7e7ef;
+  box-shadow:0 18px 45px rgba(15,23,42,.07);
+}
+.manager-os-today-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:14px;
+  margin-bottom:14px;
+}
+.manager-os-today-head span,
+.manager-os-today-feed > span,
+.manager-os-today-pulse > span{
+  color:#0d9488;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-os-today-head h2{
+  margin:5px 0 0;
+  color:#0f172a;
+  font-size:22px;
+  line-height:1.12;
+}
+.manager-os-today-head button{
+  flex:0 0 auto;
+  min-height:38px;
+  border:1px solid #b9eee7;
+  border-radius:999px;
+  background:#ecfeff;
+  color:#0f766e;
+  padding:0 14px;
+  font-weight:950;
+}
+.manager-os-today-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr)) minmax(240px,.9fr);
+  gap:10px;
+  align-items:stretch;
+}
+.manager-os-today-stat,
+.manager-os-today-pulse,
+.manager-os-today-feed{
+  min-height:126px;
+  border-radius:8px;
+  border:1px solid #dde8f2;
+  background:#fff;
+  padding:14px;
+  box-shadow:0 12px 30px rgba(15,23,42,.045);
+}
+.manager-os-today-stat{
+  display:grid;
+  align-content:start;
+  gap:7px;
+  text-align:left;
+  color:#0f172a;
+}
+.manager-os-today-stat span{
+  color:#667085;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-os-today-stat strong,
+.manager-os-today-pulse strong{
+  color:#0f172a;
+  font-size:32px;
+  line-height:1;
+}
+.manager-os-today-stat small,
+.manager-os-today-pulse small{
+  color:#667085;
+  font-weight:800;
+  line-height:1.45;
+}
+.manager-os-today-stat.good{border-color:#bbf7d0;background:#f0fdf4}
+.manager-os-today-stat.warning{border-color:#fde68a;background:#fffbeb}
+.manager-os-today-stat.danger{border-color:#fecaca;background:#fff1f2}
+.manager-os-today-stat.idle{border-color:#dbeafe;background:#f8fbff}
+.manager-os-today-stat:hover{
+  transform:translateY(-1px);
+  box-shadow:0 16px 34px rgba(13,148,136,.10);
+}
+.manager-os-today-pulse{
+  display:grid;
+  align-content:start;
+  gap:8px;
+  background:#0f172a;
+  border-color:rgba(45,212,191,.24);
+}
+.manager-os-today-pulse strong{color:#5eead4}
+.manager-os-today-pulse small{color:#cbd5e1}
+.manager-os-today-feed{
+  grid-column:1 / -1;
+  min-height:auto;
+  display:grid;
+  grid-template-columns:auto repeat(5,minmax(0,1fr));
+  align-items:stretch;
+  gap:10px;
+}
+.manager-os-today-feed > span{
+  align-self:center;
+  min-width:112px;
+}
+.manager-os-today-feed button{
+  min-height:58px;
+  border-radius:8px;
+  border:1px solid #e0e8f2;
+  background:#f8fbff;
+  display:grid;
+  align-content:center;
+  gap:3px;
+  text-align:left;
+  padding:10px;
+}
+.manager-os-today-feed button strong{
+  color:#101828;
+  font-size:13px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.manager-os-today-feed button small,
+.manager-os-today-feed p{
+  margin:0;
+  color:#667085;
+  font-size:12px;
+  font-weight:800;
+}
+.manager-os-snapshot{
+  display:grid;
+  grid-template-columns:repeat(10,minmax(0,1fr));
+  gap:8px;
+}
+.manager-os-snapshot div{
+  min-height:72px;
+  border-radius:8px;
+  background:#0f172a;
+  border:1px solid rgba(45,212,191,.24);
+  padding:12px;
+  display:grid;
+  align-content:center;
+}
+.manager-os-snapshot span{
+  color:#a7b6c8;
+  font-size:11px;
+  font-weight:900;
+  text-transform:uppercase;
+}
+.manager-os-snapshot strong{
+  margin-top:4px;
+  color:#5eead4;
+  font-size:22px;
+  line-height:1;
+}
+.manager-os-onboarding{
+  border-radius:8px;
+  padding:18px;
+  background:linear-gradient(135deg,#ffffff 0%,#f6fffd 64%,#eef7ff 100%);
+  border:1px solid #cfe9e6;
+  box-shadow:0 18px 45px rgba(15,23,42,.07);
+}
+.manager-os-onboarding-head{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:14px;
+  margin-bottom:14px;
+}
+.manager-os-onboarding-head span{
+  color:#0d9488;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-os-onboarding-head h2{
+  margin:4px 0 0;
+  color:#0f172a;
+  font-size:20px;
+  line-height:1.14;
+}
+.manager-os-onboarding-head strong{
+  flex:0 0 auto;
+  min-width:58px;
+  height:40px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  color:#064e3b;
+  background:#ccfbf1;
+  border:1px solid #99f6e4;
+  font-size:14px;
+}
+.manager-os-onboarding-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+}
+.manager-os-onboarding-grid button{
+  min-height:142px;
+  border-radius:8px;
+  border:1px solid #dbe8ef;
+  background:#fff;
+  color:#0f172a;
+  display:grid;
+  align-content:start;
+  gap:9px;
+  padding:14px;
+  text-align:left;
+  box-shadow:0 12px 30px rgba(15,23,42,.055);
+}
+.manager-os-onboarding-grid button:hover{
+  transform:translateY(-1px);
+  border-color:#2dd4bf;
+  box-shadow:0 16px 34px rgba(13,148,136,.12);
+}
+.manager-os-onboarding-grid button.done{
+  border-color:#a7f3d0;
+  background:#f0fdf4;
+}
+.manager-os-onboarding-grid i{
+  width:max-content;
+  min-width:48px;
+  height:26px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  padding:0 9px;
+  background:#eff6ff;
+  color:#1478f2;
+  font-size:11px;
+  font-style:normal;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.manager-os-onboarding-grid .done i{
+  background:#dcfce7;
+  color:#15803d;
+}
+.manager-os-onboarding-grid strong{
+  color:#0f172a;
+  font-size:15px;
+  line-height:1.2;
+}
+.manager-os-onboarding-grid span{
+  color:#667085;
+  font-size:12px;
+  font-weight:750;
+  line-height:1.45;
+}
+.manager-os-layout{
+  display:grid;
+  grid-template-columns:minmax(0,1.55fr) minmax(340px,.75fr);
+  gap:18px;
+}
+.manager-os-card{padding:18px}
+.manager-os-card-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  margin-bottom:16px;
+}
+.manager-os-card-head h2{
+  margin:4px 0 0;
+  color:#0f172a;
+  font-size:20px;
+  line-height:1.15;
+}
+.manager-os-card-head b{
+  flex:0 0 auto;
+  border-radius:999px;
+  background:#ecfeff;
+  color:#00796d;
+  border:1px solid #c9f6ee;
+  padding:7px 10px;
+  font-size:11px;
+  text-transform:uppercase;
+}
+.manager-os-module-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+}
+.manager-os-module{
+  min-height:56px;
+  border:1px solid #dfe8f2;
+  background:#f8fbff;
+  border-radius:8px;
+  padding:10px;
+  display:grid;
+  grid-template-columns:32px 22px 1fr;
+  align-items:center;
+  gap:8px;
+  color:#162033;
+  text-align:left;
+}
+.manager-os-module:hover{
+  transform:translateY(-1px);
+  border-color:#8be9dd;
+  box-shadow:0 10px 26px rgba(20,120,242,.10);
+}
+.manager-os-module span{
+  color:#94a3b8;
+  font-size:11px;
+  font-weight:950;
+}
+.manager-os-module svg{color:#0d9488}
+.manager-os-module strong{
+  min-width:0;
+  color:#162033;
+  font-size:13px;
+}
+.manager-os-focus-list{display:grid;gap:13px}
+.manager-os-focus-list div{
+  display:grid;
+  grid-template-columns:1fr 112px 42px;
+  gap:10px;
+  align-items:center;
+}
+.manager-os-focus-list span{color:#344054;font-size:13px;font-weight:850}
+.manager-os-focus-list i{
+  height:9px;
+  border-radius:999px;
+  background:#edf2f7;
+  overflow:hidden;
+}
+.manager-os-focus-list em{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#1478f2,#00bfa6);
+}
+.manager-os-focus-list strong{font-size:13px;color:#0f172a}
+.manager-os-grid{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:18px;
+}
+.manager-os-bottom{
+  display:grid;
+  grid-template-columns:minmax(0,1.35fr) minmax(320px,.75fr);
+  gap:18px;
+}
+.manager-os-table{display:grid;gap:9px}
+.manager-os-table > div{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:3px 12px;
+  align-items:center;
+  min-height:58px;
+  padding:11px 12px;
+  border-radius:8px;
+  background:#f8fbff;
+  border:1px solid #e0e8f2;
+}
+.manager-os-table strong{color:#101828;font-size:13px}
+.manager-os-table span{color:#667085;font-size:12px;font-weight:750}
+.manager-os-table b{
+  grid-row:1 / span 2;
+  grid-column:2;
+  border-radius:999px;
+  background:#fff7ed;
+  color:#c2410c;
+  padding:6px 9px;
+  font-size:11px;
+  max-width:120px;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+.manager-os-platforms{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.manager-os-platforms > div{
+  padding:13px;
+  border-radius:8px;
+  border:1px solid #e0e8f2;
+  background:#f8fbff;
+}
+.manager-os-platforms strong{display:block;color:#0f172a;font-size:13px}
+.manager-os-platforms span{display:block;color:#667085;font-size:12px;font-weight:750;margin:6px 0 10px}
+.manager-os-platforms i{
+  display:block;
+  height:8px;
+  border-radius:999px;
+  background:#edf2f7;
+  overflow:hidden;
+}
+.manager-os-platforms em{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#f97316,#00bfa6);
+}
+.manager-os-principle{
+  background:linear-gradient(135deg,#fef3c7,#ffffff 58%,#e0f7f4);
+  display:grid;
+  align-content:center;
+}
+.manager-os-principle span{font-size:12px;font-weight:950;color:#b45309;text-transform:uppercase}
+.manager-os-principle h2{margin:8px 0;color:#0f172a;font-size:24px;line-height:1.12}
+.manager-os-principle p{margin:0;color:#475467;font-weight:750;line-height:1.65}
+.manager-os-empty{
+  margin:0;
+  padding:18px;
+  border-radius:8px;
+  border:1px dashed #cbd5e1;
+  background:#f8fbff;
+  color:#667085;
+  font-weight:750;
+}
+@media (max-width:1180px){
+  .manager-os-hero,.manager-os-layout,.manager-os-grid,.manager-os-bottom{grid-template-columns:1fr}
+  .manager-os-strip{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-os-today-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-os-today-feed{grid-column:1 / -1;grid-template-columns:1fr}
+  .manager-os-snapshot{grid-template-columns:repeat(5,minmax(0,1fr))}
+  .manager-os-onboarding-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-os-module-grid,.manager-os-platforms{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media (max-width:680px){
+  .manager-os-hero{padding:20px}
+  .manager-os-hero h1{font-size:30px}
+  .manager-os-strip,.manager-os-module-grid,.manager-os-platforms{grid-template-columns:1fr}
+  .manager-os-today-head{display:grid}
+  .manager-os-today-grid{grid-template-columns:1fr}
+  .manager-os-snapshot{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-os-onboarding-grid{grid-template-columns:1fr}
+  .manager-os-onboarding-head{display:grid}
+  .manager-os-focus-list div{grid-template-columns:1fr 72px 38px}
+}
+
 /* === Campaigns Safe Redesign v6.1: does not break old functions === */
 .campaigns-safe-page{
   gap:22px !important;
@@ -19139,6 +22527,419 @@ tr:hover td,
 .campaigns-safe-page .btn.tiny{min-height:32px!important;padding:8px 10px!important;border-radius:12px!important;font-size:12px!important;font-weight:800!important}
 .campaigns-safe-page .empty-cell,.campaigns-safe-page .empty-block{background:#f8fbff!important;color:#64748b!important;border:1px dashed #cbd5e1!important;border-radius:16px!important;padding:18px!important;text-align:center!important}
 @media (max-width:1180px){.campaign-safe-layout,.campaign-safe-stats{grid-template-columns:1fr}.campaign-safe-form{grid-template-columns:1fr!important}.campaign-safe-full{grid-column:auto}.campaign-safe-hero{align-items:flex-start;flex-direction:column}.campaign-safe-hero-actions{justify-content:flex-start}}
+
+
+/* === Yaviz Premium Redesign v7.0 — 2026 Command UI polish === */
+:root{
+  --blue:#1690F5;
+  --blue-strong:#0676D8;
+  --blue-soft:#E9F5FF;
+  --bg:#F3F7FC;
+  --panel:rgba(255,255,255,.88);
+  --panel-strong:#FFFFFF;
+  --panel-soft:#F7FAFE;
+  --soft:#F6FAFF;
+  --text:#0B1220;
+  --text-soft:#1F2A3D;
+  --muted:#66758A;
+  --line:rgba(113,132,157,.18);
+  --line-strong:rgba(22,144,245,.18);
+  --shadow-soft:0 18px 45px rgba(15,23,42,.07);
+  --shadow-card:0 28px 80px rgba(15,23,42,.10);
+  --shadow-float:0 32px 90px rgba(11,18,32,.18);
+  --ring:0 0 0 4px rgba(22,144,245,.16);
+}
+:root[data-theme='dark']{
+  --blue:#54B4FF;
+  --blue-strong:#1690F5;
+  --blue-soft:rgba(84,180,255,.12);
+  --bg:#050914;
+  --panel:rgba(12,20,35,.82);
+  --panel-strong:#0B1424;
+  --panel-soft:rgba(17,28,48,.86);
+  --soft:#101A2E;
+  --text:#F6FAFF;
+  --text-soft:#D9E6F8;
+  --muted:#8FA3BE;
+  --line:rgba(165,191,224,.13);
+  --line-strong:rgba(84,180,255,.22);
+}
+html,body,#root{
+  min-height:100%;
+  background:
+    radial-gradient(circle at 8% 8%, rgba(22,144,245,.18), transparent 30%),
+    radial-gradient(circle at 90% 6%, rgba(80,200,255,.13), transparent 28%),
+    radial-gradient(circle at 50% 98%, rgba(22,144,245,.09), transparent 34%),
+    var(--bg) !important;
+}
+body::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  z-index:0;
+  background-image:
+    linear-gradient(rgba(22,144,245,.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(22,144,245,.035) 1px, transparent 1px);
+  background-size:42px 42px;
+  mask-image:linear-gradient(180deg, rgba(0,0,0,.65), transparent 78%);
+}
+#root{position:relative;z-index:1}
+.app-shell{
+  grid-template-columns:304px minmax(0,1fr) !important;
+  gap:0 !important;
+  background:transparent !important;
+}
+.sidebar{
+  position:sticky !important;
+  top:0 !important;
+  height:100vh !important;
+  background:
+    radial-gradient(circle at 22% 0%, rgba(22,144,245,.22), transparent 34%),
+    linear-gradient(180deg,#07111F 0%,#081423 44%,#06101D 100%) !important;
+  border-right:1px solid rgba(255,255,255,.09) !important;
+  box-shadow:18px 0 60px rgba(5,12,24,.18) !important;
+  padding:20px 16px !important;
+  overflow:auto !important;
+  scrollbar-width:thin;
+}
+.sidebar::before{
+  display:block !important;
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.07), transparent 20%),
+    radial-gradient(circle at 85% 20%, rgba(22,144,245,.24), transparent 26%);
+  pointer-events:none;
+  opacity:.9;
+}
+.brand-block,
+.sidebar-workspace-card,
+.sidebar-role-switcher,
+.sidebar-search,
+.menu-section-list,
+.sidebar-help-card,
+.logout-btn{
+  position:relative;
+  z-index:2;
+}
+.brand-block{
+  padding:12px 10px 18px !important;
+  border-bottom:1px solid rgba(255,255,255,.08) !important;
+}
+.brand-mark{
+  width:54px !important;
+  height:54px !important;
+  border-radius:20px !important;
+  background:linear-gradient(135deg,#FFFFFF,#EAF5FF) !important;
+  box-shadow:0 18px 42px rgba(22,144,245,.24), inset 0 1px 0 rgba(255,255,255,.8) !important;
+}
+.brand-name{color:#FFFFFF !important;letter-spacing:-.04em !important}
+.brand-desc{color:rgba(235,245,255,.66) !important}
+.sidebar-workspace-card,
+.sidebar-help-card{
+  background:linear-gradient(145deg, rgba(255,255,255,.10), rgba(255,255,255,.045)) !important;
+  border:1px solid rgba(255,255,255,.12) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10), 0 18px 40px rgba(0,0,0,.18) !important;
+  backdrop-filter:blur(16px) !important;
+}
+.sidebar-workspace-card span,
+.sidebar-help-card span{color:rgba(235,245,255,.58) !important}
+.sidebar-workspace-card strong,
+.sidebar-help-card strong{color:#FFFFFF !important}
+.sidebar-workspace-card small,
+.sidebar-help-card small{color:rgba(235,245,255,.68) !important}
+.sidebar-workspace-card small i{background:#22C55E !important;box-shadow:0 0 0 6px rgba(34,197,94,.12),0 0 22px rgba(34,197,94,.48) !important}
+.sidebar-role-pill{
+  background:rgba(255,255,255,.055) !important;
+  border:1px solid rgba(255,255,255,.08) !important;
+  color:rgba(240,248,255,.78) !important;
+  box-shadow:none !important;
+}
+.sidebar-role-pill strong{color:#F8FBFF !important}
+.sidebar-role-pill span{color:rgba(235,245,255,.58) !important}
+.sidebar-role-pill.active{
+  background:linear-gradient(135deg,rgba(22,144,245,.25),rgba(22,144,245,.10)) !important;
+  border-color:rgba(84,180,255,.42) !important;
+  box-shadow:0 14px 32px rgba(22,144,245,.18) !important;
+}
+.sidebar-search{
+  background:rgba(255,255,255,.08) !important;
+  border:1px solid rgba(255,255,255,.12) !important;
+  color:#DCEEFF !important;
+}
+.sidebar-search input{color:#F8FBFF !important;-webkit-text-fill-color:#F8FBFF !important}
+.sidebar-search input::placeholder{color:rgba(235,245,255,.48) !important;-webkit-text-fill-color:rgba(235,245,255,.48) !important}
+.menu-group-toggle{
+  color:rgba(235,245,255,.64) !important;
+  font-size:11px !important;
+  letter-spacing:.12em !important;
+}
+.menu-btn{
+  min-height:58px !important;
+  background:transparent !important;
+  border:1px solid transparent !important;
+  color:rgba(244,250,255,.82) !important;
+  border-radius:20px !important;
+  padding:11px 12px !important;
+}
+.menu-btn .menu-text>span{color:rgba(249,252,255,.92) !important;font-weight:850 !important}
+.menu-btn .menu-text small{color:rgba(235,245,255,.50) !important}
+.menu-btn:hover{
+  background:rgba(255,255,255,.075) !important;
+  border-color:rgba(255,255,255,.10) !important;
+  transform:translateX(3px) !important;
+}
+.menu-btn.active{
+  background:linear-gradient(135deg,#1690F5,#066ED0) !important;
+  border-color:rgba(255,255,255,.20) !important;
+  box-shadow:0 16px 38px rgba(22,144,245,.32) !important;
+  color:#FFFFFF !important;
+}
+.menu-btn.active .menu-text small{color:rgba(255,255,255,.74) !important}
+.menu-btn.active .menu-icon-wrap{
+  background:rgba(255,255,255,.18) !important;
+  color:#FFFFFF !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18) !important;
+}
+.menu-active-dot{background:#FFFFFF !important;box-shadow:0 0 0 5px rgba(255,255,255,.14) !important}
+.sidebar-help-card a{
+  background:#FFFFFF !important;
+  color:#0676D8 !important;
+  box-shadow:0 12px 28px rgba(255,255,255,.14) !important;
+}
+.logout-btn{
+  background:rgba(255,255,255,.08) !important;
+  border:1px solid rgba(255,255,255,.12) !important;
+  color:#F8FBFF !important;
+}
+.main-area{
+  padding:24px 26px 34px !important;
+  min-width:0 !important;
+}
+.topbar{
+  position:sticky !important;
+  top:18px !important;
+  z-index:20 !important;
+  background:linear-gradient(145deg,rgba(255,255,255,.88),rgba(246,251,255,.74)) !important;
+  border:1px solid rgba(255,255,255,.72) !important;
+  box-shadow:0 22px 70px rgba(15,23,42,.10), inset 0 1px 0 rgba(255,255,255,.70) !important;
+  backdrop-filter:blur(22px) saturate(160%) !important;
+  border-radius:32px !important;
+}
+:root[data-theme='dark'] .topbar{
+  background:linear-gradient(145deg,rgba(12,20,35,.88),rgba(10,17,30,.72)) !important;
+  border-color:rgba(255,255,255,.10) !important;
+  box-shadow:0 24px 70px rgba(0,0,0,.40), inset 0 1px 0 rgba(255,255,255,.08) !important;
+}
+.topbar::after{
+  background:linear-gradient(90deg,transparent,#1690F5,transparent) !important;
+  opacity:.75 !important;
+}
+.small-label,.section-label{
+  color:#1690F5 !important;
+  font-weight:950 !important;
+  letter-spacing:.14em !important;
+}
+.topbar h1{
+  font-size:clamp(24px,3vw,42px) !important;
+  line-height:1.02 !important;
+  letter-spacing:-.055em !important;
+  color:var(--text) !important;
+}
+.page-title-badge,
+.menu-icon-wrap,
+.mobile-nav-icon{
+  border-radius:16px !important;
+  box-shadow:0 12px 28px rgba(22,144,245,.14) !important;
+}
+.global-search,
+.theme-toggle,
+.notif-pill,
+.user-chip{
+  min-height:48px !important;
+  background:rgba(255,255,255,.70) !important;
+  border:1px solid rgba(113,132,157,.18) !important;
+  box-shadow:0 10px 28px rgba(15,23,42,.055) !important;
+  backdrop-filter:blur(12px) !important;
+}
+:root[data-theme='dark'] .global-search,
+:root[data-theme='dark'] .theme-toggle,
+:root[data-theme='dark'] .notif-pill,
+:root[data-theme='dark'] .user-chip{
+  background:rgba(17,28,48,.78) !important;
+  border-color:rgba(255,255,255,.10) !important;
+}
+.page-layer{
+  margin-top:24px !important;
+  gap:24px !important;
+}
+.card,
+.stat-card,
+.hero-shell,
+.table-wrap,
+.permission-box,
+.permission-item,
+.modal-card,
+.drawer-panel,
+.notif-card,
+.mobile-record-card,
+.settings-ops-card{
+  background:linear-gradient(180deg,rgba(255,255,255,.94),rgba(250,253,255,.84)) !important;
+  border:1px solid rgba(255,255,255,.74) !important;
+  box-shadow:0 22px 64px rgba(15,23,42,.08), inset 0 1px 0 rgba(255,255,255,.72) !important;
+  backdrop-filter:blur(18px) saturate(140%) !important;
+}
+:root[data-theme='dark'] .card,
+:root[data-theme='dark'] .stat-card,
+:root[data-theme='dark'] .hero-shell,
+:root[data-theme='dark'] .table-wrap,
+:root[data-theme='dark'] .permission-box,
+:root[data-theme='dark'] .permission-item,
+:root[data-theme='dark'] .modal-card,
+:root[data-theme='dark'] .drawer-panel,
+:root[data-theme='dark'] .notif-card,
+:root[data-theme='dark'] .mobile-record-card,
+:root[data-theme='dark'] .settings-ops-card{
+  background:linear-gradient(180deg,rgba(12,20,35,.88),rgba(10,17,30,.78)) !important;
+  border-color:rgba(255,255,255,.10) !important;
+  box-shadow:0 24px 70px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.07) !important;
+}
+.card:hover,
+.stat-card:hover{
+  transform:translateY(-4px) !important;
+  border-color:rgba(22,144,245,.28) !important;
+  box-shadow:0 34px 90px rgba(15,23,42,.12) !important;
+}
+.stat-card{
+  min-height:154px !important;
+  border-radius:28px !important;
+  overflow:hidden !important;
+}
+.stat-card::before{
+  content:"";
+  position:absolute;
+  inset:auto -34px -52px auto;
+  width:132px;
+  height:132px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(22,144,245,.18),transparent 68%);
+  pointer-events:none;
+}
+.stat-card-title{color:#66758A !important;font-weight:950 !important}
+.stat-card-value{
+  color:#0B1220 !important;
+  letter-spacing:-.07em !important;
+  font-size:clamp(30px,3vw,44px) !important;
+}
+:root[data-theme='dark'] .stat-card-value{color:#F6FAFF !important}
+.stat-card-info .stat-card-value,
+.stat-card-success .stat-card-value{color:#1690F5 !important}
+.btn{
+  min-height:44px !important;
+  border-radius:16px !important;
+  font-weight:900 !important;
+  letter-spacing:-.01em !important;
+}
+.btn.primary{
+  background:linear-gradient(135deg,#1690F5,#066ED0) !important;
+  color:#FFFFFF !important;
+  box-shadow:0 16px 36px rgba(22,144,245,.26) !important;
+}
+.btn.primary:hover{box-shadow:0 22px 48px rgba(22,144,245,.34) !important}
+.btn.secondary,.btn.ghost{
+  background:rgba(255,255,255,.72) !important;
+  border:1px solid rgba(113,132,157,.20) !important;
+  color:var(--text) !important;
+}
+.card input,
+.card select,
+.card textarea,
+.modal-card input,
+.modal-card select,
+.modal-card textarea{
+  background:rgba(247,250,254,.92) !important;
+  border:1px solid rgba(113,132,157,.20) !important;
+  border-radius:16px !important;
+  min-height:46px !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.56) !important;
+}
+.card input:focus,
+.card select:focus,
+.card textarea:focus,
+.modal-card input:focus,
+.modal-card select:focus,
+.modal-card textarea:focus{
+  border-color:rgba(22,144,245,.46) !important;
+  box-shadow:var(--ring), inset 0 1px 0 rgba(255,255,255,.56) !important;
+}
+.table-wrap{
+  border-radius:24px !important;
+  overflow:auto !important;
+}
+thead th{
+  background:linear-gradient(180deg,#F1F7FF,#EAF4FF) !important;
+  color:#314158 !important;
+  font-size:12px !important;
+  letter-spacing:.07em !important;
+  text-transform:uppercase !important;
+}
+tbody tr{transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+tbody tr:hover{
+  transform:translateY(-1px) !important;
+  box-shadow:0 12px 28px rgba(15,23,42,.06) !important;
+}
+tbody td{border-color:rgba(113,132,157,.13) !important}
+.hero-shell,
+.manager-os-hero,
+.command-hero,
+.campaign-safe-hero{
+  position:relative !important;
+  overflow:hidden !important;
+  border-radius:34px !important;
+}
+.hero-shell::before,
+.manager-os-hero::before,
+.command-hero::before,
+.campaign-safe-hero::before{
+  content:"";
+  position:absolute;
+  inset:-30% -20% auto auto;
+  width:360px;
+  height:360px;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(22,144,245,.22),transparent 66%);
+  pointer-events:none;
+}
+.mobile-bottom-nav{
+  background:rgba(255,255,255,.86) !important;
+  border:1px solid rgba(255,255,255,.78) !important;
+  box-shadow:0 -18px 50px rgba(15,23,42,.10) !important;
+  backdrop-filter:blur(22px) saturate(150%) !important;
+}
+.mobile-nav-item.active{
+  background:linear-gradient(135deg,rgba(22,144,245,.16),rgba(22,144,245,.06)) !important;
+  color:#0676D8 !important;
+}
+@media (max-width:1180px){
+  .app-shell{grid-template-columns:1fr !important}
+  .sidebar{display:none !important}
+  .main-area{padding:16px 14px 96px !important}
+  .topbar{top:10px !important;border-radius:24px !important;padding:16px !important}
+  .topbar-right{width:100% !important;justify-content:flex-start !important}
+  .global-search{flex:1 1 230px !important}
+}
+@media (max-width:720px){
+  body::before{background-size:30px 30px}
+  .topbar h1{font-size:24px !important}
+  .topbar-main{width:100% !important}
+  .global-search{order:4;flex-basis:100% !important}
+  .user-chip span{display:none !important}
+  .card,.stat-card,.hero-shell{border-radius:22px !important}
+  .mobile-bottom-nav{left:10px !important;right:10px !important;bottom:10px !important;border-radius:24px !important;padding:8px !important}
+  .mobile-nav-item span:last-child{font-size:10px !important}
+}
 
 
 `;
