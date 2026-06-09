@@ -359,6 +359,336 @@ function formatUsd(value) {
   return `$${Number(value || 0).toLocaleString()}`;
 }
 
+
+function readNumber(row = {}, keys = []) {
+  for (const key of keys) {
+    const raw = row?.[key];
+    if (raw !== undefined && raw !== null && raw !== "") {
+      const normalized = typeof raw === "string" ? raw.replace(/[^0-9.-]/g, "") : raw;
+      const value = Number(normalized);
+      if (!Number.isNaN(value)) return value;
+    }
+  }
+  return 0;
+}
+
+function getCampaignSpendValue(row = {}) {
+  const direct = readNumber(row, ["spend", "budget_spent", "spent_amount", "total_spent", "amount_spent"]);
+  if (direct) return direct;
+  const daily = readNumber(row, ["daily_budget", "daily_budget_amount", "budget"]);
+  if (!daily) return 0;
+  const start = getDateSortValue(row.start_at || row.start_date, null);
+  const end = getDateSortValue(row.end_at || row.end_date, null);
+  if (!start || !end || end < start) return daily;
+  const days = Math.max(1, Math.ceil((end - start) / 86400000));
+  return daily * Math.min(days, 31);
+}
+
+function getCampaignLeadValue(row = {}) {
+  return readNumber(row, ["lead_count", "leads", "leads_count", "messages", "requests", "murojaatlar"]);
+}
+
+function getCampaignViewValue(row = {}) {
+  return readNumber(row, ["views", "view_count", "impressions", "reach", "prosmotr", "views_count"]);
+}
+
+function getCampaignCplValue(row = {}) {
+  const manual = readNumber(row, ["cpl_amount", "cpa", "cpl"]);
+  if (manual) return manual;
+  const leads = getCampaignLeadValue(row);
+  const spend = getCampaignSpendValue(row);
+  return leads ? spend / leads : 0;
+}
+
+function getCampaignPerformance(row = {}) {
+  const leads = getCampaignLeadValue(row);
+  const views = getCampaignViewValue(row);
+  const spend = getCampaignSpendValue(row);
+  const cpl = getCampaignCplValue(row);
+  const status = normalizeCampaignStatus(row.status);
+  let score = 44;
+  if (leads >= 60) score += 26;
+  else if (leads >= 25) score += 18;
+  else if (leads >= 10) score += 10;
+  else if (leads > 0) score += 4;
+
+  if (cpl > 0 && cpl <= 30000) score += 22;
+  else if (cpl > 0 && cpl <= 60000) score += 16;
+  else if (cpl > 0 && cpl <= 100000) score += 8;
+  else if (cpl > 100000) score -= 12;
+
+  if (views >= 15000) score += 10;
+  else if (views >= 5000) score += 6;
+  if (status === "paused") score -= 8;
+  if (status === "done") score -= 3;
+  score = Math.max(0, Math.min(100, Math.round(score)));
+
+  const tone = score >= 78 ? "success" : score >= 58 ? "warning" : "danger";
+  const label = score >= 78 ? "Yashil" : score >= 58 ? "Sariq" : "Qizil";
+  const recommendation = tone === "success"
+    ? "Davom ettirish yoki byudjetni ehtiyotkor oshirish mumkin."
+    : tone === "warning"
+      ? "Kreativ, auditoriya yoki offerni A/B test qilish kerak."
+      : "Kampaniyani tekshirish: offer, segment, kreativi yoki filial mosligi zaif.";
+  return { score, tone, label, leads, views, spend, cpl, recommendation };
+}
+
+function getMonthDaysCount(monthLabel) {
+  const [year, month] = String(monthLabel || getMonthLabel()).split("-").map(Number);
+  if (!year || !month) return 30;
+  return new Date(year, month, 0).getDate();
+}
+
+function getDateDayNumber(dateValue) {
+  const date = formatDate(dateValue);
+  if (date === "-") return null;
+  const day = Number(date.slice(-2));
+  return Number.isNaN(day) ? null : day;
+}
+
+function CommandCenterV8({ contentRows = [], campaigns = [], tasks = [], dailyReports = [], onNavigate = null }) {
+  const todayKey = formatDate(new Date());
+  const currentMonth = getMonthLabel();
+  const monthRows = (contentRows || []).filter((row) => formatDate(row.publish_date || row.created_at).startsWith(currentMonth));
+  const openTasks = (tasks || []).filter((row) => !["done", "yakunlandi", "closed"].includes(String(row.status || "").toLowerCase()));
+  const activeCampaigns = (campaigns || []).filter((row) => normalizeCampaignStatus(row.status) === "active");
+  const todayContent = monthRows.filter((row) => formatDate(row.publish_date || row.created_at) === todayKey);
+  const overdueContent = monthRows.filter((row) => {
+    const publishDate = formatDate(row.publish_date || row.created_at);
+    const status = String(row.status || "").toLowerCase();
+    return publishDate !== "-" && publishDate < todayKey && !["joylangan", "yakunlandi", "published"].includes(status);
+  });
+  const dueTasks = openTasks.filter((row) => formatDate(row.due_date) === todayKey);
+  const overdueTasks = openTasks.filter((row) => {
+    const due = formatDate(row.due_date);
+    return due !== "-" && due < todayKey;
+  });
+  const ads = activeCampaigns.map((row) => ({ row, ...getCampaignPerformance(row) }));
+  const spend = ads.reduce((sum, item) => sum + item.spend, 0);
+  const leads = ads.reduce((sum, item) => sum + item.leads, 0);
+  const avgCpl = leads ? spend / leads : 0;
+  const dangerAds = ads.filter((item) => item.tone === "danger");
+  const todayReports = (dailyReports || []).filter((row) => formatDate(row.report_date || row.created_at) === todayKey);
+  const platformUnits = todayReports.reduce((sum, row) => sum + Number(row.posts_count || 0) + Number(row.stories_count || 0) + Number(row.reels_count || 0), 0);
+  const missionRows = [
+    {
+      title: "Bugungi publish nazorati",
+      value: todayContent.length,
+      hint: todayContent.length ? "kontent kartalarini tekshirish" : "bugun publish yo'q",
+      tone: todayContent.length ? "success" : "idle",
+      page: "content"
+    },
+    {
+      title: "Deadline risk",
+      value: overdueContent.length + overdueTasks.length,
+      hint: overdueContent.length || overdueTasks.length ? "tezkor signal kerak" : "deadline toza",
+      tone: overdueContent.length || overdueTasks.length ? "danger" : "success",
+      page: overdueContent.length ? "content" : "tasks"
+    },
+    {
+      title: "Faol target pulse",
+      value: activeCampaigns.length,
+      hint: avgCpl ? `CPL ${formatMoney(Math.round(avgCpl))}` : "lead kiritilsa tahlil ochiladi",
+      tone: dangerAds.length ? "warning" : "success",
+      page: "campaigns"
+    },
+    {
+      title: "Platforma monitoring",
+      value: platformUnits,
+      hint: `${todayReports.length} ta kunlik hisobot`,
+      tone: platformUnits ? "success" : "idle",
+      page: "dailyReports"
+    }
+  ];
+  const timeline = [
+    ...todayContent.slice(0, 3).map((row) => ({ title: row.title || "Kontent", meta: `${row.platform || row.platform_primary || "platforma"} • ${formatApprovalStatus(row.status || "reja")}`, page: "content" })),
+    ...dueTasks.slice(0, 2).map((row) => ({ title: row.title || "Task", meta: `${row.priority || "normal"} • ${taskStatusLabel(row.status)}`, page: "tasks" })),
+    ...ads.slice(0, 3).map((item) => ({ title: item.row.title || "Target", meta: `${item.label} • ${item.leads} lid • ${item.cpl ? formatMoney(Math.round(item.cpl)) : "CPL yo'q"}`, page: "campaigns" }))
+  ].slice(0, 6);
+  const aiAdvice = dangerAds.length
+    ? `${dangerAds.length} ta target qizil zonada. Avval CPL yuqori kreativlarni pauza qilib, yangi hook/offerni test qiling.`
+    : overdueContent.length || overdueTasks.length
+      ? "Bugungi eng katta xavf — deadline. Kontent va tasklarni yakunlash targetdan ham muhimroq."
+      : activeCampaigns.length
+        ? "Operatsion holat yaxshi. Yaxshi ishlayotgan targetlarga 10–20% byudjet test qilish mumkin."
+        : "Tizim sokin. Bugun kontent ritmi va keyingi aksiya briefini tayyorlashga fokus bering.";
+
+  return (
+    <section className="v8-command-center">
+      <div className="v8-command-head">
+        <div>
+          <span>V8 Command Center</span>
+          <h2>Bugungi ishni boshqaradigan real panel</h2>
+          <p>Kontent, task, target va platforma monitoringi bir joyda. Bu yer rahbar yoki SMM menejer ochishi kerak bo'lgan birinchi ekran.</p>
+        </div>
+        <button type="button" className="btn primary" onClick={() => onNavigate?.("content")}>Tezkor kontent qo'shish</button>
+      </div>
+      <div className="v8-mission-grid">
+        {missionRows.map((item) => (
+          <button key={item.title} type="button" className={`v8-mission-card ${item.tone}`} onClick={() => onNavigate?.(item.page)}>
+            <span>{item.title}</span>
+            <strong>{item.value}</strong>
+            <small>{item.hint}</small>
+          </button>
+        ))}
+      </div>
+      <div className="v8-command-layout">
+        <article className="v8-ai-card">
+          <span>AI xulosa</span>
+          <h3>{dangerAds.length ? "Targetni qayta ko'rish kerak" : overdueContent.length || overdueTasks.length ? "Deadline birinchi o'rinda" : "Operatsiya stabil"}</h3>
+          <p>{aiAdvice}</p>
+          <div className="v8-ai-actions">
+            <button type="button" onClick={() => onNavigate?.("campaigns")}>Target analytics</button>
+            <button type="button" onClick={() => onNavigate?.("tasks")}>Tasklar</button>
+          </div>
+        </article>
+        <article className="v8-live-feed">
+          <div className="v8-feed-head"><strong>Bugungi live feed</strong><span>{timeline.length} signal</span></div>
+          {timeline.length ? timeline.map((item, index) => (
+            <button key={`${item.title}-${index}`} type="button" onClick={() => onNavigate?.(item.page)}>
+              <i>{index + 1}</i>
+              <div><strong>{item.title}</strong><span>{item.meta}</span></div>
+            </button>
+          )) : <p>Bugun uchun signal yo'q. Reja kiritilsa shu yerda chiqadi.</p>}
+        </article>
+      </div>
+    </section>
+  );
+}
+
+function ContentRhythmV8({ rows = [], selectedMonth, onCalendar = null }) {
+  const daysCount = getMonthDaysCount(selectedMonth);
+  const todayKey = formatDate(new Date());
+  const cells = Array.from({ length: daysCount }, (_, index) => {
+    const day = index + 1;
+    const date = `${selectedMonth}-${String(day).padStart(2, "0")}`;
+    const items = (rows || []).filter((row) => formatDate(row.publish_date) === date);
+    const done = items.filter((row) => ["yakunlandi", "joylangan", "published"].includes(String(row.status || "").toLowerCase())).length;
+    const video = items.filter((row) => /video|reels|shorts|youtube/i.test(`${row.content_type || ""} ${row.platform || ""}`)).length;
+    const risk = items.filter((row) => {
+      const status = String(row.status || "").toLowerCase();
+      return date < todayKey && !["yakunlandi", "joylangan", "published"].includes(status);
+    }).length;
+    return { day, date, items, done, video, risk };
+  });
+  const busyDays = cells.filter((cell) => cell.items.length).length;
+  const emptyDays = cells.filter((cell) => !cell.items.length).length;
+  const maxLoad = Math.max(...cells.map((cell) => cell.items.length), 1);
+  const videoDays = cells.filter((cell) => cell.video).length;
+  const riskDays = cells.filter((cell) => cell.risk).length;
+  const bestEmpty = cells.filter((cell) => !cell.items.length && cell.date >= todayKey).slice(0, 4);
+  const rhythmScore = Math.round(((busyDays / Math.max(daysCount, 1)) * 55) + ((videoDays / Math.max(busyDays || 1, 1)) * 25) + (riskDays ? 0 : 20));
+
+  return (
+    <section className="v8-rhythm-panel">
+      <div className="v8-rhythm-head">
+        <div>
+          <span>V8 kontent ritm analiz</span>
+          <h2>{getMonthTitle(selectedMonth)} kalendari qanchalik sog'lom?</h2>
+          <p>Bo'sh kunlar, yuklama, video kunlari va deadline risklar avtomatik ko'rinadi.</p>
+        </div>
+        <div className="v8-rhythm-score"><strong>{Math.min(100, rhythmScore)}%</strong><span>ritm score</span></div>
+      </div>
+      <div className="v8-rhythm-stats">
+        <div><span>Faol kun</span><strong>{busyDays}</strong><small>{daysCount} kundan</small></div>
+        <div><span>Bo'sh kun</span><strong>{emptyDays}</strong><small>reja qo'shish mumkin</small></div>
+        <div><span>Video kun</span><strong>{videoDays}</strong><small>reels / shorts</small></div>
+        <div className={riskDays ? "danger" : "success"}><span>Risk kun</span><strong>{riskDays}</strong><small>{riskDays ? "deadline bor" : "toza"}</small></div>
+      </div>
+      <div className="v8-rhythm-grid">
+        {cells.map((cell) => (
+          <button key={cell.date} type="button" className={`v8-rhythm-cell load-${Math.min(4, cell.items.length)} ${cell.risk ? "risk" : ""} ${cell.date === todayKey ? "today" : ""}`} style={{ "--load": `${Math.max(8, (cell.items.length / maxLoad) * 100)}%` }} onClick={() => onCalendar?.()}>
+            <span>{cell.day}</span>
+            <strong>{cell.items.length}</strong>
+            {cell.video ? <i>V</i> : null}
+          </button>
+        ))}
+      </div>
+      <div className="v8-rhythm-suggestion">
+        <strong>Tez tavsiya</strong>
+        <span>{bestEmpty.length ? `Keyingi bo'sh sanalar: ${bestEmpty.map((cell) => cell.date.slice(-2)).join(", ")}. Shu kunlarga story/reels yoki xizmatlar posti qo'shing.` : "Bu oy kunlar yaxshi to'ldirilgan. Endi sifat va CTA nazoratini kuchaytiring."}</span>
+      </div>
+    </section>
+  );
+}
+
+function CampaignPerformanceV8({ campaigns = [], branches = [], onView = null, onEdit = null, onCopy = null }) {
+  const rows = [...(campaigns || [])]
+    .map((row) => ({ row, ...getCampaignPerformance(row) }))
+    .sort((a, b) => b.score - a.score);
+  const active = rows.filter((item) => normalizeCampaignStatus(item.row.status) === "active");
+  const spend = rows.reduce((sum, item) => sum + item.spend, 0);
+  const leads = rows.reduce((sum, item) => sum + item.leads, 0);
+  const avgCpl = leads ? spend / leads : 0;
+  const best = rows[0];
+  const red = rows.filter((item) => item.tone === "danger").length;
+  const byBranch = Object.values(rows.reduce((acc, item) => {
+    const branch = branches.find((b) => Number(b.id) === Number(item.row.branch_id));
+    const key = branch?.name || "Filialsiz";
+    if (!acc[key]) acc[key] = { name: key, leads: 0, spend: 0, count: 0 };
+    acc[key].leads += item.leads;
+    acc[key].spend += item.spend;
+    acc[key].count += 1;
+    return acc;
+  }, {})).sort((a, b) => b.leads - a.leads).slice(0, 5);
+
+  return (
+    <section className="v8-campaign-panel">
+      <div className="v8-campaign-head">
+        <div>
+          <span>V8 Target Analytics</span>
+          <h2>Yashil / sariq / qizil reklama nazorati</h2>
+          <p>CPL, lid, ko'rish va sarf bo'yicha kampaniyalarni avtomatik baholaydi. Qaysi targetni kuchaytirish, qaysisini qayta ishlash kerakligi ko'rinadi.</p>
+        </div>
+        <div className="v8-campaign-best">
+          <span>Eng yaxshi</span>
+          <strong>{best?.row?.title || "Hali yo'q"}</strong>
+          <small>{best ? `${best.score}% • ${best.leads} lid` : "Kampaniya qo'shing"}</small>
+        </div>
+      </div>
+      <div className="v8-campaign-stats">
+        <div><span>Faol target</span><strong>{active.length}</strong><small>hozir ishlayotgan</small></div>
+        <div><span>Jami lid</span><strong>{leads}</strong><small>kampaniya natijasi</small></div>
+        <div><span>O'rtacha CPL</span><strong>{avgCpl ? formatMoney(Math.round(avgCpl)) : "-"}</strong><small>lead narxi</small></div>
+        <div className={red ? "danger" : "success"}><span>Qizil zona</span><strong>{red}</strong><small>{red ? "optimizatsiya kerak" : "toza"}</small></div>
+      </div>
+      <div className="v8-campaign-layout">
+        <div className="v8-campaign-list">
+          {rows.length ? rows.slice(0, 8).map((item) => (
+            <article key={item.row.id} className={`v8-campaign-row ${item.tone}`}>
+              <div className="v8-campaign-row-main">
+                <span>{item.label} • {item.score}%</span>
+                <strong>{item.row.title}</strong>
+                <small>{item.row.platform || "platforma"} • {item.leads} lid • {item.cpl ? formatMoney(Math.round(item.cpl)) : "CPL yo'q"}</small>
+              </div>
+              <div className="v8-campaign-meter"><i style={{ width: `${item.score}%` }} /></div>
+              <p>{item.recommendation}</p>
+              <div className="v8-campaign-actions">
+                <button type="button" onClick={() => onView?.(item.row)}>Ko'rish</button>
+                <button type="button" onClick={() => onEdit?.(item.row)}>Tahrirlash</button>
+                <button type="button" onClick={() => onCopy?.(item.row)}>Forma link</button>
+              </div>
+            </article>
+          )) : <div className="empty-block">Kampaniya hali yo'q</div>}
+        </div>
+        <div className="v8-branch-scoreboard">
+          <strong>Filiallar bo'yicha target natijasi</strong>
+          {byBranch.length ? byBranch.map((item) => {
+            const cpl = item.leads ? item.spend / item.leads : 0;
+            return (
+              <div key={item.name}>
+                <span>{item.name}</span>
+                <b>{item.leads} lid</b>
+                <small>{cpl ? formatMoney(Math.round(cpl)) : "CPL yo'q"}</small>
+              </div>
+            );
+          }) : <p>Filialga bog'langan kampaniya yo'q.</p>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function formatDateTime(value) {
   if (!value) return "-";
   const d = new Date(value);
@@ -2348,6 +2678,14 @@ function ManagerOSDashboard({ summary = {}, dailyReports = [], contentRows = [],
         </div>
       </section>
 
+      <CommandCenterV8
+        contentRows={contentRows}
+        campaigns={campaigns}
+        tasks={tasks}
+        dailyReports={dailyReports}
+        onNavigate={onNavigate}
+      />
+
       <section className="manager-os-snapshot">
         {managerOsSnapshot.map(([label, count]) => (
           <div key={label}>
@@ -3725,6 +4063,12 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
           </div>
         ))}
       </div>
+
+      <ContentRhythmV8
+        rows={rows}
+        selectedMonth={selectedMonth}
+        onCalendar={() => setViewMode("calendar")}
+      />
 
       <section className="monthly-planner">
         <div className="monthly-planner-head">
@@ -6394,6 +6738,14 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
         <div className="campaign-safe-stat"><span>Kunlik byudjet</span><strong>{formatMoney(totalDailyBudget)}</strong><small>barcha targetlar</small></div>
         <div className="campaign-safe-stat"><span>Lidlar</span><strong>{totalLeads}</strong><small>{withLeadForm} ta forma ulangan</small></div>
       </div>
+
+      <CampaignPerformanceV8
+        campaigns={sortedCampaigns}
+        branches={branches}
+        onView={setViewRow}
+        onEdit={startEdit}
+        onCopy={copyLeadFormLink}
+      />
 
       <div className="campaign-safe-layout">
         <div className="card campaign-safe-card">
@@ -22939,6 +23291,271 @@ tbody td{border-color:rgba(113,132,157,.13) !important}
   .card,.stat-card,.hero-shell{border-radius:22px !important}
   .mobile-bottom-nav{left:10px !important;right:10px !important;bottom:10px !important;border-radius:24px !important;padding:8px !important}
   .mobile-nav-item span:last-child{font-size:10px !important}
+}
+
+
+/* V8 NEXT LEVEL OPERATING SYSTEM */
+.v8-command-center,
+.v8-rhythm-panel,
+.v8-campaign-panel{
+  border-radius:34px;
+  padding:24px;
+  background:
+    radial-gradient(circle at 0% 0%,rgba(22,144,245,.18),transparent 35%),
+    linear-gradient(135deg,rgba(255,255,255,.92),rgba(239,247,255,.78));
+  border:1px solid rgba(255,255,255,.80);
+  box-shadow:0 24px 70px rgba(12,32,66,.12);
+  position:relative;
+  overflow:hidden;
+}
+.v8-command-center::after,
+.v8-rhythm-panel::after,
+.v8-campaign-panel::after{
+  content:"";
+  position:absolute;
+  width:300px;
+  height:300px;
+  right:-130px;
+  top:-160px;
+  border-radius:999px;
+  background:radial-gradient(circle,rgba(22,144,245,.20),transparent 70%);
+  pointer-events:none;
+}
+.v8-command-head,.v8-rhythm-head,.v8-campaign-head{
+  position:relative;
+  z-index:1;
+  display:flex;
+  justify-content:space-between;
+  gap:18px;
+  align-items:flex-start;
+  margin-bottom:18px;
+}
+.v8-command-head span,.v8-rhythm-head span,.v8-campaign-head span,
+.v8-ai-card>span,.v8-campaign-best span{
+  display:inline-flex;
+  align-items:center;
+  color:#1690F5;
+  font-weight:950;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  font-size:11px;
+}
+.v8-command-head h2,.v8-rhythm-head h2,.v8-campaign-head h2{
+  margin:6px 0;
+  font-size:clamp(24px,3vw,38px);
+  letter-spacing:-.055em;
+  color:#08111F;
+}
+.v8-command-head p,.v8-rhythm-head p,.v8-campaign-head p{
+  margin:0;
+  max-width:760px;
+  color:#66758A;
+  font-weight:700;
+  line-height:1.55;
+}
+.v8-mission-grid,.v8-rhythm-stats,.v8-campaign-stats{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px;
+}
+.v8-mission-card,.v8-rhythm-stats>div,.v8-campaign-stats>div{
+  border:0;
+  text-align:left;
+  border-radius:24px;
+  padding:18px;
+  background:rgba(255,255,255,.78);
+  border:1px solid rgba(255,255,255,.86);
+  box-shadow:0 16px 42px rgba(15,23,42,.08);
+  transition:transform .18s ease,box-shadow .18s ease;
+}
+.v8-mission-card:hover{transform:translateY(-3px);box-shadow:0 22px 54px rgba(22,144,245,.15)}
+.v8-mission-card span,.v8-rhythm-stats span,.v8-campaign-stats span{display:block;color:#66758A;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}
+.v8-mission-card strong,.v8-rhythm-stats strong,.v8-campaign-stats strong{display:block;color:#0B1220;font-size:32px;font-weight:1000;letter-spacing:-.06em;margin-top:8px}
+.v8-mission-card small,.v8-rhythm-stats small,.v8-campaign-stats small{display:block;color:#7A8798;font-weight:800;margin-top:4px}
+.v8-mission-card.success,.v8-rhythm-stats .success,.v8-campaign-stats .success{box-shadow:inset 0 0 0 1px rgba(31,184,118,.18),0 16px 42px rgba(31,184,118,.10)}
+.v8-mission-card.warning{box-shadow:inset 0 0 0 1px rgba(245,158,11,.22),0 16px 42px rgba(245,158,11,.10)}
+.v8-mission-card.danger,.v8-rhythm-stats .danger,.v8-campaign-stats .danger{box-shadow:inset 0 0 0 1px rgba(239,68,68,.22),0 16px 42px rgba(239,68,68,.10)}
+.v8-mission-card.idle{opacity:.88}
+.v8-command-layout,.v8-campaign-layout{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns:1fr 1.1fr;
+  gap:16px;
+  margin-top:16px;
+}
+.v8-ai-card,.v8-live-feed,.v8-branch-scoreboard{
+  border-radius:26px;
+  padding:20px;
+  background:linear-gradient(180deg,rgba(255,255,255,.86),rgba(255,255,255,.66));
+  border:1px solid rgba(255,255,255,.82);
+  box-shadow:0 18px 48px rgba(15,23,42,.08);
+}
+.v8-ai-card h3{margin:10px 0 8px;color:#08111F;font-size:26px;letter-spacing:-.04em}
+.v8-ai-card p{margin:0;color:#516173;font-weight:800;line-height:1.55}
+.v8-ai-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}
+.v8-ai-actions button,.v8-campaign-actions button{
+  border:0;
+  border-radius:14px;
+  background:rgba(22,144,245,.10);
+  color:#0575D8;
+  font-weight:950;
+  padding:10px 12px;
+  cursor:pointer;
+}
+.v8-feed-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.v8-feed-head strong,.v8-branch-scoreboard>strong{font-size:16px;color:#08111F}
+.v8-feed-head span{font-size:12px;font-weight:900;color:#1690F5}
+.v8-live-feed>button{
+  width:100%;
+  border:0;
+  display:flex;
+  gap:12px;
+  align-items:center;
+  padding:12px;
+  margin-top:8px;
+  border-radius:18px;
+  background:#F7FBFF;
+  text-align:left;
+  cursor:pointer;
+}
+.v8-live-feed i{
+  width:30px;height:30px;border-radius:12px;background:#1690F5;color:white;display:grid;place-items:center;font-style:normal;font-weight:1000;
+}
+.v8-live-feed strong,.v8-live-feed span{display:block}
+.v8-live-feed span{color:#66758A;font-size:12px;font-weight:800}
+.v8-rhythm-score,.v8-campaign-best{
+  min-width:180px;
+  border-radius:26px;
+  padding:18px;
+  background:#0B1220;
+  color:white;
+  box-shadow:0 18px 48px rgba(15,23,42,.22);
+}
+.v8-rhythm-score strong,.v8-campaign-best strong{display:block;color:white;font-size:34px;line-height:1;font-weight:1000;letter-spacing:-.06em;margin:8px 0}
+.v8-rhythm-score span,.v8-campaign-best small{color:rgba(255,255,255,.70);font-weight:850}
+.v8-rhythm-grid{
+  position:relative;
+  z-index:1;
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:8px;
+  margin-top:16px;
+}
+.v8-rhythm-cell{
+  min-height:70px;
+  border:0;
+  border-radius:18px;
+  position:relative;
+  overflow:hidden;
+  text-align:left;
+  padding:10px;
+  background:rgba(255,255,255,.70);
+  border:1px solid rgba(255,255,255,.86);
+  cursor:pointer;
+}
+.v8-rhythm-cell::before{
+  content:"";
+  position:absolute;
+  left:0;right:0;bottom:0;
+  height:var(--load);
+  background:linear-gradient(180deg,rgba(22,144,245,.04),rgba(22,144,245,.22));
+  pointer-events:none;
+}
+.v8-rhythm-cell span,.v8-rhythm-cell strong,.v8-rhythm-cell i{position:relative;z-index:1}
+.v8-rhythm-cell span{display:block;font-weight:1000;color:#66758A}
+.v8-rhythm-cell strong{display:block;font-size:22px;color:#08111F;margin-top:8px}
+.v8-rhythm-cell i{position:absolute;right:8px;top:8px;width:22px;height:22px;border-radius:9px;background:#1690F5;color:white;display:grid;place-items:center;font-style:normal;font-size:11px;font-weight:1000}
+.v8-rhythm-cell.risk{box-shadow:inset 0 0 0 2px rgba(239,68,68,.28)}
+.v8-rhythm-cell.today{box-shadow:inset 0 0 0 2px rgba(22,144,245,.42),0 14px 32px rgba(22,144,245,.12)}
+.v8-rhythm-suggestion{
+  position:relative;
+  z-index:1;
+  margin-top:14px;
+  padding:16px;
+  border-radius:20px;
+  background:#0B1220;
+  color:white;
+  display:flex;
+  gap:12px;
+  align-items:center;
+  justify-content:space-between;
+}
+.v8-rhythm-suggestion strong{font-size:15px;color:white}
+.v8-rhythm-suggestion span{color:rgba(255,255,255,.76);font-weight:800}
+.v8-campaign-layout{grid-template-columns:1.5fr .8fr}
+.v8-campaign-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.v8-campaign-row{
+  border-radius:24px;
+  padding:16px;
+  background:rgba(255,255,255,.82);
+  border:1px solid rgba(255,255,255,.86);
+  box-shadow:0 16px 42px rgba(15,23,42,.08);
+}
+.v8-campaign-row.success{box-shadow:inset 0 0 0 1px rgba(31,184,118,.18),0 16px 42px rgba(31,184,118,.10)}
+.v8-campaign-row.warning{box-shadow:inset 0 0 0 1px rgba(245,158,11,.22),0 16px 42px rgba(245,158,11,.10)}
+.v8-campaign-row.danger{box-shadow:inset 0 0 0 1px rgba(239,68,68,.24),0 16px 42px rgba(239,68,68,.10)}
+.v8-campaign-row-main span{display:block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;font-weight:1000;color:#1690F5}
+.v8-campaign-row-main strong{display:block;margin-top:5px;font-size:17px;color:#08111F;line-height:1.18}
+.v8-campaign-row-main small{display:block;margin-top:5px;color:#66758A;font-weight:800}
+.v8-campaign-meter{height:8px;background:#E7EEF7;border-radius:999px;overflow:hidden;margin:12px 0}
+.v8-campaign-meter i{display:block;height:100%;border-radius:999px;background:linear-gradient(90deg,#1690F5,#41D2FF)}
+.v8-campaign-row p{margin:0;color:#526173;font-size:13px;font-weight:800;line-height:1.45}
+.v8-campaign-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.v8-campaign-actions button{font-size:12px;padding:8px 10px}
+.v8-branch-scoreboard{align-self:start}
+.v8-branch-scoreboard>div{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:4px 10px;
+  padding:12px 0;
+  border-bottom:1px solid rgba(113,132,157,.14);
+}
+.v8-branch-scoreboard span{font-weight:950;color:#0B1220}
+.v8-branch-scoreboard b{color:#1690F5}
+.v8-branch-scoreboard small{grid-column:1 / -1;color:#66758A;font-weight:800}
+:root[data-theme='dark'] .v8-command-center,
+:root[data-theme='dark'] .v8-rhythm-panel,
+:root[data-theme='dark'] .v8-campaign-panel{
+  background:radial-gradient(circle at 0% 0%,rgba(22,144,245,.20),transparent 35%),linear-gradient(135deg,rgba(15,23,42,.94),rgba(7,13,23,.88));
+  border-color:rgba(255,255,255,.10);
+}
+:root[data-theme='dark'] .v8-command-head h2,
+:root[data-theme='dark'] .v8-rhythm-head h2,
+:root[data-theme='dark'] .v8-campaign-head h2,
+:root[data-theme='dark'] .v8-mission-card strong,
+:root[data-theme='dark'] .v8-rhythm-stats strong,
+:root[data-theme='dark'] .v8-campaign-stats strong,
+:root[data-theme='dark'] .v8-ai-card h3,
+:root[data-theme='dark'] .v8-campaign-row-main strong,
+:root[data-theme='dark'] .v8-rhythm-cell strong,
+:root[data-theme='dark'] .v8-branch-scoreboard span{color:#F7FAFF}
+:root[data-theme='dark'] .v8-mission-card,
+:root[data-theme='dark'] .v8-rhythm-stats>div,
+:root[data-theme='dark'] .v8-campaign-stats>div,
+:root[data-theme='dark'] .v8-ai-card,
+:root[data-theme='dark'] .v8-live-feed,
+:root[data-theme='dark'] .v8-campaign-row,
+:root[data-theme='dark'] .v8-branch-scoreboard,
+:root[data-theme='dark'] .v8-rhythm-cell{
+  background:rgba(15,23,42,.72);
+  border-color:rgba(255,255,255,.10);
+}
+:root[data-theme='dark'] .v8-live-feed>button{background:rgba(255,255,255,.06)}
+@media(max-width:1100px){
+  .v8-mission-grid,.v8-rhythm-stats,.v8-campaign-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .v8-command-layout,.v8-campaign-layout{grid-template-columns:1fr}
+  .v8-campaign-list{grid-template-columns:1fr}
+}
+@media(max-width:720px){
+  .v8-command-center,.v8-rhythm-panel,.v8-campaign-panel{padding:16px;border-radius:24px}
+  .v8-command-head,.v8-rhythm-head,.v8-campaign-head{display:block}
+  .v8-command-head .btn{margin-top:14px;width:100%}
+  .v8-mission-grid,.v8-rhythm-stats,.v8-campaign-stats{grid-template-columns:1fr}
+  .v8-rhythm-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .v8-rhythm-suggestion{display:block}
 }
 
 
