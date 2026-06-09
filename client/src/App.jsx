@@ -3134,6 +3134,7 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
   const canEditContent = canDoAction(user, "content", "edit");
   const canDeleteContent = canDoAction(user, "content", "delete");
   const formLocked = editRow ? !canEditContent : !canCreateContent;
+  const isMobilografContentOnly = String(user?.role || "").toLowerCase() === "mobilograf";
 
   useEffect(() => {
     setPlannerForm((prev) => (
@@ -3142,6 +3143,9 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
         : { ...prev, publish_date: `${selectedMonth}-01` }
     ));
   }, [selectedMonth]);
+  useEffect(() => {
+    if (isMobilografContentOnly && viewMode !== "calendar") setViewMode("calendar");
+  }, [isMobilografContentOnly, viewMode]);
   const dueSoonTasks = [];
   const overdueTasks = [];
   const tasks = [];
@@ -3619,7 +3623,22 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
   }
 
   return (
-    <div className="page-grid content-page-modern content-page-v5">
+    <div className={`page-grid content-page-modern content-page-v5 ${isMobilografContentOnly ? "mobilograf-content-only" : ""}`}>
+      {isMobilografContentOnly ? (
+        <section className="mobilograf-content-head">
+          <div>
+            <span>Mobilograf kalendar</span>
+            <h1>Kontent reja</h1>
+            <p>Faqat ko'rish uchun oylik kontent kalendari.</p>
+          </div>
+          <div className="mobilograf-month-control">
+            <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, -1))}>{"<"}</button>
+            <strong>{getMonthTitle(selectedMonth)}</strong>
+            <button type="button" onClick={() => setSelectedMonth(shiftMonth(selectedMonth, 1))}>{">"}</button>
+          </div>
+        </section>
+      ) : (
+      <>
       <div className="content-v5-hero">
         <div className="content-v5-hero-copy">
           <span className="content-v5-eyebrow">SMM Content Command Center</span>
@@ -4010,14 +4029,17 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
           </button>
         </form>
       </div>
+      </>
+      )}
 
       
 
 
       <div className="card content-modern-card content-list-card">
         <SectionTitle
-          title={`${getMonthTitle(selectedMonth)} operatsion ro'yxati`}
-          right={
+          title={isMobilografContentOnly ? `${getMonthTitle(selectedMonth)} kontent kalendari` : `${getMonthTitle(selectedMonth)} operatsion ro'yxati`}
+          desc={isMobilografContentOnly ? `${calendarRows.length} ta kontent reja` : undefined}
+          right={!isMobilografContentOnly ? (
             <div className="toolbar-actions content-modern-toolbar">
               <label className="table-search content-modern-search" aria-label="Kontent qidiruvi">
                 <Search size={16} />
@@ -4045,10 +4067,10 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
                 Bulk status
               </button>
             </div>
-          }
+          ) : null}
         />
 
-        {viewMode === "table" ? <>
+        {!isMobilografContentOnly && viewMode === "table" ? <>
           <div className="table-wrap desktop-table">
             <table>
               <thead>
@@ -4196,9 +4218,9 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
               </div>
             )}
           </div>
-        </> : viewMode === "calendar" ? (
+        </> : (isMobilografContentOnly || viewMode === "calendar") ? (
           <div className="calendar-pro-shell">
-            <div className="content-calendar-tabs">
+            {!isMobilografContentOnly ? <div className="content-calendar-tabs">
               {calendarPlatformTabs.map((platform) => {
                 const count = platform === "all"
                   ? visibleRows.length
@@ -4215,8 +4237,8 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
                   </button>
                 );
               })}
-            </div>
-            <div className="calendar-pro-toolbar">
+            </div> : null}
+            {!isMobilografContentOnly ? <div className="calendar-pro-toolbar">
               <div className="calendar-signal-card">
                 <strong>Haftalik yuklama</strong>
                 <div className="calendar-load-bars">
@@ -4245,12 +4267,12 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
                   {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
                 </select>
               </label>
-            </div>
+            </div> : null}
             <MiniCalendar
               monthLabel={selectedMonth}
               rows={calendarRows}
               dateKey="publish_date"
-              onMoveDate={async (id, nextDate) => {
+              onMoveDate={isMobilografContentOnly ? null : async (id, nextDate) => {
                 const row = rows.find((item) => item.id === id);
                 if (!row) return;
                 try {
@@ -4358,9 +4380,9 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
                 <div className="full-col"><strong>Workflow izohi</strong><span>{viewRow.approval_comment || "-"}</span></div>
               </div>
             </div>
-            <div className="content-detail-side">
+            {!isMobilografContentOnly ? <div className="content-detail-side">
               <DiscussionPanel entityType="content" entityId={viewRow.id} onToast={onToast} />
-            </div>
+            </div> : null}
           </div>
         ) : null}
       </Modal>
@@ -20134,6 +20156,80 @@ tr:hover td,
 .content-page-v5 .content-v5-stat strong{color:#101827 !important;}
 .content-page-v5 .content-v5-stat small{color:#6b7280 !important;}
 .content-page-v5 .content-v5-stat::after{opacity:1;}
+.mobilograf-content-only{
+  gap:16px !important;
+}
+.mobilograf-content-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  border-radius:24px;
+  padding:18px;
+  background:linear-gradient(135deg,#ffffff,#f8fbff);
+  border:1px solid rgba(148,163,184,.16);
+  box-shadow:0 14px 36px rgba(15,23,42,.06);
+}
+.mobilograf-content-head span{
+  color:#0b63d1;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.mobilograf-content-head h1{
+  margin:4px 0 3px;
+  color:#101827;
+  font-size:28px;
+  line-height:1.1;
+}
+.mobilograf-content-head p{
+  margin:0;
+  color:#64748b;
+  font-weight:750;
+}
+.mobilograf-month-control{
+  display:grid;
+  grid-template-columns:42px minmax(150px,1fr) 42px;
+  align-items:center;
+  gap:8px;
+}
+.mobilograf-month-control button{
+  height:42px;
+  border-radius:14px;
+  border:1px solid rgba(148,163,184,.18);
+  background:#fff;
+  color:#101827;
+  font-size:22px;
+  font-weight:950;
+}
+.mobilograf-month-control strong{
+  min-height:42px;
+  border-radius:14px;
+  display:grid;
+  place-items:center;
+  padding:0 14px;
+  background:#eff6ff;
+  border:1px solid #dbeafe;
+  color:#0b63d1;
+}
+.mobilograf-content-only .content-list-card{
+  padding:16px !important;
+}
+.mobilograf-content-only .calendar-pro-shell{
+  border-radius:22px !important;
+  padding:0 !important;
+  box-shadow:none !important;
+}
+.mobilograf-content-only .calendar-card{
+  border-radius:20px;
+  overflow:hidden;
+}
+.mobilograf-content-only .calendar-cell{
+  min-height:126px;
+}
+.mobilograf-content-only .calendar-pill{
+  cursor:pointer;
+}
 .monthly-planner{
   display:grid;
   gap:16px;
@@ -20718,6 +20814,9 @@ tr:hover td,
   .content-page-v5 .content-v5-hero-panel{grid-template-columns:1fr !important;}
   .content-page-v5 .content-v5-viewbar{position:relative;top:auto;}
   .content-page-v5 .content-v5-hero{padding:22px !important;border-radius:26px !important;}
+  .mobilograf-content-head{display:grid}
+  .mobilograf-month-control{grid-template-columns:42px 1fr 42px}
+  .mobilograf-content-only .calendar-cell{min-height:112px}
   .monthly-planner{padding:14px;border-radius:24px}
   .monthly-planner-head,
   .monthly-planner-actions{display:grid;justify-content:stretch}
