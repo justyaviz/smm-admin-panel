@@ -689,6 +689,448 @@ function CampaignPerformanceV8({ campaigns = [], branches = [], onView = null, o
   );
 }
 
+function addDaysToDateKey(dateKey, days = 0) {
+  const raw = formatDate(dateKey);
+  if (raw === "-") return formatDate(new Date(Date.now() + days * 86400000));
+  const d = new Date(`${raw}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return raw;
+  d.setDate(d.getDate() + Number(days || 0));
+  return formatDate(d);
+}
+
+function getContentStage(row = {}) {
+  const status = String(row.status || "reja").toLowerCase();
+  if (["joylangan", "yakunlandi", "published", "done"].includes(status)) return { id: "published", label: "Joylandi", tone: "success" };
+  if (["tasdiqlandi", "tasdiqda", "review", "approval"].includes(status)) return { id: "review", label: "Tasdiqda", tone: "warning" };
+  if (["jarayonda", "tayyorlanmoqda", "tayyor", "doing"].includes(status)) return { id: "production", label: "Ishda", tone: "info" };
+  if (["qayta_ishlash", "rad_etildi", "rejected"].includes(status)) return { id: "fix", label: "Qayta ishlash", tone: "danger" };
+  return { id: "idea", label: "G'oya", tone: "default" };
+}
+
+function buildContentClonePayload(row = {}, publishDate) {
+  return {
+    title: row.title || "Yangi kontent",
+    publish_date: publishDate,
+    status: "reja",
+    platform: row.platform || row.platform_primary || "Instagram",
+    content_type: row.content_type || "post",
+    rubric: row.rubric || "rubrika-yoq",
+    assigned_user_id: row.assigned_user_id || "",
+    video_editor_user_id: row.video_editor_user_id || "",
+    video_face_user_id: row.video_face_user_id || "",
+    bonus_enabled: false,
+    proposal_count: 0,
+    approved_count: 0,
+    difficulty_level: row.difficulty_level || "sodda",
+    notes: row.notes || row.note || "V9 duplicate orqali yaratildi",
+    branch_ids_json: Array.isArray(row.branch_ids_json) ? row.branch_ids_json : [],
+    scenario_text: row.scenario_text || "",
+    shot_list_text: row.shot_list_text || "",
+    hook_text: row.hook_text || "",
+    main_body_text: row.main_body_text || "",
+    cta_text: row.cta_text || "",
+    product_name: row.product_name || "",
+    video_type: row.video_type || "",
+    preview_url: "",
+    final_url: "",
+    edit_file_url: "",
+    approval_comment: "",
+    content_template: row.content_template || "custom",
+    idea_score: 0,
+    visual_score: 0,
+    editing_score: 0,
+    result_score: 0,
+    reach_value: 0
+  };
+}
+
+function ContentCalendarProV9({ rows = [], selectedMonth, users = [], branches = [], onToast, reload, disabled = false }) {
+  const [busy, setBusy] = useState(false);
+  const [selectedDay, setSelectedDay] = useState(null);
+  const daysCount = getMonthDaysCount(selectedMonth);
+  const todayKey = formatDate(new Date());
+  const monthRows = (rows || []).filter((row) => formatDate(row.publish_date || row.created_at).startsWith(selectedMonth));
+  const cells = Array.from({ length: daysCount }, (_, index) => {
+    const date = `${selectedMonth}-${String(index + 1).padStart(2, "0")}`;
+    const items = monthRows.filter((row) => formatDate(row.publish_date) === date);
+    return { date, day: index + 1, items };
+  });
+  const selectedCell = cells.find((cell) => cell.date === selectedDay) || cells.find((cell) => cell.date >= todayKey) || cells[0];
+  const stages = monthRows.reduce((acc, row) => {
+    const meta = getContentStage(row);
+    acc[meta.id] = (acc[meta.id] || 0) + 1;
+    return acc;
+  }, {});
+  const nextEmptyDays = cells.filter((cell) => !cell.items.length && cell.date >= todayKey).slice(0, 6);
+  const weeklyTemplates = [
+    { dayOffset: 0, title: "aloo academy: mijoz ko'p so'raydigan savol", platform: "Instagram", content_type: "carousel", rubric: "foydali-malumot" },
+    { dayOffset: 2, title: "Mahsulot reklama: narx + oyiga to'lov", platform: "Instagram", content_type: "post", rubric: "aksiyalar" },
+    { dayOffset: 4, title: "Reels: do'kondagi real vaziyat", platform: "Instagram", content_type: "reels", rubric: "trend-video" },
+    { dayOffset: 6, title: "Xizmatlarimiz: Paynet / alif / aloo care", platform: "Telegram", content_type: "post", rubric: "xizmatlar" }
+  ];
+
+  function getNextMonday() {
+    const base = new Date(`${selectedMonth}-01T00:00:00`);
+    const now = new Date(`${todayKey}T00:00:00`);
+    if (formatDate(now).startsWith(selectedMonth) && now > base) base.setDate(now.getDate());
+    const diff = (8 - base.getDay()) % 7;
+    base.setDate(base.getDate() + diff);
+    return formatDate(base);
+  }
+
+  async function generateWeekPlan() {
+    if (disabled || busy) return;
+    const start = selectedCell?.date && selectedCell.date >= todayKey ? selectedCell.date : getNextMonday();
+    try {
+      setBusy(true);
+      for (const template of weeklyTemplates) {
+        const date = addDaysToDateKey(start, template.dayOffset);
+        if (!date.startsWith(selectedMonth)) continue;
+        await api.create("content", buildContentClonePayload({ ...template, notes: "V9 haftalik generator orqali yaratildi" }, date));
+      }
+      await reload?.();
+      onToast?.("V9 haftalik kontent reja yaratildi", "success");
+    } catch (err) {
+      onToast?.(err.message || "Haftalik reja yaratilmay qoldi", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function duplicateToNextWeek(row) {
+    if (disabled || busy) return;
+    try {
+      setBusy(true);
+      const nextDate = addDaysToDateKey(row.publish_date, 7);
+      await api.create("content", buildContentClonePayload({ ...row, title: `${row.title || "Kontent"} / duplicate` }, nextDate));
+      await reload?.();
+      onToast?.("Kontent keyingi haftaga duplicate qilindi", "success");
+    } catch (err) {
+      onToast?.(err.message || "Duplicate bajarilmadi", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="v15-panel v9-calendar-pro">
+      <div className="v15-panel-head">
+        <div>
+          <span>V9 Content Calendar Pro</span>
+          <h2>Oylik reja endi real workflow kalendar</h2>
+          <p>Status, mas'ul, platforma, bo'sh kun va duplicate nazorati bitta blokda. Generator bir haftalik ritmni avtomatik kiritadi.</p>
+        </div>
+        <div className="v15-actions">
+          <button type="button" className="btn secondary" onClick={() => setSelectedDay(nextEmptyDays[0]?.date || todayKey)}>Bo'sh kunga o'tish</button>
+          <button type="button" className="btn primary" onClick={generateWeekPlan} disabled={disabled || busy}>{busy ? "Yaratilmoqda..." : "AI haftalik reja"}</button>
+        </div>
+      </div>
+      <div className="v15-stat-grid four">
+        <div><span>Jami</span><strong>{monthRows.length}</strong><small>{getMonthTitle(selectedMonth)}</small></div>
+        <div><span>G'oya</span><strong>{stages.idea || 0}</strong><small>brief kerak</small></div>
+        <div><span>Ishda</span><strong>{stages.production || 0}</strong><small>dizayn/montaj</small></div>
+        <div><span>Joylandi</span><strong>{stages.published || 0}</strong><small>yakunlangan</small></div>
+      </div>
+      <div className="v9-calendar-layout">
+        <div className="v9-month-board">
+          {cells.map((cell) => {
+            const hasVideo = cell.items.some((item) => /video|reels|shorts/i.test(`${item.content_type || ""} ${item.platform || ""}`));
+            const risk = cell.date < todayKey && cell.items.some((item) => getContentStage(item).id !== "published");
+            return (
+              <button key={cell.date} type="button" className={`v9-day ${selectedCell?.date === cell.date ? "active" : ""} ${cell.items.length ? "busy" : "empty"} ${risk ? "risk" : ""}`} onClick={() => setSelectedDay(cell.date)}>
+                <span>{cell.day}</span>
+                <strong>{cell.items.length}</strong>
+                {hasVideo ? <i>Reels</i> : null}
+              </button>
+            );
+          })}
+        </div>
+        <aside className="v9-day-detail">
+          <span>Tanlangan sana</span>
+          <h3>{selectedCell?.date || selectedMonth}</h3>
+          <p>{selectedCell?.items?.length ? `${selectedCell.items.length} ta kontent rejalangan.` : "Bu kun bo'sh. Generator yoki formadan reja kiriting."}</p>
+          <div className="v9-day-list">
+            {(selectedCell?.items || []).slice(0, 5).map((item) => {
+              const meta = getContentStage(item);
+              return (
+                <article key={item.id} className={`v9-content-mini ${meta.tone}`}>
+                  <div><strong>{item.title}</strong><span>{item.platform || item.platform_primary || "platforma"} • {meta.label}</span></div>
+                  <button type="button" onClick={() => duplicateToNextWeek(item)} disabled={busy}>+7 kun</button>
+                </article>
+              );
+            })}
+          </div>
+          <div className="v9-suggestion-box">
+            <strong>Keyingi bo'sh kunlar</strong>
+            <span>{nextEmptyDays.length ? nextEmptyDays.map((cell) => cell.date.slice(-2)).join(" • ") : "Oy to'liq band"}</span>
+          </div>
+          <div className="v9-quick-meta">
+            <span>{users.length} hodim</span><span>{branches.length} filial</span><span>{weeklyTemplates.length} shablon</span>
+          </div>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function TaskKanbanProV10({ tasks = [], users = [], user = null, onToast, reload }) {
+  const [busy, setBusy] = useState(false);
+  const todayKey = formatDate(new Date());
+  const columns = [
+    { id: "todo", label: "Yangi" },
+    { id: "doing", label: "Jarayonda" },
+    { id: "review", label: "Tasdiqda" },
+    { id: "done", label: "Tugadi" },
+    { id: "cancelled", label: "Bekor" }
+  ];
+  const open = tasks.filter((task) => !["done", "cancelled"].includes(String(task.status || "").toLowerCase()));
+  const overdue = open.filter((task) => { const due = formatDate(task.due_date); return due !== "-" && due < todayKey; });
+  const urgent = open.filter((task) => String(task.priority || "").toLowerCase() === "high");
+  const quickTasks = [
+    "Bugungi kontent publish nazorati",
+    "Target CPL va lidlarni yangilash",
+    "Mobilografdan final video linkini olish",
+    "Telegram kanal uchun caption tayyorlash"
+  ];
+
+  async function moveTask(row, status) {
+    try {
+      setBusy(true);
+      await api.update("tasks", row.id, {
+        title: row.title,
+        description: row.description || "",
+        status,
+        priority: row.priority || "medium",
+        due_date: formatDate(row.due_date) === "-" ? null : formatDate(row.due_date),
+        assignee_user_id: row.assignee_user_id || user?.id || null
+      });
+      await reload?.();
+      onToast?.("Task statusi yangilandi", "success");
+    } catch (err) {
+      onToast?.(err.message || "Task statusini yangilab bo'lmadi", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createQuickTask(title) {
+    try {
+      setBusy(true);
+      await api.create("tasks", { title, description: "V10 quick task orqali yaratildi", status: "todo", priority: "medium", due_date: todayKey, assignee_user_id: user?.id || null });
+      await reload?.();
+      onToast?.("Quick task yaratildi", "success");
+    } catch (err) {
+      onToast?.(err.message || "Quick task yaratilmadi", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="v15-panel v10-task-pro">
+      <div className="v15-panel-head">
+        <div>
+          <span>V10 Task Management Pro</span>
+          <h2>Trello/Notion uslubidagi workflow</h2>
+          <p>Tasklar status, deadline, mas'ul va prioritet bo'yicha real nazorat qilinadi. Tezkor tasklar bir bosishda yaratiladi.</p>
+        </div>
+        <div className="v15-actions"><button type="button" className="btn secondary" disabled={busy} onClick={() => createQuickTask(quickTasks[0])}>Bugungi check-list</button></div>
+      </div>
+      <div className="v15-stat-grid four">
+        <div><span>Ochiq task</span><strong>{open.length}</strong><small>hozir bajariladi</small></div>
+        <div className={overdue.length ? "danger" : "success"}><span>Kechikkan</span><strong>{overdue.length}</strong><small>{overdue.length ? "signal kerak" : "toza"}</small></div>
+        <div><span>Urgent</span><strong>{urgent.length}</strong><small>high priority</small></div>
+        <div><span>Jamoa</span><strong>{users.length}</strong><small>mas'ul xodimlar</small></div>
+      </div>
+      <div className="v10-board">
+        {columns.map((column) => {
+          const columnRows = tasks.filter((task) => String(task.status || "todo").toLowerCase() === column.id);
+          return (
+            <div key={column.id} className={`v10-column ${column.id}`}>
+              <div className="v10-column-head"><strong>{column.label}</strong><span>{columnRows.length}</span></div>
+              {columnRows.slice(0, 6).map((task) => (
+                <article key={task.id} className={`v10-task-card priority-${task.priority || "medium"}`}>
+                  <strong>{task.title}</strong>
+                  <span>{task.assignee_name || "Mas'ul yo'q"} • {formatDate(task.due_date)}</span>
+                  <div>
+                    {columns.filter((item) => item.id !== column.id).slice(0, 3).map((target) => (
+                      <button key={target.id} type="button" onClick={() => moveTask(task, target.id)} disabled={busy}>{target.label}</button>
+                    ))}
+                  </div>
+                </article>
+              ))}
+              {!columnRows.length ? <p>Bo'sh</p> : null}
+            </div>
+          );
+        })}
+      </div>
+      <div className="v10-quick-row">
+        {quickTasks.map((title) => <button key={title} type="button" onClick={() => createQuickTask(title)} disabled={busy}>{title}</button>)}
+      </div>
+    </section>
+  );
+}
+
+function TelegramBotProV11({ settings = {}, onToast }) {
+  const [sending, setSending] = useState(false);
+  const configured = Boolean(settings?.telegram_bot_token && (settings?.telegram_chat_id || settings?.telegram_chat_id === "configured"));
+  const workflows = [
+    ["🚀", "Target yoqildi", "kampaniya start / finish signali"],
+    ["📌", "Yangi kontent", "reja, approval, joylandi holati"],
+    ["⚠️", "Deadline risk", "kechikkan vazifa va kontent"],
+    ["📊", "Kunlik digest", "rahbar uchun qisqa hisobot"]
+  ];
+  async function sendDigest() {
+    try {
+      setSending(true);
+      const data = await api.post("/api/telegram/workflow-digest", { month_label: getMonthLabel() });
+      onToast?.(data?.message || "Telegram digest yuborildi", "success");
+    } catch (err) {
+      onToast?.(err.message || "Telegram digest yuborilmadi", "error");
+    } finally {
+      setSending(false);
+    }
+  }
+  async function sendTest() {
+    try {
+      setSending(true);
+      const data = await api.create("settings/test-telegram", {});
+      onToast?.(data?.message || "Telegram test yuborildi", "success");
+    } catch (err) {
+      onToast?.(err.message || "Telegram test yuborilmadi", "error");
+    } finally {
+      setSending(false);
+    }
+  }
+  return (
+    <section className="v15-panel v11-telegram-pro">
+      <div className="v15-panel-head">
+        <div>
+          <span>V11 Telegram Bot Pro</span>
+          <h2>Bot endi kuzatuvchi emas, workflow assistant</h2>
+          <p>Test, kunlik digest va avtomatik workflow signallari uchun tayyor panel. Env/database sozlangan bo'lsa, tugmalar real xabar yuboradi.</p>
+        </div>
+        <div className="v15-actions">
+          <button type="button" className="btn secondary" onClick={sendTest} disabled={sending || !configured}>Test</button>
+          <button type="button" className="btn primary" onClick={sendDigest} disabled={sending || !configured}>{sending ? "Yuborilmoqda..." : "Kunlik digest"}</button>
+        </div>
+      </div>
+      <div className="v11-workflows">
+        {workflows.map(([icon, title, body]) => <div key={title}><b>{icon}</b><strong>{title}</strong><span>{body}</span></div>)}
+      </div>
+      <div className={`v11-config ${configured ? "ready" : "warning"}`}>
+        <strong>{configured ? "Telegram ulangan" : "Telegram sozlash kerak"}</strong>
+        <span>{configured ? "Bot token va chat ID tayyor." : "TELEGRAM_BOT_TOKEN va TELEGRAM_CHAT_ID/setting kiriting."}</span>
+      </div>
+    </section>
+  );
+}
+
+function TargetAnalyticsProV12({ campaigns = [], branches = [], onEdit = null, onView = null }) {
+  const rows = [...campaigns].map((row) => ({ row, ...getCampaignPerformance(row) }));
+  const ranked = [...rows].sort((a, b) => b.score - a.score);
+  const weak = ranked.filter((item) => item.tone === "danger");
+  const winners = ranked.filter((item) => item.tone === "success");
+  const byBranch = Object.values(rows.reduce((acc, item) => {
+    const branch = branches.find((b) => Number(b.id) === Number(item.row.branch_id));
+    const key = branch?.name || "Filialsiz";
+    if (!acc[key]) acc[key] = { name: key, score: 0, leads: 0, spend: 0, count: 0 };
+    acc[key].score += item.score;
+    acc[key].leads += item.leads;
+    acc[key].spend += item.spend;
+    acc[key].count += 1;
+    return acc;
+  }, {})).map((item) => ({ ...item, avgScore: Math.round(item.score / Math.max(item.count, 1)), cpl: item.leads ? item.spend / item.leads : 0 })).sort((a, b) => b.avgScore - a.avgScore);
+  const advice = weak.length
+    ? `${weak[0].row.title} qizil zonada. Birinchi navbatda kreativ, auditoriya va offerni almashtiring.`
+    : winners.length
+      ? `${winners[0].row.title} yaxshi ishlayapti. Byudjetni ehtiyotkor 10–20% oshirib test qiling.`
+      : "Kampaniyalarga spend, lid va view kiritilsa AI xulosa aniqroq bo'ladi.";
+  return (
+    <section className="v15-panel v12-target-pro">
+      <div className="v15-panel-head">
+        <div><span>V12 Target Analytics 2.0</span><h2>Filial reytingi + AI media-buyer xulosa</h2><p>Endi faqat CPL emas: branch ranking, qizil zona, g'olib kreativ va next action ko'rinadi.</p></div>
+        <div className="v12-ai-box"><strong>AI xulosa</strong><span>{advice}</span></div>
+      </div>
+      <div className="v15-stat-grid four">
+        <div><span>Yashil target</span><strong>{winners.length}</strong><small>kuchaytirish mumkin</small></div>
+        <div><span>Sariq target</span><strong>{ranked.filter((i) => i.tone === "warning").length}</strong><small>A/B test</small></div>
+        <div className={weak.length ? "danger" : "success"}><span>Qizil target</span><strong>{weak.length}</strong><small>{weak.length ? "to'xtat/yangila" : "toza"}</small></div>
+        <div><span>Filial coverage</span><strong>{byBranch.length}</strong><small>reklama filiallari</small></div>
+      </div>
+      <div className="v12-layout">
+        <div className="v12-ranking">
+          <strong>Filial reytingi</strong>
+          {byBranch.slice(0, 7).map((item, index) => <div key={item.name}><b>#{index + 1}</b><span>{item.name}</span><strong>{item.avgScore}%</strong><small>{item.leads} lid • {item.cpl ? formatMoney(Math.round(item.cpl)) : "CPL yo'q"}</small></div>)}
+          {!byBranch.length ? <p>Filialga bog'langan target yo'q.</p> : null}
+        </div>
+        <div className="v12-action-list">
+          <strong>Next actions</strong>
+          {ranked.slice(0, 6).map((item) => <article key={item.row.id} className={item.tone}><span>{item.label} • {item.score}%</span><strong>{item.row.title}</strong><small>{item.recommendation}</small><div><button type="button" onClick={() => onView?.(item.row)}>Ko'rish</button><button type="button" onClick={() => onEdit?.(item.row)}>Tahrirlash</button></div></article>)}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function MediaLibraryProV13({ uploads = [], onFolder = null, onType = null }) {
+  const totalSize = uploads.reduce((sum, item) => sum + Number(item.file_size || 0), 0);
+  const images = uploads.filter((item) => String(item.mime_type || "").startsWith("image/")).length;
+  const videos = uploads.filter((item) => String(item.mime_type || "").startsWith("video/")).length;
+  const folders = Object.values(uploads.reduce((acc, item) => {
+    const key = item.folder_name || "general";
+    if (!acc[key]) acc[key] = { name: key, count: 0 };
+    acc[key].count += 1;
+    return acc;
+  }, {})).sort((a, b) => b.count - a.count);
+  return (
+    <section className="v15-panel v13-media-pro">
+      <div className="v15-panel-head">
+        <div><span>V13 File & Media Library</span><h2>Brand media vault</h2><p>Logo, dizayn, video, montaj link va kampaniya fayllari papka/tag bo'yicha tez topiladi.</p></div>
+        <div className="v15-actions"><button type="button" className="btn secondary" onClick={() => onType?.("image")}>Rasmlar</button><button type="button" className="btn secondary" onClick={() => onType?.("video")}>Videolar</button></div>
+      </div>
+      <div className="v15-stat-grid four"><div><span>Jami fayl</span><strong>{uploads.length}</strong><small>media arxiv</small></div><div><span>Rasm</span><strong>{images}</strong><small>post/design</small></div><div><span>Video</span><strong>{videos}</strong><small>reels/montaj</small></div><div><span>Hajm</span><strong>{totalSize ? `${Math.round(totalSize / 1024)}kb` : "-"}</strong><small>umumiy</small></div></div>
+      <div className="v13-folder-row">{folders.length ? folders.map((folder) => <button key={folder.name} type="button" onClick={() => onFolder?.(folder.name)}><strong>{folder.name}</strong><span>{folder.count} fayl</span></button>) : <p>Hali fayl yuklanmagan.</p>}</div>
+    </section>
+  );
+}
+
+function RolePermissionMatrixV14({ users = [], onPreset = null }) {
+  const roles = ["admin", "director", "manager", "editor", "mobilograf", "viewer"];
+  return (
+    <section className="v15-panel v14-role-pro">
+      <div className="v15-panel-head"><div><span>V14 Role & Permission</span><h2>Kim nimani ko'radi — aniq role matrix</h2><p>Rollar bo'yicha workspace, permission preset va user count nazorat qilinadi.</p></div></div>
+      <div className="v14-role-grid">
+        {roles.map((role) => {
+          const count = users.filter((user) => String(user.role || "viewer") === role).length;
+          const perms = getRolePreset(role)?.permissions_json || ROLE_WORKSPACE_PRESETS[role] || [];
+          return <article key={role}><span>{formatRoleLabel(role)}</span><strong>{count} user</strong><small>{perms.slice(0, 5).join(" • ") || "minimal"}</small><button type="button" onClick={() => onPreset?.(role)}>Presetni formaga qo'yish</button></article>;
+        })}
+      </div>
+    </section>
+  );
+}
+
+function MobilePwaProV15({ settings = {} }) {
+  const siteName = settings?.platform_name || "alooSMM OS";
+  const checks = [
+    ["Mobile bottom nav", "Telefon ekranda asosiy menu tayyor"],
+    ["PWA manifest", "Home Screen install uchun manifest mavjud"],
+    ["iPhone guide", "Safari orqali Add to Home Screen yo'riqnomasi bor"],
+    ["Offline shell", "Service worker ilova qobig'ini keshlaydi"]
+  ];
+  return (
+    <section className="v15-panel v15-pwa-pro">
+      <div className="v15-panel-head"><div><span>V15 Mobile / PWA App</span><h2>{siteName} telefon uchun appga yaqinlashtirildi</h2><p>Mobilograf va SMM menejer dalada telefon orqali task, media, content va dashboardni ishlatishi uchun PWA nazorat paneli.</p></div></div>
+      <div className="v15-phone-preview">
+        <div className="v15-phone-frame"><div className="v15-phone-top" /><h3>Bugungi vazifalar</h3><div className="v15-phone-card"><strong>Kontent publish</strong><span>2 ta signal</span></div><div className="v15-phone-card"><strong>Media upload</strong><span>kamera orqali yuklash</span></div><div className="v15-phone-nav"><i /><i /><i /><i /></div></div>
+        <div className="v15-pwa-checks">{checks.map(([title, body]) => <div key={title}><strong>{title}</strong><span>{body}</span></div>)}</div>
+      </div>
+    </section>
+  );
+}
+
+
 function formatDateTime(value) {
   if (!value) return "-";
   const d = new Date(value);
@@ -4070,6 +4512,16 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
         onCalendar={() => setViewMode("calendar")}
       />
 
+      <ContentCalendarProV9
+        rows={rows}
+        selectedMonth={selectedMonth}
+        users={users}
+        branches={branches}
+        onToast={onToast}
+        reload={reload}
+        disabled={formLocked}
+      />
+
       <section className="monthly-planner">
         <div className="monthly-planner-head">
           <div>
@@ -6747,6 +7199,8 @@ function CampaignsPage({ campaigns = [], branches = [], onToast, reload }) {
         onCopy={copyLeadFormLink}
       />
 
+      <TargetAnalyticsProV12 campaigns={sortedCampaigns} branches={branches} onView={setViewRow} onEdit={startEdit} />
+
       <div className="campaign-safe-layout">
         <div className="card campaign-safe-card">
           <SectionTitle
@@ -7316,6 +7770,8 @@ function MediaPage({ uploads = [], onToast, reload }) {
 
   return (
     <div className="page-grid">
+      <MediaLibraryProV13 uploads={uploads} onFolder={(folder) => setFolderFilter(folder)} onType={(type) => setTypeFilter(type)} />
+
       <div className="card">
         <SectionTitle
           title="Media kutubxona"
@@ -7550,6 +8006,8 @@ function UsersPage({ users = [], onToast, reload }) {
 
   return (
     <div className="page-grid">
+      <RolePermissionMatrixV14 users={users} onPreset={(role) => handleRoleChange(role)} />
+
       <div className="card">
         <SectionTitle
           title={editingId ? "Hodimni tahrirlash" : "Hodim yaratish"}
@@ -7924,6 +8382,8 @@ function TasksPage({ tasks = [], users = [], user, onToast, reload }) {
           </button>
         </form>
       </div>
+
+      <TaskKanbanProV10 tasks={tasks} users={users} user={user} onToast={onToast} reload={reload} />
 
       <div className="card">
         <SectionTitle title="Vazifalar ro'yxati" right={<input type="date" value={filterDate} onChange={(e) => setFilterDate(e.target.value)} />} />
@@ -8623,6 +9083,9 @@ function SettingsPage({ settings, onSave, saving, theme, setTheme, onToast, relo
           <UiHealthStrip items={telegramMonitorItems} />
           <UiOpsTimeline items={telegramOps} />
         </div>
+
+        <TelegramBotProV11 settings={form} onToast={onToast} />
+        <MobilePwaProV15 settings={form} />
 
         <button className="btn primary mt16" onClick={() => onSave(form)} disabled={saving}>
           {saving ? "Saqlanmoqda..." : "Saqlash"}
@@ -23557,6 +24020,50 @@ tbody td{border-color:rgba(113,132,157,.13) !important}
   .v8-rhythm-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
   .v8-rhythm-suggestion{display:block}
 }
+
+
+/* V9-V15 FULL OPERATING SYSTEM UPGRADE */
+.v15-panel{
+  position:relative;
+  overflow:hidden;
+  border-radius:30px;
+  padding:22px;
+  border:1px solid rgba(22,144,245,.16);
+  background:radial-gradient(circle at 0 0,rgba(22,144,245,.14),transparent 34%),linear-gradient(135deg,rgba(255,255,255,.94),rgba(241,247,255,.82));
+  box-shadow:0 24px 70px rgba(15,23,42,.09);
+}
+.v15-panel::after{content:"";position:absolute;inset:auto -90px -120px auto;width:230px;height:230px;background:rgba(22,144,245,.12);border-radius:50%;filter:blur(8px);pointer-events:none}
+.v15-panel-head{position:relative;z-index:1;display:flex;align-items:flex-start;justify-content:space-between;gap:18px;margin-bottom:18px}
+.v15-panel-head span{display:inline-flex;align-items:center;gap:8px;color:#1690F5;font-size:12px;font-weight:1000;letter-spacing:.1em;text-transform:uppercase}
+.v15-panel-head h2{margin:8px 0 6px;font-size:clamp(22px,3vw,34px);line-height:1.04;color:#07111f;letter-spacing:-.04em}
+.v15-panel-head p{max-width:780px;margin:0;color:#5d6b7d;font-weight:750;line-height:1.55}
+.v15-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;min-width:max-content}
+.v15-stat-grid{position:relative;z-index:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
+.v15-stat-grid>div{border:1px solid rgba(22,144,245,.12);background:rgba(255,255,255,.78);border-radius:22px;padding:15px;box-shadow:0 16px 36px rgba(15,23,42,.06)}
+.v15-stat-grid span{display:block;color:#64748b;font-size:12px;font-weight:950;text-transform:uppercase;letter-spacing:.06em}
+.v15-stat-grid strong{display:block;color:#0b1220;font-size:28px;letter-spacing:-.04em;margin-top:6px}
+.v15-stat-grid small{color:#6b7a8e;font-weight:800}
+.v15-stat-grid .danger{box-shadow:inset 0 0 0 1px rgba(239,68,68,.2),0 16px 36px rgba(239,68,68,.08)}
+.v15-stat-grid .success{box-shadow:inset 0 0 0 1px rgba(34,197,94,.2),0 16px 36px rgba(34,197,94,.08)}
+.v9-calendar-layout{position:relative;z-index:1;display:grid;grid-template-columns:1.45fr .78fr;gap:16px;align-items:start}
+.v9-month-board{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:9px}
+.v9-day{min-height:76px;border:1px solid rgba(22,144,245,.12);background:rgba(255,255,255,.78);border-radius:18px;padding:10px;text-align:left;box-shadow:0 10px 26px rgba(15,23,42,.05);cursor:pointer;transition:.18s ease}
+.v9-day:hover,.v9-day.active{transform:translateY(-2px);border-color:rgba(22,144,245,.34);box-shadow:0 18px 34px rgba(22,144,245,.12)}
+.v9-day span{font-weight:1000;color:#0f172a}.v9-day strong{display:block;color:#1690F5;font-size:24px;margin-top:4px}.v9-day i{display:inline-flex;margin-top:4px;border-radius:999px;padding:3px 7px;background:#e8f4ff;color:#1690F5;font-size:10px;font-style:normal;font-weight:1000}.v9-day.empty{opacity:.72}.v9-day.risk{box-shadow:inset 0 0 0 1px rgba(239,68,68,.25),0 12px 28px rgba(239,68,68,.10)}
+.v9-day-detail{border:1px solid rgba(22,144,245,.14);background:rgba(255,255,255,.82);border-radius:26px;padding:18px;box-shadow:0 20px 46px rgba(15,23,42,.08)}
+.v9-day-detail>span{color:#1690F5;font-size:12px;font-weight:1000;text-transform:uppercase;letter-spacing:.08em}.v9-day-detail h3{margin:6px 0;color:#07111f;font-size:24px}.v9-day-detail p{margin:0 0 14px;color:#64748b;font-weight:800}
+.v9-day-list{display:grid;gap:10px}.v9-content-mini{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center;border-radius:18px;padding:12px;background:#f8fbff;border:1px solid rgba(22,144,245,.10)}.v9-content-mini strong{display:block;color:#0f172a}.v9-content-mini span{display:block;color:#64748b;font-size:12px;font-weight:800}.v9-content-mini button,.v10-task-card button,.v12-action-list button,.v14-role-grid button{border:0;border-radius:999px;padding:7px 10px;background:#1690F5;color:white;font-weight:900;cursor:pointer}.v9-content-mini.danger{border-color:rgba(239,68,68,.25)}.v9-suggestion-box{margin-top:14px;border-radius:18px;padding:13px;background:linear-gradient(135deg,#1690F5,#42c7ff);color:white}.v9-suggestion-box strong,.v9-suggestion-box span{display:block}.v9-suggestion-box span{font-weight:800;opacity:.9}.v9-quick-meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.v9-quick-meta span{border-radius:999px;padding:6px 9px;background:#edf6ff;color:#1690F5;font-weight:900;font-size:12px}
+.v10-board{display:grid;grid-template-columns:repeat(5,minmax(190px,1fr));gap:12px;overflow:auto;padding-bottom:4px}.v10-column{min-height:230px;border:1px solid rgba(22,144,245,.12);background:rgba(255,255,255,.68);border-radius:22px;padding:12px}.v10-column-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.v10-column-head strong{color:#0f172a}.v10-column-head span{background:#e8f4ff;color:#1690F5;border-radius:999px;padding:4px 8px;font-weight:1000}.v10-task-card{background:white;border:1px solid rgba(22,144,245,.10);border-radius:18px;padding:12px;margin-bottom:10px;box-shadow:0 12px 26px rgba(15,23,42,.06)}.v10-task-card strong{display:block;color:#0f172a}.v10-task-card span{display:block;color:#64748b;font-size:12px;font-weight:800;margin:4px 0 8px}.v10-task-card div{display:flex;gap:6px;flex-wrap:wrap}.v10-task-card button{font-size:11px;padding:6px 8px;background:#edf6ff;color:#1690F5}.v10-task-card.priority-high{box-shadow:inset 0 0 0 1px rgba(239,68,68,.22),0 12px 26px rgba(239,68,68,.08)}.v10-quick-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.v10-quick-row button{border:1px solid rgba(22,144,245,.14);background:white;border-radius:999px;padding:10px 13px;color:#0f172a;font-weight:900;cursor:pointer}
+.v11-workflows{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.v11-workflows>div{border-radius:22px;padding:16px;background:white;border:1px solid rgba(22,144,245,.12);box-shadow:0 14px 32px rgba(15,23,42,.06)}.v11-workflows b{font-size:25px}.v11-workflows strong,.v11-workflows span{display:block}.v11-workflows strong{color:#0f172a;margin-top:8px}.v11-workflows span{color:#64748b;font-weight:800;font-size:13px}.v11-config{margin-top:12px;border-radius:20px;padding:14px;background:#fff7ed;border:1px solid rgba(245,158,11,.22);display:grid;gap:4px}.v11-config.ready{background:#ecfdf5;border-color:rgba(34,197,94,.20)}.v11-config strong{color:#0f172a}.v11-config span{color:#64748b;font-weight:800}
+.v12-ai-box{max-width:420px;border-radius:22px;padding:16px;background:#061226;color:white;box-shadow:0 20px 48px rgba(6,18,38,.18)}.v12-ai-box strong,.v12-ai-box span{display:block}.v12-ai-box span{opacity:.8;font-weight:800;margin-top:6px}.v12-layout{display:grid;grid-template-columns:.8fr 1.2fr;gap:14px}.v12-ranking,.v12-action-list{border-radius:24px;padding:16px;background:rgba(255,255,255,.78);border:1px solid rgba(22,144,245,.12);box-shadow:0 16px 40px rgba(15,23,42,.06)}.v12-ranking>strong,.v12-action-list>strong{display:block;margin-bottom:10px;color:#0f172a}.v12-ranking>div{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:center;border-bottom:1px solid rgba(100,116,139,.12);padding:10px 0}.v12-ranking b{color:#1690F5}.v12-ranking small{grid-column:2/-1;color:#64748b;font-weight:800}.v12-action-list{display:grid;gap:10px}.v12-action-list article{border-radius:18px;padding:13px;background:white;border:1px solid rgba(22,144,245,.10)}.v12-action-list article.success{border-color:rgba(34,197,94,.25)}.v12-action-list article.warning{border-color:rgba(245,158,11,.25)}.v12-action-list article.danger{border-color:rgba(239,68,68,.25)}.v12-action-list span{display:block;color:#1690F5;font-weight:1000;font-size:12px}.v12-action-list strong{display:block;color:#0f172a;margin-top:4px}.v12-action-list small{display:block;color:#64748b;font-weight:800;margin:4px 0 10px}.v12-action-list div{display:flex;gap:8px}
+.v13-folder-row{display:flex;gap:10px;flex-wrap:wrap}.v13-folder-row button{min-width:170px;text-align:left;border:1px solid rgba(22,144,245,.12);background:white;border-radius:20px;padding:14px;box-shadow:0 12px 26px rgba(15,23,42,.06);cursor:pointer}.v13-folder-row strong,.v13-folder-row span{display:block}.v13-folder-row strong{color:#0f172a}.v13-folder-row span{color:#64748b;font-weight:800;margin-top:4px}
+.v14-role-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.v14-role-grid article{border-radius:22px;padding:16px;background:white;border:1px solid rgba(22,144,245,.12);box-shadow:0 14px 32px rgba(15,23,42,.06)}.v14-role-grid span{display:block;color:#1690F5;font-size:12px;font-weight:1000;text-transform:uppercase}.v14-role-grid strong{display:block;color:#0f172a;font-size:22px;margin-top:5px}.v14-role-grid small{display:block;color:#64748b;font-weight:800;min-height:36px;margin:6px 0 12px}
+.v15-phone-preview{display:grid;grid-template-columns:280px 1fr;gap:20px;align-items:center}.v15-phone-frame{width:240px;margin:auto;border:10px solid #061226;background:#f6fbff;border-radius:38px;padding:18px;box-shadow:0 30px 70px rgba(6,18,38,.22)}.v15-phone-top{width:70px;height:8px;background:#061226;border-radius:999px;margin:0 auto 16px}.v15-phone-frame h3{margin:0 0 12px;color:#061226}.v15-phone-card{border-radius:18px;padding:12px;margin:9px 0;background:white;border:1px solid rgba(22,144,245,.13)}.v15-phone-card strong,.v15-phone-card span{display:block}.v15-phone-card span{color:#64748b;font-weight:800}.v15-phone-nav{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:18px}.v15-phone-nav i{height:26px;border-radius:999px;background:#dff2ff}.v15-pwa-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.v15-pwa-checks>div{border-radius:22px;padding:16px;background:white;border:1px solid rgba(22,144,245,.12);box-shadow:0 14px 32px rgba(15,23,42,.06)}.v15-pwa-checks strong,.v15-pwa-checks span{display:block}.v15-pwa-checks strong{color:#0f172a}.v15-pwa-checks span{color:#64748b;font-weight:800;margin-top:5px}
+:root[data-theme='dark'] .v15-panel{background:radial-gradient(circle at 0 0,rgba(22,144,245,.2),transparent 35%),linear-gradient(135deg,rgba(15,23,42,.95),rgba(7,13,23,.88));border-color:rgba(255,255,255,.10)}
+:root[data-theme='dark'] .v15-panel-head h2,:root[data-theme='dark'] .v15-stat-grid strong,:root[data-theme='dark'] .v9-day-detail h3,:root[data-theme='dark'] .v9-content-mini strong,:root[data-theme='dark'] .v10-column-head strong,:root[data-theme='dark'] .v10-task-card strong,:root[data-theme='dark'] .v11-workflows strong,:root[data-theme='dark'] .v11-config strong,:root[data-theme='dark'] .v12-ranking>strong,:root[data-theme='dark'] .v12-action-list>strong,:root[data-theme='dark'] .v12-ranking span,:root[data-theme='dark'] .v12-action-list strong,:root[data-theme='dark'] .v13-folder-row strong,:root[data-theme='dark'] .v14-role-grid strong{color:#f8fbff}
+:root[data-theme='dark'] .v15-stat-grid>div,:root[data-theme='dark'] .v9-day,:root[data-theme='dark'] .v9-day-detail,:root[data-theme='dark'] .v9-content-mini,:root[data-theme='dark'] .v10-column,:root[data-theme='dark'] .v10-task-card,:root[data-theme='dark'] .v11-workflows>div,:root[data-theme='dark'] .v12-ranking,:root[data-theme='dark'] .v12-action-list,:root[data-theme='dark'] .v12-action-list article,:root[data-theme='dark'] .v13-folder-row button,:root[data-theme='dark'] .v14-role-grid article,:root[data-theme='dark'] .v15-pwa-checks>div{background:rgba(15,23,42,.72);border-color:rgba(255,255,255,.10)}
+@media(max-width:1180px){.v9-calendar-layout,.v12-layout,.v15-phone-preview{grid-template-columns:1fr}.v10-board{grid-template-columns:repeat(5,220px)}.v11-workflows,.v14-role-grid,.v15-pwa-checks{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:720px){.v15-panel{padding:16px;border-radius:24px}.v15-panel-head{display:block}.v15-actions{justify-content:flex-start;margin-top:14px;min-width:0}.v15-stat-grid,.v11-workflows,.v14-role-grid,.v15-pwa-checks{grid-template-columns:1fr}.v9-month-board{grid-template-columns:repeat(4,minmax(0,1fr))}.v9-day{min-height:68px}.v15-phone-frame{width:210px}}
 
 
 `;

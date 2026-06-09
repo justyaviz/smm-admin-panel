@@ -1,4 +1,4 @@
-const CACHE_NAME = "aloo-smm-v4";
+const CACHE_NAME = "aloo-smm-v15";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
