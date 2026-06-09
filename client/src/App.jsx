@@ -91,10 +91,9 @@ const SIDEBAR_WORKSPACES = [
     id: "mobilograf",
     title: "Mobilograf",
     desc: "Foto, video, montaj",
-    items: ["dashboard", "travelPlans", "bonus", "tasks", "content", "uploads", "dailyReports", "profile"],
+    items: ["content", "profile"],
     groups: [
-      { id: "mob-main", title: "Ish jarayoni", items: ["dashboard", "travelPlans", "bonus", "tasks"] },
-      { id: "mob-content", title: "Kontent ishlab chiqarish", items: ["content", "uploads", "dailyReports"] },
+      { id: "mob-content", title: "Kontent ishlab chiqarish", items: ["content"] },
       { id: "mob-account", title: "Shaxsiy", items: ["profile"] }
     ]
   }
@@ -121,19 +120,7 @@ const scopedDataQuery = (currentUser) => (
 const rolePresetPermissions = (currentUser) => {
   if (isMobilografUser(currentUser)) {
     return [
-      "dashboard",
       "content",
-      "uploads",
-      "dailyReports",
-      "tasks",
-      "travelPlans",
-      "travelPlans_create",
-      "travelPlans_edit",
-      "travelPlans_delete",
-      "bonus",
-      "bonus_create",
-      "bonus_edit",
-      "bonus_delete",
       "profile"
     ];
   }
@@ -227,7 +214,7 @@ const ROLE_WORKSPACE_PRESETS = {
   director: ["dashboard", "managerLab", "analytics", "dailyReports", "campaigns", "profile"],
   manager: ["dashboard", "managerLab", "content", "tasks", "travelPlans", "campaigns", "analytics", "dailyReports", "profile"],
   editor: ["dashboard", "tasks", "uploads", "content", "profile"],
-  mobilograf: ["dashboard", "travelPlans", "bonus", "tasks", "content", "uploads", "dailyReports", "profile"],
+  mobilograf: ["content", "profile"],
   viewer: ["dashboard", "content", "campaigns", "analytics", "dailyReports", "profile"]
 };
 
@@ -377,6 +364,18 @@ function formatDateTime(value) {
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return formatDate(value);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
+
+function getContentWorkTime(row = {}) {
+  const direct = [row.publish_time, row.deadline_time, row.time]
+    .map((value) => String(value || "").trim())
+    .find((value) => /^\d{1,2}:\d{2}$/.test(value));
+  if (direct) return direct.padStart(5, "0");
+  const text = [row.approval_comment, row.notes, row.description].map((value) => String(value || "")).join(" / ");
+  const labeled = text.match(/(?:vaqt|soat)\s*[:=-]?\s*(\d{1,2}:\d{2})/i);
+  if (labeled) return labeled[1].padStart(5, "0");
+  const loose = text.match(/\b(\d{1,2}:\d{2})\b/);
+  return loose ? loose[1].padStart(5, "0") : "-";
 }
 
 function formatDateTimeInput(value) {
@@ -3134,7 +3133,7 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
   const canEditContent = canDoAction(user, "content", "edit");
   const canDeleteContent = canDoAction(user, "content", "delete");
   const formLocked = editRow ? !canEditContent : !canCreateContent;
-  const isMobilografContentOnly = String(user?.role || "").toLowerCase() === "mobilograf";
+  const isMobilografContentOnly = isMobilografUser(user) && user?.role !== "admin";
 
   useEffect(() => {
     setPlannerForm((prev) => (
@@ -4295,11 +4294,12 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
               renderItem={(item) => {
                 const branchIds = Array.isArray(item.branch_ids_json) ? item.branch_ids_json.map(Number) : [];
                 const branchIndex = branchIds.length ? Math.abs(branchIds[0]) % 6 : 0;
+                const workTime = getContentWorkTime(item);
                 return (
-                  <button key={item.id} type="button" className={`calendar-pill content-calendar-pill branch-tone-${branchIndex} ${isAcademyContent(item) ? "academy" : ""} ${isCustomerHeroContent(item) ? "customer" : ""} ${isServicesContent(item) ? "services" : ""}`} onClick={() => setViewRow(item)}>
-                    <span>{item.platform || "-"} / {item.video_type || item.content_type || "post"}</span>
+                  <button key={item.id} type="button" className={`calendar-pill content-calendar-pill branch-tone-${branchIndex} ${isMobilografContentOnly ? "mobilograf-pill" : ""} ${isAcademyContent(item) ? "academy" : ""} ${isCustomerHeroContent(item) ? "customer" : ""} ${isServicesContent(item) ? "services" : ""}`} onClick={() => setViewRow(item)}>
+                    <span>{isMobilografContentOnly ? `${workTime} / ${item.platform || "-"} / ${formatContentType(item.content_type)}` : `${item.platform || "-"} / ${item.video_type || item.content_type || "post"}`}</span>
                     <strong>{item.title}</strong>
-                    <small>{item.hook_text ? "Hook" : "Hook yo'q"} / {item.cta_text ? "CTA" : "CTA yo'q"}</small>
+                    <small>{isMobilografContentOnly ? (item.video_type || formatRubric(item.rubric)) : `${item.hook_text ? "Hook" : "Hook yo'q"} / ${item.cta_text ? "CTA" : "CTA yo'q"}`}</small>
                   </button>
                 );
               }}
@@ -4349,41 +4349,74 @@ function ContentPage({ users = [], branches = [], campaigns = [], managerOSData 
         )}
       </div>
 
-      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title="Kontent reja tafsiloti" wide>
+      <Modal open={!!viewRow} onClose={() => setViewRow(null)} title={isMobilografContentOnly ? "Mobilograf ish briefi" : "Kontent reja tafsiloti"} wide>
         {viewRow ? (
-          <div className="content-detail-layout">
-            <div className="content-detail-main">
-              <ContentStatusStepper status={viewRow.status} />
-              <div className="detail-grid content-detail-grid">
-                <div><strong>Kontent nomi</strong><span>{viewRow.title}</span></div>
-                <div><strong>Sana</strong><span>{formatDate(viewRow.publish_date)}</span></div>
-                <div><strong>Deadline risk</strong><span><DeadlineRiskPill row={viewRow} /></span></div>
-                <div><strong>Holati</strong><span className={approvalStatusClass(viewRow.status)}>{formatApprovalStatus(viewRow.status)}</span></div>
-                <div><strong>Platforma</strong><span className="table-chip-row">{splitCellValues(viewRow.platform).length ? splitCellValues(viewRow.platform).map((platform, idx) => <PlatformBadge key={`${viewRow.id}-detail-platform-${idx}`} platform={platform} />) : "-"}</span></div>
-                <div><strong>Turi</strong><span>{formatContentType(viewRow.content_type)}</span></div>
+          isMobilografContentOnly ? (
+            <div className="mobilograf-brief-panel">
+              <div className="mobilograf-brief-hero">
+                <div>
+                  <span>Kontent vazifasi</span>
+                  <h2>{viewRow.title}</h2>
+                  <p>{formatDate(viewRow.publish_date)} / {getContentWorkTime(viewRow)} / {formatApprovalStatus(viewRow.status)}</p>
+                </div>
+                <DeadlineRiskPill row={viewRow} />
+              </div>
+              <div className="mobilograf-brief-meta">
+                <div><strong>Platforma</strong><span className="table-chip-row">{splitCellValues(viewRow.platform).length ? splitCellValues(viewRow.platform).map((platform, idx) => <PlatformBadge key={`${viewRow.id}-mob-platform-${idx}`} platform={platform} />) : "-"}</span></div>
+                <div><strong>Format</strong><span>{viewRow.video_type || formatContentType(viewRow.content_type)}</span></div>
                 <div><strong>Rubrika</strong><span>{formatRubric(viewRow.rubric)}</span></div>
                 <div><strong>Mahsulot</strong><span>{viewRow.product_name || "-"}</span></div>
-                <div><strong>Video formati</strong><span>{viewRow.video_type || "-"}</span></div>
-                <div className="full-col"><strong>Hook</strong><span>{viewRow.hook_text || "-"}</span></div>
-                <div className="full-col"><strong>Asosiy qism / ssenariy</strong><span>{viewRow.main_body_text || viewRow.scenario_text || "-"}</span></div>
-                <div className="full-col"><strong>CTA</strong><span>{viewRow.cta_text || "-"}</span></div>
-                <div className="full-col">
-                  <strong>Qilingan ish linki</strong>
-                  <span>
-                    {viewRow.final_url ? (
-                      <a href={normalizeExternalUrl(viewRow.final_url)} target="_blank" rel="noreferrer">
-                        Havolani ochish
-                      </a>
-                    ) : "-"}
-                  </span>
-                </div>
-                <div className="full-col"><strong>Workflow izohi</strong><span>{viewRow.approval_comment || "-"}</span></div>
+              </div>
+              <div className="mobilograf-brief-script">
+                <div><strong>Hook</strong><p>{viewRow.hook_text || "Hook kiritilmagan"}</p></div>
+                <div><strong>Ssenariy / asosiy qism</strong><p>{viewRow.main_body_text || viewRow.scenario_text || "Ssenariy kiritilmagan"}</p></div>
+                <div><strong>CTA</strong><p>{viewRow.cta_text || "CTA kiritilmagan"}</p></div>
+                <div><strong>Izoh</strong><p>{viewRow.approval_comment || "Qo'shimcha izoh yo'q"}</p></div>
+              </div>
+              <div className="mobilograf-brief-footer">
+                <span className={approvalStatusClass(viewRow.status)}>{formatApprovalStatus(viewRow.status)}</span>
+                {viewRow.final_url ? (
+                  <button type="button" className="btn secondary" onClick={() => openExternalUrl(viewRow.final_url)}>
+                    <Link2 size={15} /> Ish linkini ochish
+                  </button>
+                ) : <span className="mini-badge warning">Ish linki yo'q</span>}
               </div>
             </div>
-            {!isMobilografContentOnly ? <div className="content-detail-side">
-              <DiscussionPanel entityType="content" entityId={viewRow.id} onToast={onToast} />
-            </div> : null}
-          </div>
+          ) : (
+            <div className="content-detail-layout">
+              <div className="content-detail-main">
+                <ContentStatusStepper status={viewRow.status} />
+                <div className="detail-grid content-detail-grid">
+                  <div><strong>Kontent nomi</strong><span>{viewRow.title}</span></div>
+                  <div><strong>Sana</strong><span>{formatDate(viewRow.publish_date)}</span></div>
+                  <div><strong>Deadline risk</strong><span><DeadlineRiskPill row={viewRow} /></span></div>
+                  <div><strong>Holati</strong><span className={approvalStatusClass(viewRow.status)}>{formatApprovalStatus(viewRow.status)}</span></div>
+                  <div><strong>Platforma</strong><span className="table-chip-row">{splitCellValues(viewRow.platform).length ? splitCellValues(viewRow.platform).map((platform, idx) => <PlatformBadge key={`${viewRow.id}-detail-platform-${idx}`} platform={platform} />) : "-"}</span></div>
+                  <div><strong>Turi</strong><span>{formatContentType(viewRow.content_type)}</span></div>
+                  <div><strong>Rubrika</strong><span>{formatRubric(viewRow.rubric)}</span></div>
+                  <div><strong>Mahsulot</strong><span>{viewRow.product_name || "-"}</span></div>
+                  <div><strong>Video formati</strong><span>{viewRow.video_type || "-"}</span></div>
+                  <div className="full-col"><strong>Hook</strong><span>{viewRow.hook_text || "-"}</span></div>
+                  <div className="full-col"><strong>Asosiy qism / ssenariy</strong><span>{viewRow.main_body_text || viewRow.scenario_text || "-"}</span></div>
+                  <div className="full-col"><strong>CTA</strong><span>{viewRow.cta_text || "-"}</span></div>
+                  <div className="full-col">
+                    <strong>Qilingan ish linki</strong>
+                    <span>
+                      {viewRow.final_url ? (
+                        <a href={normalizeExternalUrl(viewRow.final_url)} target="_blank" rel="noreferrer">
+                          Havolani ochish
+                        </a>
+                      ) : "-"}
+                    </span>
+                  </div>
+                  <div className="full-col"><strong>Workflow izohi</strong><span>{viewRow.approval_comment || "-"}</span></div>
+                </div>
+              </div>
+              <div className="content-detail-side">
+                <DiscussionPanel entityType="content" entityId={viewRow.id} onToast={onToast} />
+              </div>
+            </div>
+          )
         ) : null}
       </Modal>
     </div>
@@ -9863,7 +9896,7 @@ function App() {
       director: ["dashboard", "managerLab", "analytics", "campaigns", "profile"],
       manager: ["dashboard", "managerLab", "content", "travelPlans", "campaigns", "profile"],
       editor: ["dashboard", "tasks", "uploads", "content", "profile"],
-      mobilograf: ["dashboard", "travelPlans", "bonus", "uploads", "profile"],
+      mobilograf: ["content", "profile"],
       viewer: ["dashboard", "content", "analytics", "profile"]
     };
     const preferred = rolePreferred[user?.role] || ["dashboard", "managerLab", "content", "travelPlans", "campaigns", "profile"];
@@ -20230,6 +20263,96 @@ tr:hover td,
 .mobilograf-content-only .calendar-pill{
   cursor:pointer;
 }
+.mobilograf-content-only .calendar-pill.mobilograf-pill{
+  gap:5px;
+  border-left:4px solid #1478f2;
+}
+.mobilograf-content-only .calendar-pill.mobilograf-pill span{
+  color:#0b63d1;
+  font-size:10px;
+  font-weight:950;
+}
+.mobilograf-content-only .calendar-pill.mobilograf-pill strong{
+  font-size:12px;
+  line-height:1.25;
+}
+.mobilograf-content-only .calendar-pill.mobilograf-pill small{
+  color:#64748b;
+  font-weight:850;
+}
+.mobilograf-brief-panel{
+  display:grid;
+  gap:16px;
+}
+.mobilograf-brief-hero{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:16px;
+  border-radius:24px;
+  padding:20px;
+  background:linear-gradient(135deg,#eff6ff,#f8fafc);
+  border:1px solid #dbeafe;
+}
+.mobilograf-brief-hero span{
+  display:inline-flex;
+  color:#0b63d1;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.mobilograf-brief-hero h2{
+  margin:6px 0;
+  color:#101827;
+  font-size:28px;
+  line-height:1.12;
+}
+.mobilograf-brief-hero p{
+  margin:0;
+  color:#475467;
+  font-weight:850;
+}
+.mobilograf-brief-meta{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:10px;
+}
+.mobilograf-brief-meta > div,
+.mobilograf-brief-script > div{
+  display:grid;
+  gap:8px;
+  border:1px solid rgba(148,163,184,.18);
+  border-radius:18px;
+  padding:14px;
+  background:#fff;
+}
+.mobilograf-brief-meta strong,
+.mobilograf-brief-script strong{
+  color:#64748b;
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+}
+.mobilograf-brief-meta span,
+.mobilograf-brief-script p{
+  margin:0;
+  color:#101827;
+  font-weight:800;
+  line-height:1.5;
+}
+.mobilograf-brief-script{
+  display:grid;
+  gap:10px;
+}
+.mobilograf-brief-footer{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  border-top:1px solid rgba(148,163,184,.18);
+  padding-top:14px;
+}
 .monthly-planner{
   display:grid;
   gap:16px;
@@ -20817,6 +20940,8 @@ tr:hover td,
   .mobilograf-content-head{display:grid}
   .mobilograf-month-control{grid-template-columns:42px 1fr 42px}
   .mobilograf-content-only .calendar-cell{min-height:112px}
+  .mobilograf-brief-hero{display:grid}
+  .mobilograf-brief-meta{grid-template-columns:1fr}
   .monthly-planner{padding:14px;border-radius:24px}
   .monthly-planner-head,
   .monthly-planner-actions{display:grid;justify-content:stretch}
