@@ -2658,6 +2658,56 @@ function ManagerOsLabPage({ onToast }) {
     };
   }, [rows]);
 
+  const competitorPulse = useMemo(() => {
+    const platforms = [...new Set(rows.map((row) => row.platform).filter(Boolean))];
+    const competitors = [...new Set(rows.map((row) => row.competitor_name).filter(Boolean))];
+    const formats = rows.reduce((acc, row) => {
+      const format = String(row.content_format || "format yo'q").trim();
+      acc[format] = (acc[format] || 0) + 1;
+      return acc;
+    }, {});
+    const topFormat = Object.entries(formats).sort((a, b) => b[1] - a[1])[0];
+    const campaignSignals = rows.filter((row) => String(row.campaign_notes || "").trim()).length;
+    const actionIdeas = rows.filter((row) => String(row.action_idea || "").trim());
+    return {
+      platforms,
+      competitors,
+      topFormat,
+      campaignSignals,
+      actionIdeas,
+      latest: rows.slice(0, 4)
+    };
+  }, [rows]);
+  const audiencePulse = useMemo(() => {
+    const totalReach = rows.reduce((sum, row) => sum + Number(row.reach_count || 0), 0);
+    const totalEngagement = rows.reduce((sum, row) => sum + Number(row.engagement_count || 0), 0);
+    const followerGrowth = rows.reduce((sum, row) => sum + Number(row.follower_growth || 0), 0);
+    const platformMap = rows.reduce((acc, row) => {
+      const platform = row.platform || "Platforma";
+      if (!acc[platform]) acc[platform] = { platform, reach: 0, engagement: 0, growth: 0, count: 0 };
+      acc[platform].reach += Number(row.reach_count || 0);
+      acc[platform].engagement += Number(row.engagement_count || 0);
+      acc[platform].growth += Number(row.follower_growth || 0);
+      acc[platform].count += 1;
+      return acc;
+    }, {});
+    const platformRows = Object.values(platformMap).sort((a, b) => (b.reach + b.engagement + b.growth) - (a.reach + a.engagement + a.growth));
+    return {
+      totalReach,
+      totalEngagement,
+      followerGrowth,
+      engagementRate: totalReach ? Math.round((totalEngagement / Math.max(totalReach, 1)) * 100) : 0,
+      platformRows,
+      latestSignals: rows.filter((row) => String(row.signal_text || "").trim()).slice(0, 4)
+    };
+  }, [rows]);
+  const labCommandTitle = {
+    strategies: "Oy strategiyasi va platforma fokuslari",
+    blogger_partners: "Hamkorlar pipeline va natija nazorati",
+    competitor_reports: "Raqobatchi signallari va idea bank",
+    audience_metrics: "Auditoriya signal va platforma pulse"
+  }[activeResource] || "Modul holati";
+
   useEffect(() => {
     onToastRef.current = onToast;
   }, [onToast]);
@@ -2713,6 +2763,26 @@ function ManagerOsLabPage({ onToast }) {
         status: prev.status || "negotiation",
         expected_result: prev.expected_result || "Reach, obuna, murojaat va sotuv signali.",
         notes: prev.notes || `Follow-up: ${formatDate(new Date())} / kelishuv, narx va kontent formatini aniqlash.`
+      }));
+      return;
+    }
+    if (kind === "competitor-idea") {
+      setForm((prev) => ({
+        ...prev,
+        platform: prev.platform || "Instagram",
+        report_date: prev.report_date || formatDate(new Date()),
+        content_format: prev.content_format || "Reels / post / aksiya",
+        campaign_notes: prev.campaign_notes || "Raqobatchi aksiya yoki kontent signalini yozing.",
+        action_idea: prev.action_idea || "Biz uchun olinadigan idea va keyingi kontent yo'nalishi."
+      }));
+      return;
+    }
+    if (kind === "audience-signal") {
+      setForm((prev) => ({
+        ...prev,
+        metric_date: prev.metric_date || formatDate(new Date()),
+        platform: prev.platform || "Instagram",
+        signal_text: prev.signal_text || "Auditoriya signali, o'sish sababi va keyingi tavsiya."
       }));
     }
   }
@@ -2802,12 +2872,16 @@ function ManagerOsLabPage({ onToast }) {
         <div className="manager-lab-command-head">
           <div>
             <span>{activeConfig.title} command</span>
-            <h2>{activeResource === "strategies" ? "Oy strategiyasi va platforma fokuslari" : activeResource === "blogger_partners" ? "Hamkorlar pipeline va natija nazorati" : "Modul holati"}</h2>
+            <h2>{labCommandTitle}</h2>
           </div>
           {activeResource === "strategies" ? (
             <button type="button" className="btn secondary" onClick={() => applyLabPreset("strategy-month")}>Oylik strategiya preset</button>
           ) : activeResource === "blogger_partners" ? (
             <button type="button" className="btn secondary" onClick={() => applyLabPreset("blogger-followup")}>Follow-up preset</button>
+          ) : activeResource === "competitor_reports" ? (
+            <button type="button" className="btn secondary" onClick={() => applyLabPreset("competitor-idea")}>Idea signal preset</button>
+          ) : activeResource === "audience_metrics" ? (
+            <button type="button" className="btn secondary" onClick={() => applyLabPreset("audience-signal")}>Auditoriya signal preset</button>
           ) : (
             <strong>{rows.length} yozuv</strong>
           )}
@@ -2846,6 +2920,54 @@ function ManagerOsLabPage({ onToast }) {
                   <small>{row.platform} / {formatMoney(row.price_amount)} / {row.status}</small>
                 </button>
               )) : <p>Hamkor hali kiritilmagan.</p>}
+            </div>
+          </div>
+        ) : activeResource === "competitor_reports" ? (
+          <div className="manager-lab-command-grid competitor">
+            <div className="manager-lab-metric"><span>Raqobatchilar</span><strong>{competitorPulse.competitors.length}</strong><small>{competitorPulse.competitors.slice(0, 2).join(", ") || "hali yo'q"}</small></div>
+            <div className="manager-lab-metric"><span>Top format</span><strong>{competitorPulse.topFormat ? competitorPulse.topFormat[1] : 0}</strong><small>{competitorPulse.topFormat ? competitorPulse.topFormat[0] : "format yo'q"}</small></div>
+            <div className="manager-lab-metric"><span>Aksiya signali</span><strong>{competitorPulse.campaignSignals}</strong><small>{competitorPulse.platforms.length} platforma kuzatuvda</small></div>
+            <div className="manager-lab-action-list">
+              <span>Idea bank</span>
+              {competitorPulse.actionIdeas.length ? competitorPulse.actionIdeas.slice(0, 4).map((row) => (
+                <button key={`competitor-idea-${row.id}`} type="button" onClick={() => startEdit(row)}>
+                  <strong>{row.action_idea}</strong>
+                  <small>{row.competitor_name} / {row.platform} / {formatDate(row.report_date)}</small>
+                </button>
+              )) : <p>Raqobatchidan olinadigan idea hali yozilmagan.</p>}
+            </div>
+            <div className="manager-lab-signal-list">
+              {competitorPulse.latest.length ? competitorPulse.latest.map((row) => (
+                <button key={`competitor-latest-${row.id}`} type="button" onClick={() => startEdit(row)}>
+                  <strong>{row.competitor_name}</strong>
+                  <span>{row.content_format || "format yo'q"}</span>
+                  <small>{row.strengths_text || row.weaknesses_text || row.campaign_notes || "signal yo'q"}</small>
+                </button>
+              )) : <p>Kuzatuv yozuvi hali yo'q.</p>}
+            </div>
+          </div>
+        ) : activeResource === "audience_metrics" ? (
+          <div className="manager-lab-command-grid audience">
+            <div className="manager-lab-metric"><span>Reach</span><strong>{audiencePulse.totalReach.toLocaleString()}</strong><small>oylik jamlanma</small></div>
+            <div className="manager-lab-metric"><span>Engagement</span><strong>{audiencePulse.totalEngagement.toLocaleString()}</strong><small>{audiencePulse.engagementRate}% nisbat</small></div>
+            <div className="manager-lab-metric"><span>Follower growth</span><strong>{audiencePulse.followerGrowth.toLocaleString()}</strong><small>platformalar bo'yicha</small></div>
+            <div className="manager-lab-platform-pulse">
+              {audiencePulse.platformRows.length ? audiencePulse.platformRows.slice(0, 4).map((row) => (
+                <button key={`audience-platform-${row.platform}`} type="button">
+                  <strong>{row.platform}</strong>
+                  <span>Reach {row.reach.toLocaleString()} / Eng {row.engagement.toLocaleString()}</span>
+                  <i><em style={{ width: `${Math.min(100, Math.max(10, (row.reach + row.engagement + row.growth) / Math.max(1, audiencePulse.totalReach + audiencePulse.totalEngagement + audiencePulse.followerGrowth) * 100))}%` }} /></i>
+                </button>
+              )) : <p>Platforma metrikalari hali yo'q.</p>}
+            </div>
+            <div className="manager-lab-action-list">
+              <span>Auditoriya signallari</span>
+              {audiencePulse.latestSignals.length ? audiencePulse.latestSignals.map((row) => (
+                <button key={`audience-signal-${row.id}`} type="button" onClick={() => startEdit(row)}>
+                  <strong>{row.signal_text}</strong>
+                  <small>{row.platform} / {formatDate(row.metric_date)}</small>
+                </button>
+              )) : <p>Signal xulosasi hali yozilmagan.</p>}
             </div>
           </div>
         ) : (
@@ -21193,9 +21315,15 @@ tr:hover td,
 .manager-lab-command-grid.blogger{
   grid-template-columns:repeat(3,minmax(0,1fr));
 }
+.manager-lab-command-grid.competitor,
+.manager-lab-command-grid.audience{
+  grid-template-columns:repeat(3,minmax(0,1fr));
+}
 .manager-lab-metric,
 .manager-lab-action-list,
-.manager-lab-pipeline{
+.manager-lab-pipeline,
+.manager-lab-signal-list,
+.manager-lab-platform-pulse{
   border-radius:8px;
   background:#fff;
   border:1px solid #dfe8f2;
@@ -21229,10 +21357,16 @@ tr:hover td,
   gap:8px;
 }
 .manager-lab-command-grid.blogger .manager-lab-action-list,
-.manager-lab-pipeline{
+.manager-lab-command-grid.competitor .manager-lab-action-list,
+.manager-lab-command-grid.audience .manager-lab-action-list,
+.manager-lab-pipeline,
+.manager-lab-signal-list,
+.manager-lab-platform-pulse{
   grid-column:span 3;
 }
-.manager-lab-action-list button{
+.manager-lab-action-list button,
+.manager-lab-signal-list button,
+.manager-lab-platform-pulse button{
   min-height:56px;
   border-radius:8px;
   border:1px solid #e0e8f2;
@@ -21243,11 +21377,15 @@ tr:hover td,
   padding:10px;
   text-align:left;
 }
-.manager-lab-action-list button:hover{
+.manager-lab-action-list button:hover,
+.manager-lab-signal-list button:hover,
+.manager-lab-platform-pulse button:hover{
   border-color:#2dd4bf;
   transform:translateY(-1px);
 }
-.manager-lab-action-list button strong{
+.manager-lab-action-list button strong,
+.manager-lab-signal-list button strong,
+.manager-lab-platform-pulse button strong{
   color:#101828;
   font-size:13px;
   overflow:hidden;
@@ -21255,11 +21393,45 @@ tr:hover td,
   white-space:nowrap;
 }
 .manager-lab-action-list button small,
-.manager-lab-action-list p{
+.manager-lab-action-list p,
+.manager-lab-signal-list button small,
+.manager-lab-signal-list p,
+.manager-lab-platform-pulse p{
   margin:0;
   color:#667085;
   font-size:12px;
   font-weight:800;
+}
+.manager-lab-signal-list,
+.manager-lab-platform-pulse{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:8px;
+}
+.manager-lab-signal-list button{
+  min-height:94px;
+  align-content:start;
+}
+.manager-lab-signal-list button span,
+.manager-lab-platform-pulse button span{
+  color:#0d9488;
+  font-size:12px;
+  font-weight:900;
+}
+.manager-lab-platform-pulse button{
+  min-height:86px;
+}
+.manager-lab-platform-pulse i{
+  height:8px;
+  border-radius:999px;
+  background:#edf2f7;
+  overflow:hidden;
+}
+.manager-lab-platform-pulse em{
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#1478f2,#00bfa6);
 }
 .manager-lab-pipeline{
   display:grid;
@@ -21340,9 +21512,15 @@ tr:hover td,
   .manager-lab-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
   .manager-lab-command-grid.strategy,
   .manager-lab-command-grid.generic,
-  .manager-lab-command-grid.blogger{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .manager-lab-command-grid.blogger,
+  .manager-lab-command-grid.competitor,
+  .manager-lab-command-grid.audience{grid-template-columns:repeat(2,minmax(0,1fr))}
   .manager-lab-command-grid.blogger .manager-lab-action-list,
-  .manager-lab-pipeline{grid-column:1 / -1}
+  .manager-lab-pipeline,
+  .manager-lab-signal-list,
+  .manager-lab-platform-pulse{grid-column:1 / -1}
+  .manager-lab-signal-list,
+  .manager-lab-platform-pulse{grid-template-columns:repeat(2,minmax(0,1fr))}
   .manager-lab-layout{grid-template-columns:1fr}
 }
 @media (max-width:680px){
@@ -21354,6 +21532,10 @@ tr:hover td,
   .manager-lab-command-grid.strategy,
   .manager-lab-command-grid.generic,
   .manager-lab-command-grid.blogger,
+  .manager-lab-command-grid.competitor,
+  .manager-lab-command-grid.audience,
+  .manager-lab-signal-list,
+  .manager-lab-platform-pulse,
   .manager-lab-pipeline{grid-template-columns:1fr}
 }
 
