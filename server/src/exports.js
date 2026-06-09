@@ -172,92 +172,113 @@ export function sendContentCalendarPdf(res, rows, monthLabel, fileName = "conten
   res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
   doc.pipe(res);
 
+  const title = `${getMonthTitle(monthLabel)} kontent reja`;
+  const weekdays = ["Du", "Se", "Cho", "Pay", "Ju", "Sha", "Yak"];
+  const cells = buildCalendarCells(monthLabel, safeRows);
+  const weeks = [];
+  for (let index = 0; index < cells.length; index += 7) {
+    weeks.push(cells.slice(index, index + 7));
+  }
   const pageLeft = doc.page.margins.left;
   const pageTop = doc.page.margins.top;
   const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-  const title = `${getMonthTitle(monthLabel)} kontent reja`;
-
-  doc
-    .roundedRect(pageLeft, pageTop, pageWidth, 56, 14)
-    .fillAndStroke("#0f172a", "#0f172a");
-  doc.font("Helvetica-Bold").fontSize(20).fillColor("#ffffff").text(title, pageLeft + 16, pageTop + 12, { width: pageWidth - 32 });
-  doc.font("Helvetica").fontSize(9).fillColor("#cbd5e1").text(
-    `alooSMM Manager OS / kalendar ko'rinishi / ${safeRows.length} ta kontent`,
-    pageLeft + 16,
-    pageTop + 36,
-    { width: pageWidth - 32 }
-  );
-
-  const legend = [
-    { label: "Lifehack / ACADEMY", color: "#22c55e" },
-    { label: "Mijozlar", color: "#f59e0b" },
-    { label: "Xizmatlarimiz", color: "#0ea5e9" },
-    { label: "Boshqa kontent", color: "#8b5cf6" }
-  ];
-  let legendX = pageLeft + pageWidth - 360;
-  legend.forEach((item) => {
-    doc.circle(legendX, pageTop + 43, 4).fill(item.color);
-    doc.font("Helvetica-Bold").fontSize(7.5).fillColor("#e2e8f0").text(item.label, legendX + 8, pageTop + 39, { width: 82 });
-    legendX += 90;
-  });
-
-  const weekdays = ["Du", "Se", "Cho", "Pay", "Ju", "Sha", "Yak"];
-  const calendarTop = pageTop + 72;
-  const weekdayHeight = 22;
   const colWidth = pageWidth / 7;
-  const cells = buildCalendarCells(monthLabel, safeRows);
-  const rowCount = Math.max(5, Math.ceil(cells.length / 7));
-  const cellHeight = (doc.page.height - doc.page.margins.bottom - calendarTop - weekdayHeight) / rowCount;
+  const headerHeight = 64;
+  const calendarTop = pageTop + headerHeight + 14;
+  const dayHeaderHeight = 34;
+  const cellHeight = doc.page.height - doc.page.margins.bottom - calendarTop;
+  const cardGap = 7;
+  const cardHeight = 58;
+  const maxCardsPerPage = Math.max(1, Math.floor((cellHeight - dayHeaderHeight - 16) / (cardHeight + cardGap)));
 
-  weekdays.forEach((day, index) => {
-    const x = pageLeft + index * colWidth;
-    doc.rect(x, calendarTop, colWidth, weekdayHeight).fillAndStroke("#f1f5f9", "#dbe4f0");
-    doc.font("Helvetica-Bold").fontSize(9).fillColor("#334155").text(day, x, calendarTop + 7, { width: colWidth, align: "center" });
-  });
+  const drawHeader = (weekNumber, partNumber, partCount) => {
+    doc.roundedRect(pageLeft, pageTop, pageWidth, headerHeight, 14).fillAndStroke("#0f172a", "#0f172a");
+    doc.font("Helvetica-Bold").fontSize(19).fillColor("#ffffff").text(title, pageLeft + 16, pageTop + 10, { width: pageWidth - 32 });
+    doc.font("Helvetica").fontSize(9).fillColor("#cbd5e1").text(
+      `Hafta ${weekNumber}${partCount > 1 ? ` / ${partNumber}-qism` : ""} / ${safeRows.length} ta kontent / kalendar PDF`,
+      pageLeft + 16,
+      pageTop + 36,
+      { width: pageWidth - 32 }
+    );
 
-  cells.forEach((cell, index) => {
-    const col = index % 7;
-    const row = Math.floor(index / 7);
-    const x = pageLeft + col * colWidth;
-    const y = calendarTop + weekdayHeight + row * cellHeight;
-    const isWeekend = col >= 5;
-
-    doc
-      .rect(x, y, colWidth, cellHeight)
-      .fillAndStroke(cell.empty ? "#f8fafc" : isWeekend ? "#fff7ed" : "#ffffff", "#dbe4f0");
-
-    if (cell.empty) return;
-    doc.font("Helvetica-Bold").fontSize(10).fillColor("#0f172a").text(String(cell.day), x + 6, y + 5, { width: 22 });
-
-    const maxItems = cellHeight > 74 ? 3 : 2;
-    cell.items.slice(0, maxItems).forEach((item, itemIndex) => {
-      const tone = getContentTone(item);
-      const cardX = x + 5;
-      const cardY = y + 21 + itemIndex * 26;
-      const cardW = colWidth - 10;
-      const cardH = 21;
-      doc.roundedRect(cardX, cardY, cardW, cardH, 4).fillAndStroke(tone.fill, tone.stroke);
-      doc.font("Helvetica-Bold").fontSize(6.8).fillColor(tone.text).text(
-        `${getContentWorkTime(item) || "--:--"} ${safePdfText(item.platform || tone.tag, "")}`,
-        cardX + 4,
-        cardY + 3,
-        { width: cardW - 8, height: 7, ellipsis: true }
-      );
-      doc.font("Helvetica-Bold").fontSize(7.2).fillColor("#0f172a").text(
-        truncateText(item.title, 34),
-        cardX + 4,
-        cardY + 11,
-        { width: cardW - 8, height: 8, ellipsis: true }
-      );
+    const legend = [
+      { label: "Academy", color: "#22c55e" },
+      { label: "Mijozlar", color: "#f59e0b" },
+      { label: "Xizmatlar", color: "#0ea5e9" },
+      { label: "Boshqa", color: "#8b5cf6" }
+    ];
+    let legendX = pageLeft + pageWidth - 258;
+    legend.forEach((item) => {
+      doc.circle(legendX, pageTop + 43, 4).fill(item.color);
+      doc.font("Helvetica-Bold").fontSize(8).fillColor("#e2e8f0").text(item.label, legendX + 8, pageTop + 39, { width: 54 });
+      legendX += 64;
     });
+  };
 
-    if (cell.items.length > maxItems) {
-      doc.font("Helvetica-Bold").fontSize(7).fillColor("#475569").text(
-        `+${cell.items.length - maxItems} ta yana`,
-        x + 6,
-        y + cellHeight - 12,
-        { width: colWidth - 12, align: "right" }
-      );
+  const drawCard = (item, x, y, width) => {
+    const tone = getContentTone(item);
+    doc.roundedRect(x, y, width, cardHeight, 6).fillAndStroke(tone.fill, tone.stroke);
+    doc.font("Helvetica-Bold").fontSize(8).fillColor(tone.text).text(
+      `${getContentWorkTime(item) || "--:--"}  ${safePdfText(item.platform || tone.tag, "")}`,
+      x + 7,
+      y + 6,
+      { width: width - 14, height: 10, ellipsis: true }
+    );
+    doc.font("Helvetica-Bold").fontSize(9.2).fillColor("#0f172a").text(
+      safePdfText(item.title),
+      x + 7,
+      y + 19,
+      { width: width - 14, height: 25, ellipsis: true }
+    );
+    doc.font("Helvetica").fontSize(7.5).fillColor("#475569").text(
+      truncateText(item.video_type || item.content_type || item.rubric || "kontent", 30),
+      x + 7,
+      y + 45,
+      { width: width - 14, height: 9, ellipsis: true }
+    );
+  };
+
+  weeks.forEach((week, weekIndex) => {
+    const maxItemsInWeek = Math.max(0, ...week.map((cell) => cell.items?.length || 0));
+    const partCount = Math.max(1, Math.ceil(maxItemsInWeek / maxCardsPerPage));
+
+    for (let partIndex = 0; partIndex < partCount; partIndex += 1) {
+      if (weekIndex || partIndex) doc.addPage();
+      drawHeader(weekIndex + 1, partIndex + 1, partCount);
+
+      week.forEach((cell, dayIndex) => {
+        const x = pageLeft + dayIndex * colWidth;
+        const isWeekend = dayIndex >= 5;
+        doc.rect(x, calendarTop, colWidth, cellHeight).fillAndStroke(cell.empty ? "#f8fafc" : isWeekend ? "#fff7ed" : "#ffffff", "#dbe4f0");
+        doc.rect(x, calendarTop, colWidth, dayHeaderHeight).fillAndStroke(cell.empty ? "#f1f5f9" : "#eef6ff", "#dbe4f0");
+        doc.font("Helvetica-Bold").fontSize(10).fillColor("#334155").text(weekdays[dayIndex], x + 8, calendarTop + 7, { width: colWidth - 16 });
+
+        if (cell.empty) {
+          doc.font("Helvetica").fontSize(8).fillColor("#94a3b8").text("-", x + 8, calendarTop + 21, { width: colWidth - 16 });
+          return;
+        }
+
+        doc.font("Helvetica-Bold").fontSize(17).fillColor("#0f172a").text(String(cell.day), x + colWidth - 30, calendarTop + 6, { width: 22, align: "right" });
+        const start = partIndex * maxCardsPerPage;
+        const visibleItems = cell.items.slice(start, start + maxCardsPerPage);
+        if (!visibleItems.length) {
+          doc.font("Helvetica").fontSize(8).fillColor("#94a3b8").text("Reja yo'q", x + 8, calendarTop + dayHeaderHeight + 12, { width: colWidth - 16 });
+          return;
+        }
+
+        visibleItems.forEach((item, itemIndex) => {
+          drawCard(item, x + 6, calendarTop + dayHeaderHeight + 10 + itemIndex * (cardHeight + cardGap), colWidth - 12);
+        });
+
+        if (cell.items.length > start + visibleItems.length) {
+          doc.font("Helvetica-Bold").fontSize(8).fillColor("#475569").text(
+            `+${cell.items.length - start - visibleItems.length} ta keyingi qismda`,
+            x + 8,
+            calendarTop + cellHeight - 15,
+            { width: colWidth - 16, align: "center" }
+          );
+        }
+      });
     }
   });
 
