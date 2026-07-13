@@ -1,24 +1,21 @@
-# aloo SMM Panel — Login + Dashboard + Backend + PostgreSQL
+# aloo SMM Panel — Login va Dashboard
 
 Railway uchun tayyor monorepo:
 
-```text
-aloo-smm-panel-full/
-├── frontend/   # React + Vite, login va dashboard
-├── backend/    # Express API, JWT, PostgreSQL
-├── docker-compose.yml
-└── RAILWAY_SETUP.md
-```
+- `frontend/` — React + Vite, login va dashboard
+- `backend/` — Express API, JWT va PostgreSQL
+- `database/aloo_smm_schema.sql` — to‘liq PostgreSQL schema
+- `RAILWAY_SETUP.md` — deploy ko‘rsatmasi
 
-## Mahalliy ishga tushirish
+## Local ishga tushirish
 
-### 1. PostgreSQL
+PostgreSQL:
 
 ```bash
-docker compose up -d postgres
+docker compose up -d
 ```
 
-### 2. Backend
+Backend:
 
 ```bash
 cd backend
@@ -27,9 +24,7 @@ npm install
 npm run dev
 ```
 
-Backend: `http://localhost:3000`
-
-### 3. Frontend
+Frontend:
 
 ```bash
 cd frontend
@@ -38,21 +33,8 @@ npm install
 npm run dev
 ```
 
-Frontend: `http://localhost:5173`
+## Production
 
-Standart mahalliy login `.env.example` ichida:
+Railway sozlamalari `RAILWAY_SETUP.md` ichida.
 
-```text
-login: admin
-parol: aloo2026
-```
-
-Productionda `ADMIN_PASSWORD` va `JWT_SECRET` qiymatlarini albatta almashtiring.
-
-## Railway
-
-To‘liq qadamlar: [RAILWAY_SETUP.md](./RAILWAY_SETUP.md)
-
-## Font
-
-Gilroy fayllari arxivga kiritilmagan. Litsenziyalangan font fayllarini `frontend/public/fonts/` ichiga README ko‘rsatmasidagi nomlarda joylashtiring.
+Frontend productionda `API_URL` variable’ni runtime vaqtida oladi. Shu sabab `Failed to fetch` muammosi oldini olinadi.

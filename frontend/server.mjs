@@ -4,8 +4,9 @@ import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), 'dist');
-const port = Number(process.env.PORT || 4173);
+const port = Number(process.env.PORT || 8080);
 const host = '0.0.0.0';
+const apiUrl = String(process.env.API_URL || process.env.VITE_API_URL || '').replace(/\/$/, '');
 
 const mime = {
   '.html': 'text/html; charset=utf-8',
@@ -19,7 +20,7 @@ const mime = {
   '.ico': 'image/x-icon',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
-  '.ttf': 'font/ttf'
+  '.ttf': 'font/ttf',
 };
 
 if (!existsSync(root)) {
@@ -30,6 +31,23 @@ if (!existsSync(root)) {
 createServer((request, response) => {
   try {
     const rawPath = decodeURIComponent((request.url || '/').split('?')[0]);
+
+    if (rawPath === '/runtime-config.js') {
+      response.writeHead(200, {
+        'Content-Type': 'text/javascript; charset=utf-8',
+        'Cache-Control': 'no-store, no-cache, must-revalidate',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      response.end(`window.__ALOOSMM_CONFIG__ = ${JSON.stringify({ API_URL: apiUrl })};`);
+      return;
+    }
+
+    if (rawPath === '/health') {
+      response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+      response.end(JSON.stringify({ ok: true, apiConfigured: Boolean(apiUrl) }));
+      return;
+    }
+
     const safePath = normalize(rawPath).replace(/^(\.\.(\/|\\|$))+/, '');
     let filePath = join(root, safePath === '/' ? 'index.html' : safePath);
 
@@ -54,4 +72,5 @@ createServer((request, response) => {
   }
 }).listen(port, host, () => {
   console.log(`Frontend http://${host}:${port} manzilida ishga tushdi`);
+  console.log(apiUrl ? `API: ${apiUrl}` : 'Ogohlantirish: API_URL belgilanmagan.');
 });

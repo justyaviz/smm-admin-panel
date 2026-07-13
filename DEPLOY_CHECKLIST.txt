@@ -1,0 +1,30 @@
+aloo SMM Panel — Railway deployment checklist
+
+1) GitHub root:
+   /frontend
+   /backend
+   /database
+
+2) Railway frontend:
+   Root Directory: /frontend
+   Config File Path: /frontend/railway.toml
+   Variable: API_URL=https://BACKEND-DOMAIN.up.railway.app
+
+3) Railway backend:
+   Root Directory: /backend
+   Config File Path: /backend/railway.toml
+   Variables:
+   NODE_ENV=production
+   DATABASE_URL=${{Postgres.DATABASE_URL}}
+   JWT_SECRET=<32+ belgili maxfiy kalit>
+   CORS_ORIGIN=https://FRONTEND-DOMAIN.up.railway.app,https://aloosmm.uz
+   ADMIN_FULL_NAME=Aloo Admin
+   ADMIN_LOGIN=admin
+   ADMIN_PASSWORD=<kamida 10 belgili kuchli parol>
+
+4) Deploy tartibi:
+   Postgres -> Backend -> Frontend
+
+5) Tekshiruv:
+   Backend:  https://BACKEND-DOMAIN.up.railway.app/health
+   Frontend: https://FRONTEND-DOMAIN.up.railway.app/health

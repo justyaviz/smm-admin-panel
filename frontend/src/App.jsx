@@ -40,7 +40,8 @@ import {
 } from 'lucide-react';
 
 const LOGIN_KEY = 'aloo_smm_session';
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
+const runtimeApiUrl = typeof window !== 'undefined' ? window.__ALOOSMM_CONFIG__?.API_URL : '';
+const API_URL = (runtimeApiUrl || import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
 
 async function apiRequest(path, options = {}) {
   const response = await fetch(`${API_URL}${path}`, {

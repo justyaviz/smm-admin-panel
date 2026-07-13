@@ -1,90 +1,126 @@
-# Railway sozlash
+# aloo SMM Panel — Railway sozlash
 
-## 1. GitHub repository tuzilmasi
+## 1. GitHub tuzilmasi
 
-ZIP ichidagi fayllarni repository ildiziga yuklang. GitHub ichida aynan quyidagi papkalar bo‘lishi kerak:
+ZIP ichidagi fayllarni repository ildiziga yuklang:
 
 ```text
 /frontend
 /backend
+/database
 ```
 
-## 2. Backend service
+Eski `frontend/package-lock.json` va `backend/package-lock.json` repositoryda qolmasin.
 
-Railway → `backend` service → Settings:
+## 2. PostgreSQL
+
+Railway canvas ichida `Postgres` servis yarating.
+
+Backend jadvallarni ishga tushishda avtomatik yaratadi. Qo‘lda yaratish kerak bo‘lsa:
+
+```text
+database/aloo_smm_schema.sql
+```
+
+faylini PostgreSQL Query oynasida bajaring.
+
+## 3. Backend servisi
+
+Settings:
 
 ```text
 Root Directory: /backend
 Config File Path: /backend/railway.toml
 ```
 
-Backend Variables → RAW Editor:
+Variables:
 
 ```env
 NODE_ENV=production
 DATABASE_URL=${{Postgres.DATABASE_URL}}
-JWT_SECRET=BU_YERGA_KAMIDA_32_BELGILI_MAXFIY_KALIT
+JWT_SECRET=BU_YERGA_KAMIDA_32_BELGILI_JUDA_MAXFIY_KALIT
 JWT_EXPIRES_IN=12h
-CORS_ORIGIN=https://FRONTEND-DOMAIN.up.railway.app
+CORS_ORIGIN=https://FRONTEND-DOMAIN.up.railway.app,https://aloosmm.uz
 ADMIN_FULL_NAME=Aloo Admin
 ADMIN_LOGIN=admin
 ADMIN_PHONE=998901234567
-ADMIN_PASSWORD=KUCHLI_YANGI_PAROL
+ADMIN_PASSWORD=aloo-admin-2026-kuchli
 ```
 
-`Postgres` nomi Railway canvasidagi PostgreSQL service nomi bilan bir xil bo‘lishi kerak. Agar service nomi boshqacha bo‘lsa, reference variable ichida shu nomni yozing.
+`Postgres` nomi canvasdagi database service nomi bilan bir xil bo‘lishi kerak.
 
-Backend uchun Railway domain yarating. Keyin custom domain sifatida:
+Backend → Settings → Networking → Generate Domain.
+
+Tekshiruv:
 
 ```text
-api.aloosmm.uz
+https://BACKEND-DOMAIN.up.railway.app/health
 ```
 
-ulash mumkin.
+Natija:
 
-## 3. Frontend service
+```json
+{"ok":true}
+```
 
-Railway → `frontend` service → Settings:
+## 4. Frontend servisi
+
+Settings:
 
 ```text
 Root Directory: /frontend
 Config File Path: /frontend/railway.toml
 ```
 
-Frontend Variables:
+Variables:
 
 ```env
-VITE_API_URL=https://BACKEND-DOMAIN.up.railway.app
+API_URL=https://BACKEND-DOMAIN.up.railway.app
 ```
 
-Custom backend domeni ulangandan keyin:
+Custom backend domeni ulangach:
 
 ```env
-VITE_API_URL=https://api.aloosmm.uz
+API_URL=https://api.aloosmm.uz
 ```
 
-Frontend uchun Railway domain yarating. Keyin:
+Frontenddagi API manzili runtime vaqtida `/runtime-config.js` orqali olinadi. Variable almashtirilganda yangi deploy yoki restart yetarli; Vite build ichiga hardcode qilinmaydi.
+
+Frontend → Settings → Networking → Generate Domain.
+
+Tekshiruv:
 
 ```text
-aloosmm.uz
+https://FRONTEND-DOMAIN.up.railway.app/health
 ```
 
-custom domain sifatida ulanadi.
+Natijada `apiConfigured: true` bo‘lishi kerak.
 
-## 4. CORS
+## 5. Deploy tartibi
 
-Frontend domeni o‘zgarsa, backenddagi `CORS_ORIGIN` qiymatini ham yangilang. Bir nechta domen uchun vergul bilan yozish mumkin:
+1. PostgreSQL servis tayyor bo‘lsin.
+2. Backendni deploy qiling.
+3. Backend `/health` endpointini tekshiring.
+4. Frontendga `API_URL` qo‘ying.
+5. Backenddagi `CORS_ORIGIN`ga frontend domenini kiriting.
+6. Avval backendni, keyin frontendni redeploy qiling.
+7. `ADMIN_LOGIN` va `ADMIN_PASSWORD` bilan kiring.
+
+## 6. Custom domenlar
+
+```text
+aloosmm.uz      → frontend
+api.aloosmm.uz  → backend
+```
+
+Backend variable:
 
 ```env
-CORS_ORIGIN=https://frontend-production.up.railway.app,https://aloosmm.uz
+CORS_ORIGIN=https://aloosmm.uz,https://www.aloosmm.uz
 ```
 
-## 5. Birinchi deploy
+Frontend variable:
 
-1. Avval PostgreSQL service ishlayotganini tekshiring.
-2. Backendni deploy qiling va `/health` endpointi `{"ok":true}` qaytarishini tekshiring.
-3. Frontendda `VITE_API_URL` ni backend domainiga yozing.
-4. Frontendni redeploy qiling.
-5. `ADMIN_LOGIN` va `ADMIN_PASSWORD` bilan tizimga kiring.
-
-Backend birinchi ishga tushganda jadvallarni avtomatik yaratadi va database bo‘sh bo‘lsa, environment variable orqali birinchi adminni yaratadi.
+```env
+API_URL=https://api.aloosmm.uz
+```
