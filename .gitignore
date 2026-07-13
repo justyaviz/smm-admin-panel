@@ -5,3 +5,7 @@ node_modules/
 dist/
 .DS_Store
 *.log
+
+# Railway hotfix: do not commit stale generated lock files
+frontend/package-lock.json
+backend/package-lock.json

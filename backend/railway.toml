@@ -1,5 +1,6 @@
 [build]
 builder = "RAILPACK"
+buildCommand = "npm run check"
 
 [deploy]
 startCommand = "npm start"
