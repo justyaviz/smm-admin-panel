@@ -14,6 +14,7 @@ import campaignRoutes from './routes/campaigns.js';
 import adRoutes from './routes/ads.js';
 import analyticsRoutes from './routes/analytics.js';
 import reportRoutes from './routes/reports.js';
+import mediaRoutes from './routes/media.js';
 
 export const app = express();
 app.set('trust proxy', 1);
@@ -27,7 +28,7 @@ app.use(cors({
   },
   credentials: false,
 }));
-app.use(express.json({ limit: '200kb' }));
+app.use(express.json({ limit: '48mb' }));
 app.use(rateLimit({
   windowMs: 60 * 1000,
   limit: 120,
@@ -78,6 +79,7 @@ app.use('/api/campaigns', campaignRoutes);
 app.use('/api/ads', adRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/media', mediaRoutes);
 
 app.use((_request, response) => {
   response.status(404).json({ message: 'Endpoint topilmadi.' });
@@ -85,6 +87,9 @@ app.use((_request, response) => {
 
 app.use((error, _request, response, _next) => {
   console.error(error);
+  if (error?.type === 'entity.too.large') {
+    return response.status(413).json({ message: 'Yuklanayotgan ma’lumot hajmi juda katta.' });
+  }
   if (error.message?.startsWith('CORS_ORIGIN')) {
     return response.status(403).json({ message: error.message });
   }

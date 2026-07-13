@@ -1,8 +1,12 @@
 const runtimeApiUrl = typeof window !== 'undefined' ? window.__ALOOSMM_CONFIG__?.API_URL : '';
 const API_URL = (runtimeApiUrl || import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
-function makeUrl(path) {
+export function resolveApiUrl(path) {
   return API_URL ? `${API_URL}${path}` : path;
+}
+
+function makeUrl(path) {
+  return resolveApiUrl(path);
 }
 
 export async function apiRequest(path, options = {}) {
@@ -34,8 +38,12 @@ export async function apiDownload(path, options = {}) {
   }
   const blob = await response.blob();
   const disposition = response.headers.get('content-disposition') || '';
-  const match = disposition.match(/filename="?([^";]+)"?/i);
-  const filename = match?.[1] || 'aloo-report';
+  const utfMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  const match = disposition.match(/filename=\"?([^\";]+)\"?/i);
+  let filename = match?.[1] || 'aloo-file';
+  if (utfMatch?.[1]) {
+    try { filename = decodeURIComponent(utfMatch[1]); } catch { filename = utfMatch[1]; }
+  }
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   anchor.href = url;

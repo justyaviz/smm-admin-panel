@@ -344,3 +344,97 @@ BEFORE UPDATE ON analytics_daily_metrics
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 COMMIT;
+
+-- Step 5: Media Library
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS media_folders (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  color VARCHAR(20) NOT NULL DEFAULT '#1690F5',
+  parent_id BIGINT REFERENCES media_folders(id) ON DELETE SET NULL,
+  created_by BIGINT NOT NULL REFERENCES app_users(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT media_folders_name_nonempty CHECK (length(trim(name)) >= 2),
+  CONSTRAINT media_folders_not_self CHECK (parent_id IS NULL OR parent_id <> id)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_media_folders_parent_name
+  ON media_folders (COALESCE(parent_id, 0), LOWER(name));
+CREATE INDEX IF NOT EXISTS idx_media_folders_parent ON media_folders(parent_id);
+
+CREATE TABLE IF NOT EXISTS media_assets (
+  id BIGSERIAL PRIMARY KEY,
+  display_name VARCHAR(220) NOT NULL,
+  original_name VARCHAR(255) NOT NULL,
+  file_name VARCHAR(255) NOT NULL UNIQUE,
+  mime_type VARCHAR(160) NOT NULL,
+  media_type VARCHAR(30) NOT NULL,
+  extension VARCHAR(20) NOT NULL DEFAULT '',
+  size_bytes BIGINT NOT NULL,
+  width INTEGER,
+  height INTEGER,
+  duration_seconds NUMERIC(12,2),
+  file_data BYTEA NOT NULL,
+  folder_id BIGINT REFERENCES media_folders(id) ON DELETE SET NULL,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  description TEXT NOT NULL DEFAULT '',
+  alt_text VARCHAR(500) NOT NULL DEFAULT '',
+  tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  status VARCHAR(20) NOT NULL DEFAULT 'active',
+  is_favorite BOOLEAN NOT NULL DEFAULT FALSE,
+  download_count INTEGER NOT NULL DEFAULT 0,
+  uploaded_by BIGINT NOT NULL REFERENCES app_users(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT media_assets_name_nonempty CHECK (length(trim(display_name)) >= 1),
+  CONSTRAINT media_assets_type_allowed CHECK (media_type IN ('image','video','audio','document','other')),
+  CONSTRAINT media_assets_status_allowed CHECK (status IN ('active','archived')),
+  CONSTRAINT media_assets_size_valid CHECK (size_bytes > 0 AND size_bytes <= 8388608),
+  CONSTRAINT media_assets_dimensions_valid CHECK ((width IS NULL OR width > 0) AND (height IS NULL OR height > 0)),
+  CONSTRAINT media_assets_download_nonnegative CHECK (download_count >= 0)
+);
+CREATE INDEX IF NOT EXISTS idx_media_assets_type ON media_assets(media_type);
+CREATE INDEX IF NOT EXISTS idx_media_assets_folder ON media_assets(folder_id);
+CREATE INDEX IF NOT EXISTS idx_media_assets_branch ON media_assets(branch_id);
+CREATE INDEX IF NOT EXISTS idx_media_assets_status ON media_assets(status);
+CREATE INDEX IF NOT EXISTS idx_media_assets_favorite ON media_assets(is_favorite) WHERE is_favorite=TRUE;
+CREATE INDEX IF NOT EXISTS idx_media_assets_created_at ON media_assets(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_media_assets_tags ON media_assets USING GIN(tags);
+
+CREATE TABLE IF NOT EXISTS media_asset_links (
+  id BIGSERIAL PRIMARY KEY,
+  asset_id BIGINT NOT NULL REFERENCES media_assets(id) ON DELETE CASCADE,
+  entity_type VARCHAR(30) NOT NULL,
+  entity_id BIGINT NOT NULL,
+  created_by BIGINT REFERENCES app_users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT media_asset_links_type_allowed CHECK (entity_type IN ('content','campaign','ad','report')),
+  CONSTRAINT media_asset_links_unique UNIQUE (asset_id, entity_type, entity_id)
+);
+CREATE INDEX IF NOT EXISTS idx_media_asset_links_entity ON media_asset_links(entity_type, entity_id);
+
+DROP TRIGGER IF EXISTS trg_media_folders_updated_at ON media_folders;
+CREATE TRIGGER trg_media_folders_updated_at
+BEFORE UPDATE ON media_folders
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_media_assets_updated_at ON media_assets;
+CREATE TRIGGER trg_media_assets_updated_at
+BEFORE UPDATE ON media_assets
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+INSERT INTO media_folders (name,description,color,created_by)
+SELECT seed.name, seed.description, seed.color, u.id
+FROM (VALUES
+  ('Aksiyalar', 'Aksiya va promo materiallari', '#1690F5'),
+  ('Mahsulotlar', 'Mahsulot rasmlari va videolari', '#12B76A'),
+  ('Filiallar', 'Filiallardan kelgan media fayllar', '#F79009'),
+  ('Reels cover', 'Instagram Reels muqovalari', '#E4405F'),
+  ('Brend materiallari', 'Logo, guideline va shablonlar', '#6941C6')
+) AS seed(name,description,color)
+CROSS JOIN LATERAL (SELECT id FROM app_users ORDER BY id LIMIT 1) u
+ON CONFLICT DO NOTHING;
+
+COMMIT;

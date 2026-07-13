@@ -42,7 +42,7 @@ async function readRequestBody(request) {
   let size = 0;
   for await (const chunk of request) {
     size += chunk.length;
-    if (size > 1_000_000) throw new Error('So‘rov hajmi juda katta.');
+    if (size > 50_000_000) throw new Error('So‘rov hajmi juda katta.');
     chunks.push(chunk);
   }
   return chunks.length ? Buffer.concat(chunks) : undefined;

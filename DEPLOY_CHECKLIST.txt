@@ -1,4 +1,4 @@
-ALOO SMM PANEL — RAILWAY DEPLOY CHECKLIST (v1.3.0)
+ALOO SMM PANEL — RAILWAY DEPLOY CHECKLIST (v5.0.0)
 
 1. PostgreSQL service tayyor.
 
@@ -32,3 +32,7 @@ ALOO SMM PANEL — RAILWAY DEPLOY CHECKLIST (v1.3.0)
    admin / 123456
 
 Eslatma: backend har deployda ADMIN_LOGIN bo‘yicha admin parolini ADMIN_PASSWORD qiymatiga sinxronlaydi.
+
+7. Media tekshiruvi:
+   Media -> Media yuklash -> rasm tanlash -> yuklash.
+   Fayllar PostgreSQL ichida saqlanadi; har bir fayl maksimal 8 MB.

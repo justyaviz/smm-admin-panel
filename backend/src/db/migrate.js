@@ -40,7 +40,9 @@ export async function bootstrapAdmin() {
       [login],
     );
 
+    let adminId;
     if (existing.rows[0]) {
+      adminId = existing.rows[0].id;
       await client.query(
         `UPDATE app_users
          SET full_name = $1,
@@ -50,17 +52,30 @@ export async function bootstrapAdmin() {
              is_active = TRUE,
              updated_at = NOW()
          WHERE id = $4`,
-        [env.admin.fullName, env.admin.phone, passwordHash, existing.rows[0].id],
+        [env.admin.fullName, env.admin.phone, passwordHash, adminId],
       );
       console.log(`Admin ma’lumotlari yangilandi: ${login}`);
     } else {
-      await client.query(
+      const inserted = await client.query(
         `INSERT INTO app_users (full_name, login, phone, password_hash, role, is_active)
-         VALUES ($1, $2, $3, $4, 'admin', TRUE)`,
+         VALUES ($1, $2, $3, $4, 'admin', TRUE)
+         RETURNING id`,
         [env.admin.fullName, login, env.admin.phone, passwordHash],
       );
+      adminId = inserted.rows[0].id;
       console.log(`Birinchi admin yaratildi: ${login}`);
     }
+
+    await client.query(
+      `INSERT INTO media_folders (name,description,color,created_by) VALUES
+        ('Aksiyalar','Aksiya va promo materiallari','#1690F5',$1),
+        ('Mahsulotlar','Mahsulot rasmlari va videolari','#12B76A',$1),
+        ('Filiallar','Filiallardan kelgan media fayllar','#F79009',$1),
+        ('Reels cover','Instagram Reels muqovalari','#E4405F',$1),
+        ('Brend materiallari','Logo, guideline va shablonlar','#6941C6',$1)
+       ON CONFLICT DO NOTHING`,
+      [adminId],
+    );
 
     await client.query('COMMIT');
   } catch (error) {

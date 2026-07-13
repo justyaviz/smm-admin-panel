@@ -8,6 +8,7 @@ import CampaignsPage from './pages/CampaignsPage.jsx';
 import AdsPage from './pages/AdsPage.jsx';
 import AnalyticsPage from './pages/AnalyticsPage.jsx';
 import ReportsPage from './pages/ReportsPage.jsx';
+import MediaPage from './pages/MediaPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import { apiRequest, authHeaders } from './lib/api.js';
 import { menuItems } from './data/navigation.js';
@@ -73,6 +74,7 @@ export default function App() {
   else if (page === 'ads') pageContent = <AdsPage session={session} notify={setToast} />;
   else if (page === 'analytics') pageContent = <AnalyticsPage session={session} notify={setToast} />;
   else if (page === 'reports') pageContent = <ReportsPage session={session} notify={setToast} />;
+  else if (page === 'media') pageContent = <MediaPage session={session} notify={setToast} />;
   else {
     const item = menuItems.find((entry) => entry.id === page);
     pageContent = <PlaceholderPage title={item?.label || 'Sahifa'} description="Ushbu modul keyingi ishlab chiqish bosqichida PostgreSQL va backend API bilan ulanadi." />;
