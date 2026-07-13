@@ -41,10 +41,11 @@ import {
 
 const LOGIN_KEY = 'aloo_smm_session';
 const runtimeApiUrl = typeof window !== 'undefined' ? window.__ALOOSMM_CONFIG__?.API_URL : '';
-const API_URL = (runtimeApiUrl || import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
+const API_URL = (runtimeApiUrl || import.meta.env.VITE_API_URL || '').replace(/\/$/, '');
 
 async function apiRequest(path, options = {}) {
-  const response = await fetch(`${API_URL}${path}`, {
+  const requestUrl = API_URL ? `${API_URL}${path}` : path;
+  const response = await fetch(requestUrl, {
     ...options,
     headers: {
       'Content-Type': 'application/json',

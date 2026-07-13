@@ -19,23 +19,54 @@ export async function migrateDatabase() {
 }
 
 export async function bootstrapAdmin() {
-  const { rows } = await pool.query('SELECT COUNT(*)::int AS count FROM app_users');
-  if (rows[0].count > 0) return;
+  const login = env.admin.login.trim().toLowerCase();
+  const password = env.admin.password;
 
-  if (!env.admin.login || !env.admin.password) {
-    console.warn('Birinchi admin yaratilmadi: ADMIN_LOGIN va ADMIN_PASSWORD belgilanmagan.');
-    return;
+  if (!login || !password) {
+    throw new Error('ADMIN_LOGIN va ADMIN_PASSWORD bo‘sh bo‘lishi mumkin emas.');
   }
 
-  if (env.isProduction && env.admin.password.length < 10) {
-    throw new Error('Production ADMIN_PASSWORD kamida 10 ta belgidan iborat bo‘lishi kerak.');
+  if (password.length < 6) {
+    throw new Error('ADMIN_PASSWORD kamida 6 ta belgidan iborat bo‘lishi kerak.');
   }
 
-  const passwordHash = await bcrypt.hash(env.admin.password, 12);
-  await pool.query(
-    `INSERT INTO app_users (full_name, login, phone, password_hash, role)
-     VALUES ($1, $2, $3, $4, 'admin')`,
-    [env.admin.fullName, env.admin.login.toLowerCase(), env.admin.phone, passwordHash],
-  );
-  console.log(`Birinchi admin yaratildi: ${env.admin.login}`);
+  const passwordHash = await bcrypt.hash(password, 12);
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+    const existing = await client.query(
+      'SELECT id FROM app_users WHERE LOWER(login) = $1 LIMIT 1 FOR UPDATE',
+      [login],
+    );
+
+    if (existing.rows[0]) {
+      await client.query(
+        `UPDATE app_users
+         SET full_name = $1,
+             phone = COALESCE($2, phone),
+             password_hash = $3,
+             role = 'admin',
+             is_active = TRUE,
+             updated_at = NOW()
+         WHERE id = $4`,
+        [env.admin.fullName, env.admin.phone, passwordHash, existing.rows[0].id],
+      );
+      console.log(`Admin ma’lumotlari yangilandi: ${login}`);
+    } else {
+      await client.query(
+        `INSERT INTO app_users (full_name, login, phone, password_hash, role, is_active)
+         VALUES ($1, $2, $3, $4, 'admin', TRUE)`,
+        [env.admin.fullName, login, env.admin.phone, passwordHash],
+      );
+      console.log(`Birinchi admin yaratildi: ${login}`);
+    }
+
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 }

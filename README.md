@@ -41,3 +41,12 @@ Frontend productionda `API_URL` variable’ni runtime vaqtida oladi. Shu sabab `
 
 ## Healthcheck v2
 Backend portni migratsiyadan oldin ochadi. Railway `/health` orqali liveness tekshiradi, `/ready` esa PostgreSQL readiness holatini ko‘rsatadi. Batafsil: `RAILWAY_HEALTHCHECK_FIX.md`.
+
+
+## Login fix v1.3.0
+
+- Frontend `/api/*` so‘rovlarini backendga server-side proxy qiladi.
+- Backend admin parolini Railway `ADMIN_PASSWORD` qiymati bilan har deployda sinxronlaydi.
+- Minimal admin parol uzunligi: 6 belgi.
+- Standart test login: `admin` / `123456`.
+- Railway frontend variable: `API_URL=https://BACKEND-DOMAIN.up.railway.app`.

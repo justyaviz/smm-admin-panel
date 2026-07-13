@@ -1,30 +1,34 @@
-aloo SMM Panel — Railway deployment checklist
+ALOO SMM PANEL — RAILWAY DEPLOY CHECKLIST (v1.3.0)
 
-1) GitHub root:
-   /frontend
-   /backend
-   /database
+1. PostgreSQL service tayyor.
 
-2) Railway frontend:
-   Root Directory: /frontend
-   Config File Path: /frontend/railway.toml
-   Variable: API_URL=https://BACKEND-DOMAIN.up.railway.app
-
-3) Railway backend:
+2. Backend service:
    Root Directory: /backend
-   Config File Path: /backend/railway.toml
+   Config Path: /backend/railway.toml
    Variables:
    NODE_ENV=production
    DATABASE_URL=${{Postgres.DATABASE_URL}}
-   JWT_SECRET=<32+ belgili maxfiy kalit>
-   CORS_ORIGIN=https://FRONTEND-DOMAIN.up.railway.app,https://aloosmm.uz
+   JWT_SECRET=<kamida 32 belgilik doimiy maxfiy kalit>
+   CORS_ORIGIN=https://FRONTEND-DOMAIN.up.railway.app
    ADMIN_FULL_NAME=Aloo Admin
    ADMIN_LOGIN=admin
-   ADMIN_PASSWORD=<kamida 10 belgili kuchli parol>
+   ADMIN_PASSWORD=123456
 
-4) Deploy tartibi:
-   Postgres -> Backend -> Frontend
+3. Frontend service:
+   Root Directory: /frontend
+   Config Path: /frontend/railway.toml
+   Variable:
+   API_URL=https://BACKEND-DOMAIN.up.railway.app
 
-5) Tekshiruv:
-   Backend:  https://BACKEND-DOMAIN.up.railway.app/health
-   Frontend: https://FRONTEND-DOMAIN.up.railway.app/health
+4. Deploy tartibi:
+   PostgreSQL -> Backend -> Frontend
+
+5. Tekshirish:
+   Backend /health: ok=true
+   Backend /ready: initializationComplete=true
+   Frontend /health: apiConfigured=true
+
+6. Login:
+   admin / 123456
+
+Eslatma: backend har deployda ADMIN_LOGIN bo‘yicha admin parolini ADMIN_PASSWORD qiymatiga sinxronlaydi.

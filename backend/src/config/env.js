@@ -29,8 +29,8 @@ export const env = Object.freeze({
     .filter(Boolean),
   admin: {
     fullName: process.env.ADMIN_FULL_NAME || 'Aloo Admin',
-    login: process.env.ADMIN_LOGIN || (!isProduction ? 'admin' : ''),
+    login: process.env.ADMIN_LOGIN || 'admin',
     phone: process.env.ADMIN_PHONE || null,
-    password: process.env.ADMIN_PASSWORD || (!isProduction ? 'aloo2026' : ''),
+    password: process.env.ADMIN_PASSWORD || '123456',
   },
 });

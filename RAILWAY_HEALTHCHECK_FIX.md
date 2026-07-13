@@ -1,31 +1,26 @@
-# Railway Healthcheck Fix
+# Railway healthcheck va login fix
 
-Bu versiyada backend HTTP server avval `PORT` da ishga tushadi, keyin PostgreSQL migratsiyasi fon rejimida bajariladi.
+Backend portni migratsiyadan oldin ochadi va `/health` endpointi darhol `200 OK` qaytaradi.
+Database holati `/ready` orqali tekshiriladi.
 
-- `/health` — Railway liveness endpoint, har doim HTTP 200.
-- `/ready` — PostgreSQL va migratsiyalar tayyor bo‘lsa HTTP 200, aks holda 503.
-
-## Backend Variables
+## Backend variables
 
 ```env
 NODE_ENV=production
 DATABASE_URL=${{Postgres.DATABASE_URL}}
-JWT_SECRET=kamida-32-belgilik-juda-maxfiy-kalit
-JWT_EXPIRES_IN=12h
-CORS_ORIGIN=https://FRONTEND-DOMAIN.up.railway.app,https://aloosmm.uz
+JWT_SECRET=kamida-32-belgilik-doimiy-maxfiy-kalit
+CORS_ORIGIN=https://FRONTEND-DOMAIN.up.railway.app
 ADMIN_FULL_NAME=Aloo Admin
 ADMIN_LOGIN=admin
-ADMIN_PHONE=998901234567
-ADMIN_PASSWORD=kamida-10-belgilik-parol
+ADMIN_PASSWORD=123456
 ```
 
-## Railway Settings
+Bu versiyada minimal parol uzunligi 6 belgi. Backend har deployda mavjud `admin` foydalanuvchining parolini Railway'dagi `ADMIN_PASSWORD` qiymatiga yangilaydi.
 
-- Root Directory: `/backend`
-- Config File Path: `/backend/railway.toml`
-- Healthcheck Path: `/health`
+## Frontend variable
 
-Deploydan keyin tekshiring:
+```env
+API_URL=https://BACKEND-DOMAIN.up.railway.app
+```
 
-- `https://BACKEND-DOMAIN/health` — servis tirikligini ko‘rsatadi.
-- `https://BACKEND-DOMAIN/ready` — database tayyorligini ko‘rsatadi.
+Frontend browserdan backendga to‘g‘ridan-to‘g‘ri murojaat qilmaydi. `/api/*` so‘rovlari frontend Node server orqali backendga proxy qilinadi.
