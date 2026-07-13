@@ -12,14 +12,14 @@
     "check": "node --check src/server.js"
   },
   "dependencies": {
-    "bcryptjs": "latest",
-    "cors": "latest",
-    "dotenv": "latest",
-    "express": "latest",
-    "express-rate-limit": "latest",
-    "helmet": "latest",
-    "jsonwebtoken": "latest",
-    "pg": "latest",
-    "zod": "latest"
+    "bcryptjs": "3.0.3",
+    "cors": "2.8.6",
+    "dotenv": "17.4.2",
+    "express": "5.2.1",
+    "express-rate-limit": "8.2.1",
+    "helmet": "8.3.0",
+    "jsonwebtoken": "9.0.3",
+    "pg": "8.22.0",
+    "zod": "4.3.6"
   }
 }
