@@ -68,6 +68,10 @@ export default function ContentPage({ session, notify, initialOpen = false }) {
     published: items.filter((item) => item.status === 'published').length,
   }), [items]);
 
+  const nextItem = useMemo(() => items
+    .filter((item) => item.publishAt && new Date(item.publishAt).getTime() >= Date.now())
+    .sort((a, b) => new Date(a.publishAt) - new Date(b.publishAt))[0], [items]);
+
   const openCreate = () => { setModalItem(null); setModalOpen(true); };
   const openEdit = (item) => { setModalItem(item); setModalOpen(true); setMenuId(null); };
 
@@ -108,28 +112,45 @@ export default function ContentPage({ session, notify, initialOpen = false }) {
   };
 
   return (
-    <div className="content-page">
-      <div className="page-heading">
-        <div><h1>Kontent</h1><p>Postlar, reels, story va video kontent boshqaruvi</p></div>
-        <button className="button-primary" onClick={openCreate}><FilePlus2 size={18} /> Yangi kontent</button>
-      </div>
-
-      <section className="content-stat-grid">
-        <div><span>Jami</span><b>{counts.total}</b></div>
-        <div><span>Draft</span><b>{counts.draft}</b></div>
-        <div><span>Tekshiruvda</span><b>{counts.review}</b></div>
-        <div><span>Rejada</span><b>{counts.scheduled}</b></div>
-        <div><span>Chop etildi</span><b>{counts.published}</b></div>
+    <div className="content-page premium-content-page">
+      <section className="content-hero">
+        <div className="content-hero-copy">
+          <span className="page-eyebrow">KONTENT MARKAZI</span>
+          <h1>Kontent reja</h1>
+          <p>G‘oyadan nashrgacha bo‘lgan barcha jarayonni tez, tartibli va jamoa bilan birga boshqaring.</p>
+          <div className="content-hero-actions">
+            <button className="button-primary button-primary--large" onClick={openCreate}><FilePlus2 size={20} /> Tezkor kontent qo‘shish</button>
+            <span><CalendarDays size={17} /> {nextItem ? `Keyingi nashr: ${formatDate(nextItem.publishAt)}` : 'Hozircha rejalashtirilgan nashr yo‘q'}</span>
+          </div>
+        </div>
+        <div className="content-hero-visual" aria-hidden="true">
+          <div className="content-orbit content-orbit--one" />
+          <div className="content-orbit content-orbit--two" />
+          <div className="content-hero-card content-hero-card--main"><ImageIcon size={30} /><strong>{counts.total}</strong><small>Jami kontent</small></div>
+          <div className="content-hero-card content-hero-card--floating"><FilePlus2 size={19} /><span>Yangi g‘oya</span></div>
+        </div>
       </section>
 
-      <section className="content-panel">
+      <section className="content-stat-grid content-stat-grid--premium">
+        <article data-tone="blue"><span className="content-stat-icon"><ImageIcon size={20} /></span><div><small>Jami kontent</small><strong>{counts.total}</strong><em>Barcha formatlar</em></div></article>
+        <article data-tone="gray"><span className="content-stat-icon"><Edit3 size={20} /></span><div><small>Draft</small><strong>{counts.draft}</strong><em>Ishlanmoqda</em></div></article>
+        <article data-tone="amber"><span className="content-stat-icon"><RefreshCw size={20} /></span><div><small>Tekshiruvda</small><strong>{counts.review}</strong><em>Tasdiq kutilmoqda</em></div></article>
+        <article data-tone="purple"><span className="content-stat-icon"><CalendarDays size={20} /></span><div><small>Rejada</small><strong>{counts.scheduled}</strong><em>Nashrga tayyor</em></div></article>
+        <article data-tone="green"><span className="content-stat-icon"><FilePlus2 size={20} /></span><div><small>Chop etildi</small><strong>{counts.published}</strong><em>Natijaga chiqarildi</em></div></article>
+      </section>
+
+      <section className="content-panel content-panel--premium">
+        <div className="content-panel-heading">
+          <div><span>Kontentlar</span><h2>Barcha rejalashtirilgan materiallar</h2></div>
+          <button className="button-primary content-panel-add" onClick={openCreate}><FilePlus2 size={18} /> Qo‘shish</button>
+        </div>
         <div className="content-toolbar">
-          <div className="search-field"><Search size={18} /><input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Kontent qidirish..." /></div>
+          <div className="search-field"><Search size={19} /><input value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Sarlavha, caption yoki teg bo‘yicha qidirish..." /></div>
           <div className="filter-group">
-            <label><Filter size={16} /><select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}><option value="">Barcha statuslar</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><ChevronDown size={15} /></label>
-            <label><select value={filters.platformId} onChange={(event) => setFilters((current) => ({ ...current, platformId: event.target.value }))}><option value="">Barcha platformalar</option>{metadata.platforms.map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}</select><ChevronDown size={15} /></label>
-            <label><select value={filters.branchId} onChange={(event) => setFilters((current) => ({ ...current, branchId: event.target.value }))}><option value="">Barcha filiallar</option>{metadata.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select><ChevronDown size={15} /></label>
-            <button className="icon-action" onClick={loadItems} title="Yangilash"><RefreshCw size={18} className={loading ? 'spin' : ''} /></button>
+            <label><Filter size={17} /><select value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))}><option value="">Barcha statuslar</option>{Object.entries(statusLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><ChevronDown size={16} /></label>
+            <label><select value={filters.platformId} onChange={(event) => setFilters((current) => ({ ...current, platformId: event.target.value }))}><option value="">Barcha platformalar</option>{metadata.platforms.map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}</select><ChevronDown size={16} /></label>
+            <label><select value={filters.branchId} onChange={(event) => setFilters((current) => ({ ...current, branchId: event.target.value }))}><option value="">Barcha filiallar</option>{metadata.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select><ChevronDown size={16} /></label>
+            <button className="icon-action" onClick={loadItems} title="Yangilash"><RefreshCw size={19} className={loading ? 'spin' : ''} /></button>
           </div>
         </div>
 
@@ -138,17 +159,17 @@ export default function ContentPage({ session, notify, initialOpen = false }) {
             <thead><tr><th>Kontent</th><th>Turi</th><th>Platforma</th><th>Filial</th><th>Status</th><th>Mas’ul</th><th>Nashr vaqti</th><th /></tr></thead>
             <tbody>
               {loading && <tr><td colSpan="8"><div className="table-state"><span className="spinner spinner--blue" /> Ma’lumotlar yuklanmoqda...</div></td></tr>}
-              {!loading && items.length === 0 && <tr><td colSpan="8"><div className="empty-state"><span><ImageIcon size={27} /></span><h3>Kontent topilmadi</h3><p>Filterlarni o‘zgartiring yoki birinchi kontentni yarating.</p><button className="button-primary" onClick={openCreate}><FilePlus2 size={17} /> Kontent qo‘shish</button></div></td></tr>}
+              {!loading && items.length === 0 && <tr><td colSpan="8"><div className="empty-state empty-state--premium"><span><ImageIcon size={30} /></span><h3>Kontent reja hali bo‘sh</h3><p>Birinchi g‘oyani 30 soniyada qo‘shing. Faqat sarlavha, format va platforma yetarli.</p><button className="button-primary button-primary--large" onClick={openCreate}><FilePlus2 size={18} /> Birinchi kontentni yaratish</button></div></td></tr>}
               {!loading && items.map((item) => (
                 <tr key={item.id}>
-                  <td><div className="content-title-cell"><span className="content-thumb" style={item.coverUrl ? { backgroundImage: `url(${item.coverUrl})` } : {}}>{!item.coverUrl && <ImageIcon size={19} />}</span><div><strong>{item.title}</strong><small>{item.description || 'Tavsif kiritilmagan'}</small></div></div></td>
+                  <td><div className="content-title-cell"><span className="content-thumb" style={item.coverUrl ? { backgroundImage: `url(${item.coverUrl})` } : {}}>{!item.coverUrl && <ImageIcon size={21} />}</span><div><strong>{item.title}</strong><small>{item.description || 'Tavsif kiritilmagan'}</small></div></div></td>
                   <td><span className="type-pill">{typeLabels[item.contentType] || item.contentType}</span></td>
                   <td><span className="platform-pill"><i style={{ background: item.platform.color }} />{item.platform.name}</span></td>
                   <td>{item.branch?.name || <span className="muted">Umumiy</span>}</td>
                   <td><StatusBadge status={item.status} /></td>
                   <td>{item.assignee?.fullName || <span className="muted">Belgilanmagan</span>}</td>
-                  <td><span className="date-cell"><CalendarDays size={15} />{formatDate(item.publishAt)}</span></td>
-                  <td className="action-cell"><button className="table-menu-button" onClick={() => setMenuId((current) => current === item.id ? null : item.id)}><MoreHorizontal size={19} /></button>{menuId === item.id && <div className="row-menu"><button onClick={() => openEdit(item)}><Edit3 size={16} /> Tahrirlash</button><button onClick={() => duplicate(item)}><Copy size={16} /> Nusxalash</button><button className="danger" onClick={() => remove(item)}><Trash2 size={16} /> O‘chirish</button></div>}</td>
+                  <td><span className="date-cell"><CalendarDays size={16} />{formatDate(item.publishAt)}</span></td>
+                  <td className="action-cell"><button className="table-menu-button" onClick={() => setMenuId((current) => current === item.id ? null : item.id)}><MoreHorizontal size={20} /></button>{menuId === item.id && <div className="row-menu"><button onClick={() => openEdit(item)}><Edit3 size={17} /> Tahrirlash</button><button onClick={() => duplicate(item)}><Copy size={17} /> Nusxalash</button><button className="danger" onClick={() => remove(item)}><Trash2 size={17} /> O‘chirish</button></div>}</td>
                 </tr>
               ))}
             </tbody>

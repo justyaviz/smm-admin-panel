@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AppShell from './components/AppShell.jsx';
 import LoginPage from './pages/LoginPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
@@ -21,15 +21,53 @@ import { menuItems } from './data/navigation.js';
 
 const LOGIN_KEY = 'aloo_smm_session';
 
+const PAGE_ROUTES = Object.freeze({
+  dashboard: '/dashboard',
+  content: '/content',
+  calendar: '/kalendar',
+  campaigns: '/kampaniyalar',
+  ads: '/target-reklama',
+  analytics: '/analitika',
+  reports: '/hisobotlar',
+  media: '/media',
+  branches: '/filiallar',
+  tasks: '/vazifalar',
+  team: '/jamoa',
+  expenses: '/xarajatlar',
+  chat: '/chat',
+  settings: '/sozlamalar',
+});
+
+const ROUTE_PAGES = Object.fromEntries(Object.entries(PAGE_ROUTES).map(([page, route]) => [route, page]));
+
+function pageFromLocation() {
+  const pathname = window.location.pathname.replace(/\/+$/, '') || '/';
+  if (pathname === '/' || pathname === '/login') return 'dashboard';
+  return ROUTE_PAGES[pathname] || 'dashboard';
+}
+
+function routeForPage(page) {
+  return PAGE_ROUTES[page] || PAGE_ROUTES.dashboard;
+}
+
 export default function App() {
   const [session, setSession] = useState(() => {
     const raw = localStorage.getItem(LOGIN_KEY) || sessionStorage.getItem(LOGIN_KEY);
     if (!raw) return null;
     try { return JSON.parse(raw); } catch { return null; }
   });
-  const [page, setPage] = useState('dashboard');
+  const [page, setPage] = useState(pageFromLocation);
   const [pagePayload, setPagePayload] = useState(null);
   const [toast, setToast] = useState('');
+
+  useEffect(() => {
+    const onPopState = () => {
+      setPage(pageFromLocation());
+      setPagePayload(null);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   useEffect(() => {
     if (!toast) return undefined;
@@ -38,7 +76,15 @@ export default function App() {
   }, [toast]);
 
   useEffect(() => {
-    if (!session?.token) return undefined;
+    if (!session?.token) {
+      if (window.location.pathname !== '/login') window.history.replaceState({}, '', '/login');
+      return undefined;
+    }
+
+    if (window.location.pathname === '/' || window.location.pathname === '/login') {
+      window.history.replaceState({}, '', routeForPage(page));
+    }
+
     let cancelled = false;
     apiRequest('/api/auth/me', { headers: authHeaders(session.token) })
       .then(({ user }) => {
@@ -48,11 +94,17 @@ export default function App() {
         if (!cancelled) {
           localStorage.removeItem(LOGIN_KEY);
           sessionStorage.removeItem(LOGIN_KEY);
+          window.history.replaceState({}, '', '/login');
           setSession(null);
         }
       });
     return () => { cancelled = true; };
   }, [session?.token]);
+
+  useEffect(() => {
+    const label = menuItems.find((item) => item.id === page)?.label || 'SMM Panel';
+    document.title = `${label} — aloo SMM`;
+  }, [page]);
 
   const onLogin = ({ remember, token, user }) => {
     const value = { token, user };
@@ -61,13 +113,15 @@ export default function App() {
     sessionStorage.removeItem(LOGIN_KEY);
     if (remember) localStorage.setItem(LOGIN_KEY, serialized);
     else sessionStorage.setItem(LOGIN_KEY, serialized);
+    window.history.replaceState({}, '', PAGE_ROUTES.dashboard);
     setSession(value);
     setPage('dashboard');
     setPagePayload(null);
   };
 
-
   const navigate = (nextPage, entityId = null) => {
+    const nextRoute = routeForPage(nextPage);
+    if (window.location.pathname !== nextRoute) window.history.pushState({}, '', nextRoute);
     setPage(nextPage);
     setPagePayload(entityId ? { entityId: Number(entityId) } : null);
   };
@@ -86,8 +140,11 @@ export default function App() {
   const logout = () => {
     localStorage.removeItem(LOGIN_KEY);
     sessionStorage.removeItem(LOGIN_KEY);
+    window.history.replaceState({}, '', '/login');
     setSession(null);
   };
+
+  const currentPageLabel = useMemo(() => menuItems.find((item) => item.id === page)?.label || 'Sahifa', [page]);
 
   if (!session) return <><LoginPage onLogin={onLogin} notify={setToast} />{toast && <div className="toast">{toast}</div>}</>;
 
@@ -106,14 +163,13 @@ export default function App() {
   else if (page === 'expenses') pageContent = <ExpensesPage session={session} notify={setToast} />;
   else if (page === 'chat') pageContent = <ChatPage session={session} notify={setToast} initialChannelId={pagePayload?.entityId || null} />;
   else if (page === 'settings') pageContent = <SettingsPage session={session} notify={setToast} onUserUpdated={updateSessionUser} />;
-  else {
-    const item = menuItems.find((entry) => entry.id === page);
-    pageContent = <PlaceholderPage title={item?.label || 'Sahifa'} description="Ushbu modul keyingi ishlab chiqish bosqichida PostgreSQL va backend API bilan ulanadi." />;
-  }
+  else pageContent = <PlaceholderPage title={currentPageLabel} description="Ushbu modul keyingi ishlab chiqish bosqichida PostgreSQL va backend API bilan ulanadi." />;
 
   return (
     <>
-      <AppShell page={page} onPageChange={navigate} session={session} onLogout={logout} notify={setToast}>{pageContent}</AppShell>
+      <AppShell page={page} onPageChange={navigate} session={session} onLogout={logout} notify={setToast}>
+        <div key={page} className="route-page-enter">{pageContent}</div>
+      </AppShell>
       {toast && <div className="toast">{toast}</div>}
     </>
   );

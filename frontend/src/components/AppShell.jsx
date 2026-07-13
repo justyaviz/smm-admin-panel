@@ -14,6 +14,12 @@ import Brand from './Brand.jsx';
 import NotificationCenter from './NotificationCenter.jsx';
 import { menuItems } from '../data/navigation.js';
 
+const menuGroups = [
+  { label: 'ASOSIY', items: ['dashboard', 'content', 'calendar', 'tasks'] },
+  { label: 'MARKETING', items: ['campaigns', 'ads', 'analytics', 'reports', 'media'] },
+  { label: 'BOSHQARUV', items: ['branches', 'team', 'expenses', 'chat', 'settings'] },
+];
+
 export default function AppShell({ page, onPageChange, session, onLogout, notify, children }) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNav, setMobileNav] = useState(false);
@@ -32,6 +38,7 @@ export default function AppShell({ page, onPageChange, session, onLogout, notify
     const granted = new Set(session?.user?.permissions || []);
     return menuItems.filter((item) => !item.permission || granted.has(item.permission));
   }, [session?.user?.permissions, session?.user?.role]);
+  const activeItem = menuItems.find((item) => item.id === page);
 
   const choosePage = (id) => {
     onPageChange(id);
@@ -45,30 +52,45 @@ export default function AppShell({ page, onPageChange, session, onLogout, notify
         <div className="sidebar-head">
           <Brand compact inverted />
           <button className="icon-button sidebar-collapse" onClick={() => setCollapsed((value) => !value)} aria-label="Menyuni kichraytirish">
-            {collapsed ? <PanelLeftOpen size={19} /> : <PanelLeftClose size={19} />}
+            {collapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
           </button>
-          <button className="icon-button sidebar-mobile-close" onClick={() => setMobileNav(false)} aria-label="Menyuni yopish"><X size={20} /></button>
+          <button className="icon-button sidebar-mobile-close" onClick={() => setMobileNav(false)} aria-label="Menyuni yopish"><X size={21} /></button>
         </div>
-        <nav className="sidebar-nav">
-          {visibleMenuItems.map(({ id, label, icon: Icon, dot }) => (
-            <button key={id} className={`nav-item ${page === id ? 'nav-item--active' : ''}`} onClick={() => choosePage(id)} title={collapsed ? label : undefined}>
-              <Icon size={19} />
-              <span>{label}</span>
-              {dot && <i className="nav-dot" />}
-            </button>
-          ))}
+
+        <nav className="sidebar-nav" aria-label="Asosiy menyu">
+          {menuGroups.map((group) => {
+            const items = group.items.map((id) => visibleMenuItems.find((item) => item.id === id)).filter(Boolean);
+            if (!items.length) return null;
+            return (
+              <section className="nav-group" key={group.label}>
+                <span className="nav-group-label">{group.label}</span>
+                {items.map(({ id, label, icon: Icon, dot }) => (
+                  <button key={id} className={`nav-item ${page === id ? 'nav-item--active' : ''}`} onClick={() => choosePage(id)} title={collapsed ? label : undefined}>
+                    <span className="nav-icon-wrap"><Icon size={19} /></span>
+                    <span>{label}</span>
+                    {dot && <i className="nav-dot" />}
+                  </button>
+                ))}
+              </section>
+            );
+          })}
         </nav>
+
         <div className="sidebar-footer">
-          <span className="sidebar-version">v8.0 · Chat va sozlamalar</span>
-          <button className="nav-item nav-item--logout" onClick={onLogout}><LogOut size={19} /><span>Chiqish</span></button>
+          <span className="sidebar-version">v9.0 · Premium UX</span>
+          <button className="nav-item nav-item--logout" onClick={onLogout}><span className="nav-icon-wrap"><LogOut size={19} /></span><span>Chiqish</span></button>
         </div>
       </aside>
 
       <section className="app-content">
         <header className="topbar">
           <div className="topbar-left">
-            <button className="icon-button mobile-menu" onClick={() => setMobileNav(true)}><Menu size={22} /></button>
-            <div className="global-search"><Search size={18} /><input placeholder="Panel bo‘yicha qidirish..." /><kbd>⌘ K</kbd></div>
+            <button className="icon-button mobile-menu" onClick={() => setMobileNav(true)}><Menu size={23} /></button>
+            <div className="topbar-breadcrumb">
+              <small>aloo SMM</small>
+              <strong>{activeItem?.label || 'Dashboard'}</strong>
+            </div>
+            <div className="global-search"><Search size={19} /><input placeholder="Panel bo‘yicha qidirish..." /><kbd>⌘ K</kbd></div>
           </div>
           <div className="topbar-actions">
             <div className="range-wrap">
