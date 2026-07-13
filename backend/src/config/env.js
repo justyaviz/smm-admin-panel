@@ -1,16 +1,18 @@
 import 'dotenv/config';
+import { randomBytes } from 'node:crypto';
 
 const nodeEnv = process.env.NODE_ENV || 'development';
 const isProduction = nodeEnv === 'production';
+const generatedJwtSecret = randomBytes(48).toString('hex');
+const jwtSecret = process.env.JWT_SECRET || (isProduction ? generatedJwtSecret : 'development-secret-change-me-123456789');
 
-function required(name) {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} environment variable is required`);
-  return value;
+if (!process.env.DATABASE_URL) {
+  console.warn('DATABASE_URL belgilanmagan. Server healthcheck uchun ishga tushadi, ammo database funksiyalari tayyor bo‘lmaydi.');
 }
 
-const jwtSecret = process.env.JWT_SECRET || (isProduction ? required('JWT_SECRET') : 'development-secret-change-me-123456789');
-if (jwtSecret.length < 32) {
+if (!process.env.JWT_SECRET && isProduction) {
+  console.warn('JWT_SECRET belgilanmagan. Vaqtinchalik tasodifiy kalit yaratildi; production Variables ichida doimiy JWT_SECRET kiriting.');
+} else if (jwtSecret.length < 32) {
   console.warn('JWT_SECRET 32 ta belgidan qisqa. Production uchun uzunroq maxfiy kalit ishlating.');
 }
 
@@ -18,7 +20,7 @@ export const env = Object.freeze({
   nodeEnv,
   isProduction,
   port: Number(process.env.PORT || 3000),
-  databaseUrl: required('DATABASE_URL'),
+  databaseUrl: process.env.DATABASE_URL || '',
   jwtSecret,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '12h',
   corsOrigins: (process.env.CORS_ORIGIN || 'http://localhost:5173')

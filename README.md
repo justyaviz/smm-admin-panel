@@ -38,3 +38,6 @@ npm run dev
 Railway sozlamalari `RAILWAY_SETUP.md` ichida.
 
 Frontend productionda `API_URL` variable’ni runtime vaqtida oladi. Shu sabab `Failed to fetch` muammosi oldini olinadi.
+
+## Healthcheck v2
+Backend portni migratsiyadan oldin ochadi. Railway `/health` orqali liveness tekshiradi, `/ready` esa PostgreSQL readiness holatini ko‘rsatadi. Batafsil: `RAILWAY_HEALTHCHECK_FIX.md`.

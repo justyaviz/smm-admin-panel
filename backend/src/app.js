@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import { env } from './config/env.js';
 import { pool } from './db/pool.js';
+import { runtime } from './runtime.js';
 import authRoutes from './routes/auth.js';
 import dashboardRoutes from './routes/dashboard.js';
 
@@ -31,12 +32,33 @@ app.get('/', (_request, response) => {
   response.json({ name: 'aloo SMM API', status: 'ok' });
 });
 
-app.get('/health', async (_request, response) => {
+// Railway liveness healthcheck: database hali ulanmagan bo‘lsa ham 200 qaytaradi.
+app.get('/health', (_request, response) => {
+  response.status(200).json({
+    ok: true,
+    service: 'aloo-smm-backend',
+    databaseConfigured: Boolean(env.databaseUrl),
+    databaseReady: runtime.databaseReady,
+    initializationComplete: runtime.initializationComplete,
+    startedAt: runtime.startedAt,
+  });
+});
+
+// Readiness endpoint: database va migratsiyalar tayyor bo‘lgandagina 200.
+app.get('/ready', async (_request, response) => {
+  if (!env.databaseUrl) {
+    return response.status(503).json({ ok: false, message: 'DATABASE_URL belgilanmagan.' });
+  }
+
   try {
     await pool.query('SELECT 1');
-    response.json({ ok: true });
+    return response.status(runtime.databaseReady ? 200 : 503).json({
+      ok: runtime.databaseReady,
+      initializationComplete: runtime.initializationComplete,
+      error: runtime.initializationError,
+    });
   } catch {
-    response.status(503).json({ ok: false });
+    return response.status(503).json({ ok: false, message: 'PostgreSQL bilan aloqa yo‘q.' });
   }
 });
 
