@@ -88,3 +88,56 @@ JOIN platforms p ON p.code = d.platform_code
 LEFT JOIN branches b ON b.code = d.branch_code
 CROSS JOIN admin_user a
 WHERE NOT EXISTS (SELECT 1 FROM target_ads t WHERE t.name = d.name);
+
+-- Step 4 demo daily analytics metrics
+WITH admin_user AS (
+  SELECT id FROM app_users WHERE role = 'admin' ORDER BY id LIMIT 1
+), days AS (
+  SELECT g AS day_no, CURRENT_DATE - (13 - g)::int AS metric_date
+  FROM generate_series(0, 13) AS g
+), prepared AS (
+  SELECT
+    d.*,
+    CASE d.day_no % 3 WHEN 0 THEN 'instagram' WHEN 1 THEN 'telegram' ELSE 'facebook' END AS platform_code,
+    CASE d.day_no % 5 WHEN 0 THEN 'chirchiq' WHEN 1 THEN 'parkent' WHEN 2 THEN 'chinoz' WHEN 3 THEN 'angren' ELSE 'jarqorgon' END AS branch_code
+  FROM days d
+)
+INSERT INTO analytics_daily_metrics (
+  metric_date, platform_id, branch_id, campaign_id, reach, impressions, clicks,
+  engagement, messages, video_views, followers_gained, leads, sales_count,
+  sales_value, spend, notes, created_by
+)
+SELECT
+  d.metric_date,
+  p.id,
+  b.id,
+  (SELECT id FROM campaigns WHERE name = CASE WHEN d.day_no % 2 = 0 THEN 'Chilla yarmarkasi' ELSE 'Qo‘shaloq bonus' END LIMIT 1),
+  18000 + d.day_no * 1750,
+  25000 + d.day_no * 2200,
+  480 + d.day_no * 47,
+  950 + d.day_no * 73,
+  55 + d.day_no * 8,
+  4200 + d.day_no * 390,
+  18 + d.day_no * 2,
+  42 + d.day_no * 5,
+  3 + (d.day_no % 8),
+  2400000 + d.day_no * 370000,
+  320000 + d.day_no * 28000,
+  'demo-step4',
+  a.id
+FROM prepared d
+JOIN platforms p ON p.code = d.platform_code
+JOIN branches b ON b.code = d.branch_code
+CROSS JOIN admin_user a
+WHERE NOT EXISTS (
+  SELECT 1 FROM analytics_daily_metrics m
+  WHERE m.metric_date = d.metric_date AND m.platform_id = p.id AND m.branch_id = b.id AND m.notes = 'demo-step4'
+);
+
+WITH admin_user AS (
+  SELECT id FROM app_users WHERE role = 'admin' ORDER BY id LIMIT 1
+)
+INSERT INTO report_exports (name, report_type, format, date_from, date_to, filters, created_by)
+SELECT 'Demo oylik SMM hisoboti', 'full', 'xlsx', date_trunc('month', CURRENT_DATE)::date, CURRENT_DATE, '{}'::jsonb, id
+FROM admin_user
+WHERE NOT EXISTS (SELECT 1 FROM report_exports WHERE name = 'Demo oylik SMM hisoboti');

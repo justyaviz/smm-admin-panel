@@ -58,7 +58,7 @@ async function proxyApi(request, response, rawPath) {
   }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20_000);
+  const timeout = setTimeout(() => controller.abort(), 60_000);
 
   try {
     const body = request.method === 'GET' || request.method === 'HEAD'
@@ -84,6 +84,10 @@ async function proxyApi(request, response, rawPath) {
     const payload = Buffer.from(await upstream.arrayBuffer());
     response.statusCode = upstream.status;
     response.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json; charset=utf-8');
+    const disposition = upstream.headers.get('content-disposition');
+    if (disposition) response.setHeader('Content-Disposition', disposition);
+    const length = upstream.headers.get('content-length');
+    if (length) response.setHeader('Content-Length', length);
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
     response.end(payload);

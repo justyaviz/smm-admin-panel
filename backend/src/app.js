@@ -12,6 +12,8 @@ import calendarRoutes from './routes/calendar.js';
 import metaRoutes from './routes/meta.js';
 import campaignRoutes from './routes/campaigns.js';
 import adRoutes from './routes/ads.js';
+import analyticsRoutes from './routes/analytics.js';
+import reportRoutes from './routes/reports.js';
 
 export const app = express();
 app.set('trust proxy', 1);
@@ -74,6 +76,8 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/meta', metaRoutes);
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/ads', adRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/reports', reportRoutes);
 
 app.use((_request, response) => {
   response.status(404).json({ message: 'Endpoint topilmadi.' });

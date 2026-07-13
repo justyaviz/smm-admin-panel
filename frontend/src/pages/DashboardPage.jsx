@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import {
+  BarChart3,
   CalendarDays,
   CheckCircle2,
   ClipboardList,
   FileText,
+  FileBarChart,
   FolderKanban,
   PlaySquare,
   RefreshCw,
@@ -122,6 +124,8 @@ export default function DashboardPage({ session, notify, onPageChange }) {
             <button onClick={() => onPageChange('calendar')}><span><CalendarDays size={21} /></span><b>Kalendar</b><small>Oylik rejani ko‘rish</small></button>
             <button onClick={() => onPageChange('campaigns')}><span><Megaphone size={21} /></span><b>Kampaniya</b><small>Promo kampaniya yaratish</small></button>
             <button onClick={() => onPageChange('ads')}><span><Target size={21} /></span><b>Target reklama</b><small>Reklama natijalarini kiritish</small></button>
+            <button onClick={() => onPageChange('analytics')}><span><BarChart3 size={21} /></span><b>Analitika</b><small>Real KPI va natijalar</small></button>
+            <button onClick={() => onPageChange('reports')}><span><FileBarChart size={21} /></span><b>Hisobotlar</b><small>Excel, PDF va CSV</small></button>
           </div>
         </article>
       </section>

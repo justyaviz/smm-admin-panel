@@ -277,3 +277,70 @@ BEFORE UPDATE ON target_ads
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 
 COMMIT;
+
+-- Step 4: Analytics + Reports
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS analytics_daily_metrics (
+  id BIGSERIAL PRIMARY KEY,
+  metric_date DATE NOT NULL,
+  platform_id BIGINT REFERENCES platforms(id) ON DELETE SET NULL,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  campaign_id BIGINT REFERENCES campaigns(id) ON DELETE SET NULL,
+  ad_id BIGINT REFERENCES target_ads(id) ON DELETE SET NULL,
+  content_id BIGINT REFERENCES content_items(id) ON DELETE SET NULL,
+  reach BIGINT NOT NULL DEFAULT 0,
+  impressions BIGINT NOT NULL DEFAULT 0,
+  clicks BIGINT NOT NULL DEFAULT 0,
+  engagement BIGINT NOT NULL DEFAULT 0,
+  messages BIGINT NOT NULL DEFAULT 0,
+  video_views BIGINT NOT NULL DEFAULT 0,
+  followers_gained INTEGER NOT NULL DEFAULT 0,
+  leads INTEGER NOT NULL DEFAULT 0,
+  sales_count INTEGER NOT NULL DEFAULT 0,
+  sales_value NUMERIC(16,2) NOT NULL DEFAULT 0,
+  spend NUMERIC(16,2) NOT NULL DEFAULT 0,
+  notes TEXT NOT NULL DEFAULT '',
+  created_by BIGINT NOT NULL REFERENCES app_users(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT analytics_daily_nonnegative CHECK (
+    reach >= 0 AND impressions >= 0 AND clicks >= 0 AND engagement >= 0 AND messages >= 0 AND
+    video_views >= 0 AND followers_gained >= 0 AND leads >= 0 AND sales_count >= 0 AND
+    sales_value >= 0 AND spend >= 0
+  )
+);
+CREATE INDEX IF NOT EXISTS idx_analytics_daily_date ON analytics_daily_metrics(metric_date DESC);
+CREATE INDEX IF NOT EXISTS idx_analytics_daily_platform ON analytics_daily_metrics(platform_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_daily_branch ON analytics_daily_metrics(branch_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_daily_campaign ON analytics_daily_metrics(campaign_id);
+CREATE INDEX IF NOT EXISTS idx_analytics_daily_ad ON analytics_daily_metrics(ad_id);
+
+CREATE TABLE IF NOT EXISTS report_exports (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(180) NOT NULL,
+  report_type VARCHAR(40) NOT NULL DEFAULT 'full',
+  format VARCHAR(10) NOT NULL DEFAULT 'xlsx',
+  date_from DATE NOT NULL,
+  date_to DATE NOT NULL,
+  filters JSONB NOT NULL DEFAULT '{}'::jsonb,
+  status VARCHAR(20) NOT NULL DEFAULT 'ready',
+  created_by BIGINT NOT NULL REFERENCES app_users(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT report_exports_name_nonempty CHECK (length(trim(name)) >= 2),
+  CONSTRAINT report_exports_type_allowed CHECK (
+    report_type IN ('full','summary','platforms','branches','campaigns','content')
+  ),
+  CONSTRAINT report_exports_format_allowed CHECK (format IN ('xlsx','pdf','csv')),
+  CONSTRAINT report_exports_status_allowed CHECK (status IN ('ready','failed')),
+  CONSTRAINT report_exports_dates_valid CHECK (date_to >= date_from)
+);
+CREATE INDEX IF NOT EXISTS idx_report_exports_created_at ON report_exports(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_report_exports_created_by ON report_exports(created_by);
+
+DROP TRIGGER IF EXISTS trg_analytics_daily_updated_at ON analytics_daily_metrics;
+CREATE TRIGGER trg_analytics_daily_updated_at
+BEFORE UPDATE ON analytics_daily_metrics
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+COMMIT;

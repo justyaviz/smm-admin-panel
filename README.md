@@ -1,4 +1,4 @@
-# aloo SMM Panel v3.0
+# aloo SMM Panel v4.0
 
 Aloo do‘konlar tarmog‘i uchun Railway-ready SMM boshqaruv paneli.
 
@@ -9,6 +9,9 @@ Aloo do‘konlar tarmog‘i uchun Railway-ready SMM boshqaruv paneli.
 - Oylik kontent kalendari
 - Kampaniyalar
 - Target reklama
+- Analitika va kundalik KPI kiritish
+- Platformalar va filiallar reytingi
+- Excel, PDF va CSV hisobotlar
 - PostgreSQL avtomatik migratsiya
 - Railway frontend/backend Docker deploy
 
@@ -18,4 +21,4 @@ Aloo do‘konlar tarmog‘i uchun Railway-ready SMM boshqaruv paneli.
 - Backend Root Directory: `/backend`
 - Backend Config Path: `/backend/railway.toml`
 
-Batafsil: `RAILWAY_SETUP.md`, `STEP2_CONTENT_CALENDAR.md`, `STEP3_CAMPAIGNS_TARGET.md`.
+Batafsil: `RAILWAY_SETUP.md`, `STEP2_CONTENT_CALENDAR.md`, `STEP3_CAMPAIGNS_TARGET.md`, `STEP4_ANALYTICS_REPORTS.md`.

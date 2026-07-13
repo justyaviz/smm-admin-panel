@@ -54,7 +54,7 @@ export default function AppShell({ page, onPageChange, session, onLogout, notify
           ))}
         </nav>
         <div className="sidebar-footer">
-          <span className="sidebar-version">v3.0 · Kampaniya + Target</span>
+          <span className="sidebar-version">v4.0 · Analitika + Hisobot</span>
           <button className="nav-item nav-item--logout" onClick={onLogout}><LogOut size={19} /><span>Chiqish</span></button>
         </div>
       </aside>
