@@ -7,6 +7,9 @@ import { pool } from './db/pool.js';
 import { runtime } from './runtime.js';
 import authRoutes from './routes/auth.js';
 import dashboardRoutes from './routes/dashboard.js';
+import contentRoutes from './routes/content.js';
+import calendarRoutes from './routes/calendar.js';
+import metaRoutes from './routes/meta.js';
 
 export const app = express();
 app.set('trust proxy', 1);
@@ -64,6 +67,9 @@ app.get('/ready', async (_request, response) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/content', contentRoutes);
+app.use('/api/calendar', calendarRoutes);
+app.use('/api/meta', metaRoutes);
 
 app.use((_request, response) => {
   response.status(404).json({ message: 'Endpoint topilmadi.' });

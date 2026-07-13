@@ -1,52 +1,22 @@
-# aloo SMM Panel — Login va Dashboard
+# aloo SMM Panel v2.0
 
-Railway uchun tayyor monorepo:
+Aloo do‘konlar tarmog‘i uchun Railway monorepo:
 
-- `frontend/` — React + Vite, login va dashboard
-- `backend/` — Express API, JWT va PostgreSQL
-- `database/aloo_smm_schema.sql` — to‘liq PostgreSQL schema
-- `RAILWAY_SETUP.md` — deploy ko‘rsatmasi
+- `frontend/` — React + Vite, Login, Dashboard, Kontent va Kalendar
+- `backend/` — Express API, JWT, PostgreSQL va audit log
+- `database/` — schema va ixtiyoriy demo ma’lumot
 
-## Local ishga tushirish
+Batafsil ko‘rsatma: `STEP2_CONTENT_CALENDAR.md`
 
-PostgreSQL:
-
-```bash
-docker compose up -d
-```
-
-Backend:
+## Mahalliy ishga tushirish
 
 ```bash
-cd backend
-cp .env.example .env
-npm install
-npm run dev
+docker compose up --build
 ```
 
-Frontend:
+Frontend: `http://localhost:8080`
+Backend: `http://localhost:3000`
 
-```bash
-cd frontend
-cp .env.example .env
-npm install
-npm run dev
-```
+## Login
 
-## Production
-
-Railway sozlamalari `RAILWAY_SETUP.md` ichida.
-
-Frontend productionda `API_URL` variable’ni runtime vaqtida oladi. Shu sabab `Failed to fetch` muammosi oldini olinadi.
-
-## Healthcheck v2
-Backend portni migratsiyadan oldin ochadi. Railway `/health` orqali liveness tekshiradi, `/ready` esa PostgreSQL readiness holatini ko‘rsatadi. Batafsil: `RAILWAY_HEALTHCHECK_FIX.md`.
-
-
-## Login fix v1.3.0
-
-- Frontend `/api/*` so‘rovlarini backendga server-side proxy qiladi.
-- Backend admin parolini Railway `ADMIN_PASSWORD` qiymati bilan har deployda sinxronlaydi.
-- Minimal admin parol uzunligi: 6 belgi.
-- Standart test login: `admin` / `123456`.
-- Railway frontend variable: `API_URL=https://BACKEND-DOMAIN.up.railway.app`.
+Login va parol Railway backend Variables ichidagi `ADMIN_LOGIN` va `ADMIN_PASSWORD` orqali boshqariladi.
