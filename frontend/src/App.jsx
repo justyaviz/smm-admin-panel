@@ -40,6 +40,20 @@ import {
 } from 'lucide-react';
 
 const LOGIN_KEY = 'aloo_smm_session';
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/$/, '');
+
+async function apiRequest(path, options = {}) {
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers || {}),
+    },
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.message || 'Server bilan aloqa xatosi.');
+  return payload;
+}
 
 const menuItems = [
   { label: 'Dashboard', icon: LayoutDashboard, active: true },
@@ -82,7 +96,11 @@ const initialTasks = [
 ];
 
 function App() {
-  const [session, setSession] = useState(() => localStorage.getItem(LOGIN_KEY) || sessionStorage.getItem(LOGIN_KEY));
+  const [session, setSession] = useState(() => {
+    const raw = localStorage.getItem(LOGIN_KEY) || sessionStorage.getItem(LOGIN_KEY);
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return null; }
+  });
   const [toast, setToast] = useState('');
 
   useEffect(() => {
@@ -91,10 +109,30 @@ function App() {
     return () => clearTimeout(timer);
   }, [toast]);
 
-  const onLogin = ({ remember }) => {
-    const value = JSON.stringify({ name: 'Temur Abduvaxidov', role: 'SMM menejer' });
-    if (remember) localStorage.setItem(LOGIN_KEY, value);
-    else sessionStorage.setItem(LOGIN_KEY, value);
+  useEffect(() => {
+    if (!session?.token) return undefined;
+    let cancelled = false;
+    apiRequest('/api/auth/me', {
+      headers: { Authorization: `Bearer ${session.token}` },
+    }).then(({ user }) => {
+      if (!cancelled) setSession((current) => current ? { ...current, user } : current);
+    }).catch(() => {
+      if (!cancelled) {
+        localStorage.removeItem(LOGIN_KEY);
+        sessionStorage.removeItem(LOGIN_KEY);
+        setSession(null);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [session?.token]);
+
+  const onLogin = ({ remember, token, user }) => {
+    const value = { token, user };
+    const serialized = JSON.stringify(value);
+    localStorage.removeItem(LOGIN_KEY);
+    sessionStorage.removeItem(LOGIN_KEY);
+    if (remember) localStorage.setItem(LOGIN_KEY, serialized);
+    else sessionStorage.setItem(LOGIN_KEY, serialized);
     setSession(value);
   };
 
@@ -106,7 +144,7 @@ function App() {
 
   return (
     <>
-      {session ? <Dashboard onLogout={logout} notify={setToast} /> : <Login onLogin={onLogin} notify={setToast} />}
+      {session ? <Dashboard session={session} onLogout={logout} notify={setToast} /> : <Login onLogin={onLogin} notify={setToast} />}
       {toast && <div className="toast">{toast}</div>}
     </>
   );
@@ -129,22 +167,25 @@ function Login({ onLogin, notify }) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault();
     setError('');
     if (!login.trim() || !password.trim()) {
       setError('Login va parolni to‘liq kiriting.');
       return;
     }
-    if (login.trim().toLowerCase() !== 'admin' || password !== 'aloo2026') {
-      setError('Demo login yoki parol noto‘g‘ri.');
-      return;
-    }
     setLoading(true);
-    setTimeout(() => {
-      onLogin({ remember });
+    try {
+      const result = await apiRequest('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ identifier: login.trim(), password }),
+      });
+      onLogin({ remember, token: result.token, user: result.user });
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
       setLoading(false);
-    }, 500);
+    }
   };
 
   return (
@@ -219,7 +260,7 @@ function Login({ onLogin, notify }) {
           </button>
 
           <div className="demo-note">
-            Demo: <strong>admin</strong> / <strong>aloo2026</strong>
+            Kirish ma’lumotlari backend va PostgreSQL orqali tekshiriladi
           </div>
         </form>
         <div className="login-footer"><LockKeyhole size={15} /> Faqat aloo xodimlari uchun</div>
@@ -237,7 +278,7 @@ function Feature({ icon: Icon, title, text }) {
   );
 }
 
-function Dashboard({ onLogout, notify }) {
+function Dashboard({ session, onLogout, notify }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileNav, setMobileNav] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -245,6 +286,10 @@ function Dashboard({ onLogout, notify }) {
   const [rangeOpen, setRangeOpen] = useState(false);
 
   const dateRange = useMemo(() => getCurrentWeekRange(), []);
+  const currentUser = session?.user || {};
+  const userName = currentUser.fullName || currentUser.full_name || 'Aloo xodimi';
+  const userRole = currentUser.role || 'SMM menejer';
+  const initials = userName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'AL';
 
   const toggleTask = (id) => {
     setTasks((items) => items.map((task) => task.id === id ? { ...task, done: !task.done, due: !task.done ? 'Bajarildi' : '14 iyul' } : task));
@@ -295,8 +340,8 @@ function Dashboard({ onLogout, notify }) {
             <div className="domain-chip"><span>◉</span> aloosmm.uz</div>
             <div className="profile-wrap">
               <button className="profile-button" onClick={() => setProfileOpen((v) => !v)}>
-                <span className="avatar">TA</span>
-                <span className="profile-copy"><strong>Temur Abduvaxidov</strong><small>SMM menejer</small></span>
+                <span className="avatar">{initials}</span>
+                <span className="profile-copy"><strong>{userName}</strong><small>{userRole}</small></span>
                 <ChevronDown size={16} />
               </button>
               {profileOpen && <div className="profile-menu"><button><User size={17} /> Profil</button><button onClick={onLogout}><LogOut size={17} /> Chiqish</button></div>}

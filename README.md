@@ -1,41 +1,58 @@
-# aloo SMM Panel — 1-qadam
+# aloo SMM Panel — Login + Dashboard + Backend + PostgreSQL
 
-Login sahifasi va asosiy Dashboard tayyorlandi.
+Railway uchun tayyor monorepo:
 
-## Ishga tushirish
+```text
+aloo-smm-panel-full/
+├── frontend/   # React + Vite, login va dashboard
+├── backend/    # Express API, JWT, PostgreSQL
+├── docker-compose.yml
+└── RAILWAY_SETUP.md
+```
+
+## Mahalliy ishga tushirish
+
+### 1. PostgreSQL
 
 ```bash
+docker compose up -d postgres
+```
+
+### 2. Backend
+
+```bash
+cd backend
+cp .env.example .env
 npm install
 npm run dev
 ```
 
-Brauzerda odatda: `http://localhost:5173`
+Backend: `http://localhost:3000`
 
-## Demo kirish
+### 3. Frontend
 
-- Login: `admin`
-- Parol: `aloo2026`
+```bash
+cd frontend
+cp .env.example .env
+npm install
+npm run dev
+```
 
-Bu hozircha frontend demo autentifikatsiya. Production bosqichida backend, PostgreSQL, JWT/HttpOnly cookie, rollar va permissionlar ulanadi.
+Frontend: `http://localhost:5173`
 
-## Gilroy shriftini ulash
+Standart mahalliy login `.env.example` ichida:
 
-`public/fonts/README.txt` ichidagi ko‘rsatma bo‘yicha o‘zingizdagi litsenziyalangan Gilroy fayllarini `public/fonts/` ichiga joylang.
+```text
+login: admin
+parol: aloo2026
+```
 
-## Tayyor qismlar
+Productionda `ADMIN_PASSWORD` va `JWT_SECRET` qiymatlarini albatta almashtiring.
 
-- Responsive login sahifasi
-- Login validatsiyasi va “Meni eslab qol”
-- Dashboard
-- KPI kartalari
-- Haftalik kontent taqvimi
-- Kampaniya grafigi
-- Platformalar donut diagrammasi
-- Filiallar samaradorligi
-- So‘nggi hisobotlar
-- Interaktiv tezkor vazifalar
-- Chiqish funksiyasi
+## Railway
 
-## Keyingi bosqich
+To‘liq qadamlar: [RAILWAY_SETUP.md](./RAILWAY_SETUP.md)
 
-Kontent, Kalendar, Kampaniyalar, Target reklama, Analitika va Hisobotlar sahifalarini real CRUD bilan ulash.
+## Font
+
+Gilroy fayllari arxivga kiritilmagan. Litsenziyalangan font fayllarini `frontend/public/fonts/` ichiga README ko‘rsatmasidagi nomlarda joylashtiring.
