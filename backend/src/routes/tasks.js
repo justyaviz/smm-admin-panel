@@ -189,6 +189,13 @@ router.post('/', permissionRequired('tasks.manage'), async (request, response, n
     const id = Number(rows[0].id);
     await client.query(`INSERT INTO task_status_history(task_id,old_status,new_status,changed_by,comment) VALUES($1,NULL,$2,$3,'Vazifa yaratildi')`, [id, data.status, request.user.id]);
     await client.query(`INSERT INTO audit_logs(user_id,action,ip_address,metadata) VALUES($1,'task.create',$2,$3::jsonb)`, [request.user.id, request.ip, JSON.stringify({ taskId: id, title: data.title })]);
+    if (data.assignedTo && Number(data.assignedTo) !== Number(request.user.id)) {
+      await client.query(`INSERT INTO notifications(user_id,notification_type,title,message,link_page,link_entity_id,dedupe_key)
+        SELECT $1,'task_assigned','Sizga yangi vazifa biriktirildi',$2,'tasks',$3,$4
+        WHERE COALESCE((SELECT (preferences->>'taskNotifications')::boolean FROM user_preferences WHERE user_id=$1),TRUE)=TRUE
+        ON CONFLICT(user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
+        [data.assignedTo, data.title, id, `task-assigned-${id}`]);
+    }
     await client.query('COMMIT');
     const result = await pool.query(`${taskSelect} WHERE t.id=$1`, [id]);
     response.status(201).json({ item: mapTask(result.rows[0]) });
@@ -206,7 +213,7 @@ router.put('/:id', permissionRequired('tasks.manage'), async (request, response,
     if (!parsed.success) return response.status(400).json({ message: 'Vazifa ma’lumotlarini tekshiring.', errors: parsed.error.flatten() });
     const data = parsed.data;
     await client.query('BEGIN');
-    const old = await client.query('SELECT status FROM tasks WHERE id=$1 FOR UPDATE', [id]);
+    const old = await client.query('SELECT status,assigned_to FROM tasks WHERE id=$1 FOR UPDATE', [id]);
     if (!old.rows[0]) {
       await client.query('ROLLBACK');
       return response.status(404).json({ message: 'Vazifa topilmadi.' });
@@ -216,6 +223,13 @@ router.put('/:id', permissionRequired('tasks.manage'), async (request, response,
       await client.query(`INSERT INTO task_status_history(task_id,old_status,new_status,changed_by,comment) VALUES($1,$2,$3,$4,'Vazifa tahrirlandi')`, [id, old.rows[0].status, data.status, request.user.id]);
     }
     await client.query(`INSERT INTO audit_logs(user_id,action,ip_address,metadata) VALUES($1,'task.update',$2,$3::jsonb)`, [request.user.id, request.ip, JSON.stringify({ taskId: id, title: data.title })]);
+    if (data.assignedTo && Number(data.assignedTo) !== Number(old.rows[0].assigned_to || 0) && Number(data.assignedTo) !== Number(request.user.id)) {
+      await client.query(`INSERT INTO notifications(user_id,notification_type,title,message,link_page,link_entity_id,dedupe_key)
+        SELECT $1,'task_assigned','Sizga vazifa biriktirildi',$2,'tasks',$3,$4
+        WHERE COALESCE((SELECT (preferences->>'taskNotifications')::boolean FROM user_preferences WHERE user_id=$1),TRUE)=TRUE
+        ON CONFLICT(user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
+        [data.assignedTo, data.title, id, `task-reassigned-${id}-${data.assignedTo}`]);
+    }
     await client.query('COMMIT');
     const result = await pool.query(`${taskSelect} WHERE t.id=$1`, [id]);
     response.json({ item: mapTask(result.rows[0]) });

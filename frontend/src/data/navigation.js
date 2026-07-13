@@ -29,7 +29,7 @@ export const menuItems = [
   { id: 'team', label: 'Jamoa', icon: UsersRound, permission: 'team.view' },
   { id: 'expenses', label: 'Xarajatlar', icon: CircleDollarSign, permission: 'expenses.view' },
   { id: 'chat', label: 'Chat', icon: MessageCircle, dot: true, permission: 'chat.use' },
-  { id: 'settings', label: 'Sozlamalar', icon: Settings, permission: 'settings.manage' },
+  { id: 'settings', label: 'Sozlamalar', icon: Settings, permission: 'settings.view' },
 ];
 
 export const statusLabels = {

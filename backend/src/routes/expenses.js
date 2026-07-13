@@ -293,7 +293,7 @@ router.patch('/:id/status', permissionRequired('expenses.manage'), async (reques
     const parsed = statusSchema.safeParse(request.body);
     if (!parsed.success) return response.status(400).json({ message: 'Xarajat statusi noto‘g‘ri.' });
     await client.query('BEGIN');
-    const old = await client.query('SELECT status,title FROM expenses WHERE id=$1 FOR UPDATE', [id]);
+    const old = await client.query('SELECT status,title,requested_by,created_by FROM expenses WHERE id=$1 FOR UPDATE', [id]);
     if (!old.rows[0]) {
       await client.query('ROLLBACK');
       return response.status(404).json({ message: 'Xarajat topilmadi.' });
@@ -301,6 +301,14 @@ router.patch('/:id/status', permissionRequired('expenses.manage'), async (reques
     await client.query(`UPDATE expenses SET status=$1,approved_by=CASE WHEN $1 IN ('approved','paid') THEN $2 ELSE NULL END,approved_at=CASE WHEN $1 IN ('approved','paid') THEN COALESCE(approved_at,NOW()) ELSE NULL END,paid_at=CASE WHEN $1='paid' THEN COALESCE(paid_at,NOW()) ELSE NULL END WHERE id=$3`, [parsed.data.status, request.user.id, id]);
     if (old.rows[0].status !== parsed.data.status) await client.query(`INSERT INTO expense_status_history(expense_id,old_status,new_status,changed_by,comment) VALUES($1,$2,$3,$4,$5)`, [id, old.rows[0].status, parsed.data.status, request.user.id, parsed.data.comment || null]);
     await client.query(`INSERT INTO audit_logs(user_id,action,ip_address,metadata) VALUES($1,'expense.status',$2,$3::jsonb)`, [request.user.id, request.ip, JSON.stringify({ expenseId: id, status: parsed.data.status })]);
+    const recipientId = Number(old.rows[0].requested_by || old.rows[0].created_by || 0);
+    if (recipientId && recipientId !== Number(request.user.id) && old.rows[0].status !== parsed.data.status) {
+      await client.query(`INSERT INTO notifications(user_id,notification_type,title,message,link_page,link_entity_id,dedupe_key)
+        SELECT $1,'expense_status','Xarajat holati yangilandi',$2,'expenses',$3,$4
+        WHERE COALESCE((SELECT (preferences->>'expenseNotifications')::boolean FROM user_preferences WHERE user_id=$1),TRUE)=TRUE
+        ON CONFLICT(user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
+        [recipientId, `${old.rows[0].title}: ${parsed.data.status}`, id, `expense-${id}-${parsed.data.status}`]);
+    }
     await client.query('COMMIT');
     const result = await pool.query(`${expenseSelect} WHERE e.id=$1`, [id]);
     response.json({ item: mapExpense(result.rows[0]) });

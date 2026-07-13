@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import {
-  Bell,
   CalendarDays,
   ChevronDown,
   LogOut,
@@ -12,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import Brand from './Brand.jsx';
+import NotificationCenter from './NotificationCenter.jsx';
 import { menuItems } from '../data/navigation.js';
 
 export default function AppShell({ page, onPageChange, session, onLogout, notify, children }) {
@@ -59,7 +59,7 @@ export default function AppShell({ page, onPageChange, session, onLogout, notify
           ))}
         </nav>
         <div className="sidebar-footer">
-          <span className="sidebar-version">v7.0 · Vazifalar va xarajatlar</span>
+          <span className="sidebar-version">v8.0 · Chat va sozlamalar</span>
           <button className="nav-item nav-item--logout" onClick={onLogout}><LogOut size={19} /><span>Chiqish</span></button>
         </div>
       </aside>
@@ -81,7 +81,7 @@ export default function AppShell({ page, onPageChange, session, onLogout, notify
                 </div>
               )}
             </div>
-            <button className="notification-button" onClick={() => notify('Hozircha yangi bildirishnoma yo‘q.')}><Bell size={20} /><span>2</span></button>
+            <NotificationCenter session={session} onNavigate={onPageChange} notify={notify} />
             <div className="domain-chip"><span>●</span> aloosmm.uz</div>
             <div className="profile-wrap">
               <button className="profile-button" onClick={() => setProfileOpen((value) => !value)}>
@@ -91,7 +91,7 @@ export default function AppShell({ page, onPageChange, session, onLogout, notify
               </button>
               {profileOpen && (
                 <div className="profile-menu">
-                  <button onClick={() => notify('Profil sahifasi keyingi bosqichda qo‘shiladi.')}><User size={17} /> Profil</button>
+                  <button onClick={() => { setProfileOpen(false); onPageChange('settings'); }}><User size={17} /> Profil va sozlamalar</button>
                   <button onClick={onLogout}><LogOut size={17} /> Chiqish</button>
                 </div>
               )}

@@ -189,6 +189,11 @@ router.post('/', permissionRequired('reports.create'), async (request, response,
     const filters = { platformId: d.platformId, branchId: d.branchId };
     const { rows } = await pool.query(`INSERT INTO report_exports (name, report_type, format, date_from, date_to, filters, created_by) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7) RETURNING id`, [d.name, d.reportType, d.format, d.dateFrom, d.dateTo, JSON.stringify(filters), request.user.id]);
     await pool.query(`INSERT INTO audit_logs (user_id, action, ip_address, metadata) VALUES ($1,'report.create',$2,$3::jsonb)`, [request.user.id, request.ip, JSON.stringify({ reportId: Number(rows[0].id), format: d.format })]);
+    await pool.query(`INSERT INTO notifications(user_id,notification_type,title,message,link_page,link_entity_id,dedupe_key)
+      SELECT $1,'report_ready','Hisobot tayyor',$2,'reports',$3,$4
+      WHERE COALESCE((SELECT (preferences->>'reportNotifications')::boolean FROM user_preferences WHERE user_id=$1),TRUE)=TRUE
+      ON CONFLICT(user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING`,
+      [request.user.id, `${d.name} (${d.format.toUpperCase()}) yuklab olishga tayyor.`, Number(rows[0].id), `report-ready-${rows[0].id}`]);
     const item = await pool.query(`SELECT r.*, u.full_name AS creator_name FROM report_exports r JOIN app_users u ON u.id=r.created_by WHERE r.id=$1`, [rows[0].id]);
     return response.status(201).json({ item: mapReport(item.rows[0]), downloadUrl: `/api/reports/${rows[0].id}/download` });
   } catch (error) { return next(error); }

@@ -13,6 +13,8 @@ import BranchesPage from './pages/BranchesPage.jsx';
 import TeamPage from './pages/TeamPage.jsx';
 import TasksPage from './pages/TasksPage.jsx';
 import ExpensesPage from './pages/ExpensesPage.jsx';
+import ChatPage from './pages/ChatPage.jsx';
+import SettingsPage from './pages/SettingsPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import { apiRequest, authHeaders } from './lib/api.js';
 import { menuItems } from './data/navigation.js';
@@ -26,6 +28,7 @@ export default function App() {
     try { return JSON.parse(raw); } catch { return null; }
   });
   const [page, setPage] = useState('dashboard');
+  const [pagePayload, setPagePayload] = useState(null);
   const [toast, setToast] = useState('');
 
   useEffect(() => {
@@ -60,6 +63,24 @@ export default function App() {
     else sessionStorage.setItem(LOGIN_KEY, serialized);
     setSession(value);
     setPage('dashboard');
+    setPagePayload(null);
+  };
+
+
+  const navigate = (nextPage, entityId = null) => {
+    setPage(nextPage);
+    setPagePayload(entityId ? { entityId: Number(entityId) } : null);
+  };
+
+  const updateSessionUser = (user) => {
+    setSession((current) => {
+      if (!current) return current;
+      const next = { ...current, user: { ...current.user, ...user } };
+      const serialized = JSON.stringify(next);
+      if (localStorage.getItem(LOGIN_KEY)) localStorage.setItem(LOGIN_KEY, serialized);
+      else sessionStorage.setItem(LOGIN_KEY, serialized);
+      return next;
+    });
   };
 
   const logout = () => {
@@ -71,7 +92,7 @@ export default function App() {
   if (!session) return <><LoginPage onLogin={onLogin} notify={setToast} />{toast && <div className="toast">{toast}</div>}</>;
 
   let pageContent;
-  if (page === 'dashboard') pageContent = <DashboardPage session={session} notify={setToast} onPageChange={setPage} />;
+  if (page === 'dashboard') pageContent = <DashboardPage session={session} notify={setToast} onPageChange={navigate} />;
   else if (page === 'content') pageContent = <ContentPage session={session} notify={setToast} />;
   else if (page === 'calendar') pageContent = <CalendarPage session={session} notify={setToast} />;
   else if (page === 'campaigns') pageContent = <CampaignsPage session={session} notify={setToast} />;
@@ -83,6 +104,8 @@ export default function App() {
   else if (page === 'team') pageContent = <TeamPage session={session} notify={setToast} />;
   else if (page === 'tasks') pageContent = <TasksPage session={session} notify={setToast} />;
   else if (page === 'expenses') pageContent = <ExpensesPage session={session} notify={setToast} />;
+  else if (page === 'chat') pageContent = <ChatPage session={session} notify={setToast} initialChannelId={pagePayload?.entityId || null} />;
+  else if (page === 'settings') pageContent = <SettingsPage session={session} notify={setToast} onUserUpdated={updateSessionUser} />;
   else {
     const item = menuItems.find((entry) => entry.id === page);
     pageContent = <PlaceholderPage title={item?.label || 'Sahifa'} description="Ushbu modul keyingi ishlab chiqish bosqichida PostgreSQL va backend API bilan ulanadi." />;
@@ -90,7 +113,7 @@ export default function App() {
 
   return (
     <>
-      <AppShell page={page} onPageChange={setPage} session={session} onLogout={logout} notify={setToast}>{pageContent}</AppShell>
+      <AppShell page={page} onPageChange={navigate} session={session} onLogout={logout} notify={setToast}>{pageContent}</AppShell>
       {toast && <div className="toast">{toast}</div>}
     </>
   );

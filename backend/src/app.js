@@ -20,6 +20,9 @@ import teamRoutes from './routes/team.js';
 import roleRoutes from './routes/roles.js';
 import taskRoutes from './routes/tasks.js';
 import expenseRoutes from './routes/expenses.js';
+import chatRoutes from './routes/chat.js';
+import notificationRoutes from './routes/notifications.js';
+import settingsRoutes from './routes/settings.js';
 
 export const app = express();
 app.set('trust proxy', 1);
@@ -90,6 +93,9 @@ app.use('/api/team', teamRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/tasks', taskRoutes);
 app.use('/api/expenses', expenseRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/settings', settingsRoutes);
 
 app.use((_request, response) => {
   response.status(404).json({ message: 'Endpoint topilmadi.' });

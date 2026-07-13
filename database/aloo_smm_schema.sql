@@ -814,3 +814,152 @@ SELECT 'viewer',code FROM permissions WHERE code IN ('tasks.view','expenses.view
 ON CONFLICT DO NOTHING;
 
 COMMIT;
+
+-- Step 8: Internal Chat + Notifications + Settings
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS chat_channels (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  slug VARCHAR(140) UNIQUE,
+  channel_type VARCHAR(20) NOT NULL DEFAULT 'group',
+  direct_key VARCHAR(100) UNIQUE,
+  description TEXT NOT NULL DEFAULT '',
+  color VARCHAR(20) NOT NULL DEFAULT '#1690F5',
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  created_by BIGINT REFERENCES app_users(id) ON DELETE SET NULL,
+  is_archived BOOLEAN NOT NULL DEFAULT FALSE,
+  last_message_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT chat_channels_type_allowed CHECK (channel_type IN ('general','group','direct','branch')),
+  CONSTRAINT chat_channels_name_nonempty CHECK (length(trim(name)) >= 2)
+);
+CREATE INDEX IF NOT EXISTS idx_chat_channels_last_message ON chat_channels(last_message_at DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS idx_chat_channels_branch ON chat_channels(branch_id);
+
+CREATE TABLE IF NOT EXISTS chat_channel_members (
+  channel_id BIGINT NOT NULL REFERENCES chat_channels(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+  member_role VARCHAR(20) NOT NULL DEFAULT 'member',
+  muted BOOLEAN NOT NULL DEFAULT FALSE,
+  last_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY(channel_id,user_id),
+  CONSTRAINT chat_member_role_allowed CHECK (member_role IN ('owner','admin','member'))
+);
+CREATE INDEX IF NOT EXISTS idx_chat_channel_members_user ON chat_channel_members(user_id,channel_id);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id BIGSERIAL PRIMARY KEY,
+  channel_id BIGINT NOT NULL REFERENCES chat_channels(id) ON DELETE CASCADE,
+  sender_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE RESTRICT,
+  body TEXT NOT NULL DEFAULT '',
+  reply_to_id BIGINT REFERENCES chat_messages(id) ON DELETE SET NULL,
+  is_edited BOOLEAN NOT NULL DEFAULT FALSE,
+  is_deleted BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT chat_message_body_valid CHECK (is_deleted OR length(trim(body)) >= 1)
+);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_channel ON chat_messages(channel_id,id DESC);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_sender ON chat_messages(sender_id,created_at DESC);
+
+CREATE TABLE IF NOT EXISTS notifications (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+  notification_type VARCHAR(50) NOT NULL DEFAULT 'system',
+  title VARCHAR(220) NOT NULL,
+  message TEXT NOT NULL DEFAULT '',
+  link_page VARCHAR(60),
+  link_entity_id BIGINT,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  dedupe_key VARCHAR(180),
+  is_read BOOLEAN NOT NULL DEFAULT FALSE,
+  read_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT notifications_title_nonempty CHECK (length(trim(title)) >= 2)
+);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id,created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_unread ON notifications(user_id,is_read,created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_dedupe
+  ON notifications(user_id,dedupe_key) WHERE dedupe_key IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS user_preferences (
+  user_id BIGINT PRIMARY KEY REFERENCES app_users(id) ON DELETE CASCADE,
+  preferences JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  setting_key VARCHAR(100) PRIMARY KEY,
+  setting_value JSONB NOT NULL DEFAULT '{}'::jsonb,
+  description TEXT NOT NULL DEFAULT '',
+  updated_by BIGINT REFERENCES app_users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+DROP TRIGGER IF EXISTS trg_chat_channels_updated_at ON chat_channels;
+CREATE TRIGGER trg_chat_channels_updated_at BEFORE UPDATE ON chat_channels FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DROP TRIGGER IF EXISTS trg_chat_messages_updated_at ON chat_messages;
+CREATE TRIGGER trg_chat_messages_updated_at BEFORE UPDATE ON chat_messages FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DROP TRIGGER IF EXISTS trg_user_preferences_updated_at ON user_preferences;
+CREATE TRIGGER trg_user_preferences_updated_at BEFORE UPDATE ON user_preferences FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DROP TRIGGER IF EXISTS trg_app_settings_updated_at ON app_settings;
+CREATE TRIGGER trg_app_settings_updated_at BEFORE UPDATE ON app_settings FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+INSERT INTO chat_channels(name,slug,channel_type,description,color,created_by)
+SELECT 'Umumiy chat','general','general','Barcha aloo SMM jamoasi uchun umumiy chat','#1690F5',MIN(id)
+FROM app_users
+HAVING COUNT(*) > 0
+ON CONFLICT(slug) DO UPDATE SET is_archived=FALSE,name=EXCLUDED.name,description=EXCLUDED.description;
+
+INSERT INTO chat_channel_members(channel_id,user_id,member_role,last_read_at)
+SELECT c.id,u.id,CASE WHEN u.role='admin' THEN 'admin' ELSE 'member' END,NOW()
+FROM chat_channels c CROSS JOIN app_users u
+WHERE c.slug='general' AND u.is_active=TRUE
+ON CONFLICT(channel_id,user_id) DO NOTHING;
+
+INSERT INTO app_settings(setting_key,setting_value,description)
+VALUES('company','{"companyName":"aloo SMM Panel","domain":"aloosmm.uz","supportPhone":"","supportTelegram":"","timezone":"Asia/Tashkent","currency":"UZS","brandColor":"#1690F5","defaultLanguage":"uz"}'::jsonb,'Aloo SMM Panel tashkilot sozlamalari')
+ON CONFLICT(setting_key) DO NOTHING;
+
+INSERT INTO user_preferences(user_id,preferences)
+SELECT id,'{"language":"uz","timezone":"Asia/Tashkent","dateFormat":"DD.MM.YYYY","compactMode":false,"soundEnabled":true,"desktopEnabled":true,"chatNotifications":true,"taskNotifications":true,"contentNotifications":true,"expenseNotifications":true,"reportNotifications":true}'::jsonb
+FROM app_users
+ON CONFLICT(user_id) DO NOTHING;
+
+INSERT INTO notifications(user_id,notification_type,title,message,link_page,dedupe_key)
+SELECT id,'system','Yangi imkoniyatlar tayyor','Ichki chat, bildirishnomalar va sozlamalar moduli ishga tushdi.','chat','step8-welcome'
+FROM app_users WHERE is_active=TRUE
+ON CONFLICT(user_id,dedupe_key) WHERE dedupe_key IS NOT NULL DO NOTHING;
+
+INSERT INTO permissions(code,name,description,permission_group,sort_order) VALUES
+  ('settings.view','Shaxsiy sozlamalarni ko‘rish','Profil, parol va bildirishnoma sozlamalaridan foydalanish','Sozlamalar',79),
+  ('chat.use','Chatdan foydalanish','Ichki chat, guruhlar va shaxsiy suhbatlardan foydalanish','Operatsiyalar',73),
+  ('settings.manage','Tizim sozlamalarini boshqarish','Tashkilot va tizim sozlamalarini o‘zgartirish','Sozlamalar',80)
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,permission_group=EXCLUDED.permission_group,sort_order=EXCLUDED.sort_order;
+
+INSERT INTO role_permissions(role_code,permission_code)
+SELECT 'admin',code FROM permissions WHERE code IN ('settings.view','chat.use','settings.manage')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO role_permissions(role_code,permission_code)
+SELECT 'smm_manager',code FROM permissions WHERE code IN ('settings.view','chat.use','settings.manage')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO role_permissions(role_code,permission_code)
+SELECT r.code,p.code FROM roles r CROSS JOIN permissions p
+WHERE r.code IN ('targetolog','designer','mobilograf','copywriter','analyst','viewer')
+  AND p.code='settings.view'
+ON CONFLICT DO NOTHING;
+
+INSERT INTO role_permissions(role_code,permission_code)
+SELECT r.code,p.code FROM roles r CROSS JOIN permissions p
+WHERE r.code IN ('targetolog','designer','mobilograf','copywriter','analyst')
+  AND p.code='chat.use'
+ON CONFLICT DO NOTHING;
+
+COMMIT;
