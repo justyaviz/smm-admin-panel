@@ -48,6 +48,7 @@ export default function ChatPage({ session, notify, initialChannelId }) {
   const [groupSaving, setGroupSaving] = useState(false);
   const [newChatOpen, setNewChatOpen] = useState(false);
   const [mobileConversation, setMobileConversation] = useState(Boolean(initialChannelId));
+  const [onlineIds, setOnlineIds] = useState(() => new Set());
   const bottomRef = useRef(null);
   const headers = useMemo(() => authHeaders(session.token), [session.token]);
   const selected = channels.find((channel) => Number(channel.id) === Number(selectedId));
@@ -77,8 +78,32 @@ export default function ChatPage({ session, notify, initialChannelId }) {
 
   useEffect(() => { const timer = setTimeout(() => void loadChannels(), search ? 250 : 0); return () => clearTimeout(timer); }, [loadChannels]);
   useEffect(() => { void apiRequest('/api/chat/members', { headers }).then((result) => setMembers(result.items || [])).catch((error) => notify(error.message)); }, [headers]);
+  useEffect(() => {
+    void apiRequest('/api/realtime/presence', { headers }).then((result) => setOnlineIds(new Set((result.items || []).map((user) => Number(user.id))))).catch(() => {});
+    const update = (event) => {
+      const user = event.detail?.payload;
+      if (!user?.id) return;
+      setOnlineIds((current) => {
+        const next = new Set(current);
+        if (user.online) next.add(Number(user.id)); else next.delete(Number(user.id));
+        return next;
+      });
+    };
+    window.addEventListener('aloo:realtime:presence.online', update);
+    return () => window.removeEventListener('aloo:realtime:presence.online', update);
+  }, [headers]);
   useEffect(() => { void loadMessages(); }, [selectedId]);
-  useEffect(() => { const timer = setInterval(() => { void loadChannels(true); if (selectedId) void loadMessages(true); }, 6_000); return () => clearInterval(timer); }, [loadChannels, loadMessages, selectedId]);
+  useEffect(() => { const timer = setInterval(() => { void loadChannels(true); if (selectedId) void loadMessages(true); }, 30_000); return () => clearInterval(timer); }, [loadChannels, loadMessages, selectedId]);
+  useEffect(() => {
+    const refresh = (event) => {
+      const channelId = Number(event.detail?.payload?.channelId || 0);
+      void loadChannels(true);
+      if (!channelId || channelId === Number(selectedId)) void loadMessages(true);
+    };
+    const events = ['chat.message','chat.message.updated','chat.message.deleted'];
+    events.forEach((name) => window.addEventListener(`aloo:realtime:${name}`, refresh));
+    return () => events.forEach((name) => window.removeEventListener(`aloo:realtime:${name}`, refresh));
+  }, [loadChannels, loadMessages, selectedId]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length, selectedId]);
   useEffect(() => { if (initialChannelId) { setSelectedId(initialChannelId); setMobileConversation(true); } }, [initialChannelId]);
 
@@ -128,10 +153,10 @@ export default function ChatPage({ session, notify, initialChannelId }) {
     <aside className="chat-sidebar"><header><div><h1>Ichki chat</h1><p>Jamoa bilan tezkor aloqa</p></div><button className="chat-add-button" onClick={() => setNewChatOpen((value) => !value)}><UserPlus size={18} /></button></header>
       <label className="chat-search"><Search size={17} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Suhbat qidirish..." /></label>
       {newChatOpen && <div className="chat-new-panel"><header><strong>Yangi suhbat</strong><button onClick={() => setGroupOpen(true)}><Plus size={15} /> Guruh</button></header><div>{members.filter((member) => Number(member.id) !== Number(session.user.id)).map((member) => <button key={member.id} onClick={() => openDirect(member)}><i>{initials(member.fullName)}</i><span><strong>{member.fullName}</strong><small>{member.jobTitle || member.role}</small></span></button>)}</div></div>}
-      <div className="chat-channel-list">{loadingChannels && <div className="chat-state"><span className="spinner spinner--blue" /> Yuklanmoqda...</div>}{!loadingChannels && channels.map((channel) => { const title = channelTitle(channel, session.user.id); const other = channel.channelType === 'direct' ? channel.members.find((member) => Number(member.id) !== Number(session.user.id)) : null; return <button key={channel.id} className={Number(selectedId) === Number(channel.id) ? 'active' : ''} onClick={() => { setSelectedId(channel.id); setMobileConversation(true); }}><span className="chat-channel-avatar" style={{ background: channel.color }}>{channel.channelType === 'direct' ? initials(title) : channel.channelType === 'general' ? <Hash size={18} /> : <UsersRound size={18} />}</span><div><header><strong>{title}</strong><time>{formatChannelTime(channel.lastMessage?.createdAt || channel.lastMessageAt)}</time></header><p>{channel.lastMessage ? `${channel.lastMessage.senderId === session.user.id ? 'Siz: ' : ''}${channel.lastMessage.body}` : other?.jobTitle || channel.description || 'Yangi suhbat'}</p></div>{channel.unreadCount > 0 && <b>{channel.unreadCount}</b>}</button>; })}{!loadingChannels && !channels.length && <div className="chat-empty-small"><MessageCircle size={25} /><p>Suhbat topilmadi</p></div>}</div>
+      <div className="chat-channel-list">{loadingChannels && <div className="chat-state"><span className="spinner spinner--blue" /> Yuklanmoqda...</div>}{!loadingChannels && channels.map((channel) => { const title = channelTitle(channel, session.user.id); const other = channel.channelType === 'direct' ? channel.members.find((member) => Number(member.id) !== Number(session.user.id)) : null; return <button key={channel.id} className={Number(selectedId) === Number(channel.id) ? 'active' : ''} onClick={() => { setSelectedId(channel.id); setMobileConversation(true); }}><span className={`chat-channel-avatar ${other && onlineIds.has(Number(other.id)) ? 'is-online' : ''}`} style={{ background: channel.color }}>{channel.channelType === 'direct' ? initials(title) : channel.channelType === 'general' ? <Hash size={18} /> : <UsersRound size={18} />}</span><div><header><strong>{title}</strong><time>{formatChannelTime(channel.lastMessage?.createdAt || channel.lastMessageAt)}</time></header><p>{channel.lastMessage ? `${channel.lastMessage.senderId === session.user.id ? 'Siz: ' : ''}${channel.lastMessage.body}` : other?.jobTitle || channel.description || 'Yangi suhbat'}</p></div>{channel.unreadCount > 0 && <b>{channel.unreadCount}</b>}</button>; })}{!loadingChannels && !channels.length && <div className="chat-empty-small"><MessageCircle size={25} /><p>Suhbat topilmadi</p></div>}</div>
     </aside>
     <section className="chat-conversation">{selected ? <>
-      <header className="chat-conversation-head"><button className="chat-back" onClick={() => setMobileConversation(false)}><ArrowLeft size={20} /></button><span className="chat-channel-avatar" style={{ background: selected.color }}>{selected.channelType === 'direct' ? initials(channelTitle(selected, session.user.id)) : selected.channelType === 'general' ? <Hash size={18} /> : <UsersRound size={18} />}</span><div><h2>{channelTitle(selected, session.user.id)}</h2><p>{selected.channelType === 'direct' ? selected.members.find((member) => Number(member.id) !== Number(session.user.id))?.jobTitle || 'Jamoa a’zosi' : `${selected.members.length || 'Barcha'} a’zo · ${selected.description || 'Aloo jamoasi'}`}</p></div><button className="icon-button"><MoreHorizontal size={20} /></button></header>
+      <header className="chat-conversation-head"><button className="chat-back" onClick={() => setMobileConversation(false)}><ArrowLeft size={20} /></button><span className={`chat-channel-avatar ${selected.channelType === 'direct' && onlineIds.has(Number(selected.members.find((member) => Number(member.id) !== Number(session.user.id))?.id)) ? 'is-online' : ''}`} style={{ background: selected.color }}>{selected.channelType === 'direct' ? initials(channelTitle(selected, session.user.id)) : selected.channelType === 'general' ? <Hash size={18} /> : <UsersRound size={18} />}</span><div><h2>{channelTitle(selected, session.user.id)}</h2><p>{selected.channelType === 'direct' ? (onlineIds.has(Number(selected.members.find((member) => Number(member.id) !== Number(session.user.id))?.id)) ? 'Online' : selected.members.find((member) => Number(member.id) !== Number(session.user.id))?.jobTitle || 'Offline') : `${selected.members.length || 'Barcha'} a’zo · ${selected.description || 'Aloo jamoasi'}`}</p></div><button className="icon-button"><MoreHorizontal size={20} /></button></header>
       <div className="chat-messages">{loadingMessages && <div className="chat-state"><span className="spinner spinner--blue" /> Xabarlar yuklanmoqda...</div>}{!loadingMessages && !messages.length && <div className="chat-welcome"><span><MessageCircle size={30} /></span><h3>Suhbatni boshlang</h3><p>Jamoaga birinchi xabarni yuboring.</p></div>}{messages.map((item, index) => { const own = Number(item.senderId) === Number(session.user.id); const previous = messages[index - 1]; const showName = !own && (!previous || Number(previous.senderId) !== Number(item.senderId)); return <div key={item.id} className={`chat-message-row ${own ? 'own' : ''}`}>
         {!own && <span className={`chat-message-avatar ${showName ? '' : 'hidden'}`}>{initials(item.senderName)}</span>}<article className={item.isDeleted ? 'deleted' : ''}>{showName && <strong>{item.senderName}</strong>}{item.replyTo && <button className="chat-reply-preview" onClick={() => {}}><b>{item.replyTo.senderName}</b><span>{item.replyTo.body}</span></button>}<p>{item.isDeleted ? 'Xabar o‘chirildi' : item.body}</p><footer><time>{formatTime(item.createdAt)}</time>{item.isEdited && <em>tahrirlangan</em>}{!item.isDeleted && <div><button title="Javob" onClick={() => setReplyTo(item)}><Reply size={13} /></button>{own && <><button title="Tahrirlash" onClick={() => editMessage(item)}><Edit3 size={13} /></button><button title="O‘chirish" onClick={() => deleteMessage(item)}><Trash2 size={13} /></button></>}</div>}</footer></article>
       </div>; })}<div ref={bottomRef} /></div>

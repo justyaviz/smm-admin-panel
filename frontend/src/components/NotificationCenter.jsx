@@ -41,9 +41,15 @@ export default function NotificationCenter({ session, onNavigate, notify }) {
 
   useEffect(() => {
     void load(false);
-    const timer = setInterval(() => void load(false), 20_000);
-    return () => clearInterval(timer);
-  }, [load]);
+    const timer = setInterval(() => void load(false), 30_000);
+    const refresh = () => void load(open);
+    const events = ['notifications.smart','chat.message','content.status','content.comment','task.assigned','task.status','expense.status'];
+    events.forEach((name) => window.addEventListener(`aloo:realtime:${name}`, refresh));
+    return () => {
+      clearInterval(timer);
+      events.forEach((name) => window.removeEventListener(`aloo:realtime:${name}`, refresh));
+    };
+  }, [load, open]);
 
   const toggle = () => {
     const next = !open;

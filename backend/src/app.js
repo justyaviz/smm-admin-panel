@@ -23,6 +23,10 @@ import expenseRoutes from './routes/expenses.js';
 import chatRoutes from './routes/chat.js';
 import notificationRoutes from './routes/notifications.js';
 import settingsRoutes from './routes/settings.js';
+import realtimeRoutes from './routes/realtime.js';
+import aiRoutes from './routes/ai.js';
+import templateRoutes from './routes/templates.js';
+import searchRoutes from './routes/search.js';
 
 export const app = express();
 app.set('trust proxy', 1);
@@ -96,6 +100,10 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/realtime', realtimeRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/templates', templateRoutes);
+app.use('/api/search', searchRoutes);
 
 app.use((_request, response) => {
   response.status(404).json({ message: 'Endpoint topilmadi.' });

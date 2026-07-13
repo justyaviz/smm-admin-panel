@@ -23,6 +23,11 @@ export const env = Object.freeze({
   databaseUrl: process.env.DATABASE_URL || '',
   jwtSecret,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '12h',
+  openAiApiKey: process.env.OPENAI_API_KEY || '',
+  openAiModel: process.env.OPENAI_MODEL || 'gpt-5-mini',
+  vapidPublicKey: process.env.VAPID_PUBLIC_KEY || '',
+  vapidPrivateKey: process.env.VAPID_PRIVATE_KEY || '',
+  vapidSubject: process.env.VAPID_SUBJECT || 'mailto:admin@aloosmm.uz',
   corsOrigins: (process.env.CORS_ORIGIN || 'http://localhost:5173')
     .split(',')
     .map((item) => item.trim())

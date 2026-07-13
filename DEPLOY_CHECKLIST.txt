@@ -1,11 +1,12 @@
-ALOO SMM PANEL — RAILWAY DEPLOY CHECKLIST (v8.0.0)
+ALOO SMM PANEL — RAILWAY DEPLOY CHECKLIST (v10.0.0)
 
-1. PostgreSQL service tayyor.
+1. PostgreSQL service tayyor bo‘lsin.
 
 2. Backend service:
    Root Directory: /backend
    Config Path: /backend/railway.toml
-   Variables:
+
+   Majburiy variables:
    NODE_ENV=production
    DATABASE_URL=${{Postgres.DATABASE_URL}}
    JWT_SECRET=<kamida 32 belgilik doimiy maxfiy kalit>
@@ -13,6 +14,16 @@ ALOO SMM PANEL — RAILWAY DEPLOY CHECKLIST (v8.0.0)
    ADMIN_FULL_NAME=Aloo Admin
    ADMIN_LOGIN=admin
    ADMIN_PASSWORD=123456
+
+   Ixtiyoriy AI variables:
+   OPENAI_API_KEY=
+   OPENAI_MODEL=gpt-5-mini
+
+   Ixtiyoriy Web Push variables:
+   VAPID_PUBLIC_KEY=
+   VAPID_PRIVATE_KEY=
+   VAPID_SUBJECT=mailto:admin@aloosmm.uz
+   Kalit yaratish: cd backend && npm install && npm run generate:vapid
 
 3. Frontend service:
    Root Directory: /frontend
@@ -23,30 +34,29 @@ ALOO SMM PANEL — RAILWAY DEPLOY CHECKLIST (v8.0.0)
 4. Deploy tartibi:
    PostgreSQL -> Backend -> Frontend
 
-5. Tekshirish:
+5. Har ikkala servisda:
+   Deployments -> Clear build cache and redeploy
+
+6. Tekshirish:
    Backend /health: ok=true
    Backend /ready: initializationComplete=true
    Frontend /health: apiConfigured=true
+   Frontend /runtime-config.js: API_URL bo‘sh bo‘lishi normal; browser /api so‘rovlarini frontend proxy orqali yuboradi
 
-6. Login:
+7. Login:
    admin / 123456
 
-Eslatma: backend har deployda ADMIN_LOGIN bo‘yicha admin parolini ADMIN_PASSWORD qiymatiga sinxronlaydi.
+8. v10 tekshiruvi:
+   - Ctrl/Cmd + K menyusini ochish.
+   - Kontent -> shablon orqali tezkor kontent yaratish.
+   - Kalendar -> kontentni boshqa kunga sudrash.
+   - Kontent -> workflow/izoh va Undo sinovi.
+   - Media -> faylni drag-and-drop yuklash va crop tanlash.
+   - Kontent -> Qo‘shimcha sozlamalar ichidan media coverini bir bosishda biriktirish.
+   - AI tugmasi -> lokal matn yaratish.
+   - Dark mode va mobil bottom navigationni tekshirish.
+   - Brauzer install prompt orqali PWA o‘rnatishni tekshirish.
 
-7. Step 6 tekshiruvi:
-   Filiallar -> Yangi filial -> saqlash.
-   Filial kartasi -> Akkauntlar va jamoa -> Instagram akkauntini saqlash.
-   Jamoa -> Xodim qo‘shish -> rol va filial biriktirish.
-   Jamoa -> Rollar va ruxsatlar -> ruxsatlarni saqlash.
-
-8. Media tekshiruvi:
-   Media -> Media yuklash -> rasm tanlash -> yuklash.
-   Fayllar PostgreSQL ichida saqlanadi; har bir fayl maksimal 8 MB.
-
-9. Step 8 tekshiruvi:
-   Chat -> Umumiy chat -> xabar yuborish.
-   Chat -> yangi suhbat -> xodim yoki guruh tanlash.
-   Yuqori panel qo‘ng‘irog‘i -> bildirishnomani ochish va o‘qish.
-   Sozlamalar -> Profil -> ma’lumotni saqlash.
-   Sozlamalar -> Xavfsizlik -> parolni yangilash.
-   Administrator: Sozlamalar -> Tashkilot -> umumiy parametrlarni saqlash.
+9. Gilroy:
+   Litsenziyalangan font fayllarini frontend/public/fonts/ papkasiga joylashtiring.
+   Font fayllari ZIP ichiga kiritilmagan.

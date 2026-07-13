@@ -17,6 +17,11 @@ import {
   AlertTriangle,
   CircleDollarSign,
   Clock3,
+  Sparkles,
+  Palette,
+  Video,
+  PenTool,
+  Eye,
 } from 'lucide-react';
 import { apiRequest, authHeaders } from '../lib/api.js';
 
@@ -39,6 +44,17 @@ function KpiCard({ icon: Icon, label, value, note, tone = 'blue' }) {
     </article>
   );
 }
+
+const roleExperience = {
+  admin: { title: 'Boshqaruv markazi', subtitle: 'Butun tarmoq, byudjet va jamoa holati bir ekranda', icon: Store, actions: [['content','Yangi kontent'],['team','Jamoa'],['expenses','Byudjet']] },
+  smm_manager: { title: 'Bugungi kontent oqimi', subtitle: 'Tekshiruv, kalendar va jamoa topshiriqlarini boshqaring', icon: FolderKanban, actions: [['content','Kontent'],['calendar','Kalendar'],['tasks','Vazifalar']] },
+  targetolog: { title: 'Reklama boshqaruvi', subtitle: 'Faol reklamalar, sarf va natijalarni kuzating', icon: Target, actions: [['ads','Target'],['campaigns','Kampaniya'],['analytics','Analitika']] },
+  designer: { title: 'Dizayn ish maydoni', subtitle: 'Sizga biriktirilgan kreativlar va deadline’lar', icon: Palette, actions: [['tasks','Vazifalar'],['media','Media'],['content','Kontent']] },
+  mobilograf: { title: 'Video ishlab chiqarish', subtitle: 'Reels, syomka va montaj vazifalari', icon: Video, actions: [['tasks','Vazifalar'],['content','Reels'],['media','Media']] },
+  copywriter: { title: 'Matn va g‘oyalar', subtitle: 'Caption, hook va tasdiq kutayotgan kontentlar', icon: PenTool, actions: [['content','Kontent'],['tasks','Vazifalar'],['chat','Chat']] },
+  analyst: { title: 'Natijalar markazi', subtitle: 'KPI, ROAS va filiallar dinamikasi', icon: BarChart3, actions: [['analytics','Analitika'],['reports','Hisobot'],['expenses','Xarajat']] },
+  viewer: { title: 'Kuzatuv paneli', subtitle: 'Muhim natijalarni xavfsiz ko‘rish', icon: Eye, actions: [['dashboard','Dashboard'],['reports','Hisobot'],['calendar','Kalendar']] },
+};
 
 export default function DashboardPage({ session, notify, onPageChange }) {
   const [metrics, setMetrics] = useState(fallback);
@@ -64,14 +80,18 @@ export default function DashboardPage({ session, notify, onPageChange }) {
 
   useEffect(() => { void load(); }, []);
 
+  const roleView = roleExperience[session?.user?.role] || roleExperience.smm_manager;
+  const RoleIcon = roleView.icon;
   const totalPlatforms = platformCounts.reduce((sum, item) => sum + Number(item.count || 0), 0) || 1;
 
   return (
     <div className="dashboard-page">
-      <div className="page-heading">
-        <div><h1>Dashboard</h1><p>Aloo do‘konlar tarmog‘i bo‘yicha umumiy SMM holati</p></div>
-        <button className="secondary-action" onClick={load} disabled={loading}><RefreshCw size={18} className={loading ? 'spin' : ''} /> Ma’lumotlarni yangilash</button>
-      </div>
+      <section className="role-dashboard-hero">
+        <div className="role-dashboard-icon"><RoleIcon size={28} /></div>
+        <div><span>{session?.user?.fullName || 'Aloo jamoasi'}, xush kelibsiz</span><h1>{roleView.title}</h1><p>{roleView.subtitle}</p></div>
+        <div className="role-dashboard-actions">{roleView.actions.map(([target,label]) => <button key={target} onClick={() => onPageChange(target, null, target === 'content' ? 'create' : null)}>{label}</button>)}<button className="role-ai" onClick={() => window.dispatchEvent(new CustomEvent('aloo:open-ai'))}><Sparkles size={17} /> AI yordamchi</button></div>
+        <button className="role-refresh" onClick={load} disabled={loading}><RefreshCw size={18} className={loading ? 'spin' : ''} /></button>
+      </section>
 
       <section className="kpi-grid">
         <KpiCard icon={FileText} label="Jami kontentlar" value={metrics.totalPosts} note="barcha yaratilgan materiallar" />
@@ -135,7 +155,7 @@ export default function DashboardPage({ session, notify, onPageChange }) {
         <article className="dashboard-card quick-actions-card">
           <div className="card-header"><div><h3>Tezkor amallar</h3><p>Ko‘p ishlatiladigan funksiyalar</p></div></div>
           <div className="quick-actions-grid">
-            <button onClick={() => onPageChange('content')}><span><FileText size={21} /></span><b>Yangi kontent</b><small>Post yoki reels qo‘shish</small></button>
+            <button onClick={() => onPageChange('content', null, 'create')}><span><FileText size={21} /></span><b>Yangi kontent</b><small>Post yoki reels qo‘shish</small></button>
             <button onClick={() => onPageChange('calendar')}><span><CalendarDays size={21} /></span><b>Kalendar</b><small>Oylik rejani ko‘rish</small></button>
             <button onClick={() => onPageChange('campaigns')}><span><Megaphone size={21} /></span><b>Kampaniya</b><small>Promo kampaniya yaratish</small></button>
             <button onClick={() => onPageChange('ads')}><span><Target size={21} /></span><b>Target reklama</b><small>Reklama natijalarini kiritish</small></button>

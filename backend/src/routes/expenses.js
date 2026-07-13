@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { authRequired, permissionRequired } from '../middleware/auth.js';
+import { publishRealtime } from '../services/realtime.js';
+import { sendPushToUsers } from '../services/push.js';
 
 const router = Router();
 router.use(authRequired);
@@ -253,7 +255,9 @@ router.post('/', permissionRequired('expenses.manage'), async (request, response
     await client.query(`INSERT INTO audit_logs(user_id,action,ip_address,metadata) VALUES($1,'expense.create',$2,$3::jsonb)`, [request.user.id, request.ip, JSON.stringify({ expenseId: id, title: data.title, amount: data.amount })]);
     await client.query('COMMIT');
     const result = await pool.query(`${expenseSelect} WHERE e.id=$1`, [id]);
-    response.status(201).json({ item: mapExpense(result.rows[0]) });
+    const item = mapExpense(result.rows[0]);
+    publishRealtime('expense.created', { item });
+    response.status(201).json({ item });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     next(error);
@@ -279,7 +283,9 @@ router.put('/:id', permissionRequired('expenses.manage'), async (request, respon
     await client.query(`INSERT INTO audit_logs(user_id,action,ip_address,metadata) VALUES($1,'expense.update',$2,$3::jsonb)`, [request.user.id, request.ip, JSON.stringify({ expenseId: id, title: data.title, amount: data.amount })]);
     await client.query('COMMIT');
     const result = await pool.query(`${expenseSelect} WHERE e.id=$1`, [id]);
-    response.json({ item: mapExpense(result.rows[0]) });
+    const item = mapExpense(result.rows[0]);
+    publishRealtime('expense.updated', { item });
+    response.json({ item });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     next(error);
@@ -311,7 +317,11 @@ router.patch('/:id/status', permissionRequired('expenses.manage'), async (reques
     }
     await client.query('COMMIT');
     const result = await pool.query(`${expenseSelect} WHERE e.id=$1`, [id]);
-    response.json({ item: mapExpense(result.rows[0]) });
+    const item = mapExpense(result.rows[0]);
+    const recipients = recipientId && recipientId !== Number(request.user.id) ? [recipientId] : [];
+    publishRealtime('expense.status', { expenseId: id, title: item.title, status: item.status, message: `${item.title}: ${item.status}` }, recipients.length ? recipients : null);
+    if (recipients.length) void sendPushToUsers(recipients, { title: 'Xarajat statusi yangilandi', body: `${item.title}: ${item.status}`, icon: '/favicon-192.png', badge: '/favicon-32.png', url: `/xarajatlar?entityId=${id}`, tag: `expense-${id}` });
+    response.json({ item });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     next(error);
@@ -324,6 +334,7 @@ router.delete('/:id', permissionRequired('expenses.manage'), async (request, res
     const { rows } = await pool.query('DELETE FROM expenses WHERE id=$1 RETURNING id,title,amount', [id]);
     if (!rows[0]) return response.status(404).json({ message: 'Xarajat topilmadi.' });
     await pool.query(`INSERT INTO audit_logs(user_id,action,ip_address,metadata) VALUES($1,'expense.delete',$2,$3::jsonb)`, [request.user.id, request.ip, JSON.stringify({ expenseId: id, title: rows[0].title, amount: Number(rows[0].amount) })]);
+    publishRealtime('expense.deleted', { expenseId: id, title: rows[0].title });
     response.json({ ok: true });
   } catch (error) { next(error); }
 });

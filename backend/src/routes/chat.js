@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { authRequired, permissionRequired } from '../middleware/auth.js';
+import { publishRealtime } from '../services/realtime.js';
+import { sendPushToUsers } from '../services/push.js';
 
 const router = Router();
 router.use(authRequired, permissionRequired('chat.use'));
@@ -286,8 +288,8 @@ router.post('/channels/:id/messages', async (request, response, next) => {
           LEFT JOIN user_preferences up ON up.user_id=cm.user_id
           WHERE cm.channel_id=$1 AND cm.user_id<>$2
             AND COALESCE((up.preferences->>'chatNotifications')::boolean,TRUE)=TRUE`, [channelId, request.user.id]);
-    if (recipients.rows.length) {
-      const recipientIds = recipients.rows.map((row) => Number(row.id));
+    const recipientIds = recipients.rows.map((row) => Number(row.id));
+    if (recipientIds.length) {
       await client.query(
         `INSERT INTO notifications(user_id,notification_type,title,message,link_page,link_entity_id,metadata)
          SELECT unnest($1::bigint[]),'chat_message',$2,$3,'chat',$4,$5::jsonb`,
@@ -295,6 +297,24 @@ router.post('/channels/:id/messages', async (request, response, next) => {
       );
     }
     await client.query('COMMIT');
+    publishRealtime('chat.message', {
+      channelId,
+      messageId: Number(messageId),
+      senderId: Number(request.user.id),
+      senderName: request.user.full_name,
+      message: data.body.slice(0, 180),
+    }, recipientIds.length ? recipientIds : null);
+    if (recipientIds.length) {
+      void sendPushToUsers(recipientIds, {
+        title: request.user.full_name,
+        body: data.body.slice(0, 180),
+        icon: '/favicon-192.png',
+        badge: '/favicon-32.png',
+        url: `/chat?entityId=${channelId}`,
+        tag: `chat-${channelId}`,
+        renotify: true,
+      });
+    }
     const result = await pool.query(
       `SELECT m.id,m.channel_id,m.sender_id,m.body,m.reply_to_id,m.is_edited,m.is_deleted,m.created_at,m.updated_at,
               u.full_name AS sender_name,u.avatar_url AS sender_avatar_url,
@@ -339,6 +359,7 @@ router.put('/messages/:id', async (request, response, next) => {
       [parsed.data.body, Number(request.params.id), request.user.id],
     );
     if (!rows[0]) return response.status(404).json({ message: 'Xabar topilmadi yoki uni tahrirlash mumkin emas.' });
+    publishRealtime('chat.message.updated', { messageId: Number(request.params.id), body: parsed.data.body });
     response.json({ ok: true });
   } catch (error) { next(error); }
 });
@@ -351,6 +372,7 @@ router.delete('/messages/:id', async (request, response, next) => {
       [Number(request.params.id), request.user.id, request.user.role],
     );
     if (!rows[0]) return response.status(404).json({ message: 'Xabar topilmadi yoki uni o‘chirish mumkin emas.' });
+    publishRealtime('chat.message.deleted', { messageId: Number(request.params.id) });
     response.json({ ok: true });
   } catch (error) { next(error); }
 });

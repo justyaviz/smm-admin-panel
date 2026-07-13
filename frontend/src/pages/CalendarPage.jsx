@@ -37,10 +37,13 @@ function presetDateForDay(day) {
   return date.toISOString();
 }
 
-export default function CalendarPage({ session, notify }) {
+export default function CalendarPage({ session, notify, initialAction = null }) {
   const [cursor, setCursor] = useState(() => new Date());
   const [items, setItems] = useState([]);
   const [metadata, setMetadata] = useState({ platforms: [], branches: [], users: [] });
+  const [templates, setTemplates] = useState([]);
+  const [draggingId, setDraggingId] = useState(null);
+  const [dropKey, setDropKey] = useState('');
   const [filters, setFilters] = useState({ platformId: '', branchId: '' });
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
@@ -52,8 +55,12 @@ export default function CalendarPage({ session, notify }) {
   const days = useMemo(() => makeCalendarDays(cursor), [cursor]);
 
   const loadMetadata = useCallback(async () => {
-    const result = await apiRequest('/api/meta', { headers: authHeaders(session.token) });
+    const [result, templateResult] = await Promise.all([
+      apiRequest('/api/meta', { headers: authHeaders(session.token) }),
+      apiRequest('/api/templates', { headers: authHeaders(session.token) }).catch(() => ({ items: [] })),
+    ]);
     setMetadata(result);
+    setTemplates(templateResult.items || []);
   }, [session.token]);
 
   const loadCalendar = useCallback(async () => {
@@ -73,6 +80,7 @@ export default function CalendarPage({ session, notify }) {
 
   useEffect(() => { void loadMetadata().catch((error) => notify(error.message)); }, [loadMetadata, notify]);
   useEffect(() => { void loadCalendar(); }, [loadCalendar]);
+  useEffect(() => { if (initialAction === 'create') openCreate(); }, [initialAction]);
 
   const eventsByDay = useMemo(() => {
     const map = new Map();
@@ -129,6 +137,22 @@ export default function CalendarPage({ session, notify }) {
     }
   };
 
+
+  const dropEvent = async (day) => {
+    if (!draggingId) return;
+    const current = items.find((item) => Number(item.id) === Number(draggingId));
+    if (!current) return;
+    const target = new Date(day);
+    const original = current.publishAt ? new Date(current.publishAt) : new Date();
+    target.setHours(original.getHours() || 10, original.getMinutes() || 0, 0, 0);
+    setItems((list) => list.map((item) => Number(item.id) === Number(draggingId) ? { ...item, publishAt: target.toISOString(), status: item.status === 'draft' ? 'scheduled' : item.status } : item));
+    try {
+      await apiRequest(`/api/content/${draggingId}/schedule`, { method: 'PATCH', headers: authHeaders(session.token), body: JSON.stringify({ publishAt: target.toISOString() }) });
+      notify(`Kontent ${target.toLocaleDateString('uz-UZ')} sanasiga ko‘chirildi.`);
+    } catch (error) { notify(error.message); await loadCalendar(); }
+    finally { setDraggingId(null); setDropKey(''); }
+  };
+
   const moveMonth = (offset) => setCursor((current) => new Date(current.getFullYear(), current.getMonth() + offset, 1));
 
   return (
@@ -152,6 +176,7 @@ export default function CalendarPage({ session, notify }) {
             <div className="calendar-filters"><label><Filter size={15} /><select value={filters.platformId} onChange={(event) => setFilters((current) => ({ ...current, platformId: event.target.value }))}><option value="">Barcha platformalar</option>{metadata.platforms.map((platform) => <option key={platform.id} value={platform.id}>{platform.name}</option>)}</select></label><label><select value={filters.branchId} onChange={(event) => setFilters((current) => ({ ...current, branchId: event.target.value }))}><option value="">Barcha filiallar</option>{metadata.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></label><button className="icon-action" onClick={loadCalendar}><RefreshCw size={17} className={loading ? 'spin' : ''} /></button></div>
           </div>
 
+          <div className="calendar-drag-hint">Kontentni ushlab boshqa kunga tashlang — sana avtomatik saqlanadi.</div>
           <div className="calendar-week-head">{weekNames.map((name) => <div key={name}>{name}</div>)}</div>
           <div className="calendar-grid">
             {days.map((day) => {
@@ -160,11 +185,11 @@ export default function CalendarPage({ session, notify }) {
               const outside = day.getMonth() !== cursor.getMonth();
               const today = dateKey(day) === dateKey(new Date());
               return (
-                <div key={key} className={`calendar-day ${outside ? 'calendar-day--outside' : ''} ${today ? 'calendar-day--today' : ''}`}>
+                <div key={key} onDragOver={(event) => { event.preventDefault(); setDropKey(key); }} onDragLeave={() => setDropKey((value) => value === key ? '' : value)} onDrop={(event) => { event.preventDefault(); void dropEvent(day); }} className={`calendar-day ${outside ? 'calendar-day--outside' : ''} ${today ? 'calendar-day--today' : ''} ${dropKey === key ? 'calendar-day--drop' : ''}`}>
                   <div className="calendar-day-head"><span>{day.getDate()}</span><button onClick={() => openCreate(day)} title="Shu kunga kontent qo‘shish"><Plus size={14} /></button></div>
                   <div className="day-events">
                     {events.slice(0, 4).map((item) => (
-                      <button key={item.id} className="calendar-event" style={{ '--platform-color': item.platform.color }} onClick={() => openEvent(item)}>
+                      <button key={item.id} draggable onDragStart={(event) => { setDraggingId(item.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', String(item.id)); }} onDragEnd={() => { setDraggingId(null); setDropKey(''); }} className={`calendar-event ${Number(draggingId) === Number(item.id) ? 'calendar-event--dragging' : ''}`} style={{ '--platform-color': item.platform.color }} onClick={() => openEvent(item)}>
                         <i /><span>{item.title}</span><small>{new Date(item.publishAt).toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' })}</small>
                       </button>
                     ))}
@@ -189,7 +214,7 @@ export default function CalendarPage({ session, notify }) {
         </aside>
       </section>
 
-      {modalOpen && <ContentFormModal item={modalItem} metadata={metadata} presetDate={presetDate} onClose={() => { setModalOpen(false); setModalItem(null); setPresetDate(null); }} onSave={save} saving={saving} />}
+      {modalOpen && <ContentFormModal item={modalItem} metadata={metadata} templates={templates} currentUser={session.user} sessionToken={session.token} presetDate={presetDate} onClose={() => { setModalOpen(false); setModalItem(null); setPresetDate(null); }} onSave={save} saving={saving} />}
     </div>
   );
 }

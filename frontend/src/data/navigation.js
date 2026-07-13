@@ -35,6 +35,7 @@ export const menuItems = [
 export const statusLabels = {
   draft: 'Draft',
   review: 'Tekshiruvda',
+  changes_requested: 'Tuzatish kerak',
   approved: 'Tasdiqlandi',
   scheduled: 'Rejalashtirildi',
   published: 'Chop etildi',

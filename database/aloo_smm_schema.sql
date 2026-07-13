@@ -963,3 +963,162 @@ WHERE r.code IN ('targetolog','designer','mobilograf','copywriter','analyst')
 ON CONFLICT DO NOTHING;
 
 COMMIT;
+
+-- Step 10: Productivity, workflow, AI, realtime and PWA support
+BEGIN;
+
+ALTER TABLE content_items ADD COLUMN IF NOT EXISTS template_id BIGINT;
+ALTER TABLE content_items ADD COLUMN IF NOT EXISTS last_activity_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE content_items ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname='content_items_template_id_fkey'
+  ) THEN
+    ALTER TABLE content_items ADD CONSTRAINT content_items_template_id_fkey
+      FOREIGN KEY(template_id) REFERENCES content_templates(id) ON DELETE SET NULL;
+  END IF;
+EXCEPTION WHEN undefined_table THEN
+  NULL;
+END $$;
+
+ALTER TABLE content_items DROP CONSTRAINT IF EXISTS content_status_allowed;
+ALTER TABLE content_items ADD CONSTRAINT content_status_allowed CHECK (
+  status IN ('draft','review','changes_requested','approved','scheduled','published','cancelled')
+);
+CREATE INDEX IF NOT EXISTS idx_content_items_deleted_at ON content_items(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_content_items_last_activity ON content_items(last_activity_at DESC);
+
+CREATE TABLE IF NOT EXISTS content_templates (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(120) NOT NULL,
+  category VARCHAR(60) NOT NULL DEFAULT 'Umumiy',
+  icon VARCHAR(30) NOT NULL DEFAULT 'sparkles',
+  title_template VARCHAR(220) NOT NULL DEFAULT '',
+  description_template TEXT NOT NULL DEFAULT '',
+  content_type VARCHAR(30) NOT NULL DEFAULT 'post',
+  platform_code VARCHAR(30) NOT NULL DEFAULT 'instagram',
+  tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by BIGINT REFERENCES app_users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT content_templates_type_allowed CHECK(content_type IN ('post','reels','story','shorts','video','carousel','banner','live'))
+);
+DELETE FROM content_templates a
+USING content_templates b
+WHERE a.name=b.name AND a.id>b.id;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_content_templates_name ON content_templates(name);
+CREATE INDEX IF NOT EXISTS idx_content_templates_active ON content_templates(is_active,sort_order,name);
+DROP TRIGGER IF EXISTS trg_content_templates_updated_at ON content_templates;
+CREATE TRIGGER trg_content_templates_updated_at BEFORE UPDATE ON content_templates FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname='content_items_template_id_fkey'
+  ) THEN
+    ALTER TABLE content_items ADD CONSTRAINT content_items_template_id_fkey
+      FOREIGN KEY(template_id) REFERENCES content_templates(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+
+CREATE TABLE IF NOT EXISTS content_comments (
+  id BIGSERIAL PRIMARY KEY,
+  content_id BIGINT NOT NULL REFERENCES content_items(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE RESTRICT,
+  body TEXT NOT NULL,
+  comment_type VARCHAR(30) NOT NULL DEFAULT 'comment',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT content_comments_body_nonempty CHECK(length(trim(body))>=1),
+  CONSTRAINT content_comments_type_allowed CHECK(comment_type IN ('comment','change_request','approval'))
+);
+CREATE INDEX IF NOT EXISTS idx_content_comments_content ON content_comments(content_id,created_at);
+
+CREATE TABLE IF NOT EXISTS ai_activity_logs (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT REFERENCES app_users(id) ON DELETE SET NULL,
+  task VARCHAR(60) NOT NULL,
+  prompt TEXT NOT NULL,
+  result TEXT NOT NULL,
+  provider VARCHAR(30) NOT NULL DEFAULT 'local',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ai_activity_user ON ai_activity_logs(user_id,created_at DESC);
+
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL UNIQUE,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  user_agent TEXT,
+  last_used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+DROP TRIGGER IF EXISTS trg_push_subscriptions_updated_at ON push_subscriptions;
+CREATE TRIGGER trg_push_subscriptions_updated_at BEFORE UPDATE ON push_subscriptions FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64);
+ALTER TABLE media_assets ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_media_assets_hash ON media_assets(content_hash) WHERE content_hash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_media_assets_recent_used ON media_assets(last_used_at DESC NULLS LAST);
+
+INSERT INTO content_templates(name,category,icon,title_template,description_template,content_type,platform_code,tags,sort_order)
+VALUES
+('Yangi mahsulot','Savdo','package','Yangi mahsulot: [nomi]','Yangi mahsulotimiz bilan tanishing! Asosiy afzalliklar, narx va muddatli to‘lov haqida yozing. CTA: yaqin filialga tashrif buyuring.','post','instagram',ARRAY['yangi','mahsulot'],10),
+('Chegirma e’loni','Aksiya','badge-percent','[Aksiya nomi] boshlandi!','Chegirma muddati, eski va yangi narx, filiallar hamda aniq CTA ni kiriting.','post','instagram',ARRAY['aksiya','chegirma'],20),
+('Filial aksiyasi','Filial','store','[Filial]da maxsus aksiya','Filial nomi, manzili, aksiya muddati va sovg‘alarni ko‘rsating.','banner','telegram',ARRAY['filial','aksiya'],30),
+('Mamnun mijoz','Ishonch','heart-handshake','Mijozimiz fikri','Mijoz tajribasi, qanday mahsulot olgani va nima uchun aloo’ni tanlaganini qisqa yozing.','reels','instagram',ARRAY['mijoz','fikr'],40),
+('Reels ssenariysi','Video','clapperboard','[Mavzu] bo‘yicha Reels','HOOK (0–3s)\nKADR 1 (3–8s)\nKADR 2 (8–18s)\nISBOT/NARX (18–25s)\nCTA (25–30s)','reels','instagram',ARRAY['reels','ssenariy'],50),
+('Story savol-javob','Interaktiv','message-circle-question','Sizningcha...?','1-story: savol\n2-story: variantlar\n3-story: to‘g‘ri javob yoki mahsulot foydasi\n4-story: CTA','story','instagram',ARRAY['story','savol'],60),
+('YouTube obzor','Video','youtube','[Mahsulot] to‘liq obzor','Kirish, dizayn, xususiyatlar, real test, kimga mos, narx va yakuniy xulosa.','video','youtube',ARRAY['youtube','obzor'],70),
+('Telegram e’lon','E’lon','send','Muhim yangilik','Qisqa sarlavha, 3 ta asosiy foyda, manzil/aloqa va CTA.','post','telegram',ARRAY['telegram','elon'],80)
+ON CONFLICT (name) DO UPDATE SET
+  category=EXCLUDED.category,
+  icon=EXCLUDED.icon,
+  title_template=EXCLUDED.title_template,
+  description_template=EXCLUDED.description_template,
+  content_type=EXCLUDED.content_type,
+  platform_code=EXCLUDED.platform_code,
+  tags=EXCLUDED.tags,
+  sort_order=EXCLUDED.sort_order,
+  is_active=TRUE;
+
+INSERT INTO permissions(code,name,description,permission_group,sort_order) VALUES
+('ai.use','AI yordamchidan foydalanish','Caption, hook, ssenariy, tarjima va g‘oyalar yaratish','Kontent',33),
+('templates.manage','Kontent shablonlarini boshqarish','Shablon yaratish, tahrirlash va o‘chirish','Kontent',34)
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,permission_group=EXCLUDED.permission_group,sort_order=EXCLUDED.sort_order;
+
+INSERT INTO role_permissions(role_code,permission_code)
+SELECT r.code,p.code FROM roles r CROSS JOIN permissions p
+WHERE p.code='ai.use' AND r.code IN ('admin','smm_manager','targetolog','designer','mobilograf','copywriter','analyst')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO role_permissions(role_code,permission_code)
+SELECT r.code,p.code FROM roles r CROSS JOIN permissions p
+WHERE p.code='templates.manage' AND r.code IN ('admin','smm_manager')
+ON CONFLICT DO NOTHING;
+
+UPDATE user_preferences
+SET preferences = preferences || '{"theme":"system","reducedMotion":false,"offlineDrafts":true,"smartNotifications":true}'::jsonb;
+
+COMMIT;
+
+-- Step 10.1: media kutubxonasidan kontentga bir bosishda cover biriktirish
+ALTER TABLE content_items ADD COLUMN IF NOT EXISTS cover_media_id BIGINT;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname='content_items_cover_media_id_fkey'
+  ) THEN
+    ALTER TABLE content_items
+      ADD CONSTRAINT content_items_cover_media_id_fkey
+      FOREIGN KEY (cover_media_id) REFERENCES media_assets(id) ON DELETE SET NULL;
+  END IF;
+END $$;
+CREATE INDEX IF NOT EXISTS idx_content_items_cover_media_id ON content_items(cover_media_id);

@@ -14,7 +14,7 @@ function Stat({ icon: Icon, label, value, note, tone = 'blue' }) {
   return <article className="operations-stat"><span className={`operations-stat__icon operations-stat__icon--${tone}`}><Icon size={20} /></span><div><small>{label}</small><strong>{value}</strong><em>{note}</em></div></article>;
 }
 
-export default function ExpensesPage({ session, notify }) {
+export default function ExpensesPage({ session, notify, initialAction = null }) {
   const [items, setItems] = useState([]);
   const [summary, setSummary] = useState(emptySummary);
   const [categoryStats, setCategoryStats] = useState([]);
@@ -52,7 +52,14 @@ export default function ExpensesPage({ session, notify }) {
     finally { setLoading(false); }
   };
   useEffect(() => { void load(); }, [filters.status, filters.categoryId, filters.branchId, filters.month]);
+  useEffect(() => { if (initialAction === 'create' && canManage) setModal({ open: true, item: null }); }, [initialAction, canManage]);
   useEffect(() => { const timer = setTimeout(() => void load(), 350); return () => clearTimeout(timer); }, [filters.search]);
+  useEffect(() => {
+    const refresh = () => void load();
+    const events = ['expense.created','expense.updated','expense.status','expense.deleted'];
+    events.forEach((name) => window.addEventListener(`aloo:realtime:${name}`, refresh));
+    return () => events.forEach((name) => window.removeEventListener(`aloo:realtime:${name}`, refresh));
+  }, [filters.status, filters.categoryId, filters.branchId, filters.month, filters.search]);
 
   const save = async (form) => {
     setSaving(true);

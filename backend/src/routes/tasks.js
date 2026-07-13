@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
 import { authRequired, permissionRequired } from '../middleware/auth.js';
+import { publishRealtime } from '../services/realtime.js';
+import { sendPushToUsers } from '../services/push.js';
 
 const router = Router();
 router.use(authRequired);
@@ -198,7 +200,13 @@ router.post('/', permissionRequired('tasks.manage'), async (request, response, n
     }
     await client.query('COMMIT');
     const result = await pool.query(`${taskSelect} WHERE t.id=$1`, [id]);
-    response.status(201).json({ item: mapTask(result.rows[0]) });
+    const item = mapTask(result.rows[0]);
+    publishRealtime('task.created', { item });
+    if (item.assignedTo && Number(item.assignedTo) !== Number(request.user.id)) {
+      publishRealtime('task.assigned', { taskId: item.id, title: item.title, message: item.title }, [item.assignedTo]);
+      void sendPushToUsers([item.assignedTo], { title: 'Yangi vazifa', body: item.title, icon: '/favicon-192.png', badge: '/favicon-32.png', url: `/vazifalar?entityId=${item.id}`, tag: `task-${item.id}` });
+    }
+    response.status(201).json({ item });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     next(error);
@@ -232,7 +240,13 @@ router.put('/:id', permissionRequired('tasks.manage'), async (request, response,
     }
     await client.query('COMMIT');
     const result = await pool.query(`${taskSelect} WHERE t.id=$1`, [id]);
-    response.json({ item: mapTask(result.rows[0]) });
+    const item = mapTask(result.rows[0]);
+    publishRealtime('task.updated', { item });
+    if (data.assignedTo && Number(data.assignedTo) !== Number(old.rows[0].assigned_to || 0) && Number(data.assignedTo) !== Number(request.user.id)) {
+      publishRealtime('task.assigned', { taskId: item.id, title: item.title, message: item.title }, [Number(data.assignedTo)]);
+      void sendPushToUsers([Number(data.assignedTo)], { title: 'Vazifa sizga biriktirildi', body: item.title, icon: '/favicon-192.png', badge: '/favicon-32.png', url: `/vazifalar?entityId=${item.id}`, tag: `task-${item.id}` });
+    }
+    response.json({ item });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     next(error);
@@ -258,7 +272,11 @@ router.patch('/:id/status', permissionRequired('tasks.manage'), async (request, 
     await client.query(`INSERT INTO audit_logs(user_id,action,ip_address,metadata) VALUES($1,'task.status',$2,$3::jsonb)`, [request.user.id, request.ip, JSON.stringify({ taskId: id, status: parsed.data.status })]);
     await client.query('COMMIT');
     const result = await pool.query(`${taskSelect} WHERE t.id=$1`, [id]);
-    response.json({ item: mapTask(result.rows[0]) });
+    const item = mapTask(result.rows[0]);
+    const recipients = [...new Set([item.assignedTo, item.createdBy].filter((userId) => userId && Number(userId) !== Number(request.user.id)))];
+    publishRealtime('task.status', { taskId: item.id, title: item.title, status: item.status, message: `${item.title}: ${item.status}` }, recipients.length ? recipients : null);
+    if (recipients.length) void sendPushToUsers(recipients, { title: 'Vazifa statusi yangilandi', body: `${item.title}: ${item.status}`, icon: '/favicon-192.png', badge: '/favicon-32.png', url: `/vazifalar?entityId=${item.id}`, tag: `task-${item.id}` });
+    response.json({ item });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     next(error);
@@ -274,6 +292,7 @@ router.post('/:id/comments', permissionRequired('tasks.view', 'tasks.manage'), a
     if (!exists.rowCount) return response.status(404).json({ message: 'Vazifa topilmadi.' });
     const { rows } = await pool.query(`INSERT INTO task_comments(task_id,user_id,body) VALUES($1,$2,$3) RETURNING id,body,created_at`, [id, request.user.id, parsed.data.body]);
     await pool.query(`INSERT INTO audit_logs(user_id,action,ip_address,metadata) VALUES($1,'task.comment',$2,$3::jsonb)`, [request.user.id, request.ip, JSON.stringify({ taskId: id })]);
+    publishRealtime('task.comment', { taskId: id, message: parsed.data.body.slice(0, 180), userId: Number(request.user.id) });
     response.status(201).json({ comment: { id: Number(rows[0].id), body: rows[0].body, createdAt: rows[0].created_at, user: { id: Number(request.user.id), fullName: request.user.full_name, role: request.user.role } } });
   } catch (error) { next(error); }
 });
@@ -284,6 +303,7 @@ router.delete('/:id', permissionRequired('tasks.manage'), async (request, respon
     const { rows } = await pool.query('DELETE FROM tasks WHERE id=$1 RETURNING id,title', [id]);
     if (!rows[0]) return response.status(404).json({ message: 'Vazifa topilmadi.' });
     await pool.query(`INSERT INTO audit_logs(user_id,action,ip_address,metadata) VALUES($1,'task.delete',$2,$3::jsonb)`, [request.user.id, request.ip, JSON.stringify({ taskId: id, title: rows[0].title })]);
+    publishRealtime('task.deleted', { taskId: id, title: rows[0].title });
     response.json({ ok: true });
   } catch (error) { next(error); }
 });

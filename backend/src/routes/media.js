@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
@@ -80,7 +80,7 @@ function mediaSelect() {
       m.id, m.display_name, m.original_name, m.file_name, m.mime_type, m.media_type,
       m.extension, m.size_bytes, m.width, m.height, m.duration_seconds,
       m.description, m.alt_text, m.tags, m.status, m.is_favorite, m.download_count,
-      m.created_at, m.updated_at,
+      m.content_hash, m.last_used_at, m.created_at, m.updated_at,
       f.id AS folder_id, f.name AS folder_name, f.color AS folder_color,
       b.id AS branch_id, b.name AS branch_name,
       u.full_name AS uploader_name
@@ -110,6 +110,8 @@ function mapAsset(row) {
     status: row.status,
     isFavorite: Boolean(row.is_favorite),
     downloadCount: Number(row.download_count || 0),
+    contentHash: row.content_hash || null,
+    lastUsedAt: row.last_used_at || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     folder: row.folder_id ? { id: Number(row.folder_id), name: row.folder_name, color: row.folder_color } : null,
@@ -211,6 +213,21 @@ router.delete('/folders/:id', permissionRequired('media.manage'), async (request
   } catch (error) { return next(error); }
 });
 
+router.get('/recent', permissionRequired('media.view'), async (request, response, next) => {
+  try {
+    const { rows } = await pool.query(`${mediaSelect()} WHERE m.status='active' ORDER BY m.last_used_at DESC NULLS LAST,m.created_at DESC LIMIT 12`);
+    response.json({ items: rows.map(mapAsset) });
+  } catch (error) { next(error); }
+});
+
+router.post('/:id/use', permissionRequired('media.view'), async (request, response, next) => {
+  try {
+    const { rows } = await pool.query('UPDATE media_assets SET last_used_at=NOW() WHERE id=$1 RETURNING id', [Number(request.params.id)]);
+    if (!rows[0]) return response.status(404).json({ message: 'Media topilmadi.' });
+    response.json({ ok: true });
+  } catch (error) { next(error); }
+});
+
 router.get('/', permissionRequired('media.view'), async (request, response, next) => {
   try {
     const conditions = [];
@@ -256,21 +273,29 @@ router.post('/upload', permissionRequired('media.manage'), async (request, respo
 
     await client.query('BEGIN');
     const ids = [];
+    const duplicateIds = [];
     for (const file of parsedFiles) {
+      const contentHash = createHash('sha256').update(file.buffer).digest('hex');
+      const existing = await client.query(`SELECT id FROM media_assets WHERE content_hash=$1 AND status='active' LIMIT 1`, [contentHash]);
+      if (existing.rows[0]) {
+        duplicateIds.push(Number(existing.rows[0].id));
+        continue;
+      }
       const storedName = `${randomUUID()}${file.extension ? `.${file.extension}` : ''}`;
       const result = await client.query(
         `INSERT INTO media_assets (
           display_name,original_name,file_name,mime_type,media_type,extension,size_bytes,file_data,
-          folder_id,branch_id,description,alt_text,tags,uploaded_by
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) RETURNING id`,
-        [displayName && parsedFiles.length === 1 ? displayName : file.name, file.name, storedName, file.mimeType, file.mediaType, file.extension, file.buffer.length, file.buffer, folderId, branchId, description, altText, tags, request.user.id],
+          folder_id,branch_id,description,alt_text,tags,uploaded_by,content_hash
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) RETURNING id`,
+        [displayName && parsedFiles.length === 1 ? displayName : file.name, file.name, storedName, file.mimeType, file.mediaType, file.extension, file.buffer.length, file.buffer, folderId, branchId, description, altText, tags, request.user.id, contentHash],
       );
       ids.push(Number(result.rows[0].id));
     }
-    await client.query(`INSERT INTO audit_logs (user_id,action,ip_address,metadata) VALUES ($1,'media.upload',$2,$3::jsonb)`, [request.user.id, request.ip, JSON.stringify({ assetIds: ids, count: ids.length })]);
+    await client.query(`INSERT INTO audit_logs (user_id,action,ip_address,metadata) VALUES ($1,'media.upload',$2,$3::jsonb)`, [request.user.id, request.ip, JSON.stringify({ assetIds: ids, count: ids.length, duplicateIds })]);
     await client.query('COMMIT');
-    const { rows } = await pool.query(`${mediaSelect()} WHERE m.id=ANY($1::bigint[]) ORDER BY m.created_at DESC`, [ids]);
-    return response.status(201).json({ items: rows.map(mapAsset) });
+    const allIds = [...ids, ...duplicateIds];
+    const { rows } = allIds.length ? await pool.query(`${mediaSelect()} WHERE m.id=ANY($1::bigint[]) ORDER BY m.created_at DESC`, [allIds]) : { rows: [] };
+    return response.status(ids.length ? 201 : 200).json({ items: rows.map(mapAsset), uploadedCount: ids.length, duplicateIds });
   } catch (error) {
     await client.query('ROLLBACK').catch(() => {});
     if (error.message?.includes('MB') || error.message?.includes('fayl')) return response.status(400).json({ message: error.message });

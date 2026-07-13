@@ -1,6 +1,7 @@
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize } from 'node:path';
+import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 
 const root = join(fileURLToPath(new URL('.', import.meta.url)), 'dist');
@@ -82,15 +83,30 @@ async function proxyApi(request, response, rawPath) {
       redirect: 'manual',
     });
 
-    const payload = Buffer.from(await upstream.arrayBuffer());
+    const contentType = upstream.headers.get('content-type') || 'application/json; charset=utf-8';
     response.statusCode = upstream.status;
-    response.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json; charset=utf-8');
+    response.setHeader('Content-Type', contentType);
     const disposition = upstream.headers.get('content-disposition');
     if (disposition) response.setHeader('Content-Disposition', disposition);
     const length = upstream.headers.get('content-length');
     if (length) response.setHeader('Content-Length', length);
-    response.setHeader('Cache-Control', 'no-store');
     response.setHeader('X-Content-Type-Options', 'nosniff');
+
+    if (contentType.includes('text/event-stream') && upstream.body) {
+      clearTimeout(timeout);
+      response.setHeader('Cache-Control', 'no-cache');
+      response.setHeader('Connection', 'keep-alive');
+      response.setHeader('X-Accel-Buffering', 'no');
+      response.flushHeaders?.();
+      response.on('close', () => controller.abort());
+      const stream = Readable.fromWeb(upstream.body);
+      stream.on('error', () => { if (!response.writableEnded) response.end(); });
+      stream.pipe(response);
+      return;
+    }
+
+    const payload = Buffer.from(await upstream.arrayBuffer());
+    response.setHeader('Cache-Control', 'no-store');
     response.end(payload);
   } catch (error) {
     const timeoutError = error?.name === 'AbortError';

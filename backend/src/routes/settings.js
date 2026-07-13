@@ -163,7 +163,7 @@ router.get('/system', permissionRequired('settings.manage'), async (_request, re
        (SELECT COUNT(*)::int FROM chat_messages WHERE is_deleted=FALSE) AS chat_messages,
        NOW() AS server_time`,
     );
-    response.json({ version: '8.0.0', database: 'PostgreSQL', runtime: 'Node.js', stats: rows[0] });
+    response.json({ version: '10.0.0', database: 'PostgreSQL', runtime: 'Node.js', stats: rows[0] });
   } catch (error) { next(error); }
 });
 

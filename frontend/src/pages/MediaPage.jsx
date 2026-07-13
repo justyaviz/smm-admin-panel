@@ -47,6 +47,7 @@ function ImagePreview({ item, token }) {
 
 export default function MediaPage({ session, notify }) {
   const [items, setItems] = useState([]);
+  const [recentItems, setRecentItems] = useState([]);
   const [folders, setFolders] = useState([]);
   const [branches, setBranches] = useState([]);
   const [summary, setSummary] = useState({ total: 0, images: 0, videos: 0, documents: 0, favorites: 0, storageBytes: 0 });
@@ -72,12 +73,14 @@ export default function MediaPage({ session, notify }) {
     try {
       const query = new URLSearchParams();
       Object.entries(filters).forEach(([key, value]) => value && query.set(key, value));
-      const [listResult, summaryResult] = await Promise.all([
+      const [listResult, summaryResult, recentResult] = await Promise.all([
         apiRequest(`/api/media?${query.toString()}`, { headers: authHeaders(session.token) }),
         apiRequest('/api/media/summary', { headers: authHeaders(session.token) }),
+        apiRequest('/api/media/recent', { headers: authHeaders(session.token) }).catch(() => ({ items: [] })),
       ]);
       setItems(listResult.items || []);
       setSummary(summaryResult.metrics || {});
+      setRecentItems(recentResult.items || []);
     } catch (error) { notify(error.message); }
     finally { setLoading(false); }
   }, [filters, notify, session.token]);
@@ -93,8 +96,9 @@ export default function MediaPage({ session, notify }) {
   const upload = async (payload) => {
     setSaving(true);
     try {
-      await apiRequest('/api/media/upload', { method: 'POST', headers: authHeaders(session.token), body: JSON.stringify(payload) });
-      notify('Media fayllar muvaffaqiyatli yuklandi.');
+      const result = await apiRequest('/api/media/upload', { method: 'POST', headers: authHeaders(session.token), body: JSON.stringify(payload) });
+      if (result.duplicateIds?.length) notify(`${result.uploadedCount || 0} ta fayl yuklandi, ${result.duplicateIds.length} ta takror fayl qayta saqlanmadi.`);
+      else notify('Media fayllar muvaffaqiyatli yuklandi.');
       setUploadOpen(false);
       await Promise.all([loadData(), loadMeta()]);
     } catch (error) { notify(error.message); }
@@ -199,6 +203,8 @@ export default function MediaPage({ session, notify }) {
           </div>
 
           <div className="media-library-heading"><div><h3>{currentFolder?.name || (filters.status === 'archived' ? 'Arxiv' : 'Barcha media')}</h3><p>{items.length} ta fayl ko‘rsatildi</p></div></div>
+
+          {!loading && !filters.search && !filters.folderId && !filters.mediaType && recentItems.length > 0 && <section className="media-recent-strip"><header><div><RefreshCw size={16}/><strong>Oxirgi ishlatilganlar</strong></div><small>Tezkor foydalanish uchun</small></header><div>{recentItems.slice(0,6).map((item)=><button key={item.id} onClick={()=>{setEditItem(item);void apiRequest(`/api/media/${item.id}/use`,{method:'POST',headers:authHeaders(session.token),body:'{}'}).catch(()=>{});}}><span><ImagePreview item={item} token={session.token}/></span><div><strong>{item.displayName}</strong><small>{item.mediaType} · {formatBytes(item.sizeBytes)}</small></div></button>)}</div></section>}
 
           {loading && <div className="media-loading"><span className="spinner spinner--blue"/> Media yuklanmoqda...</div>}
           {!loading && items.length === 0 && <div className="empty-state media-empty"><span><ImageIcon size={28}/></span><h3>Media topilmadi</h3><p>Yangi fayl yuklang yoki filterlarni o‘zgartiring.</p><button className="button-primary" onClick={() => setUploadOpen(true)}><Upload size={17}/> Media yuklash</button></div>}

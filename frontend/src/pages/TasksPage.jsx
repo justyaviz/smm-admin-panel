@@ -25,7 +25,7 @@ function TaskCard({ item, canManage, onOpen, onEdit, onDelete, onDragStart }) {
   </article>;
 }
 
-export default function TasksPage({ session, notify }) {
+export default function TasksPage({ session, notify, initialAction = null, initialEntityId = null }) {
   const [items, setItems] = useState([]);
   const [summary, setSummary] = useState(emptySummary);
   const [metadata, setMetadata] = useState({ branches: [], users: [], platforms: [] });
@@ -59,7 +59,15 @@ export default function TasksPage({ session, notify }) {
   };
 
   useEffect(() => { void load(); }, [filters.status, filters.priority, filters.branchId, filters.assignedTo, filters.mine]);
+  useEffect(() => { if (initialAction === 'create' && canManage) setModal({ open: true, item: null }); }, [initialAction, canManage]);
+  useEffect(() => { if (initialEntityId) setDetailsId(Number(initialEntityId)); }, [initialEntityId]);
   useEffect(() => { const timer = setTimeout(() => void load(), 350); return () => clearTimeout(timer); }, [filters.search]);
+  useEffect(() => {
+    const refresh = () => void load();
+    const events = ['task.created','task.updated','task.assigned','task.status','task.comment','task.deleted'];
+    events.forEach((name) => window.addEventListener(`aloo:realtime:${name}`, refresh));
+    return () => events.forEach((name) => window.removeEventListener(`aloo:realtime:${name}`, refresh));
+  }, [filters.status, filters.priority, filters.branchId, filters.assignedTo, filters.mine, filters.search]);
 
   const grouped = useMemo(() => Object.fromEntries(boardStatuses.map((status) => [status, items.filter((item) => item.status === status)])), [items]);
 
