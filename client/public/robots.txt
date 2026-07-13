@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://smm-admin-panel-fron-production.up.railway.app/sitemap.xml
