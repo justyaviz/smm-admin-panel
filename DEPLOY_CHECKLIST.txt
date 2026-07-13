@@ -1,4 +1,4 @@
-ALOO SMM PANEL — RAILWAY DEPLOY CHECKLIST (v5.0.0)
+ALOO SMM PANEL — RAILWAY DEPLOY CHECKLIST (v6.0.0)
 
 1. PostgreSQL service tayyor.
 
@@ -9,7 +9,7 @@ ALOO SMM PANEL — RAILWAY DEPLOY CHECKLIST (v5.0.0)
    NODE_ENV=production
    DATABASE_URL=${{Postgres.DATABASE_URL}}
    JWT_SECRET=<kamida 32 belgilik doimiy maxfiy kalit>
-   CORS_ORIGIN=https://FRONTEND-DOMAIN.up.railway.app
+   CORS_ORIGIN=https://FRONTEND-DOMAIN.up.railway.app,https://aloosmm.uz
    ADMIN_FULL_NAME=Aloo Admin
    ADMIN_LOGIN=admin
    ADMIN_PASSWORD=123456
@@ -33,6 +33,12 @@ ALOO SMM PANEL — RAILWAY DEPLOY CHECKLIST (v5.0.0)
 
 Eslatma: backend har deployda ADMIN_LOGIN bo‘yicha admin parolini ADMIN_PASSWORD qiymatiga sinxronlaydi.
 
-7. Media tekshiruvi:
+7. Step 6 tekshiruvi:
+   Filiallar -> Yangi filial -> saqlash.
+   Filial kartasi -> Akkauntlar va jamoa -> Instagram akkauntini saqlash.
+   Jamoa -> Xodim qo‘shish -> rol va filial biriktirish.
+   Jamoa -> Rollar va ruxsatlar -> ruxsatlarni saqlash.
+
+8. Media tekshiruvi:
    Media -> Media yuklash -> rasm tanlash -> yuklash.
    Fayllar PostgreSQL ichida saqlanadi; har bir fayl maksimal 8 MB.

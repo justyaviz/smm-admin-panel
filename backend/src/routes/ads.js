@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, permissionRequired } from '../middleware/auth.js';
 
 const router = Router();
 const STATUSES = ['draft', 'active', 'paused', 'completed', 'cancelled'];
@@ -98,7 +98,7 @@ async function getAd(id) {
 
 router.use(authRequired);
 
-router.get('/summary', async (_request, response, next) => {
+router.get('/summary', permissionRequired('ads.view'), async (_request, response, next) => {
   try {
     const { rows } = await pool.query(`
       SELECT
@@ -147,7 +147,7 @@ router.get('/summary', async (_request, response, next) => {
   }
 });
 
-router.get('/', async (request, response, next) => {
+router.get('/', permissionRequired('ads.view'), async (request, response, next) => {
   try {
     const conditions = [];
     const params = [];
@@ -176,7 +176,7 @@ router.get('/', async (request, response, next) => {
   }
 });
 
-router.post('/', async (request, response, next) => {
+router.post('/', permissionRequired('ads.manage'), async (request, response, next) => {
   try {
     const parsed = adSchema.safeParse(request.body);
     if (!parsed.success) return response.status(400).json({ message: 'Reklama ma’lumotlarini tekshiring.', errors: parsed.error.flatten() });
@@ -204,7 +204,7 @@ router.post('/', async (request, response, next) => {
   }
 });
 
-router.put('/:id', async (request, response, next) => {
+router.put('/:id', permissionRequired('ads.manage'), async (request, response, next) => {
   try {
     const id = Number(request.params.id);
     const parsed = adSchema.safeParse(request.body);
@@ -233,7 +233,7 @@ router.put('/:id', async (request, response, next) => {
   }
 });
 
-router.delete('/:id', async (request, response, next) => {
+router.delete('/:id', permissionRequired('ads.manage'), async (request, response, next) => {
   try {
     const id = Number(request.params.id);
     const { rows } = await pool.query('DELETE FROM target_ads WHERE id = $1 RETURNING id, name', [id]);

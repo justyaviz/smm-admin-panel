@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, permissionRequired } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -93,7 +93,7 @@ async function getContentById(id) {
 
 router.use(authRequired);
 
-router.get('/', async (request, response, next) => {
+router.get('/', permissionRequired('content.view'), async (request, response, next) => {
   try {
     const conditions = [];
     const params = [];
@@ -130,7 +130,7 @@ router.get('/', async (request, response, next) => {
   }
 });
 
-router.get('/:id', async (request, response, next) => {
+router.get('/:id', permissionRequired('content.view'), async (request, response, next) => {
   try {
     const item = await getContentById(Number(request.params.id));
     if (!item) return response.status(404).json({ message: 'Kontent topilmadi.' });
@@ -140,7 +140,7 @@ router.get('/:id', async (request, response, next) => {
   }
 });
 
-router.post('/', async (request, response, next) => {
+router.post('/', permissionRequired('content.create'), async (request, response, next) => {
   const client = await pool.connect();
   try {
     const parsed = contentSchema.safeParse(request.body);
@@ -183,7 +183,7 @@ router.post('/', async (request, response, next) => {
   }
 });
 
-router.put('/:id', async (request, response, next) => {
+router.put('/:id', permissionRequired('content.edit'), async (request, response, next) => {
   const client = await pool.connect();
   try {
     const id = Number(request.params.id);
@@ -229,7 +229,7 @@ router.put('/:id', async (request, response, next) => {
   }
 });
 
-router.delete('/:id', async (request, response, next) => {
+router.delete('/:id', permissionRequired('content.delete'), async (request, response, next) => {
   try {
     const id = Number(request.params.id);
     const { rows } = await pool.query('DELETE FROM content_items WHERE id = $1 RETURNING id, title', [id]);

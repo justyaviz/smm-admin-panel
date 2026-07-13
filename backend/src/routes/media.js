@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, permissionRequired } from '../middleware/auth.js';
 
 const router = Router();
 const MAX_FILE_BYTES = 8 * 1024 * 1024;
@@ -126,7 +126,7 @@ async function getAsset(id) {
 
 router.use(authRequired);
 
-router.get('/summary', async (_request, response, next) => {
+router.get('/summary', permissionRequired('media.view'), async (_request, response, next) => {
   try {
     const { rows } = await pool.query(`
       SELECT
@@ -147,7 +147,7 @@ router.get('/summary', async (_request, response, next) => {
   } catch (error) { next(error); }
 });
 
-router.get('/folders', async (_request, response, next) => {
+router.get('/folders', permissionRequired('media.view'), async (_request, response, next) => {
   try {
     const { rows } = await pool.query(`
       SELECT f.id, f.name, f.description, f.color, f.parent_id, f.created_at,
@@ -166,7 +166,7 @@ router.get('/folders', async (_request, response, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/folders', async (request, response, next) => {
+router.post('/folders', permissionRequired('media.manage'), async (request, response, next) => {
   try {
     const parsed = folderSchema.safeParse(request.body);
     if (!parsed.success) return response.status(400).json({ message: 'Papka ma’lumotlarini tekshiring.', errors: parsed.error.flatten() });
@@ -184,7 +184,7 @@ router.post('/folders', async (request, response, next) => {
   }
 });
 
-router.put('/folders/:id', async (request, response, next) => {
+router.put('/folders/:id', permissionRequired('media.manage'), async (request, response, next) => {
   try {
     const id = Number(request.params.id);
     const parsed = folderSchema.safeParse(request.body);
@@ -200,7 +200,7 @@ router.put('/folders/:id', async (request, response, next) => {
   }
 });
 
-router.delete('/folders/:id', async (request, response, next) => {
+router.delete('/folders/:id', permissionRequired('media.manage'), async (request, response, next) => {
   try {
     const id = Number(request.params.id);
     const used = await pool.query(`SELECT (SELECT COUNT(*) FROM media_assets WHERE folder_id=$1) + (SELECT COUNT(*) FROM media_folders WHERE parent_id=$1) AS count`, [id]);
@@ -211,7 +211,7 @@ router.delete('/folders/:id', async (request, response, next) => {
   } catch (error) { return next(error); }
 });
 
-router.get('/', async (request, response, next) => {
+router.get('/', permissionRequired('media.view'), async (request, response, next) => {
   try {
     const conditions = [];
     const params = [];
@@ -238,7 +238,7 @@ router.get('/', async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/upload', async (request, response, next) => {
+router.post('/upload', permissionRequired('media.manage'), async (request, response, next) => {
   const client = await pool.connect();
   try {
     const files = Array.isArray(request.body?.files) ? request.body.files : [];
@@ -278,7 +278,7 @@ router.post('/upload', async (request, response, next) => {
   } finally { client.release(); }
 });
 
-router.get('/:id/file', async (request, response, next) => {
+router.get('/:id/file', permissionRequired('media.view'), async (request, response, next) => {
   try {
     const id = Number(request.params.id);
     const { rows } = await pool.query(`SELECT original_name,mime_type,size_bytes,file_data FROM media_assets WHERE id=$1 LIMIT 1`, [id]);
@@ -295,7 +295,7 @@ router.get('/:id/file', async (request, response, next) => {
   } catch (error) { return next(error); }
 });
 
-router.get('/:id', async (request, response, next) => {
+router.get('/:id', permissionRequired('media.view'), async (request, response, next) => {
   try {
     const item = await getAsset(Number(request.params.id));
     if (!item) return response.status(404).json({ message: 'Media topilmadi.' });
@@ -303,7 +303,7 @@ router.get('/:id', async (request, response, next) => {
   } catch (error) { return next(error); }
 });
 
-router.put('/:id', async (request, response, next) => {
+router.put('/:id', permissionRequired('media.manage'), async (request, response, next) => {
   try {
     const id = Number(request.params.id);
     const parsed = assetUpdateSchema.safeParse(request.body);
@@ -319,7 +319,7 @@ router.put('/:id', async (request, response, next) => {
   } catch (error) { return next(error); }
 });
 
-router.patch('/:id/favorite', async (request, response, next) => {
+router.patch('/:id/favorite', permissionRequired('media.manage'), async (request, response, next) => {
   try {
     const id = Number(request.params.id);
     const { rows } = await pool.query('UPDATE media_assets SET is_favorite=NOT is_favorite WHERE id=$1 RETURNING is_favorite', [id]);
@@ -328,7 +328,7 @@ router.patch('/:id/favorite', async (request, response, next) => {
   } catch (error) { return next(error); }
 });
 
-router.delete('/:id', async (request, response, next) => {
+router.delete('/:id', permissionRequired('media.manage'), async (request, response, next) => {
   try {
     const id = Number(request.params.id);
     const { rows } = await pool.query('DELETE FROM media_assets WHERE id=$1 RETURNING id,display_name', [id]);

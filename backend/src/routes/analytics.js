@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, permissionRequired } from '../middleware/auth.js';
 import { getAnalyticsOverview, normalizeAnalyticsFilters } from '../services/analytics.js';
 
 const router = Router();
@@ -64,13 +64,13 @@ const entrySelect = `
   JOIN app_users u ON u.id = m.created_by
 `;
 
-router.get('/overview', async (request, response, next) => {
+router.get('/overview', permissionRequired('analytics.view'), async (request, response, next) => {
   try {
     response.json(await getAnalyticsOverview(request.query));
   } catch (error) { next(error); }
 });
 
-router.get('/entries', async (request, response, next) => {
+router.get('/entries', permissionRequired('analytics.view'), async (request, response, next) => {
   try {
     const filters = normalizeAnalyticsFilters(request.query);
     const params = [filters.dateFrom, filters.dateTo];
@@ -84,7 +84,7 @@ router.get('/entries', async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/entries', async (request, response, next) => {
+router.post('/entries', permissionRequired('analytics.manage'), async (request, response, next) => {
   try {
     const parsed = metricSchema.safeParse(request.body);
     if (!parsed.success) return response.status(400).json({ message: 'Analitika ma’lumotlarini tekshiring.', errors: parsed.error.flatten() });
@@ -106,7 +106,7 @@ router.post('/entries', async (request, response, next) => {
   } catch (error) { return next(error); }
 });
 
-router.put('/entries/:id', async (request, response, next) => {
+router.put('/entries/:id', permissionRequired('analytics.manage'), async (request, response, next) => {
   try {
     const id = Number(request.params.id);
     const parsed = metricSchema.safeParse(request.body);
@@ -129,7 +129,7 @@ router.put('/entries/:id', async (request, response, next) => {
   } catch (error) { return next(error); }
 });
 
-router.delete('/entries/:id', async (request, response, next) => {
+router.delete('/entries/:id', permissionRequired('analytics.manage'), async (request, response, next) => {
   try {
     const id = Number(request.params.id);
     const { rows } = await pool.query('DELETE FROM analytics_daily_metrics WHERE id=$1 RETURNING id', [id]);

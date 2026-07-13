@@ -27,6 +27,11 @@ export default function AppShell({ page, onPageChange, session, onLogout, notify
   };
   const userRole = roleLabels[session?.user?.role] || session?.user?.role || 'SMM Manager';
   const initials = useMemo(() => userName.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(), [userName]);
+  const visibleMenuItems = useMemo(() => {
+    if (session?.user?.role === 'admin') return menuItems;
+    const granted = new Set(session?.user?.permissions || []);
+    return menuItems.filter((item) => !item.permission || granted.has(item.permission));
+  }, [session?.user?.permissions, session?.user?.role]);
 
   const choosePage = (id) => {
     onPageChange(id);
@@ -45,7 +50,7 @@ export default function AppShell({ page, onPageChange, session, onLogout, notify
           <button className="icon-button sidebar-mobile-close" onClick={() => setMobileNav(false)} aria-label="Menyuni yopish"><X size={20} /></button>
         </div>
         <nav className="sidebar-nav">
-          {menuItems.map(({ id, label, icon: Icon, dot }) => (
+          {visibleMenuItems.map(({ id, label, icon: Icon, dot }) => (
             <button key={id} className={`nav-item ${page === id ? 'nav-item--active' : ''}`} onClick={() => choosePage(id)} title={collapsed ? label : undefined}>
               <Icon size={19} />
               <span>{label}</span>
@@ -54,7 +59,7 @@ export default function AppShell({ page, onPageChange, session, onLogout, notify
           ))}
         </nav>
         <div className="sidebar-footer">
-          <span className="sidebar-version">v5.0 · Media kutubxona</span>
+          <span className="sidebar-version">v6.0 · Filiallar va jamoa</span>
           <button className="nav-item nav-item--logout" onClick={onLogout}><LogOut size={19} /><span>Chiqish</span></button>
         </div>
       </aside>

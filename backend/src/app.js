@@ -15,6 +15,9 @@ import adRoutes from './routes/ads.js';
 import analyticsRoutes from './routes/analytics.js';
 import reportRoutes from './routes/reports.js';
 import mediaRoutes from './routes/media.js';
+import branchRoutes from './routes/branches.js';
+import teamRoutes from './routes/team.js';
+import roleRoutes from './routes/roles.js';
 
 export const app = express();
 app.set('trust proxy', 1);
@@ -80,6 +83,9 @@ app.use('/api/ads', adRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/media', mediaRoutes);
+app.use('/api/branches', branchRoutes);
+app.use('/api/team', teamRoutes);
+app.use('/api/roles', roleRoutes);
 
 app.use((_request, response) => {
   response.status(404).json({ message: 'Endpoint topilmadi.' });

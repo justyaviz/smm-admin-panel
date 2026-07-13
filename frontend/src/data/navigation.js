@@ -16,20 +16,20 @@ import {
 } from 'lucide-react';
 
 export const menuItems = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { id: 'content', label: 'Kontent', icon: FolderKanban },
-  { id: 'calendar', label: 'Kalendar', icon: CalendarDays },
-  { id: 'campaigns', label: 'Kampaniyalar', icon: Megaphone },
-  { id: 'ads', label: 'Target reklama', icon: Target },
-  { id: 'analytics', label: 'Analitika', icon: BarChart3 },
-  { id: 'reports', label: 'Hisobotlar', icon: FileBarChart },
-  { id: 'media', label: 'Media', icon: Image },
-  { id: 'branches', label: 'Filiallar', icon: Store },
-  { id: 'tasks', label: 'Vazifalar', icon: ClipboardCheck },
-  { id: 'team', label: 'Jamoa', icon: UsersRound },
-  { id: 'expenses', label: 'Xarajatlar', icon: CircleDollarSign },
-  { id: 'chat', label: 'Chat', icon: MessageCircle, dot: true },
-  { id: 'settings', label: 'Sozlamalar', icon: Settings },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, permission: 'dashboard.view' },
+  { id: 'content', label: 'Kontent', icon: FolderKanban, permission: 'content.view' },
+  { id: 'calendar', label: 'Kalendar', icon: CalendarDays, permission: 'calendar.view' },
+  { id: 'campaigns', label: 'Kampaniyalar', icon: Megaphone, permission: 'campaigns.view' },
+  { id: 'ads', label: 'Target reklama', icon: Target, permission: 'ads.view' },
+  { id: 'analytics', label: 'Analitika', icon: BarChart3, permission: 'analytics.view' },
+  { id: 'reports', label: 'Hisobotlar', icon: FileBarChart, permission: 'reports.view' },
+  { id: 'media', label: 'Media', icon: Image, permission: 'media.view' },
+  { id: 'branches', label: 'Filiallar', icon: Store, permission: 'branches.view' },
+  { id: 'tasks', label: 'Vazifalar', icon: ClipboardCheck, permission: 'tasks.manage' },
+  { id: 'team', label: 'Jamoa', icon: UsersRound, permission: 'team.view' },
+  { id: 'expenses', label: 'Xarajatlar', icon: CircleDollarSign, permission: 'expenses.manage' },
+  { id: 'chat', label: 'Chat', icon: MessageCircle, dot: true, permission: 'chat.use' },
+  { id: 'settings', label: 'Sozlamalar', icon: Settings, permission: 'settings.manage' },
 ];
 
 export const statusLabels = {

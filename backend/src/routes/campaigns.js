@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { pool } from '../db/pool.js';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, permissionRequired } from '../middleware/auth.js';
 
 const router = Router();
 
@@ -124,7 +124,7 @@ async function replaceRelations(client, campaignId, platformIds, branchIds) {
 
 router.use(authRequired);
 
-router.get('/summary', async (_request, response, next) => {
+router.get('/summary', permissionRequired('campaigns.view'), async (_request, response, next) => {
   try {
     const { rows } = await pool.query(`
       SELECT
@@ -162,7 +162,7 @@ router.get('/summary', async (_request, response, next) => {
   }
 });
 
-router.get('/', async (request, response, next) => {
+router.get('/', permissionRequired('campaigns.view'), async (request, response, next) => {
   try {
     const conditions = [];
     const params = [];
@@ -197,7 +197,7 @@ router.get('/', async (request, response, next) => {
   }
 });
 
-router.get('/:id', async (request, response, next) => {
+router.get('/:id', permissionRequired('campaigns.view'), async (request, response, next) => {
   try {
     const item = await getCampaign(Number(request.params.id));
     if (!item) return response.status(404).json({ message: 'Kampaniya topilmadi.' });
@@ -207,7 +207,7 @@ router.get('/:id', async (request, response, next) => {
   }
 });
 
-router.post('/', async (request, response, next) => {
+router.post('/', permissionRequired('campaigns.manage'), async (request, response, next) => {
   const client = await pool.connect();
   try {
     const parsed = campaignSchema.safeParse(request.body);
@@ -242,7 +242,7 @@ router.post('/', async (request, response, next) => {
   }
 });
 
-router.put('/:id', async (request, response, next) => {
+router.put('/:id', permissionRequired('campaigns.manage'), async (request, response, next) => {
   const client = await pool.connect();
   try {
     const id = Number(request.params.id);
@@ -280,7 +280,7 @@ router.put('/:id', async (request, response, next) => {
   }
 });
 
-router.delete('/:id', async (request, response, next) => {
+router.delete('/:id', permissionRequired('campaigns.manage'), async (request, response, next) => {
   try {
     const id = Number(request.params.id);
     const { rows } = await pool.query('DELETE FROM campaigns WHERE id = $1 RETURNING id, name', [id]);

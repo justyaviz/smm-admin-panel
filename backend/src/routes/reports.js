@@ -3,7 +3,7 @@ import { z } from 'zod';
 import ExcelJS from 'exceljs';
 import PDFDocument from 'pdfkit';
 import { pool } from '../db/pool.js';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, permissionRequired } from '../middleware/auth.js';
 import { getAnalyticsOverview, normalizeAnalyticsFilters } from '../services/analytics.js';
 
 const router = Router();
@@ -162,14 +162,14 @@ async function buildPdf(data, report) {
   });
 }
 
-router.get('/summary', async (_request, response, next) => {
+router.get('/summary', permissionRequired('reports.view'), async (_request, response, next) => {
   try {
     const { rows } = await pool.query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE created_at >= date_trunc('month', NOW()))::int AS this_month, COUNT(*) FILTER (WHERE format='pdf')::int AS pdf, COUNT(*) FILTER (WHERE format='xlsx')::int AS xlsx FROM report_exports`);
     response.json({ metrics: rows[0] });
   } catch (error) { next(error); }
 });
 
-router.get('/', async (request, response, next) => {
+router.get('/', permissionRequired('reports.view'), async (request, response, next) => {
   try {
     const params = [];
     const conditions = [];
@@ -181,7 +181,7 @@ router.get('/', async (request, response, next) => {
   } catch (error) { next(error); }
 });
 
-router.post('/', async (request, response, next) => {
+router.post('/', permissionRequired('reports.create'), async (request, response, next) => {
   try {
     const parsed = reportSchema.safeParse(request.body);
     if (!parsed.success) return response.status(400).json({ message: 'Hisobot ma’lumotlarini tekshiring.', errors: parsed.error.flatten() });
@@ -194,7 +194,7 @@ router.post('/', async (request, response, next) => {
   } catch (error) { return next(error); }
 });
 
-router.get('/:id/download', async (request, response, next) => {
+router.get('/:id/download', permissionRequired('reports.view'), async (request, response, next) => {
   try {
     const { rows } = await pool.query('SELECT * FROM report_exports WHERE id=$1', [Number(request.params.id)]);
     const report = rows[0];
@@ -213,7 +213,7 @@ router.get('/:id/download', async (request, response, next) => {
   } catch (error) { return next(error); }
 });
 
-router.delete('/:id', async (request, response, next) => {
+router.delete('/:id', permissionRequired('reports.create'), async (request, response, next) => {
   try {
     const id = Number(request.params.id);
     const { rows } = await pool.query('DELETE FROM report_exports WHERE id=$1 RETURNING id,name', [id]);

@@ -1,10 +1,10 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, permissionRequired } from '../middleware/auth.js';
 
 const router = Router();
 
-router.get('/summary', authRequired, async (_request, response, next) => {
+router.get('/summary', authRequired, permissionRequired('dashboard.view'), async (_request, response, next) => {
   try {
     const { rows } = await pool.query(`
       SELECT

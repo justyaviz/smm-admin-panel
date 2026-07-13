@@ -438,3 +438,191 @@ CROSS JOIN LATERAL (SELECT id FROM app_users ORDER BY id LIMIT 1) u
 ON CONFLICT DO NOTHING;
 
 COMMIT;
+
+-- Step 6: Branches + Team + Roles & Permissions
+BEGIN;
+
+ALTER TABLE branches
+  ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS phone VARCHAR(32),
+  ADD COLUMN IF NOT EXISTS manager_name VARCHAR(160) NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS manager_phone VARCHAR(32),
+  ADD COLUMN IF NOT EXISTS monthly_content_target INTEGER NOT NULL DEFAULT 30,
+  ADD COLUMN IF NOT EXISTS monthly_reach_target BIGINT NOT NULL DEFAULT 100000,
+  ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT '';
+
+ALTER TABLE app_users
+  ADD COLUMN IF NOT EXISTS email VARCHAR(180),
+  ADD COLUMN IF NOT EXISTS job_title VARCHAR(160) NOT NULL DEFAULT '',
+  ADD COLUMN IF NOT EXISTS avatar_url TEXT,
+  ADD COLUMN IF NOT EXISTS telegram_username VARCHAR(100),
+  ADD COLUMN IF NOT EXISTS notes TEXT NOT NULL DEFAULT '';
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_app_users_email_lower_not_null
+  ON app_users (LOWER(email)) WHERE email IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS roles (
+  code VARCHAR(40) PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  color VARCHAR(20) NOT NULL DEFAULT '#1690F5',
+  is_system BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS permissions (
+  code VARCHAR(80) PRIMARY KEY,
+  name VARCHAR(140) NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  permission_group VARCHAR(80) NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+  role_code VARCHAR(40) NOT NULL REFERENCES roles(code) ON DELETE CASCADE,
+  permission_code VARCHAR(80) NOT NULL REFERENCES permissions(code) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (role_code, permission_code)
+);
+CREATE INDEX IF NOT EXISTS idx_role_permissions_permission ON role_permissions(permission_code);
+
+CREATE TABLE IF NOT EXISTS app_user_branches (
+  user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
+  branch_id BIGINT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+  is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+  assigned_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  assigned_by BIGINT REFERENCES app_users(id) ON DELETE SET NULL,
+  PRIMARY KEY (user_id, branch_id)
+);
+CREATE INDEX IF NOT EXISTS idx_app_user_branches_branch ON app_user_branches(branch_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_app_user_primary_branch
+  ON app_user_branches(user_id) WHERE is_primary = TRUE;
+
+CREATE TABLE IF NOT EXISTS branch_social_accounts (
+  id BIGSERIAL PRIMARY KEY,
+  branch_id BIGINT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+  platform_id BIGINT NOT NULL REFERENCES platforms(id) ON DELETE RESTRICT,
+  account_name VARCHAR(160) NOT NULL DEFAULT '',
+  account_url TEXT NOT NULL DEFAULT '',
+  followers BIGINT NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  notes TEXT NOT NULL DEFAULT '',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT branch_social_followers_nonnegative CHECK (followers >= 0),
+  CONSTRAINT branch_social_unique UNIQUE (branch_id, platform_id)
+);
+CREATE INDEX IF NOT EXISTS idx_branch_social_accounts_branch ON branch_social_accounts(branch_id);
+CREATE INDEX IF NOT EXISTS idx_branch_social_accounts_platform ON branch_social_accounts(platform_id);
+
+DROP TRIGGER IF EXISTS trg_roles_updated_at ON roles;
+CREATE TRIGGER trg_roles_updated_at
+BEFORE UPDATE ON roles
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_branch_social_accounts_updated_at ON branch_social_accounts;
+CREATE TRIGGER trg_branch_social_accounts_updated_at
+BEFORE UPDATE ON branch_social_accounts
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+INSERT INTO roles (code, name, description, color, sort_order) VALUES
+  ('admin', 'Administrator', 'Tizimning barcha bo‘limlari va sozlamalariga to‘liq kirish', '#D92D20', 10),
+  ('smm_manager', 'SMM Manager', 'Kontent, kampaniya, jamoa va filial ishlarini boshqarish', '#1690F5', 20),
+  ('targetolog', 'Targetolog', 'Target reklama, kampaniya va analitika bilan ishlash', '#6941C6', 30),
+  ('designer', 'Dizayner', 'Kontent va media materiallari bilan ishlash', '#C11574', 40),
+  ('mobilograf', 'Mobilograf', 'Video kontent, kalendar va media bilan ishlash', '#F79009', 50),
+  ('copywriter', 'Copywriter', 'Kontent matnlari va rejalari bilan ishlash', '#027A48', 60),
+  ('analyst', 'Analitik', 'Analitika va hisobotlarni boshqarish', '#175CD3', 70),
+  ('viewer', 'Kuzatuvchi', 'Faqat ko‘rish huquqi', '#667085', 80)
+ON CONFLICT (code) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  color = EXCLUDED.color,
+  sort_order = EXCLUDED.sort_order;
+
+INSERT INTO permissions (code, name, description, permission_group, sort_order) VALUES
+  ('dashboard.view', 'Dashboardni ko‘rish', 'Asosiy ko‘rsatkichlarni ko‘rish', 'Dashboard', 10),
+  ('content.view', 'Kontentni ko‘rish', 'Kontent ro‘yxati va detallarini ko‘rish', 'Kontent', 20),
+  ('content.create', 'Kontent yaratish', 'Yangi kontent yaratish', 'Kontent', 21),
+  ('content.edit', 'Kontentni tahrirlash', 'Mavjud kontentni yangilash', 'Kontent', 22),
+  ('content.delete', 'Kontentni o‘chirish', 'Kontentni o‘chirish', 'Kontent', 23),
+  ('calendar.view', 'Kalendarni ko‘rish', 'Kontent kalendarini ko‘rish', 'Kontent', 24),
+  ('campaigns.view', 'Kampaniyalarni ko‘rish', 'Kampaniya natijalarini ko‘rish', 'Marketing', 30),
+  ('campaigns.manage', 'Kampaniyalarni boshqarish', 'Kampaniya yaratish va tahrirlash', 'Marketing', 31),
+  ('ads.view', 'Target reklamani ko‘rish', 'Reklamalarni ko‘rish', 'Marketing', 32),
+  ('ads.manage', 'Target reklamani boshqarish', 'Reklama yaratish va tahrirlash', 'Marketing', 33),
+  ('analytics.view', 'Analitikani ko‘rish', 'Analitika ko‘rsatkichlarini ko‘rish', 'Analitika', 40),
+  ('analytics.manage', 'Analitikani boshqarish', 'Kunlik metrikalarni kiritish va tahrirlash', 'Analitika', 41),
+  ('reports.view', 'Hisobotlarni ko‘rish', 'Tayyor hisobotlarni ko‘rish va yuklash', 'Analitika', 42),
+  ('reports.create', 'Hisobot yaratish', 'PDF, XLSX va CSV hisobot yaratish', 'Analitika', 43),
+  ('media.view', 'Mediani ko‘rish', 'Media kutubxonasini ko‘rish', 'Media', 50),
+  ('media.manage', 'Mediani boshqarish', 'Media yuklash, tahrirlash va o‘chirish', 'Media', 51),
+  ('branches.view', 'Filiallarni ko‘rish', 'Filiallar va ularning natijalarini ko‘rish', 'Tashkilot', 60),
+  ('branches.manage', 'Filiallarni boshqarish', 'Filial yaratish va tahrirlash', 'Tashkilot', 61),
+  ('team.view', 'Jamoani ko‘rish', 'Xodimlar ro‘yxatini ko‘rish', 'Tashkilot', 62),
+  ('team.manage', 'Jamoani boshqarish', 'Xodim yaratish, tahrirlash va bloklash', 'Tashkilot', 63),
+  ('roles.manage', 'Rollarni boshqarish', 'Rollar ruxsatlarini o‘zgartirish', 'Tashkilot', 64),
+  ('tasks.manage', 'Vazifalarni boshqarish', 'Vazifalar modulini boshqarish', 'Operatsiyalar', 70),
+  ('expenses.manage', 'Xarajatlarni boshqarish', 'Xarajatlar modulini boshqarish', 'Operatsiyalar', 71),
+  ('chat.use', 'Chatdan foydalanish', 'Ichki chatdan foydalanish', 'Operatsiyalar', 72),
+  ('settings.manage', 'Sozlamalarni boshqarish', 'Tizim sozlamalarini o‘zgartirish', 'Sozlamalar', 80)
+ON CONFLICT (code) DO UPDATE SET
+  name = EXCLUDED.name,
+  description = EXCLUDED.description,
+  permission_group = EXCLUDED.permission_group,
+  sort_order = EXCLUDED.sort_order;
+
+-- Administratorga barcha ruxsatlar.
+INSERT INTO role_permissions (role_code, permission_code)
+SELECT 'admin', code FROM permissions
+ON CONFLICT DO NOTHING;
+
+-- SMM manager.
+INSERT INTO role_permissions (role_code, permission_code)
+SELECT 'smm_manager', code FROM permissions
+WHERE code IN (
+  'dashboard.view','content.view','content.create','content.edit','content.delete','calendar.view',
+  'campaigns.view','campaigns.manage','ads.view','ads.manage','analytics.view','analytics.manage',
+  'reports.view','reports.create','media.view','media.manage','branches.view','branches.manage',
+  'team.view','team.manage','tasks.manage','expenses.manage','chat.use'
+)
+ON CONFLICT DO NOTHING;
+
+-- Targetolog.
+INSERT INTO role_permissions (role_code, permission_code)
+SELECT 'targetolog', code FROM permissions
+WHERE code IN ('dashboard.view','campaigns.view','campaigns.manage','ads.view','ads.manage','analytics.view','analytics.manage','reports.view','reports.create','media.view','branches.view','chat.use')
+ON CONFLICT DO NOTHING;
+
+-- Dizayner va mobilograf.
+INSERT INTO role_permissions (role_code, permission_code)
+SELECT role_code, permission_code
+FROM (VALUES ('designer'),('mobilograf')) AS r(role_code)
+CROSS JOIN LATERAL (
+  SELECT code AS permission_code FROM permissions
+  WHERE code IN ('dashboard.view','content.view','content.edit','calendar.view','media.view','media.manage','branches.view','tasks.manage','chat.use')
+) p
+ON CONFLICT DO NOTHING;
+
+-- Copywriter.
+INSERT INTO role_permissions (role_code, permission_code)
+SELECT 'copywriter', code FROM permissions
+WHERE code IN ('dashboard.view','content.view','content.create','content.edit','calendar.view','media.view','branches.view','tasks.manage','chat.use')
+ON CONFLICT DO NOTHING;
+
+-- Analitik.
+INSERT INTO role_permissions (role_code, permission_code)
+SELECT 'analyst', code FROM permissions
+WHERE code IN ('dashboard.view','campaigns.view','ads.view','analytics.view','analytics.manage','reports.view','reports.create','branches.view')
+ON CONFLICT DO NOTHING;
+
+-- Kuzatuvchi faqat ko‘radi.
+INSERT INTO role_permissions (role_code, permission_code)
+SELECT 'viewer', code FROM permissions
+WHERE code IN ('dashboard.view','content.view','calendar.view','campaigns.view','ads.view','analytics.view','reports.view','media.view','branches.view','team.view')
+ON CONFLICT DO NOTHING;
+
+COMMIT;

@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { pool } from '../db/pool.js';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, permissionRequired } from '../middleware/auth.js';
 
 const router = Router();
 router.use(authRequired);
 
-router.get('/', async (request, response, next) => {
+router.get('/', permissionRequired('calendar.view'), async (request, response, next) => {
   try {
     const now = new Date();
     const from = request.query.from ? new Date(request.query.from) : new Date(now.getFullYear(), now.getMonth(), 1);
