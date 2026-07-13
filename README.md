@@ -1,12 +1,41 @@
-# SMM Admin Panel — Clean Start
+# aloo SMM Panel — 1-qadam
 
-Eski loyiha kodi, ma'lumotlari, konfiguratsiyalari, dependency fayllari va dokumentatsiyasi olib tashlangan.
+Login sahifasi va asosiy Dashboard tayyorlandi.
 
-Qayta dasturlash uchun bo'sh bo'limlar:
+## Ishga tushirish
 
-- `client/` — web interfeys
-- `server/` — backend va API
-- `mobile/` — mobil ilova
-- `docs/` — yangi texnik hujjatlar
+```bash
+npm install
+npm run dev
+```
 
-Bu arxivda eski loyihadan hech qanday kod, login, parol, token, database ma'lumoti yoki media fayl saqlanmagan.
+Brauzerda odatda: `http://localhost:5173`
+
+## Demo kirish
+
+- Login: `admin`
+- Parol: `aloo2026`
+
+Bu hozircha frontend demo autentifikatsiya. Production bosqichida backend, PostgreSQL, JWT/HttpOnly cookie, rollar va permissionlar ulanadi.
+
+## Gilroy shriftini ulash
+
+`public/fonts/README.txt` ichidagi ko‘rsatma bo‘yicha o‘zingizdagi litsenziyalangan Gilroy fayllarini `public/fonts/` ichiga joylang.
+
+## Tayyor qismlar
+
+- Responsive login sahifasi
+- Login validatsiyasi va “Meni eslab qol”
+- Dashboard
+- KPI kartalari
+- Haftalik kontent taqvimi
+- Kampaniya grafigi
+- Platformalar donut diagrammasi
+- Filiallar samaradorligi
+- So‘nggi hisobotlar
+- Interaktiv tezkor vazifalar
+- Chiqish funksiyasi
+
+## Keyingi bosqich
+
+Kontent, Kalendar, Kampaniyalar, Target reklama, Analitika va Hisobotlar sahifalarini real CRUD bilan ulash.
