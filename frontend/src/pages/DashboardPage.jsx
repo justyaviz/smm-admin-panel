@@ -14,6 +14,9 @@ import {
   Megaphone,
   Target,
   WalletCards,
+  AlertTriangle,
+  CircleDollarSign,
+  Clock3,
 } from 'lucide-react';
 import { apiRequest, authHeaders } from '../lib/api.js';
 
@@ -41,6 +44,7 @@ export default function DashboardPage({ session, notify, onPageChange }) {
   const [metrics, setMetrics] = useState(fallback);
   const [platformCounts, setPlatformCounts] = useState([]);
   const [marketing, setMarketing] = useState({ activeCampaigns: 0, campaignSpend: 0, campaignReach: 0, activeAds: 0, adClicks: 0, adImpressions: 0 });
+  const [operations, setOperations] = useState({ openTasks: 0, inProgressTasks: 0, overdueTasks: 0, completedTasksMonth: 0, monthSpend: 0, pendingExpense: 0, pendingExpenseCount: 0 });
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -50,6 +54,7 @@ export default function DashboardPage({ session, notify, onPageChange }) {
       setMetrics({ ...fallback, ...result.metrics });
       setPlatformCounts(result.platformCounts || []);
       setMarketing((current) => ({ ...current, ...(result.marketing || {}) }));
+      setOperations((current) => ({ ...current, ...(result.operations || {}) }));
     } catch (error) {
       notify(error.message);
     } finally {
@@ -117,6 +122,16 @@ export default function DashboardPage({ session, notify, onPageChange }) {
           </div>
         </article>
 
+        <article className="dashboard-card operations-snapshot-card">
+          <div className="card-header"><div><h3>Operatsion holat</h3><p>Vazifalar va joriy oy xarajatlari</p></div><button className="card-link-inline" onClick={() => onPageChange('tasks')}>Vazifalarni ochish</button></div>
+          <div className="snapshot-grid operations-snapshot-grid">
+            <div><span><ClipboardList size={18} /></span><strong>{operations.openTasks}</strong><small>ochiq vazifa</small></div>
+            <div><span><AlertTriangle size={18} /></span><strong>{operations.overdueTasks}</strong><small>kechikkan vazifa</small></div>
+            <div><span><CircleDollarSign size={18} /></span><strong>{new Intl.NumberFormat('uz-UZ', { notation: 'compact' }).format(operations.monthSpend)}</strong><small>oylik xarajat</small></div>
+            <div><span><Clock3 size={18} /></span><strong>{operations.pendingExpenseCount}</strong><small>tasdiq kutmoqda</small></div>
+          </div>
+        </article>
+
         <article className="dashboard-card quick-actions-card">
           <div className="card-header"><div><h3>Tezkor amallar</h3><p>Ko‘p ishlatiladigan funksiyalar</p></div></div>
           <div className="quick-actions-grid">
@@ -126,6 +141,8 @@ export default function DashboardPage({ session, notify, onPageChange }) {
             <button onClick={() => onPageChange('ads')}><span><Target size={21} /></span><b>Target reklama</b><small>Reklama natijalarini kiritish</small></button>
             <button onClick={() => onPageChange('analytics')}><span><BarChart3 size={21} /></span><b>Analitika</b><small>Real KPI va natijalar</small></button>
             <button onClick={() => onPageChange('reports')}><span><FileBarChart size={21} /></span><b>Hisobotlar</b><small>Excel, PDF va CSV</small></button>
+            <button onClick={() => onPageChange('tasks')}><span><ClipboardList size={21} /></span><b>Vazifalar</b><small>Jamoa ishlarini boshqarish</small></button>
+            <button onClick={() => onPageChange('expenses')}><span><CircleDollarSign size={21} /></span><b>Xarajatlar</b><small>Byudjet va tasdiqlar</small></button>
           </div>
         </article>
       </section>

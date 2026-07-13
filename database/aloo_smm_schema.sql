@@ -626,3 +626,191 @@ WHERE code IN ('dashboard.view','content.view','calendar.view','campaigns.view',
 ON CONFLICT DO NOTHING;
 
 COMMIT;
+
+-- Step 7: Tasks + Expenses
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS tasks (
+  id BIGSERIAL PRIMARY KEY,
+  title VARCHAR(220) NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  status VARCHAR(30) NOT NULL DEFAULT 'todo',
+  priority VARCHAR(20) NOT NULL DEFAULT 'medium',
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  assigned_to BIGINT REFERENCES app_users(id) ON DELETE SET NULL,
+  campaign_id BIGINT REFERENCES campaigns(id) ON DELETE SET NULL,
+  content_id BIGINT REFERENCES content_items(id) ON DELETE SET NULL,
+  start_at TIMESTAMPTZ,
+  due_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  estimated_minutes INTEGER NOT NULL DEFAULT 0,
+  spent_minutes INTEGER NOT NULL DEFAULT 0,
+  tags TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+  created_by BIGINT NOT NULL REFERENCES app_users(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT tasks_title_nonempty CHECK (length(trim(title)) >= 2),
+  CONSTRAINT tasks_status_allowed CHECK (status IN ('backlog','todo','in_progress','review','done','cancelled')),
+  CONSTRAINT tasks_priority_allowed CHECK (priority IN ('low','medium','high','urgent')),
+  CONSTRAINT tasks_time_nonnegative CHECK (estimated_minutes >= 0 AND spent_minutes >= 0),
+  CONSTRAINT tasks_dates_valid CHECK (due_at IS NULL OR start_at IS NULL OR due_at >= start_at)
+);
+CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
+CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);
+CREATE INDEX IF NOT EXISTS idx_tasks_branch ON tasks(branch_id);
+CREATE INDEX IF NOT EXISTS idx_tasks_due_at ON tasks(due_at);
+CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_tasks_tags ON tasks USING GIN(tags);
+
+CREATE TABLE IF NOT EXISTS task_comments (
+  id BIGSERIAL PRIMARY KEY,
+  task_id BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES app_users(id) ON DELETE RESTRICT,
+  body TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT task_comments_body_nonempty CHECK (length(trim(body)) >= 1)
+);
+CREATE INDEX IF NOT EXISTS idx_task_comments_task ON task_comments(task_id,created_at);
+
+CREATE TABLE IF NOT EXISTS task_status_history (
+  id BIGSERIAL PRIMARY KEY,
+  task_id BIGINT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  old_status VARCHAR(30),
+  new_status VARCHAR(30) NOT NULL,
+  changed_by BIGINT REFERENCES app_users(id) ON DELETE SET NULL,
+  comment TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_task_status_history_task ON task_status_history(task_id,created_at DESC);
+
+CREATE TABLE IF NOT EXISTS expense_categories (
+  id BIGSERIAL PRIMARY KEY,
+  code VARCHAR(60) NOT NULL UNIQUE,
+  name VARCHAR(120) NOT NULL,
+  color VARCHAR(20) NOT NULL DEFAULT '#1690F5',
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS expense_budgets (
+  id BIGSERIAL PRIMARY KEY,
+  budget_month DATE NOT NULL,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE CASCADE,
+  category_id BIGINT REFERENCES expense_categories(id) ON DELETE CASCADE,
+  amount NUMERIC(16,2) NOT NULL DEFAULT 0,
+  notes TEXT NOT NULL DEFAULT '',
+  created_by BIGINT NOT NULL REFERENCES app_users(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT expense_budgets_month_first_day CHECK (budget_month = date_trunc('month', budget_month)::date),
+  CONSTRAINT expense_budgets_amount_nonnegative CHECK (amount >= 0)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_expense_budgets_scope
+  ON expense_budgets (budget_month, COALESCE(branch_id,0), COALESCE(category_id,0));
+CREATE INDEX IF NOT EXISTS idx_expense_budgets_month ON expense_budgets(budget_month);
+CREATE INDEX IF NOT EXISTS idx_expense_budgets_branch ON expense_budgets(branch_id);
+
+CREATE TABLE IF NOT EXISTS expenses (
+  id BIGSERIAL PRIMARY KEY,
+  title VARCHAR(220) NOT NULL,
+  description TEXT NOT NULL DEFAULT '',
+  category_id BIGINT NOT NULL REFERENCES expense_categories(id) ON DELETE RESTRICT,
+  branch_id BIGINT REFERENCES branches(id) ON DELETE SET NULL,
+  campaign_id BIGINT REFERENCES campaigns(id) ON DELETE SET NULL,
+  amount NUMERIC(16,2) NOT NULL,
+  expense_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  status VARCHAR(30) NOT NULL DEFAULT 'pending',
+  payment_method VARCHAR(30) NOT NULL DEFAULT 'transfer',
+  vendor VARCHAR(220) NOT NULL DEFAULT '',
+  receipt_media_id BIGINT REFERENCES media_assets(id) ON DELETE SET NULL,
+  notes TEXT NOT NULL DEFAULT '',
+  requested_by BIGINT REFERENCES app_users(id) ON DELETE SET NULL,
+  approved_by BIGINT REFERENCES app_users(id) ON DELETE SET NULL,
+  approved_at TIMESTAMPTZ,
+  paid_at TIMESTAMPTZ,
+  created_by BIGINT NOT NULL REFERENCES app_users(id) ON DELETE RESTRICT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT expenses_title_nonempty CHECK (length(trim(title)) >= 2),
+  CONSTRAINT expenses_amount_positive CHECK (amount > 0),
+  CONSTRAINT expenses_status_allowed CHECK (status IN ('draft','pending','approved','paid','rejected','cancelled')),
+  CONSTRAINT expenses_payment_allowed CHECK (payment_method IN ('cash','card','transfer','corporate_card','other'))
+);
+CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date DESC);
+CREATE INDEX IF NOT EXISTS idx_expenses_status ON expenses(status);
+CREATE INDEX IF NOT EXISTS idx_expenses_category ON expenses(category_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_branch ON expenses(branch_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_campaign ON expenses(campaign_id);
+
+CREATE TABLE IF NOT EXISTS expense_status_history (
+  id BIGSERIAL PRIMARY KEY,
+  expense_id BIGINT NOT NULL REFERENCES expenses(id) ON DELETE CASCADE,
+  old_status VARCHAR(30),
+  new_status VARCHAR(30) NOT NULL,
+  changed_by BIGINT REFERENCES app_users(id) ON DELETE SET NULL,
+  comment TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_expense_status_history_expense ON expense_status_history(expense_id,created_at DESC);
+
+DROP TRIGGER IF EXISTS trg_tasks_updated_at ON tasks;
+CREATE TRIGGER trg_tasks_updated_at BEFORE UPDATE ON tasks FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DROP TRIGGER IF EXISTS trg_task_comments_updated_at ON task_comments;
+CREATE TRIGGER trg_task_comments_updated_at BEFORE UPDATE ON task_comments FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DROP TRIGGER IF EXISTS trg_expense_categories_updated_at ON expense_categories;
+CREATE TRIGGER trg_expense_categories_updated_at BEFORE UPDATE ON expense_categories FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DROP TRIGGER IF EXISTS trg_expense_budgets_updated_at ON expense_budgets;
+CREATE TRIGGER trg_expense_budgets_updated_at BEFORE UPDATE ON expense_budgets FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+DROP TRIGGER IF EXISTS trg_expenses_updated_at ON expenses;
+CREATE TRIGGER trg_expenses_updated_at BEFORE UPDATE ON expenses FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+
+INSERT INTO expense_categories(code,name,color,sort_order) VALUES
+  ('target_ads','Target reklama','#6941C6',10),
+  ('content_production','Kontent ishlab chiqarish','#1690F5',20),
+  ('design','Dizayn','#C11574',30),
+  ('equipment','Texnika va jihozlar','#F79009',40),
+  ('transport','Transport','#0E9384',50),
+  ('printing','Poligrafiya','#175CD3',60),
+  ('software','Dastur va servislar','#667085',70),
+  ('events','Tadbirlar','#D92D20',80),
+  ('other','Boshqa','#98A2B3',90)
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,color=EXCLUDED.color,sort_order=EXCLUDED.sort_order,is_active=TRUE;
+
+INSERT INTO permissions(code,name,description,permission_group,sort_order) VALUES
+  ('tasks.view','Vazifalarni ko‘rish','Vazifalar ro‘yxati, izohlar va tarixni ko‘rish','Operatsiyalar',69),
+  ('tasks.manage','Vazifalarni boshqarish','Vazifa yaratish, tahrirlash va statusini o‘zgartirish','Operatsiyalar',70),
+  ('expenses.view','Xarajatlarni ko‘rish','Xarajatlar, byudjet va tasdiqlash holatini ko‘rish','Operatsiyalar',71),
+  ('expenses.manage','Xarajatlarni boshqarish','Xarajat yaratish, tasdiqlash va byudjet belgilash','Operatsiyalar',72)
+ON CONFLICT(code) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,permission_group=EXCLUDED.permission_group,sort_order=EXCLUDED.sort_order;
+
+INSERT INTO role_permissions(role_code,permission_code)
+SELECT 'admin',code FROM permissions WHERE code IN ('tasks.view','tasks.manage','expenses.view','expenses.manage')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO role_permissions(role_code,permission_code)
+SELECT 'smm_manager',code FROM permissions WHERE code IN ('tasks.view','tasks.manage','expenses.view','expenses.manage')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO role_permissions(role_code,permission_code)
+SELECT role_code,permission_code
+FROM (VALUES ('targetolog'),('designer'),('mobilograf'),('copywriter')) AS r(role_code)
+CROSS JOIN LATERAL (
+  SELECT code AS permission_code FROM permissions
+  WHERE code IN ('tasks.view','tasks.manage')
+     OR (r.role_code='targetolog' AND code IN ('expenses.view','expenses.manage'))
+) p
+ON CONFLICT DO NOTHING;
+
+INSERT INTO role_permissions(role_code,permission_code)
+SELECT 'analyst',code FROM permissions WHERE code IN ('tasks.view','expenses.view')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO role_permissions(role_code,permission_code)
+SELECT 'viewer',code FROM permissions WHERE code IN ('tasks.view','expenses.view')
+ON CONFLICT DO NOTHING;
+
+COMMIT;

@@ -1,4 +1,4 @@
-# aloo SMM Panel v6.0
+# aloo SMM Panel v7.0
 
 Aloo do‘konlar tarmog‘i uchun Railway-ready SMM boshqaruv paneli.
 
@@ -12,6 +12,8 @@ Aloo do‘konlar tarmog‘i uchun Railway-ready SMM boshqaruv paneli.
 - Media kutubxona
 - Filiallar boshqaruvi va ijtimoiy tarmoq akkauntlari
 - Jamoa, filial biriktirishlari, rollar va ruxsatlar
+- Vazifalar: Kanban, deadline, izohlar va status tarixi
+- Xarajatlar: oylik byudjet, tasdiqlash va to‘lov nazorati
 - PostgreSQL avtomatik migratsiya
 - Railway frontend/backend Docker deploy
 
@@ -21,4 +23,4 @@ Aloo do‘konlar tarmog‘i uchun Railway-ready SMM boshqaruv paneli.
 - Backend Root Directory: `/backend`
 - Backend Config Path: `/backend/railway.toml`
 
-Batafsil: `RAILWAY_SETUP.md` va `STEP6_BRANCHES_TEAM_ROLES.md`.
+Batafsil: `RAILWAY_SETUP.md` va `STEP7_TASKS_EXPENSES.md`.

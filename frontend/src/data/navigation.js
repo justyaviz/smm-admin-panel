@@ -25,9 +25,9 @@ export const menuItems = [
   { id: 'reports', label: 'Hisobotlar', icon: FileBarChart, permission: 'reports.view' },
   { id: 'media', label: 'Media', icon: Image, permission: 'media.view' },
   { id: 'branches', label: 'Filiallar', icon: Store, permission: 'branches.view' },
-  { id: 'tasks', label: 'Vazifalar', icon: ClipboardCheck, permission: 'tasks.manage' },
+  { id: 'tasks', label: 'Vazifalar', icon: ClipboardCheck, permission: 'tasks.view' },
   { id: 'team', label: 'Jamoa', icon: UsersRound, permission: 'team.view' },
-  { id: 'expenses', label: 'Xarajatlar', icon: CircleDollarSign, permission: 'expenses.manage' },
+  { id: 'expenses', label: 'Xarajatlar', icon: CircleDollarSign, permission: 'expenses.view' },
   { id: 'chat', label: 'Chat', icon: MessageCircle, dot: true, permission: 'chat.use' },
   { id: 'settings', label: 'Sozlamalar', icon: Settings, permission: 'settings.manage' },
 ];

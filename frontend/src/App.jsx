@@ -11,6 +11,8 @@ import ReportsPage from './pages/ReportsPage.jsx';
 import MediaPage from './pages/MediaPage.jsx';
 import BranchesPage from './pages/BranchesPage.jsx';
 import TeamPage from './pages/TeamPage.jsx';
+import TasksPage from './pages/TasksPage.jsx';
+import ExpensesPage from './pages/ExpensesPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import { apiRequest, authHeaders } from './lib/api.js';
 import { menuItems } from './data/navigation.js';
@@ -79,6 +81,8 @@ export default function App() {
   else if (page === 'media') pageContent = <MediaPage session={session} notify={setToast} />;
   else if (page === 'branches') pageContent = <BranchesPage session={session} notify={setToast} />;
   else if (page === 'team') pageContent = <TeamPage session={session} notify={setToast} />;
+  else if (page === 'tasks') pageContent = <TasksPage session={session} notify={setToast} />;
+  else if (page === 'expenses') pageContent = <ExpensesPage session={session} notify={setToast} />;
   else {
     const item = menuItems.find((entry) => entry.id === page);
     pageContent = <PlaceholderPage title={item?.label || 'Sahifa'} description="Ushbu modul keyingi ishlab chiqish bosqichida PostgreSQL va backend API bilan ulanadi." />;

@@ -37,6 +37,19 @@ router.get('/summary', authRequired, permissionRequired('dashboard.view'), async
              COALESCE(SUM(impressions),0)::bigint AS impressions
       FROM target_ads
     `);
+    const taskResult = await pool.query(`
+      SELECT COUNT(*) FILTER (WHERE status IN ('backlog','todo','in_progress','review'))::int AS open,
+             COUNT(*) FILTER (WHERE status='in_progress')::int AS in_progress,
+             COUNT(*) FILTER (WHERE due_at < NOW() AND status NOT IN ('done','cancelled'))::int AS overdue,
+             COUNT(*) FILTER (WHERE status='done' AND completed_at >= date_trunc('month',NOW()))::int AS completed_month
+      FROM tasks
+    `);
+    const expenseResult = await pool.query(`
+      SELECT COALESCE(SUM(amount) FILTER (WHERE expense_date >= date_trunc('month',CURRENT_DATE)::date AND status IN ('approved','paid')),0)::numeric AS month_spend,
+             COALESCE(SUM(amount) FILTER (WHERE expense_date >= date_trunc('month',CURRENT_DATE)::date AND status='pending'),0)::numeric AS pending,
+             COUNT(*) FILTER (WHERE status='pending')::int AS pending_count
+      FROM expenses
+    `);
 
     response.json({
       updatedAt: new Date().toISOString(),
@@ -57,6 +70,15 @@ router.get('/summary', authRequired, permissionRequired('dashboard.view'), async
         activeAds: adResult.rows[0].active,
         adClicks: Number(adResult.rows[0].clicks),
         adImpressions: Number(adResult.rows[0].impressions),
+      },
+      operations: {
+        openTasks: Number(taskResult.rows[0].open),
+        inProgressTasks: Number(taskResult.rows[0].in_progress),
+        overdueTasks: Number(taskResult.rows[0].overdue),
+        completedTasksMonth: Number(taskResult.rows[0].completed_month),
+        monthSpend: Number(expenseResult.rows[0].month_spend),
+        pendingExpense: Number(expenseResult.rows[0].pending),
+        pendingExpenseCount: Number(expenseResult.rows[0].pending_count),
       },
     });
   } catch (error) {

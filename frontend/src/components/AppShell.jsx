@@ -59,7 +59,7 @@ export default function AppShell({ page, onPageChange, session, onLogout, notify
           ))}
         </nav>
         <div className="sidebar-footer">
-          <span className="sidebar-version">v6.0 · Filiallar va jamoa</span>
+          <span className="sidebar-version">v7.0 · Vazifalar va xarajatlar</span>
           <button className="nav-item nav-item--logout" onClick={onLogout}><LogOut size={19} /><span>Chiqish</span></button>
         </div>
       </aside>
