@@ -4,6 +4,8 @@ import LoginPage from './pages/LoginPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import ContentPage from './pages/ContentPage.jsx';
 import CalendarPage from './pages/CalendarPage.jsx';
+import CampaignsPage from './pages/CampaignsPage.jsx';
+import AdsPage from './pages/AdsPage.jsx';
 import PlaceholderPage from './pages/PlaceholderPage.jsx';
 import { apiRequest, authHeaders } from './lib/api.js';
 import { menuItems } from './data/navigation.js';
@@ -65,6 +67,8 @@ export default function App() {
   if (page === 'dashboard') pageContent = <DashboardPage session={session} notify={setToast} onPageChange={setPage} />;
   else if (page === 'content') pageContent = <ContentPage session={session} notify={setToast} />;
   else if (page === 'calendar') pageContent = <CalendarPage session={session} notify={setToast} />;
+  else if (page === 'campaigns') pageContent = <CampaignsPage session={session} notify={setToast} />;
+  else if (page === 'ads') pageContent = <AdsPage session={session} notify={setToast} />;
   else {
     const item = menuItems.find((entry) => entry.id === page);
     pageContent = <PlaceholderPage title={item?.label || 'Sahifa'} description="Ushbu modul keyingi ishlab chiqish bosqichida PostgreSQL va backend API bilan ulanadi." />;

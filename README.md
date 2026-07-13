@@ -1,22 +1,21 @@
-# aloo SMM Panel v2.0
+# aloo SMM Panel v3.0
 
-Aloo do‘konlar tarmog‘i uchun Railway monorepo:
+Aloo do‘konlar tarmog‘i uchun Railway-ready SMM boshqaruv paneli.
 
-- `frontend/` — React + Vite, Login, Dashboard, Kontent va Kalendar
-- `backend/` — Express API, JWT, PostgreSQL va audit log
-- `database/` — schema va ixtiyoriy demo ma’lumot
+## Tayyor modullar
+- Login va JWT autentifikatsiya
+- Dashboard
+- Kontent boshqaruvi
+- Oylik kontent kalendari
+- Kampaniyalar
+- Target reklama
+- PostgreSQL avtomatik migratsiya
+- Railway frontend/backend Docker deploy
 
-Batafsil ko‘rsatma: `STEP2_CONTENT_CALENDAR.md`
+## Railway
+- Frontend Root Directory: `/frontend`
+- Frontend Config Path: `/frontend/railway.toml`
+- Backend Root Directory: `/backend`
+- Backend Config Path: `/backend/railway.toml`
 
-## Mahalliy ishga tushirish
-
-```bash
-docker compose up --build
-```
-
-Frontend: `http://localhost:8080`
-Backend: `http://localhost:3000`
-
-## Login
-
-Login va parol Railway backend Variables ichidagi `ADMIN_LOGIN` va `ADMIN_PASSWORD` orqali boshqariladi.
+Batafsil: `RAILWAY_SETUP.md`, `STEP2_CONTENT_CALENDAR.md`, `STEP3_CAMPAIGNS_TARGET.md`.

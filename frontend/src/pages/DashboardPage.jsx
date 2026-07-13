@@ -9,6 +9,9 @@ import {
   RefreshCw,
   Store,
   TrendingUp,
+  Megaphone,
+  Target,
+  WalletCards,
 } from 'lucide-react';
 import { apiRequest, authHeaders } from '../lib/api.js';
 
@@ -35,6 +38,7 @@ function KpiCard({ icon: Icon, label, value, note, tone = 'blue' }) {
 export default function DashboardPage({ session, notify, onPageChange }) {
   const [metrics, setMetrics] = useState(fallback);
   const [platformCounts, setPlatformCounts] = useState([]);
+  const [marketing, setMarketing] = useState({ activeCampaigns: 0, campaignSpend: 0, campaignReach: 0, activeAds: 0, adClicks: 0, adImpressions: 0 });
   const [loading, setLoading] = useState(true);
 
   const load = async () => {
@@ -43,6 +47,7 @@ export default function DashboardPage({ session, notify, onPageChange }) {
       const result = await apiRequest('/api/dashboard/summary', { headers: authHeaders(session.token) });
       setMetrics({ ...fallback, ...result.metrics });
       setPlatformCounts(result.platformCounts || []);
+      setMarketing((current) => ({ ...current, ...(result.marketing || {}) }));
     } catch (error) {
       notify(error.message);
     } finally {
@@ -100,12 +105,23 @@ export default function DashboardPage({ session, notify, onPageChange }) {
           </div>
         </article>
 
+        <article className="dashboard-card marketing-snapshot-card">
+          <div className="card-header"><div><h3>Marketing holati</h3><p>Kampaniya va target ko‘rsatkichlari</p></div><button className="card-link-inline" onClick={() => onPageChange('campaigns')}>Batafsil</button></div>
+          <div className="snapshot-grid">
+            <div><span><Megaphone size={18} /></span><strong>{marketing.activeCampaigns}</strong><small>faol kampaniya</small></div>
+            <div><span><Target size={18} /></span><strong>{marketing.activeAds}</strong><small>faol reklama</small></div>
+            <div><span><WalletCards size={18} /></span><strong>{new Intl.NumberFormat('uz-UZ', { notation: 'compact' }).format(marketing.campaignSpend)}</strong><small>jami sarf</small></div>
+            <div><span><TrendingUp size={18} /></span><strong>{new Intl.NumberFormat('uz-UZ', { notation: 'compact' }).format(marketing.adClicks)}</strong><small>reklama kliklari</small></div>
+          </div>
+        </article>
+
         <article className="dashboard-card quick-actions-card">
           <div className="card-header"><div><h3>Tezkor amallar</h3><p>Ko‘p ishlatiladigan funksiyalar</p></div></div>
           <div className="quick-actions-grid">
             <button onClick={() => onPageChange('content')}><span><FileText size={21} /></span><b>Yangi kontent</b><small>Post yoki reels qo‘shish</small></button>
             <button onClick={() => onPageChange('calendar')}><span><CalendarDays size={21} /></span><b>Kalendar</b><small>Oylik rejani ko‘rish</small></button>
-            <button onClick={() => notify('Hisobotlar moduli keyingi bosqichda ulanadi.')}><span><CheckCircle2 size={21} /></span><b>Hisobot</b><small>Natijalarni ko‘rish</small></button>
+            <button onClick={() => onPageChange('campaigns')}><span><Megaphone size={21} /></span><b>Kampaniya</b><small>Promo kampaniya yaratish</small></button>
+            <button onClick={() => onPageChange('ads')}><span><Target size={21} /></span><b>Target reklama</b><small>Reklama natijalarini kiritish</small></button>
           </div>
         </article>
       </section>

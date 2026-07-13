@@ -25,6 +25,18 @@ router.get('/summary', authRequired, async (_request, response, next) => {
       GROUP BY p.id, p.name, p.color, p.sort_order
       ORDER BY p.sort_order
     `);
+    const campaignResult = await pool.query(`
+      SELECT COUNT(*) FILTER (WHERE status = 'active')::int AS active,
+             COALESCE(SUM(spend),0)::numeric AS spend,
+             COALESCE(SUM(reach),0)::bigint AS reach
+      FROM campaigns
+    `);
+    const adResult = await pool.query(`
+      SELECT COUNT(*) FILTER (WHERE status = 'active')::int AS active,
+             COALESCE(SUM(clicks),0)::bigint AS clicks,
+             COALESCE(SUM(impressions),0)::bigint AS impressions
+      FROM target_ads
+    `);
 
     response.json({
       updatedAt: new Date().toISOString(),
@@ -38,6 +50,14 @@ router.get('/summary', authRequired, async (_request, response, next) => {
         activeBranches: branchResult.rows[0].count,
       },
       platformCounts: platformResult.rows,
+      marketing: {
+        activeCampaigns: campaignResult.rows[0].active,
+        campaignSpend: Number(campaignResult.rows[0].spend),
+        campaignReach: Number(campaignResult.rows[0].reach),
+        activeAds: adResult.rows[0].active,
+        adClicks: Number(adResult.rows[0].clicks),
+        adImpressions: Number(adResult.rows[0].impressions),
+      },
     });
   } catch (error) {
     next(error);
